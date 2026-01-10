@@ -6,6 +6,8 @@ using Mostlylucid.DocSummarizer.Extensions;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Images.Extensions;
 using Mostlylucid.DocSummarizer.Images.Config;
+using Mostlylucid.DocSummarizer.Data.Extensions;
+using Mostlylucid.Summarizer.Core.Extensions;
 using AudioSummarizer.Core.Extensions;
 using AudioSummarizer.Core.Config;
 using LucidRAG.Data;
@@ -89,7 +91,7 @@ public static class CliServiceRegistration
             opt.Ocr.EmitPerformanceMetrics = verbose;
         });
 
-        // AudioSummarizer - Phases 1 & 2: Core Infrastructure + Fingerprinting
+        // AudioSummarizer.Core - Forensic audio characterization
         services.AddAudioSummarizer(opt =>
         {
             opt.TranscriptionBackend = TranscriptionBackend.Whisper;
@@ -98,17 +100,28 @@ public static class CliServiceRegistration
             opt.SupportedFormats = new[] { ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".wma", ".aac" };
             opt.Verbose = verbose;
             opt.FingerprintProvider = FingerprintProvider.PureNet;
-            opt.Pipeline.EnableFingerprinting = true; // Phase 2: ENABLED
-            opt.Pipeline.EnableAcousticProfiling = false; // Phase 1 (not yet implemented)
-            opt.Pipeline.EnableContentClassification = false; // Phase 1 (not yet implemented)
-            opt.EnableVoiceEmbeddings = false; // Phase 4
-            opt.EnableSpeakerDiarization = false; // Phase 5
+            opt.Pipeline.EnableFingerprinting = true;
+            opt.Pipeline.EnableAcousticProfiling = true;
+            opt.Pipeline.EnableContentClassification = true;
+            opt.Pipeline.EnableTranscription = true;
+            opt.EnableVoiceEmbeddings = false; // Requires model download
+            opt.EnableSpeakerDiarization = false; // Phase 5 (not yet implemented)
+        });
+
+        // DataSummarizer.Core for CSV, JSON, Excel, Parquet
+        services.AddDataSummarizer(opt =>
+        {
+            opt.ChunkSize = 50;
+            opt.ChunkOverlap = 5;
         });
 
         // CLI-specific services
         services.AddSingleton(config);
         services.AddSingleton<CliProgressRenderer>();
         services.AddScoped<CliDocumentProcessor>();
+
+        // Pipeline registry - discovers all registered pipelines
+        services.AddPipelineRegistry();
 
         return services.BuildServiceProvider();
     }
