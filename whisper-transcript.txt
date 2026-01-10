@@ -1,0 +1,42 @@
+A quantum computer is a digital computer capable of exploding quantum
+currents among the physical two-state systems that store the binary arithmetic information.
+The factoring integral is to find its expression as a product of prime numbers.
+The most impressive, most important and best known thing about a quantum computer
+that it can do is to factor its spectacular efficiency, the product of two enormous prime numbers.
+But what an earth can quantum mechanics have to do with factoring.
+This question bothered me for four years from that time I heard about the discovery
+that a quantum computer is spectacularly good at factoring until I finally took the
+trouble to find out how it was done.
+And the answer you will be relieved but if you were like me also disappointed to learn
+is that quantum mechanics has nothing at all to do with factoring.
+But it doesn't have to do with waves.
+Pretty important ways of periodic so it is not very surprising that quantum mechanics
+might be useful in efficient and revealing features associated with periodicity.
+Quantum mechanics is connected to factoring through periodicity.
+It turns out purely arithmetic reasons are having nothing to do with quantum mechanics.
+That if we have an efficient way to find the period of a periodic function then as we
+shall discuss we can easily factor the product of two enormous prime numbers.
+I have quantum computer provides an extremely efficient way to find periods.
+This is of considerable practical importance because the great difficulty in factoring
+such a product where the two enormous prime numbers are typically each several hundred
+days long is the basis for the security of the most widely used encryption scheme for
+protecting private information sent over the internet.
+In 1994 and 5, a pretty sure discovered that a quantum computer will be super efficient
+at period finding and thereby it was a potential threat to innumerable secrets.
+Went to explosion interest in developing quantum computation.
+The threat is only potential because no quantum computer capable of anything like serious
+period finding actually exists.
+I suspect the emphasis of being put on factoring rather than period finding because factoring
+is more famously associated with the RSA code breaking.
+Although as it happens period finding can be used directly to crack the RSA code without
+any need for a due to an entire pattern.
+Factoring is also a mathematical concept more familiar to the general public than period
+finding.
+For instance the focus on factoring has led to some spectacular misinterpretations of
+Schor's algorithm or what Einstein called secular press.
+For example the New York Times Science writer George Johnson says in his book on quantum
+computation the Schor's got through time that when the algorithm has done its job the
+solutions, the factors of the number being analyzed, will all be in superposition.
+Elsewhere he says that a quantum computer can try out all possible factors simultaneously
+in superposition, think elapsed revealed the answer.
+Neither of these things bears a status of resonance to what the algorithm actually does.
