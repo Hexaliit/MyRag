@@ -1,6 +1,7 @@
 using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Services.Analysis.Waves;
+using AudioSummarizer.Core.Services.Fingerprinting;
 
 namespace AudioSummarizer.Core.Extensions;
 
@@ -25,16 +26,19 @@ public static class ServiceCollectionExtensions
         // Core services
         services.AddSingleton<AudioWaveOrchestrator>();
 
-        // Register waves (Phase 1: Core Infrastructure & Deterministic Substrate)
-        services.AddSingleton<IAudioWave, IdentityWave>();
+        // Fingerprinting service (Phase 2)
+        services.AddSingleton<IFingerprintService, PureNetFingerprintService>();
 
-        // TODO: Phase 2-5 waves will be added here
-        // services.AddSingleton<IAudioWave, FingerprintWave>();
-        // services.AddSingleton<IAudioWave, AcousticProfileWave>();
-        // services.AddSingleton<IAudioWave, ContentClassifierWave>();
-        // services.AddSingleton<IAudioWave, TranscriptionWave>();
-        // services.AddSingleton<IAudioWave, VoiceEmbeddingWave>();
-        // services.AddSingleton<IAudioWave, SpeakerDiarizationWave>();
+        // Register waves
+        services.AddSingleton<IAudioWave, IdentityWave>();           // Phase 1: Priority 100
+        services.AddSingleton<IAudioWave, FingerprintWave>();        // Phase 2: Priority 90
+
+        // TODO: Phase 3-5 waves will be added here
+        // services.AddSingleton<IAudioWave, AcousticProfileWave>();  // Phase 1: Priority 80
+        // services.AddSingleton<IAudioWave, ContentClassifierWave>(); // Phase 1: Priority 70
+        // services.AddSingleton<IAudioWave, TranscriptionWave>();     // Phase 3: Priority 60
+        // services.AddSingleton<IAudioWave, VoiceEmbeddingWave>();    // Phase 4: Priority 30
+        // services.AddSingleton<IAudioWave, SpeakerDiarizationWave>(); // Phase 5: Priority 50
 
         return services;
     }

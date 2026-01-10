@@ -89,7 +89,7 @@ public static class CliServiceRegistration
             opt.Ocr.EmitPerformanceMetrics = verbose;
         });
 
-        // AudioSummarizer - Phase 1: Core Infrastructure
+        // AudioSummarizer - Phases 1 & 2: Core Infrastructure + Fingerprinting
         services.AddAudioSummarizer(opt =>
         {
             opt.TranscriptionBackend = TranscriptionBackend.Whisper;
@@ -97,7 +97,8 @@ public static class CliServiceRegistration
             opt.Whisper.Language = "en";
             opt.SupportedFormats = new[] { ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".wma", ".aac" };
             opt.Verbose = verbose;
-            opt.Pipeline.EnableFingerprinting = false; // Phase 2
+            opt.FingerprintProvider = FingerprintProvider.PureNet;
+            opt.Pipeline.EnableFingerprinting = true; // Phase 2: ENABLED
             opt.Pipeline.EnableAcousticProfiling = false; // Phase 1 (not yet implemented)
             opt.Pipeline.EnableContentClassification = false; // Phase 1 (not yet implemented)
             opt.EnableVoiceEmbeddings = false; // Phase 4
