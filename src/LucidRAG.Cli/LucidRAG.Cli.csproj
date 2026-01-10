@@ -32,6 +32,7 @@
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
         <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" />
         <ProjectReference Include="..\LucidRAG\LucidRAG.csproj" />
+        <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj" />
     </ItemGroup>
 
     <!-- CLI dependencies -->

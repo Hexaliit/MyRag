@@ -6,6 +6,8 @@ using Mostlylucid.DocSummarizer.Extensions;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Images.Extensions;
 using Mostlylucid.DocSummarizer.Images.Config;
+using AudioSummarizer.Core.Extensions;
+using AudioSummarizer.Core.Config;
 using LucidRAG.Data;
 using Serilog;
 
@@ -85,6 +87,21 @@ public static class CliServiceRegistration
             opt.Ocr.SpellCheckLanguage = "en_US";
             opt.Ocr.MaxFramesForVoting = 5;
             opt.Ocr.EmitPerformanceMetrics = verbose;
+        });
+
+        // AudioSummarizer - Phase 1: Core Infrastructure
+        services.AddAudioSummarizer(opt =>
+        {
+            opt.TranscriptionBackend = TranscriptionBackend.Whisper;
+            opt.Whisper.ModelPath = Path.Combine(config.DataDirectory, "models", "whisper-base.en.bin");
+            opt.Whisper.Language = "en";
+            opt.SupportedFormats = new[] { ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".wma", ".aac" };
+            opt.Verbose = verbose;
+            opt.Pipeline.EnableFingerprinting = false; // Phase 2
+            opt.Pipeline.EnableAcousticProfiling = false; // Phase 1 (not yet implemented)
+            opt.Pipeline.EnableContentClassification = false; // Phase 1 (not yet implemented)
+            opt.EnableVoiceEmbeddings = false; // Phase 4
+            opt.EnableSpeakerDiarization = false; // Phase 5
         });
 
         // CLI-specific services
