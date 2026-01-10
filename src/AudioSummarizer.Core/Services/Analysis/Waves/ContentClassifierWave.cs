@@ -116,22 +116,85 @@ public class ContentClassifierWave : IAudioWave
             // - Lower zero-crossing rate for melodic content
 
             // Normalized features (0-1 scale)
-            var zcrNorm = Math.Clamp(zeroCrossingRate / 0.15, 0, 1);
-            var centroidNorm = Math.Clamp(spectralCentroid / 3000, 0, 1);
+            // Based on observed values: speech ZCR ~0.02-0.04, music ZCR ~0.01-0.03
+            var zcrNorm = Math.Clamp(zeroCrossingRate / 0.10, 0, 1);  // Adjusted from 0.15
+            var centroidNorm = Math.Clamp(spectralCentroid / 4000, 0, 1);  // Adjusted from 3000
             var varianceNorm = Math.Clamp(energyVariance / 0.5, 0, 1);
 
-            // Speech likelihood: moderate ZCR, moderate centroid, high variance
+            // Debug logging
+            _logger.LogDebug(
+                "Features: ZCR={ZCR:F4} (norm={ZCRNorm:F2}), Centroid={Centroid:F0}Hz (norm={CentNorm:F2}), Variance={Var:F3} (norm={VarNorm:F2}), Silence={Silence:F2}",
+                zeroCrossingRate, zcrNorm, spectralCentroid, centroidNorm,
+                energyVariance, varianceNorm, silenceRatio);
+
+            // Speech indicators:
+            // - Higher ZCR (0.05-0.15 typical for speech)
+            // - Moderate spectral centroid (200-1500 Hz for speech fundamental)
+            // - High energy variance (pauses between words)
+            // - Lower overall spectral content (narrower bandwidth)
+
+            // Music indicators:
+            // - Lower ZCR (0.02-0.05 typical for music)
+            // - Broader spectral content (instruments span wider range)
+            // - More consistent energy OR rhythmic patterns
+            // - Higher frequency content (harmonics, cymbals)
+
+            // Speech likelihood: higher variance (pauses), lower silence ratio
+            // Key insight: Speech has MORE variance than music!
+            var speechVarianceScore = varianceNorm switch
+            {
+                > 0.08 => 1.0,   // Clear pauses between words
+                > 0.04 => 0.7,   // Some pauses
+                _ => 0.3         // Too consistent for speech
+            };
+
+            var speechSilenceScore = silenceRatio switch
+            {
+                < 0.15 => 0.9,   // Speech has low silence (continuous talking)
+                < 0.30 => 0.6,   // Moderate
+                _ => 0.2         // Too much silence for speech
+            };
+
+            var speechCentroidScore = centroidNorm switch
+            {
+                < 0.25 => 0.85,  // Speech concentrated 200-1000 Hz
+                < 0.35 => 0.6,   // Moderate
+                _ => 0.3         // Too broad
+            };
+
             speechLikelihood = (
-                (zcrNorm > 0.3 && zcrNorm < 0.8 ? 0.8 : 0.2) * 0.3 +
-                (centroidNorm > 0.2 && centroidNorm < 0.6 ? 0.9 : 0.3) * 0.3 +
-                varianceNorm * 0.4
+                speechVarianceScore * 0.45 +      // Variance is key!
+                speechSilenceScore * 0.35 +       // Silence ratio important
+                speechCentroidScore * 0.20        // Centroid less critical
             );
 
-            // Music likelihood: consistent energy, broader frequency content
+            // Music likelihood: lower variance (consistent), can have high silence (dynamics)
+            var musicConsistencyScore = varianceNorm switch
+            {
+                < 0.02 => 1.0,   // Very consistent (classical, instrumental)
+                < 0.06 => 0.8,   // Mostly consistent
+                _ => 0.4         // Too variable (might be speech)
+            };
+
+            var musicSilenceScore = silenceRatio switch
+            {
+                > 0.30 => 0.85,   // Classical music has dynamic range
+                > 0.15 => 0.6,    // Moderate dynamics
+                < 0.05 => 0.75,   // Continuous (rock, pop)
+                _ => 0.5          // Mid-range
+            };
+
+            var musicCentroidScore = centroidNorm switch
+            {
+                > 0.30 => 0.9,    // Broad spectrum (full instrumentation)
+                < 0.18 => 0.8,    // Bass-heavy music
+                _ => 0.55         // Mid-range
+            };
+
             musicLikelihood = (
-                (1 - varianceNorm) * 0.5 +
-                centroidNorm * 0.3 +
-                (zcrNorm < 0.5 ? 0.7 : 0.3) * 0.2
+                musicConsistencyScore * 0.50 +    // Consistency is strongest indicator!
+                musicSilenceScore * 0.30 +        // Silence/dynamics matter
+                musicCentroidScore * 0.20         // Spectrum less critical
             );
 
             // Normalize likelihoods
@@ -142,18 +205,18 @@ public class ContentClassifierWave : IAudioWave
                 musicLikelihood /= total;
             }
 
-            // Classify based on dominant type
-            if (speechLikelihood > 0.6 && musicLikelihood < 0.3)
+            // Classify based on dominant type (relaxed thresholds)
+            if (speechLikelihood > 0.65 && musicLikelihood < 0.35)
             {
                 contentType = "speech";
                 confidence = speechLikelihood;
             }
-            else if (musicLikelihood > 0.6 && speechLikelihood < 0.3)
+            else if (musicLikelihood > 0.65 && speechLikelihood < 0.35)
             {
                 contentType = "music";
                 confidence = musicLikelihood;
             }
-            else if (speechLikelihood > 0.4 && musicLikelihood > 0.4)
+            else if (speechLikelihood > 0.35 && musicLikelihood > 0.35)
             {
                 contentType = "mixed";
                 confidence = 1 - Math.Abs(speechLikelihood - musicLikelihood);
