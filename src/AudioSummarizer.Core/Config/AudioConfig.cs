@@ -124,6 +124,11 @@ public sealed class WhisperConfig
     /// Use GPU acceleration if available
     /// </summary>
     public bool UseGpu { get; set; } = false;
+
+    /// <summary>
+    /// Number of CPU threads to use (0 = auto-detect)
+    /// </summary>
+    public int Threads { get; set; } = 0;
 }
 
 /// <summary>
