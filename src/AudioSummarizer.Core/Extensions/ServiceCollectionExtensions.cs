@@ -49,17 +49,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<VoiceEmbeddingModelDownloader>();
         services.AddSingleton<VoiceEmbeddingService>();
 
-        // Register waves
+        // Speaker diarization service (Phase 5)
+        services.AddSingleton<SpeakerDiarizationService>();
+
+        // Register waves (in priority order)
         services.AddSingleton<IAudioWave, IdentityWave>();           // Phase 1: Priority 100
         services.AddSingleton<IAudioWave, FingerprintWave>();        // Phase 2: Priority 90
         services.AddSingleton<IAudioWave, ContentClassifierWave>();  // Phase 3.5: Priority 70
         services.AddSingleton<IAudioWave, MusicAnalysisWave>();      // Phase 3.6: Priority 65
         services.AddSingleton<IAudioWave, TranscriptionWave>();      // Phase 3: Priority 60
+        services.AddSingleton<IAudioWave, SpeakerDiarizationWave>(); // Phase 5: Priority 50
         services.AddSingleton<IAudioWave, VoiceEmbeddingWave>();     // Phase 4: Priority 30
 
-        // TODO: Phase 5 waves will be added here
+        // TODO: Future waves
         // services.AddSingleton<IAudioWave, AcousticProfileWave>();  // Phase 1: Priority 80
-        // services.AddSingleton<IAudioWave, SpeakerDiarizationWave>(); // Phase 5: Priority 50
 
         return services;
     }

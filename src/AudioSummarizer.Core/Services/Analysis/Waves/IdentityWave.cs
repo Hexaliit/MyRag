@@ -120,6 +120,42 @@ public sealed class IdentityWave : IAudioWave
 
         try
         {
+            // File-level metadata
+            var fileInfo = new FileInfo(filePath);
+
+            signals.Add(new Signal
+            {
+                Name = "audio.file_size_bytes",
+                Value = fileInfo.Length,
+                Type = SignalType.Metadata,
+                Source = Name
+            });
+
+            signals.Add(new Signal
+            {
+                Name = "audio.file_size_mb",
+                Value = Math.Round(fileInfo.Length / (1024.0 * 1024.0), 2),
+                Type = SignalType.Metadata,
+                Source = Name
+            });
+
+            signals.Add(new Signal
+            {
+                Name = "audio.created_at",
+                Value = fileInfo.CreationTimeUtc.ToString("O"),
+                Type = SignalType.Metadata,
+                Source = Name
+            });
+
+            signals.Add(new Signal
+            {
+                Name = "audio.modified_at",
+                Value = fileInfo.LastWriteTimeUtc.ToString("O"),
+                Type = SignalType.Metadata,
+                Source = Name
+            });
+
+            // Audio format metadata
             using var reader = new AudioFileReader(filePath);
 
             // File format
@@ -142,6 +178,14 @@ public sealed class IdentityWave : IAudioWave
                 Source = Name
             });
 
+            signals.Add(new Signal
+            {
+                Name = "audio.duration_formatted",
+                Value = reader.TotalTime.ToString(@"hh\:mm\:ss"),
+                Type = SignalType.Metadata,
+                Source = Name
+            });
+
             // Sample rate
             signals.Add(new Signal
             {
@@ -160,11 +204,44 @@ public sealed class IdentityWave : IAudioWave
                 Source = Name
             });
 
+            signals.Add(new Signal
+            {
+                Name = "audio.channel_layout",
+                Value = reader.WaveFormat.Channels switch
+                {
+                    1 => "mono",
+                    2 => "stereo",
+                    6 => "5.1",
+                    8 => "7.1",
+                    _ => $"{reader.WaveFormat.Channels}-channel"
+                },
+                Type = SignalType.Metadata,
+                Source = Name
+            });
+
             // Bits per sample
             signals.Add(new Signal
             {
                 Name = "audio.bits_per_sample",
                 Value = reader.WaveFormat.BitsPerSample,
+                Type = SignalType.Metadata,
+                Source = Name
+            });
+
+            // Block align
+            signals.Add(new Signal
+            {
+                Name = "audio.block_align",
+                Value = reader.WaveFormat.BlockAlign,
+                Type = SignalType.Metadata,
+                Source = Name
+            });
+
+            // Encoding
+            signals.Add(new Signal
+            {
+                Name = "audio.encoding",
+                Value = reader.WaveFormat.Encoding.ToString(),
                 Type = SignalType.Metadata,
                 Source = Name
             });
@@ -184,6 +261,16 @@ public sealed class IdentityWave : IAudioWave
             {
                 Name = "audio.bitrate_kbps",
                 Value = bitrateKbps,
+                Type = SignalType.Metadata,
+                Source = Name
+            });
+
+            // Total samples
+            var totalSamples = reader.Length / (reader.WaveFormat.BitsPerSample / 8) / reader.WaveFormat.Channels;
+            signals.Add(new Signal
+            {
+                Name = "audio.total_samples",
+                Value = totalSamples,
                 Type = SignalType.Metadata,
                 Source = Name
             });
