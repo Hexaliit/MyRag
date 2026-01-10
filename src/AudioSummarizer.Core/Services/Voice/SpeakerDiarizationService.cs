@@ -28,7 +28,7 @@ public class SpeakerDiarizationService
     /// Perform speaker diarization on audio file
     /// Returns speaker turns with timestamps and speaker IDs
     /// </summary>
-    public async Task<DiarizationResult> DiarizeAsync(
+    public virtual async Task<DiarizationResult> DiarizeAsync(
         string audioPath,
         CancellationToken cancellationToken = default)
     {

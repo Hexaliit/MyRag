@@ -1,6 +1,7 @@
 using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Services.Analysis.Waves;
+using AudioSummarizer.Core.Services.Audio;
 using AudioSummarizer.Core.Services.Fingerprinting;
 using AudioSummarizer.Core.Services.Transcription;
 using AudioSummarizer.Core.Services.Voice;
@@ -51,6 +52,9 @@ public static class ServiceCollectionExtensions
 
         // Speaker diarization service (Phase 5)
         services.AddSingleton<SpeakerDiarizationService>();
+
+        // Audio segment extraction
+        services.AddSingleton<AudioSegmentExtractor>();
 
         // Register waves (in priority order)
         services.AddSingleton<IAudioWave, IdentityWave>();           // Phase 1: Priority 100

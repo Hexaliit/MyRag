@@ -2,6 +2,7 @@ using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Models;
 using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Services.Analysis.Waves;
+using AudioSummarizer.Core.Services.Audio;
 using AudioSummarizer.Core.Services.Voice;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -12,6 +13,7 @@ public class SpeakerDiarizationWaveTests
 {
     private readonly SpeakerDiarizationWave _wave;
     private readonly Mock<SpeakerDiarizationService> _mockDiarizationService;
+    private readonly Mock<AudioSegmentExtractor> _mockSegmentExtractor;
     private readonly string _testAudioPath;
 
     public SpeakerDiarizationWaveTests()
@@ -26,16 +28,31 @@ public class SpeakerDiarizationWaveTests
             }
         });
 
+        // Use MockBehavior.Loose to allow all virtual methods to be called
         _mockDiarizationService = new Mock<SpeakerDiarizationService>(
-            new Mock<ILogger<SpeakerDiarizationService>>().Object,
-            new Mock<VoiceEmbeddingService>(
-                new Mock<ILogger<VoiceEmbeddingService>>().Object,
-                Options.Create(new AudioConfig())
-            ).Object,
-            config
+            MockBehavior.Loose,
+            null, null, null
         );
 
-        _wave = new SpeakerDiarizationWave(_mockDiarizationService.Object, config, logger);
+        _mockSegmentExtractor = new Mock<AudioSegmentExtractor>(
+            MockBehavior.Loose,
+            null
+        );
+
+        // Setup default return for ExtractSpeakerSamplesAsync
+        _mockSegmentExtractor
+            .Setup(s => s.ExtractSpeakerSamplesAsync(
+                It.IsAny<string>(),
+                It.IsAny<IEnumerable<SpeakerTurn>>(),
+                It.IsAny<double>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, string>());
+
+        _wave = new SpeakerDiarizationWave(
+            _mockDiarizationService.Object,
+            _mockSegmentExtractor.Object,
+            config,
+            logger);
         _testAudioPath = Path.Combine(AppContext.BaseDirectory, "TestData", "sample.wav");
     }
 
@@ -58,6 +75,7 @@ public class SpeakerDiarizationWaveTests
         var config = Options.Create(new AudioConfig { EnableSpeakerDiarization = false });
         var wave = new SpeakerDiarizationWave(
             _mockDiarizationService.Object,
+            _mockSegmentExtractor.Object,
             config,
             new Mock<ILogger<SpeakerDiarizationWave>>().Object);
         var context = new AnalysisContext();

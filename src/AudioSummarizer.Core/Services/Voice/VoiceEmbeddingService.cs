@@ -80,7 +80,7 @@ public class VoiceEmbeddingService
     /// Calculate cosine similarity between two voice embeddings
     /// Returns value between -1 (opposite) and 1 (identical)
     /// </summary>
-    public double CalculateSimilarity(float[] embedding1, float[] embedding2)
+    public virtual double CalculateSimilarity(float[] embedding1, float[] embedding2)
     {
         if (embedding1.Length != embedding2.Length)
             throw new ArgumentException("Embeddings must have same dimension");

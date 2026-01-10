@@ -1,5 +1,6 @@
 using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Models;
+using AudioSummarizer.Core.Services.Audio;
 using AudioSummarizer.Core.Services.Voice;
 using System.Text.Json;
 
@@ -17,6 +18,7 @@ namespace AudioSummarizer.Core.Services.Analysis.Waves;
 public sealed class SpeakerDiarizationWave : IAudioWave
 {
     private readonly SpeakerDiarizationService _diarizationService;
+    private readonly AudioSegmentExtractor _segmentExtractor;
     private readonly AudioConfig _config;
     private readonly ILogger<SpeakerDiarizationWave> _logger;
 
@@ -25,10 +27,12 @@ public sealed class SpeakerDiarizationWave : IAudioWave
 
     public SpeakerDiarizationWave(
         SpeakerDiarizationService diarizationService,
+        AudioSegmentExtractor segmentExtractor,
         IOptions<AudioConfig> config,
         ILogger<SpeakerDiarizationWave> logger)
     {
         _diarizationService = diarizationService;
+        _segmentExtractor = segmentExtractor;
         _config = config.Value;
         _logger = logger;
     }
@@ -212,6 +216,58 @@ public sealed class SpeakerDiarizationWave : IAudioWave
                         Source = Name
                     });
                 }
+            }
+
+            // Extract speaker sample audio clips (2 second clips from first turn of each speaker)
+            try
+            {
+                _logger.LogDebug("Extracting speaker samples from {AudioPath}", audioPath);
+
+                var speakerSamples = await _segmentExtractor.ExtractSpeakerSamplesAsync(
+                    audioPath,
+                    result.Turns,
+                    sampleDurationSeconds: 2.0,
+                    cancellationToken);
+
+                // Emit speaker samples as signals (Base64-encoded WAV)
+                foreach (var (speakerId, base64Wav) in speakerSamples)
+                {
+                    signals.Add(new Signal
+                    {
+                        Name = $"speaker.sample.{speakerId.ToLowerInvariant()}",
+                        Value = base64Wav,
+                        Type = SignalType.Embedding, // Using Embedding type for binary data
+                        Source = Name
+                    });
+
+                    _logger.LogDebug("Added audio sample for {SpeakerId} ({SizeKB} KB)",
+                        speakerId,
+                        Math.Round(base64Wav.Length / 1024.0, 1));
+                }
+
+                if (speakerSamples.Count > 0)
+                {
+                    signals.Add(new Signal
+                    {
+                        Name = "speaker.samples_extracted",
+                        Value = speakerSamples.Count,
+                        Type = SignalType.Metadata,
+                        Source = Name
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to extract speaker samples for {AudioPath}: {Message}",
+                    audioPath, ex.Message);
+
+                signals.Add(new Signal
+                {
+                    Name = "speaker.sample_extraction_error",
+                    Value = ex.Message,
+                    Type = SignalType.Metadata,
+                    Source = Name
+                });
             }
 
             _logger.LogInformation(
