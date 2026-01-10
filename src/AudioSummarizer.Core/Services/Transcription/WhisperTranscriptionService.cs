@@ -1,6 +1,7 @@
 using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Models;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using Whisper.net;
 
 namespace AudioSummarizer.Core.Services.Transcription;
@@ -79,9 +80,9 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
 
             using var processor = processorBuilder.Build();
 
-            // Convert audio to WAV format (Whisper.NET requires WAV)
-            await using var wavStream = await ConvertToWavStreamAsync(audioPath, cancellationToken);
-            await foreach (var result in processor.ProcessAsync(wavStream, cancellationToken))
+            // Convert audio to float samples (Whisper.NET samples API)
+            var samples = await ConvertToSamplesAsync(audioPath, cancellationToken);
+            await foreach (var result in processor.ProcessAsync(samples, cancellationToken))
             {
                 var segment = new TranscriptSegment
                 {
@@ -151,30 +152,49 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
         }
     }
 
-    private async Task<Stream> ConvertToWavStreamAsync(string audioPath, CancellationToken cancellationToken)
+    private async Task<float[]> ConvertToSamplesAsync(string audioPath, CancellationToken cancellationToken)
     {
-        var extension = Path.GetExtension(audioPath).ToLowerInvariant();
-
-        // If already WAV, just return the file stream
-        if (extension == ".wav")
-        {
-            return File.OpenRead(audioPath);
-        }
-
-        // Convert to WAV using NAudio (Whisper prefers 16kHz mono)
-        var tempWavPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.wav");
-
-        await Task.Run(() =>
+        return await Task.Run(() =>
         {
             using var reader = new AudioFileReader(audioPath);
-            // Create a 16kHz mono stream
-            var outFormat = new WaveFormat(16000, 1);
-            using var resampler = new MediaFoundationResampler(reader, outFormat);
-            WaveFileWriter.CreateWaveFile(tempWavPath, resampler);
-        }, cancellationToken);
 
-        // Return file stream, but wrap in a disposable stream that deletes the temp file
-        return new TempFileStream(tempWavPath);
+            // Resample to 16kHz if needed (Whisper.NET requirement)
+            ISampleProvider sampleProvider = reader;
+
+            if (reader.WaveFormat.SampleRate != 16000)
+            {
+                // Use WdlResamplingSampleProvider - pure .NET resampler that implements ISampleProvider
+                sampleProvider = new WdlResamplingSampleProvider(reader, 16000);
+            }
+
+            // Convert to mono if needed (Whisper.NET requires mono)
+            if (sampleProvider.WaveFormat.Channels > 1)
+            {
+                sampleProvider = new StereoToMonoSampleProvider(sampleProvider)
+                {
+                    LeftVolume = 0.5f,
+                    RightVolume = 0.5f
+                };
+            }
+
+            // Read all samples into memory
+            var sampleList = new List<float>();
+            var buffer = new float[sampleProvider.WaveFormat.SampleRate]; // 1 second buffer
+            int samplesRead;
+
+            while ((samplesRead = sampleProvider.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                for (int i = 0; i < samplesRead; i++)
+                {
+                    sampleList.Add(buffer[i]);
+                }
+            }
+
+            _logger.LogDebug("Converted {AudioPath} to {SampleCount} float samples (16kHz mono)",
+                audioPath, sampleList.Count);
+
+            return sampleList.ToArray();
+        }, cancellationToken);
     }
 
     /// <summary>
@@ -183,11 +203,13 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
     private class TempFileStream : FileStream
     {
         private readonly string _filePath;
+        private readonly ILogger? _logger;
 
-        public TempFileStream(string path)
+        public TempFileStream(string path, ILogger? logger = null)
             : base(path, FileMode.Open, FileAccess.Read, FileShare.Read)
         {
             _filePath = path;
+            _logger = logger;
         }
 
         protected override void Dispose(bool disposing)
@@ -198,11 +220,12 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
                 if (File.Exists(_filePath))
                 {
                     File.Delete(_filePath);
+                    _logger?.LogDebug("Deleted temp WAV file: {FilePath}", _filePath);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore cleanup errors
+                _logger?.LogWarning(ex, "Failed to delete temp WAV file: {FilePath}", _filePath);
             }
         }
     }

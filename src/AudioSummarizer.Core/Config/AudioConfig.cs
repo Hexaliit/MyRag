@@ -1,9 +1,28 @@
 namespace AudioSummarizer.Core.Config;
 
 /// <summary>
+/// Transcription backend options
+/// </summary>
+public enum TranscriptionBackend
+{
+    Whisper,
+    Ollama,
+    Auto
+}
+
+/// <summary>
+/// Fingerprint provider options
+/// </summary>
+public enum FingerprintProvider
+{
+    PureNet,
+    Chromaprint
+}
+
+/// <summary>
 /// Configuration for AudioSummarizer
 /// </summary>
-public sealed class AudioConfig
+public class AudioConfig
 {
     public const string SectionName = "Audio";
 
@@ -13,44 +32,14 @@ public sealed class AudioConfig
     public TranscriptionBackend TranscriptionBackend { get; set; } = TranscriptionBackend.Whisper;
 
     /// <summary>
-    /// Whisper.NET configuration
+    /// Supported audio formats
     /// </summary>
-    public WhisperConfig Whisper { get; set; } = new();
+    public string[] SupportedFormats { get; set; } = new[] { ".mp3", ".wav", ".m4a", ".flac", ".ogg" };
 
     /// <summary>
-    /// Ollama configuration
+    /// Verbose logging
     /// </summary>
-    public OllamaConfig Ollama { get; set; } = new();
-
-    /// <summary>
-    /// Supported audio file formats
-    /// </summary>
-    public string[] SupportedFormats { get; set; } = { ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".wma", ".aac" };
-
-    /// <summary>
-    /// Maximum audio file size in MB
-    /// </summary>
-    public int MaxFileSizeMB { get; set; } = 500;
-
-    /// <summary>
-    /// Enable speaker diarization (Phase 5)
-    /// </summary>
-    public bool EnableSpeakerDiarization { get; set; } = false;
-
-    /// <summary>
-    /// Enable voice embeddings for speaker similarity (Phase 4)
-    /// </summary>
-    public bool EnableVoiceEmbeddings { get; set; } = false;
-
-    /// <summary>
-    /// Enable sentiment analysis (future)
-    /// </summary>
-    public bool EnableSentimentAnalysis { get; set; } = false;
-
-    /// <summary>
-    /// Pipeline feature toggles
-    /// </summary>
-    public PipelineConfig Pipeline { get; set; } = new();
+    public bool Verbose { get; set; } = false;
 
     /// <summary>
     /// Fingerprint provider
@@ -58,83 +47,62 @@ public sealed class AudioConfig
     public FingerprintProvider FingerprintProvider { get; set; } = FingerprintProvider.PureNet;
 
     /// <summary>
-    /// Verbose logging for CLI
+    /// Enable voice embeddings
     /// </summary>
-    public bool Verbose { get; set; } = false;
+    public bool EnableVoiceEmbeddings { get; set; } = false;
+
+    /// <summary>
+    /// Enable speaker diarization
+    /// </summary>
+    public bool EnableSpeakerDiarization { get; set; } = false;
+
+    /// <summary>
+    /// Whisper transcription settings
+    /// </summary>
+    public WhisperConfig Whisper { get; set; } = new();
+
+    /// <summary>
+    /// Ollama transcription settings
+    /// </summary>
+    public OllamaConfig Ollama { get; set; } = new();
+
+    /// <summary>
+    /// Fingerprinting settings
+    /// </summary>
+    public FingerprintConfig Fingerprint { get; set; } = new();
+
+    /// <summary>
+    /// Pipeline settings
+    /// </summary>
+    public PipelineConfig Pipeline { get; set; } = new();
 }
 
-/// <summary>
-/// Transcription backend options
-/// </summary>
-public enum TranscriptionBackend
+public class WhisperConfig
 {
     /// <summary>
-    /// Local Whisper.NET (offline, default)
+    /// Path to Whisper GGML model file
     /// </summary>
-    Whisper,
+    public string ModelPath { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "lucidrag", "models", "whisper-tiny.en.bin");
 
     /// <summary>
-    /// Ollama HTTP service
+    /// Model size: tiny, base, small, medium, large
     /// </summary>
-    Ollama,
+    public string ModelSize { get; set; } = "tiny";
 
     /// <summary>
-    /// Auto-detect (try Whisper first, fallback to Ollama)
-    /// </summary>
-    Auto
-}
-
-/// <summary>
-/// Fingerprint provider options
-/// </summary>
-public enum FingerprintProvider
-{
-    /// <summary>
-    /// Pure .NET spectral peak hashing (default, cross-platform)
-    /// </summary>
-    PureNet,
-
-    /// <summary>
-    /// Chromaprint via P/Invoke (optional, more accurate)
-    /// </summary>
-    Chromaprint
-}
-
-/// <summary>
-/// Whisper.NET configuration
-/// </summary>
-public sealed class WhisperConfig
-{
-    /// <summary>
-    /// Path to Whisper model file (auto-downloads if missing)
-    /// </summary>
-    public string ModelPath { get; set; } = "./models/whisper-base.en.bin";
-
-    /// <summary>
-    /// Whisper model size (tiny, base, small, medium, large)
-    /// </summary>
-    public string ModelSize { get; set; } = "base";
-
-    /// <summary>
-    /// Language code (e.g., "en", "es", "fr")
+    /// Language code (en, es, fr, etc.) or "auto"
     /// </summary>
     public string Language { get; set; } = "en";
 
     /// <summary>
-    /// Use GPU acceleration if available
+    /// Number of CPU threads to use
     /// </summary>
-    public bool UseGpu { get; set; } = false;
-
-    /// <summary>
-    /// Number of CPU threads to use (0 = auto-detect)
-    /// </summary>
-    public int Threads { get; set; } = 0;
+    public int Threads { get; set; } = Environment.ProcessorCount / 2;
 }
 
-/// <summary>
-/// Ollama configuration
-/// </summary>
-public sealed class OllamaConfig
+public class OllamaConfig
 {
     /// <summary>
     /// Ollama base URL
@@ -147,23 +115,33 @@ public sealed class OllamaConfig
     public string Model { get; set; } = "whisper";
 }
 
-/// <summary>
-/// Pipeline feature toggles
-/// </summary>
-public sealed class PipelineConfig
+public class FingerprintConfig
 {
     /// <summary>
-    /// Enable perceptual fingerprinting (Phase 2)
+    /// Fingerprint provider: PureNet or Chromaprint
+    /// </summary>
+    public string Provider { get; set; } = "PureNet";
+}
+
+public class PipelineConfig
+{
+    /// <summary>
+    /// Enable fingerprinting wave
     /// </summary>
     public bool EnableFingerprinting { get; set; } = true;
 
     /// <summary>
-    /// Enable acoustic profiling (RMS, spectral features)
+    /// Enable acoustic profiling wave
     /// </summary>
     public bool EnableAcousticProfiling { get; set; } = true;
 
     /// <summary>
-    /// Enable content classification (speech vs music)
+    /// Enable content classification wave
     /// </summary>
     public bool EnableContentClassification { get; set; } = true;
+
+    /// <summary>
+    /// Enable transcription wave
+    /// </summary>
+    public bool EnableTranscription { get; set; } = true;
 }
