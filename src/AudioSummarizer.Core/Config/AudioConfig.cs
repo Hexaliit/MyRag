@@ -75,6 +75,11 @@ public class AudioConfig
     /// Pipeline settings
     /// </summary>
     public PipelineConfig Pipeline { get; set; } = new();
+
+    /// <summary>
+    /// Voice embedding settings
+    /// </summary>
+    public VoiceEmbeddingConfig VoiceEmbedding { get; set; } = new();
 }
 
 public class WhisperConfig
@@ -144,4 +149,24 @@ public class PipelineConfig
     /// Enable transcription wave
     /// </summary>
     public bool EnableTranscription { get; set; } = true;
+}
+
+public class VoiceEmbeddingConfig
+{
+    /// <summary>
+    /// Path to ECAPA-TDNN ONNX model file
+    /// </summary>
+    public string ModelPath { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "lucidrag", "models", "ecapa-tdnn.onnx");
+
+    /// <summary>
+    /// Voice embedding dimension (192 or 512 depending on model)
+    /// </summary>
+    public int EmbeddingDimension { get; set; } = 192;
+
+    /// <summary>
+    /// Minimum audio duration in seconds for reliable embedding
+    /// </summary>
+    public double MinDurationSeconds { get; set; } = 1.0;
 }

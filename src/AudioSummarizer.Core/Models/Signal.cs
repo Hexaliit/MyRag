@@ -78,5 +78,10 @@ public enum SignalType
     /// <summary>
     /// Sentiment or emotion
     /// </summary>
-    Sentiment
+    Sentiment,
+
+    /// <summary>
+    /// Embedding vector (voice, audio features)
+    /// </summary>
+    Embedding
 }

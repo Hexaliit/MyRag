@@ -3,6 +3,7 @@ using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Services.Analysis.Waves;
 using AudioSummarizer.Core.Services.Fingerprinting;
 using AudioSummarizer.Core.Services.Transcription;
+using AudioSummarizer.Core.Services.Voice;
 
 namespace AudioSummarizer.Core.Extensions;
 
@@ -30,6 +31,12 @@ public static class ServiceCollectionExtensions
         // HttpClient for Ollama
         services.AddHttpClient("Ollama");
 
+        // HttpClient for HuggingFace model downloads
+        services.AddHttpClient("HuggingFace", client =>
+        {
+            client.Timeout = TimeSpan.FromMinutes(10); // Large model downloads
+        });
+
         // Fingerprinting service (Phase 2)
         services.AddSingleton<IFingerprintService, PureNetFingerprintService>();
 
@@ -38,16 +45,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITranscriptionService, WhisperTranscriptionService>();
         services.AddSingleton<ITranscriptionService, OllamaTranscriptionService>();
 
+        // Voice embedding service (Phase 4)
+        services.AddSingleton<VoiceEmbeddingModelDownloader>();
+        services.AddSingleton<VoiceEmbeddingService>();
+
         // Register waves
         services.AddSingleton<IAudioWave, IdentityWave>();           // Phase 1: Priority 100
         services.AddSingleton<IAudioWave, FingerprintWave>();        // Phase 2: Priority 90
         services.AddSingleton<IAudioWave, ContentClassifierWave>();  // Phase 3.5: Priority 70
         services.AddSingleton<IAudioWave, MusicAnalysisWave>();      // Phase 3.6: Priority 65
         services.AddSingleton<IAudioWave, TranscriptionWave>();      // Phase 3: Priority 60
+        services.AddSingleton<IAudioWave, VoiceEmbeddingWave>();     // Phase 4: Priority 30
 
-        // TODO: Phase 4-5 waves will be added here
+        // TODO: Phase 5 waves will be added here
         // services.AddSingleton<IAudioWave, AcousticProfileWave>();  // Phase 1: Priority 80
-        // services.AddSingleton<IAudioWave, VoiceEmbeddingWave>();    // Phase 4: Priority 30
         // services.AddSingleton<IAudioWave, SpeakerDiarizationWave>(); // Phase 5: Priority 50
 
         return services;
