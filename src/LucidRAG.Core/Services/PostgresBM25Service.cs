@@ -148,38 +148,37 @@ public class PostgresBM25Service
         try
         {
             // Use raw SQL to get IDs and scores
+            // Note: Column names must be quoted for case-sensitive PostgreSQL (EF Core default)
             var sql = @"
                 SELECT
-                    ea.id,
+                    ea.""Id"",
                     ts_rank_cd(ea.content_tokens, websearch_to_tsquery('english', $1), 32) as score
                 FROM evidence_artifacts ea
                 WHERE ea.content_tokens @@ websearch_to_tsquery('english', $1)
                 ORDER BY score DESC
                 LIMIT $2";
 
-            using var connection = _db.Database.GetDbConnection();
+            // Create a NEW connection to avoid conflicts with EF Core's shared connection
+            var connectionString = _db.Database.GetConnectionString();
+            await using var connection = new Npgsql.NpgsqlConnection(connectionString);
             await connection.OpenAsync(ct);
 
-            using var command = connection.CreateCommand();
-            command.CommandText = sql;
-
-            var param1 = command.CreateParameter();
-            param1.Value = query;
-            command.Parameters.Add(param1);
-
-            var param2 = command.CreateParameter();
-            param2.Value = topK;
-            command.Parameters.Add(param2);
+            await using var command = new Npgsql.NpgsqlCommand(sql, connection);
+            command.Parameters.AddWithValue(query);
+            command.Parameters.AddWithValue(topK);
 
             var idsAndScores = new List<(Guid id, double score)>();
 
-            using var reader = await command.ExecuteReaderAsync(ct);
+            await using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
                 var id = reader.GetGuid(0);
                 var score = reader.GetDouble(1);
                 idsAndScores.Add((id, score));
             }
+
+            // Close reader before EF Core query
+            await reader.CloseAsync();
 
             // Fetch full artifacts by IDs (preserving order)
             var ids = idsAndScores.Select(x => x.id).ToList();
@@ -236,17 +235,18 @@ public class PostgresBM25Service
         try
         {
             // Three-way RRF: Dense + BM25 + Salience (all in PostgreSQL)
+            // Note: Column names must be quoted for case-sensitive PostgreSQL (EF Core default)
             var sql = @"
                 WITH dense_ranks AS (
                     SELECT
-                        id,
+                        ""Id"",
                         ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector) as rank
                     FROM evidence_artifacts
                     WHERE embedding IS NOT NULL AND $1 IS NOT NULL
                 ),
                 bm25_ranks AS (
                     SELECT
-                        id,
+                        ""Id"",
                         ROW_NUMBER() OVER (
                             ORDER BY ts_rank_cd(content_tokens, websearch_to_tsquery('english', $2), 32) DESC
                         ) as rank
@@ -255,7 +255,7 @@ public class PostgresBM25Service
                 ),
                 salience_ranks AS (
                     SELECT
-                        id,
+                        ""Id"",
                         ROW_NUMBER() OVER (
                             ORDER BY (metadata->>'salience_score')::float DESC NULLS LAST
                         ) as rank
@@ -263,50 +263,43 @@ public class PostgresBM25Service
                     WHERE metadata ? 'salience_score'
                 )
                 SELECT
-                    ea.id,
+                    ea.""Id"",
                     (1.0 / ($3 + COALESCE(d.rank, 1000)) +
                      1.0 / ($3 + COALESCE(b.rank, 1000)) +
                      1.0 / ($3 + COALESCE(s.rank, 1000))) as rrf_score
                 FROM evidence_artifacts ea
-                LEFT JOIN dense_ranks d ON ea.id = d.id
-                LEFT JOIN bm25_ranks b ON ea.id = b.id
-                LEFT JOIN salience_ranks s ON ea.id = s.id
+                LEFT JOIN dense_ranks d ON ea.""Id"" = d.""Id""
+                LEFT JOIN bm25_ranks b ON ea.""Id"" = b.""Id""
+                LEFT JOIN salience_ranks s ON ea.""Id"" = s.""Id""
                 WHERE d.rank IS NOT NULL OR b.rank IS NOT NULL OR s.rank IS NOT NULL
                 ORDER BY rrf_score DESC
                 LIMIT $4";
 
-            using var connection = _db.Database.GetDbConnection();
+            // Create a NEW connection to avoid conflicts with EF Core's shared connection
+            var connectionString = _db.Database.GetConnectionString();
+            await using var connection = new Npgsql.NpgsqlConnection(connectionString);
             await connection.OpenAsync(ct);
 
-            using var command = connection.CreateCommand();
-            command.CommandText = sql;
+            await using var command = new Npgsql.NpgsqlCommand(sql, connection);
 
             // Parameters: embedding, query, rrfK, topK
-            var param1 = command.CreateParameter();
-            param1.Value = queryEmbedding != null ? (object)queryEmbedding : DBNull.Value;
-            command.Parameters.Add(param1);
-
-            var param2 = command.CreateParameter();
-            param2.Value = query;
-            command.Parameters.Add(param2);
-
-            var param3 = command.CreateParameter();
-            param3.Value = rrfK;
-            command.Parameters.Add(param3);
-
-            var param4 = command.CreateParameter();
-            param4.Value = topK;
-            command.Parameters.Add(param4);
+            command.Parameters.AddWithValue(queryEmbedding != null ? (object)queryEmbedding : DBNull.Value);
+            command.Parameters.AddWithValue(query);
+            command.Parameters.AddWithValue(rrfK);
+            command.Parameters.AddWithValue(topK);
 
             var idsAndScores = new List<(Guid id, double score)>();
 
-            using var reader = await command.ExecuteReaderAsync(ct);
+            await using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
                 var id = reader.GetGuid(0);
                 var score = reader.GetDouble(1);
                 idsAndScores.Add((id, score));
             }
+
+            // Close reader before EF Core query
+            await reader.CloseAsync();
 
             // Fetch full artifacts
             var ids = idsAndScores.Select(x => x.id).ToList();

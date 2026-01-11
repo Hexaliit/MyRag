@@ -337,13 +337,14 @@ public class DocumentQueueProcessor(
                 ProgressUpdates.Stage("Entities", "Extracting entities...", 0, 0));
 
             // Get segments from vector store and extract entities
+            // Fetch segments - needed for both entity extraction and evidence storage
+            List<Mostlylucid.DocSummarizer.Models.Segment> segments;
             try
             {
                 logger.LogDebug("Fetching segments for VectorStoreDocId: {DocId}", result.Trace.DocumentId);
 
                 // For images, we already have the segments from ConvertAndIndexImageChunksAsync
                 // For documents, fetch from vector store
-                List<Mostlylucid.DocSummarizer.Models.Segment> segments;
                 if (imageSegments != null)
                 {
                     // Image pipeline - reuse segments we just created
@@ -357,8 +358,17 @@ public class DocumentQueueProcessor(
                     logger.LogDebug("Retrieved {SegmentCount} segments from vector store for {DocId}",
                         segments.Count, result.Trace.DocumentId);
                 }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to fetch segments for document {DocumentId}, continuing without evidence storage", job.DocumentId);
+                segments = new List<Mostlylucid.DocSummarizer.Models.Segment>();
+            }
 
-                if (segments.Count > 0)
+            // Entity extraction - optional, failures don't block document completion
+            if (segments.Count > 0)
+            {
+                try
                 {
                     var entityResult = await entityGraph.ExtractAndStoreEntitiesAsync(
                         job.DocumentId,
@@ -369,38 +379,38 @@ public class DocumentQueueProcessor(
                     logger.LogInformation(
                         "Extracted {EntityCount} entities and {RelCount} relationships for document {DocumentId}",
                         entityResult.EntitiesExtracted, entityResult.RelationshipsCreated, job.DocumentId);
-
-                    // Store as unified RetrievalEntity for cross-modal search
-                    try
-                    {
-                        progressChannel.Writer.TryWrite(
-                            ProgressUpdates.Stage("Indexing", "Indexing for cross-modal search...", 0, 0));
-
-                        var extractedEntities = await db.DocumentEntityLinks
-                            .Where(del => del.DocumentId == job.DocumentId)
-                            .Include(del => del.Entity)
-                            .Select(del => del.Entity!)
-                            .ToListAsync(ct);
-
-                        var retrievalEntity = await retrievalEntityService.StoreDocumentAsync(document, segments, extractedEntities, result, ct);
-                        logger.LogInformation("Stored document {DocumentId} as RetrievalEntity with summary for cross-modal search", job.DocumentId);
-
-                        // Store each segment as evidence artifact
-                        progressChannel.Writer.TryWrite(
-                            ProgressUpdates.Stage("Evidence", $"Storing {segments.Count} segment evidence artifacts...", 0, 0));
-
-                        await StoreSegmentEvidenceAsync(evidenceRepository, retrievalEntity, segments, logger, ct);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "Failed to store document {DocumentId} as RetrievalEntity, continuing", job.DocumentId);
-                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                // Entity extraction failure shouldn't fail the whole document processing
-                logger.LogWarning(ex, "Entity extraction failed for document {DocumentId}, continuing", job.DocumentId);
+                catch (Exception ex)
+                {
+                    // Entity extraction failure shouldn't fail the whole document processing
+                    logger.LogWarning(ex, "Entity extraction failed for document {DocumentId}, continuing", job.DocumentId);
+                }
+
+                // Store as unified RetrievalEntity and evidence - independent of entity extraction
+                try
+                {
+                    progressChannel.Writer.TryWrite(
+                        ProgressUpdates.Stage("Indexing", "Indexing for cross-modal search...", 0, 0));
+
+                    var extractedEntities = await db.DocumentEntityLinks
+                        .Where(del => del.DocumentId == job.DocumentId)
+                        .Include(del => del.Entity)
+                        .Select(del => del.Entity!)
+                        .ToListAsync(ct);
+
+                    var retrievalEntity = await retrievalEntityService.StoreDocumentAsync(document, segments, extractedEntities, result, ct);
+                    logger.LogInformation("Stored document {DocumentId} as RetrievalEntity with summary for cross-modal search", job.DocumentId);
+
+                    // Store each segment as evidence artifact
+                    progressChannel.Writer.TryWrite(
+                        ProgressUpdates.Stage("Evidence", $"Storing {segments.Count} segment evidence artifacts...", 0, 0));
+
+                    await StoreSegmentEvidenceAsync(evidenceRepository, retrievalEntity, segments, logger, ct);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to store document {DocumentId} as RetrievalEntity, continuing", job.DocumentId);
+                }
             }
 
             // Mark complete
@@ -505,6 +515,11 @@ public class DocumentQueueProcessor(
     ///
     /// This allows the RAG vector store to contain only embeddings,
     /// with all plaintext stored securely in the evidence repository.
+    ///
+    /// OPTIMIZATION: Uses SegmentSelector to reduce storage by:
+    /// - Filtering by salience threshold (skip low-value segments)
+    /// - Deduplicating semantically similar segments
+    /// - Prioritizing segments with unique entities for coverage
     /// </summary>
     private static async Task StoreSegmentEvidenceAsync(
         IEvidenceRepository evidenceRepository,
@@ -519,8 +534,20 @@ public class DocumentQueueProcessor(
             return;
         }
 
+        // Select optimal segments for storage (reduces bloat while maintaining coverage)
+        var selector = new LucidRAG.Core.Services.SegmentSelector(
+            salienceThreshold: 0.05,      // Keep segments with >5% salience
+            similarityThreshold: 0.80,    // Dedupe segments >80% similar (0.92 too aggressive for prose)
+            maxSegmentsPerDocument: 250   // Cap per document
+        );
+        var selectedSegments = selector.SelectForEvidence(segments);
+
+        logger.LogInformation(
+            "SegmentSelector: {Selected}/{Total} segments selected for evidence storage (salience>{Threshold}, similarity<{SimThreshold})",
+            selectedSegments.Count, segments.Count, 0.05, 0.80);
+
         var stored = 0;
-        foreach (var segment in segments)
+        foreach (var segment in selectedSegments)
         {
             try
             {
