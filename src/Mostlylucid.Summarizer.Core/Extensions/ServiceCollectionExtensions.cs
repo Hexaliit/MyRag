@@ -10,10 +10,11 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Add the pipeline registry. Call this after registering all IPipeline implementations.
+    /// Must be scoped because some pipelines (Video, Data) are registered as scoped.
     /// </summary>
     public static IServiceCollection AddPipelineRegistry(this IServiceCollection services)
     {
-        services.AddSingleton<IPipelineRegistry>(sp =>
+        services.AddScoped<IPipelineRegistry>(sp =>
         {
             var pipelines = sp.GetServices<IPipeline>();
             return new PipelineRegistry(pipelines);

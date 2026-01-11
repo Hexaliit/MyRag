@@ -1,0 +1,193 @@
+# Model Manifest - YAML Configuration
+# Defines all ML models used by the system
+# Models are lazily downloaded when first needed by a component
+
+# Global settings
+settings:
+  models_directory: "${LUCIDRAG_MODELS_DIR:-~/.lucidrag/models}"
+  download_timeout_minutes: 30
+  verify_hashes: true
+  prefer_gpu: true
+
+# Model definitions
+models:
+  # CLIP Visual Embeddings
+  clip-vit-b32:
+    name: "CLIP ViT-B/32"
+    category: embedding
+    download_url: "https://huggingface.co/openai/clip-vit-base-patch32/resolve/main/onnx/visual_model.onnx"
+    relative_path: "clip/visual_model.onnx"
+    expected_size_bytes: 350000000
+    memory_required_bytes: 400000000
+    has_gpu_variant: true
+    required_by:
+      - ClipEmbeddingWave
+      - BatchClipEmbeddingService
+      - ImageAnalysisWave
+    preferred_providers:
+      - CUDAExecutionProvider
+      - DmlExecutionProvider
+      - CPUExecutionProvider
+
+  # Sentence Transformer (MiniLM)
+  all-minilm-l6-v2:
+    name: "all-MiniLM-L6-v2"
+    category: embedding
+    download_url: "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx"
+    relative_path: "minilm/model.onnx"
+    expected_size_bytes: 90000000
+    memory_required_bytes: 120000000
+    required_by:
+      - EmbeddingService
+      - SentinelService
+    preferred_providers:
+      - CUDAExecutionProvider
+      - DmlExecutionProvider
+      - CPUExecutionProvider
+    tokenizer:
+      vocab_url: "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt"
+      vocab_path: "minilm/vocab.txt"
+
+  # Whisper (Speech-to-Text)
+  whisper-base:
+    name: "Whisper Base"
+    category: speech
+    download_url: "https://huggingface.co/openai/whisper-base/resolve/main/onnx/whisper-base.onnx"
+    relative_path: "whisper/whisper-base.onnx"
+    expected_size_bytes: 500000000
+    memory_required_bytes: 600000000
+    has_gpu_variant: true
+    required_by:
+      - TranscriptionWave
+      - WhisperService
+    preferred_providers:
+      - CUDAExecutionProvider
+      - CPUExecutionProvider
+
+  # Speaker Embedding (ECAPA-TDNN)
+  ecapa-tdnn:
+    name: "ECAPA-TDNN Speaker Embedding"
+    category: audio
+    download_url: "https://huggingface.co/Wespeaker/wespeaker-ecapa-tdnn512-LM/resolve/main/ecapa_tdnn.onnx"
+    relative_path: "speaker/ecapa_tdnn.onnx"
+    expected_size_bytes: 100000000
+    memory_required_bytes: 150000000
+    required_by:
+      - SpeakerDiarizationWave
+      - SpeakerEmbeddingService
+    preferred_providers:
+      - CUDAExecutionProvider
+      - CPUExecutionProvider
+
+  # BERT NER (Named Entity Recognition)
+  bert-base-ner:
+    name: "BERT Base NER"
+    category: ner
+    download_url: "https://huggingface.co/dslim/bert-base-NER/resolve/main/onnx/model.onnx"
+    relative_path: "ner/bert-base-ner.onnx"
+    expected_size_bytes: 500000000
+    memory_required_bytes: 600000000
+    required_by:
+      - OnnxNerService
+      - TranscriptionWave
+    preferred_providers:
+      - CUDAExecutionProvider
+      - CPUExecutionProvider
+    tokenizer:
+      vocab_url: "https://huggingface.co/dslim/bert-base-NER/resolve/main/vocab.txt"
+      vocab_path: "ner/vocab.txt"
+
+  # PaddleOCR Detection
+  paddleocr-det:
+    name: "PaddleOCR Detection"
+    category: ocr
+    download_url: "https://huggingface.co/PaddlePaddle/PaddleOCR/resolve/main/det_onnx/model.onnx"
+    relative_path: "ocr/paddleocr_det.onnx"
+    expected_size_bytes: 4000000
+    memory_required_bytes: 50000000
+    required_by:
+      - OcrDetectionService
+      - TextOcrWave
+    preferred_providers:
+      - CUDAExecutionProvider
+      - DmlExecutionProvider
+      - CPUExecutionProvider
+
+  # PaddleOCR Recognition
+  paddleocr-rec:
+    name: "PaddleOCR Recognition"
+    category: ocr
+    download_url: "https://huggingface.co/PaddlePaddle/PaddleOCR/resolve/main/rec_onnx/model.onnx"
+    relative_path: "ocr/paddleocr_rec.onnx"
+    expected_size_bytes: 10000000
+    memory_required_bytes: 80000000
+    required_by:
+      - OcrRecognitionService
+      - TextOcrWave
+    preferred_providers:
+      - CUDAExecutionProvider
+      - DmlExecutionProvider
+      - CPUExecutionProvider
+    character_dict:
+      url: "https://huggingface.co/PaddlePaddle/PaddleOCR/resolve/main/ppocr_keys_v1.txt"
+      path: "ocr/ppocr_keys_v1.txt"
+
+  # TrOCR (high-quality OCR)
+  trocr-base:
+    name: "TrOCR Base"
+    category: ocr
+    download_url: "https://huggingface.co/microsoft/trocr-base-printed/resolve/main/onnx/model.onnx"
+    relative_path: "ocr/trocr_base.onnx"
+    expected_size_bytes: 350000000
+    memory_required_bytes: 450000000
+    has_gpu_variant: true
+    required_by:
+      - TrOcrService
+      - ImageAnalysisWave
+    preferred_providers:
+      - CUDAExecutionProvider
+      - CPUExecutionProvider
+
+  # Florence-2 Vision LLM (for escalation)
+  florence-2-base:
+    name: "Florence-2 Base"
+    category: vision
+    download_url: "https://huggingface.co/microsoft/Florence-2-base/resolve/main/onnx/model.onnx"
+    relative_path: "florence/model.onnx"
+    expected_size_bytes: 850000000
+    memory_required_bytes: 1000000000
+    has_gpu_variant: true
+    required_by:
+      - Florence2Contributor
+      - VisionLLMWave
+    preferred_providers:
+      - CUDAExecutionProvider
+      - CPUExecutionProvider
+
+# Component registrations
+# Maps wave/service names to their required models
+components:
+  ClipEmbeddingWave:
+    models: [clip-vit-b32]
+    fallback_chain: [ImageAnalysisWave]
+
+  TranscriptionWave:
+    models: [whisper-base]
+    optional_models: [bert-base-ner]
+
+  SpeakerDiarizationWave:
+    models: [ecapa-tdnn]
+
+  TextOcrWave:
+    models: [paddleocr-det, paddleocr-rec]
+    fallback_chain: [trocr-base]
+
+  ImageAnalysisWave:
+    models: [clip-vit-b32]
+    optional_models: [florence-2-base]
+
+  EmbeddingService:
+    models: [all-minilm-l6-v2]
+
+  OnnxNerService:
+    models: [bert-base-ner]

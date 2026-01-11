@@ -15,7 +15,6 @@ public class DocumentQueueProcessor(
     DocumentProcessingQueue queue,
     IServiceScopeFactory scopeFactory,
     IProcessingNotificationService notifications,
-    IPipelineRegistry pipelineRegistry,
     ILogger<DocumentQueueProcessor> logger) : BackgroundService
 {
     // Maximum time to process a single document before timing out
@@ -178,6 +177,7 @@ public class DocumentQueueProcessor(
         var retrievalEntityService = scope.ServiceProvider.GetRequiredService<IRetrievalEntityService>();
         var evidenceRepository = scope.ServiceProvider.GetRequiredService<IEvidenceRepository>();
         var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
+        var pipelineRegistry = scope.ServiceProvider.GetRequiredService<IPipelineRegistry>();
 
         var document = await db.Documents.FindAsync([job.DocumentId], ct);
         if (document is null)
