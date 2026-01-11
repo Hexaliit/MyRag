@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Mostlylucid.Summarizer.Core.Capabilities;
 using VideoSummarizer.Core.Coordination;
 using VideoSummarizer.Core.Models;
 using VideoSummarizer.Core.Services;
@@ -8,6 +9,7 @@ namespace VideoSummarizer.Core.Waves;
 /// <summary>
 /// Generates CLIP embeddings for keyframes using batch GPU processing.
 /// All configuration values come from waves.yaml - NO magic numbers.
+/// Uses capability atoms for backpressure and time estimation.
 /// Emits: clip.embeddings_ready
 /// </summary>
 public class ClipEmbeddingWave : IVideoWave, ISignalAwareVideoWave
@@ -18,6 +20,8 @@ public class ClipEmbeddingWave : IVideoWave, ISignalAwareVideoWave
 
     // Configuration from YAML
     private int BatchSize => _manifestLoader.GetConfigValue<int>(Name, "batch_size", 8);
+    private int MaxConcurrency => _manifestLoader.GetConfigValue<int>(Name, "max_concurrency", 2);
+    private int TargetLatencyMs => _manifestLoader.GetConfigValue<int>(Name, "target_latency_ms", 500);
 
     public string Name => "clip_embedding";
     public int Priority => 800; // After full-res extraction
@@ -57,13 +61,19 @@ public class ClipEmbeddingWave : IVideoWave, ISignalAwareVideoWave
             kvp => kvp.Key,
             kvp => kvp.Value);
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        // Create ephemeral capability atoms for this wave execution
+        var backpressure = CapabilityAtoms.CreateBackpressureController(
+            minConcurrency: 1,
+            maxConcurrency: MaxConcurrency,
+            targetLatency: TimeSpan.FromMilliseconds(TargetLatencyMs));
+        var estimator = CapabilityAtoms.CreateTimeEstimator();
 
-        // Generate batch embeddings (GPU-optimized)
+        // Generate batch embeddings with backpressure control
         var embeddings = await _batchClipService!.GenerateBatchEmbeddingsAsync(
-            frameIndexPaths, BatchSize, ct);
+            frameIndexPaths, backpressure, estimator, BatchSize, ct);
 
-        stopwatch.Stop();
+        var avgBatchTime = estimator.GetAverageDuration("clip_batch");
+        var backpressureStatus = backpressure.GetStatus();
 
         // Store embeddings in context
         foreach (var (frameIndex, embedding) in embeddings)
@@ -71,17 +81,20 @@ public class ClipEmbeddingWave : IVideoWave, ISignalAwareVideoWave
             context.KeyframeEmbeddings[frameIndex] = embedding;
         }
 
-        var avgTimePerFrame = frameIndexPaths.Count > 0
-            ? stopwatch.ElapsedMilliseconds / frameIndexPaths.Count
-            : 0;
-
         _logger.LogInformation(
-            "Batch CLIP: {Count}/{Total} embeddings in {Time}ms ({Avg}ms/frame avg, batch size {BatchSize})",
-            embeddings.Count, frameIndexPaths.Count, stopwatch.ElapsedMilliseconds,
-            avgTimePerFrame, BatchSize);
+            "Batch CLIP: {Count}/{Total} embeddings ({AvgBatch:F1}ms/batch avg, concurrency {Concurrency}, batch size {BatchSize})",
+            embeddings.Count, frameIndexPaths.Count, avgBatchTime.TotalMilliseconds,
+            backpressureStatus.CurrentConcurrency, BatchSize);
 
-        // Emit signals
+        // Get time estimates for throughput calculation
+        var timeEstimate = estimator.GetEstimate("clip_batch", remainingCount: 0);
+        var totalBatches = (frameIndexPaths.Count + BatchSize - 1) / BatchSize;
+        var totalTimeMs = avgBatchTime.TotalMilliseconds * totalBatches;
+        var throughput = totalTimeMs > 0 ? frameIndexPaths.Count / (totalTimeMs / 1000.0) : 0;
+
+        // Emit signals - salient ones for entity persistence, diagnostic for observability
         context.AddSignals([
+            // Core result signals (persist with entity)
             new VideoSignal
             {
                 Key = VideoSignals.ClipEmbeddingsReady,
@@ -96,26 +109,65 @@ public class ClipEmbeddingWave : IVideoWave, ISignalAwareVideoWave
                 Source = Name,
                 Tags = [VideoSignalTags.Visual]
             },
+
+            // Timing signals (persist with entity for performance tracking)
             new VideoSignal
             {
-                Key = VideoSignals.ClipBatchSize,
+                Key = "clip.total_time_ms",
+                Value = totalTimeMs,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "timing", "persist"]
+            },
+            new VideoSignal
+            {
+                Key = "clip.avg_batch_time_ms",
+                Value = avgBatchTime.TotalMilliseconds,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "timing", "persist"]
+            },
+            new VideoSignal
+            {
+                Key = "clip.throughput_fps",
+                Value = throughput,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "timing", "persist"]
+            },
+
+            // Diagnostic signals (ephemeral, for debugging)
+            new VideoSignal
+            {
+                Key = "clip.batch_size",
                 Value = BatchSize,
                 Source = Name,
-                Tags = [VideoSignalTags.Visual]
+                Tags = [VideoSignalTags.Visual, "diagnostic"]
             },
             new VideoSignal
             {
-                Key = "clip.processing_time_ms",
-                Value = stopwatch.ElapsedMilliseconds,
+                Key = "clip.batch_count",
+                Value = totalBatches,
                 Source = Name,
-                Tags = [VideoSignalTags.Visual]
+                Tags = [VideoSignalTags.Visual, "diagnostic"]
             },
             new VideoSignal
             {
-                Key = "clip.avg_time_per_frame_ms",
-                Value = avgTimePerFrame,
+                Key = "clip.backpressure_concurrency",
+                Value = backpressureStatus.CurrentConcurrency,
                 Source = Name,
-                Tags = [VideoSignalTags.Visual]
+                Tags = [VideoSignalTags.Visual, "diagnostic"]
+            },
+            new VideoSignal
+            {
+                Key = "clip.backpressure_throttling",
+                Value = backpressureStatus.IsThrottling,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "diagnostic"]
+            },
+            new VideoSignal
+            {
+                Key = "clip.time_estimate_confidence",
+                Value = timeEstimate.Confidence,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "diagnostic"]
             }
         ]);
 

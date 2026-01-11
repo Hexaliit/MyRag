@@ -42,7 +42,17 @@ public class IFrameDetectionWave : IVideoWave, ISignalAwareVideoWave
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         context.ReportProgress("Detecting codec I-frames", 0);
+
+        // Emit wave started signal
+        context.AddSignal(new VideoSignal
+        {
+            Key = $"{Name}.started",
+            Value = DateTimeOffset.UtcNow,
+            Source = Name,
+            Tags = [VideoSignalTags.Visual, "wave", "flow"]
+        });
 
         var videoPath = context.VideoPath;
 
@@ -69,6 +79,26 @@ public class IFrameDetectionWave : IVideoWave, ISignalAwareVideoWave
                 Value = iframes.Count,
                 Source = Name,
                 Tags = [VideoSignalTags.Visual]
+            }
+        ]);
+
+        sw.Stop();
+
+        // Emit wave completed signal with timing
+        context.AddSignals([
+            new VideoSignal
+            {
+                Key = $"{Name}.completed",
+                Value = true,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "wave", "flow"]
+            },
+            new VideoSignal
+            {
+                Key = $"{Name}.duration_ms",
+                Value = sw.ElapsedMilliseconds,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "timing", "persist"]
             }
         ]);
 

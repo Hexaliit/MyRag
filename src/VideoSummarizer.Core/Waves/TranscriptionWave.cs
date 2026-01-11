@@ -64,7 +64,17 @@ public class TranscriptionWave : IVideoWave
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         context.ReportProgress("Transcribing audio", 0);
+
+        // Emit wave started signal
+        context.AddSignal(new VideoSignal
+        {
+            Key = $"{Name}.started",
+            Value = DateTimeOffset.UtcNow,
+            Source = Name,
+            Tags = [VideoSignalTags.Speech, "wave", "flow"]
+        });
 
         var audioPath = context.AudioPath!;
 
@@ -259,13 +269,34 @@ public class TranscriptionWave : IVideoWave
             }
         ]);
 
+        sw.Stop();
+
+        // Emit wave completed signal with timing
+        context.AddSignals([
+            new VideoSignal
+            {
+                Key = $"{Name}.completed",
+                Value = true,
+                Source = Name,
+                Tags = [VideoSignalTags.Speech, "wave", "flow"]
+            },
+            new VideoSignal
+            {
+                Key = $"{Name}.duration_ms",
+                Value = sw.ElapsedMilliseconds,
+                Source = Name,
+                Tags = [VideoSignalTags.Speech, "timing", "persist"]
+            }
+        ]);
+
         context.ReportProgress("Transcription complete", 100);
 
         _logger.LogInformation(
-            "Audio analysis complete: {Utterances} utterances, {Speakers} speakers, {Words} words",
+            "Audio analysis complete: {Utterances} utterances, {Speakers} speakers, {Words} words in {Time}ms",
             context.Utterances.Count,
             context.Speakers.Count,
-            totalWords);
+            totalWords,
+            sw.ElapsedMilliseconds);
     }
 
     /// <summary>

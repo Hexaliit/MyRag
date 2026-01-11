@@ -47,7 +47,17 @@ public class ImageAnalysisWave : IVideoWave, ISignalAwareVideoWave
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         context.ReportProgress("Analyzing keyframes (OCR, vision)", 0);
+
+        // Emit wave started signal
+        context.AddSignal(new VideoSignal
+        {
+            Key = $"{Name}.started",
+            Value = DateTimeOffset.UtcNow,
+            Source = Name,
+            Tags = [VideoSignalTags.Visual, "wave", "flow"]
+        });
 
         var total = context.Keyframes.Count;
         var processed = 0;
@@ -183,6 +193,26 @@ public class ImageAnalysisWave : IVideoWave, ISignalAwareVideoWave
                 });
             }
         }
+
+        sw.Stop();
+
+        // Emit wave completed signal with timing
+        context.AddSignals([
+            new VideoSignal
+            {
+                Key = $"{Name}.completed",
+                Value = true,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "wave", "flow"]
+            },
+            new VideoSignal
+            {
+                Key = $"{Name}.duration_ms",
+                Value = sw.ElapsedMilliseconds,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "timing", "persist"]
+            }
+        ]);
 
         context.ReportProgress("Image analysis complete", 100);
     }

@@ -27,7 +27,17 @@ public class EvidenceGenerationWave : IVideoWave
 
     public Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         context.ReportProgress("Generating evidence", 0);
+
+        // Emit wave started signal
+        context.AddSignal(new VideoSignal
+        {
+            Key = $"{Name}.started",
+            Value = DateTimeOffset.UtcNow,
+            Source = Name,
+            Tags = [VideoSignalTags.Scene, "wave", "flow"]
+        });
 
         var videoId = context.Metadata!.Id;
 
@@ -227,13 +237,34 @@ public class EvidenceGenerationWave : IVideoWave
             }
         ]);
 
+        sw.Stop();
+
+        // Emit wave completed signal with timing
+        context.AddSignals([
+            new VideoSignal
+            {
+                Key = $"{Name}.completed",
+                Value = true,
+                Source = Name,
+                Tags = [VideoSignalTags.Scene, "wave", "flow"]
+            },
+            new VideoSignal
+            {
+                Key = $"{Name}.duration_ms",
+                Value = sw.ElapsedMilliseconds,
+                Source = Name,
+                Tags = [VideoSignalTags.Scene, "timing", "persist"]
+            }
+        ]);
+
         context.ReportProgress("Evidence generation complete", 100);
 
         _logger.LogInformation(
-            "Generated {Total} evidence items ({WithEmbed} with embeddings): " +
+            "Generated {Total} evidence items ({WithEmbed} with embeddings) in {Time}ms: " +
             "{Scenes} scenes, {Shots} shots, {Utterances} utterances, {TextTracks} text tracks",
             context.Evidence.Count,
             evidenceWithEmbeddings,
+            sw.ElapsedMilliseconds,
             evidenceByType.GetValueOrDefault(VideoEvidenceType.Scene, 0),
             evidenceByType.GetValueOrDefault(VideoEvidenceType.Shot, 0),
             evidenceByType.GetValueOrDefault(VideoEvidenceType.Utterance, 0),

@@ -24,7 +24,17 @@ public class NormalizeWave : IVideoWave
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         context.ReportProgress("Normalizing video", 0);
+
+        // Emit wave started signal
+        context.AddSignal(new VideoSignal
+        {
+            Key = $"{Name}.started",
+            Value = DateTimeOffset.UtcNow,
+            Source = Name,
+            Tags = [VideoSignalTags.Metadata, "wave", "flow"]
+        });
 
         var videoPath = context.VideoPath;
         if (!File.Exists(videoPath))
@@ -102,6 +112,26 @@ public class NormalizeWave : IVideoWave
                 Tags = [VideoSignalTags.Audio]
             });
         }
+
+        sw.Stop();
+
+        // Emit wave completed signal with timing
+        context.AddSignals([
+            new VideoSignal
+            {
+                Key = $"{Name}.completed",
+                Value = true,
+                Source = Name,
+                Tags = [VideoSignalTags.Metadata, "wave", "flow"]
+            },
+            new VideoSignal
+            {
+                Key = $"{Name}.duration_ms",
+                Value = sw.ElapsedMilliseconds,
+                Source = Name,
+                Tags = [VideoSignalTags.Metadata, "timing", "persist"]
+            }
+        ]);
 
         context.ReportProgress("Normalization complete", 100);
     }

@@ -5,6 +5,7 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Services;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
+using Mostlylucid.Summarizer.Core.Capabilities;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -14,6 +15,7 @@ namespace VideoSummarizer.Core.Services;
 /// <summary>
 /// Batch CLIP embedding service for keyframe processing.
 /// Processes multiple images in a single GPU pass for 3-5x speedup.
+/// Uses capability atoms for backpressure control and time estimation.
 /// </summary>
 public class BatchClipEmbeddingService
 {
@@ -51,11 +53,15 @@ public class BatchClipEmbeddingService
     /// Significantly faster than processing one at a time.
     /// </summary>
     /// <param name="framePaths">Dictionary of frame index -> image path</param>
+    /// <param name="backpressure">Backpressure controller for adaptive concurrency</param>
+    /// <param name="estimator">Time estimator for tracking batch durations</param>
     /// <param name="batchSize">Number of images per batch (default 8)</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>Dictionary of frame index -> normalized embedding</returns>
     public async Task<Dictionary<int, float[]>> GenerateBatchEmbeddingsAsync(
         Dictionary<int, string> framePaths,
+        IBackpressureController backpressure,
+        ITimeEstimator estimator,
         int batchSize = DefaultBatchSize,
         CancellationToken ct = default)
     {
@@ -83,11 +89,13 @@ public class BatchClipEmbeddingService
             "Processing {Count} frames in {Batches} batches (size {BatchSize})",
             totalFrames, batchCount, batchSize);
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
         for (int batchIdx = 0; batchIdx < batchCount; batchIdx++)
         {
             ct.ThrowIfCancellationRequested();
+
+            // Acquire slot from backpressure controller
+            using var slot = await backpressure.AcquireSlotAsync(ct);
+            using var timer = estimator.Time("clip_batch");
 
             var batch = frameList
                 .Skip(batchIdx * batchSize)
@@ -130,18 +138,20 @@ public class BatchClipEmbeddingService
             }
         }
 
-        stopwatch.Stop();
-        var avgMs = totalFrames > 0 ? stopwatch.ElapsedMilliseconds / totalFrames : 0;
+        // Record latency for backpressure adjustment
+        backpressure.RecordLatency(estimator.GetAverageDuration("clip_batch"));
 
+        var avgMs = estimator.GetAverageDuration("clip_batch").TotalMilliseconds;
         _logger.LogInformation(
-            "Batch CLIP complete: {Count} embeddings in {Time}ms ({Avg}ms/frame avg)",
-            results.Count, stopwatch.ElapsedMilliseconds, avgMs);
+            "Batch CLIP complete: {Count} embeddings ({Avg:F1}ms/batch avg)",
+            results.Count, avgMs);
 
         return results;
     }
 
     /// <summary>
     /// Process a batch of images in a single GPU pass.
+    /// Sequential preprocessing - backpressure is handled at batch level.
     /// </summary>
     private async Task<Dictionary<int, float[]>> ProcessBatchAsync(
         List<KeyValuePair<int, string>> batch,
@@ -154,10 +164,15 @@ public class BatchClipEmbeddingService
         // Create batch tensor [batchSize, 3, 224, 224]
         var tensor = new DenseTensor<float>(new[] { batchSize, 3, ClipImageSize, ClipImageSize });
 
-        // Load and preprocess all images in parallel
-        var preprocessTasks = batch.Select(async (kvp, idx) =>
+        // Track index mappings for result extraction
+        var indexMappings = new List<(int batchIdx, int frameIndex)>();
+
+        // Load and preprocess images sequentially into tensor slots
+        for (int idx = 0; idx < batch.Count; idx++)
         {
-            var (frameIndex, path) = kvp;
+            ct.ThrowIfCancellationRequested();
+
+            var (frameIndex, path) = batch[idx];
             await using var stream = File.OpenRead(path);
             using var image = await Image.LoadAsync<Rgb24>(stream, ct);
 
@@ -176,12 +191,10 @@ public class BatchClipEmbeddingService
                 }
             }
 
-            return (idx, frameIndex);
-        }).ToList();
+            indexMappings.Add((idx, frameIndex));
+        }
 
-        var indexMappings = await Task.WhenAll(preprocessTasks);
-
-        // Run batch inference
+        // Run batch inference - single GPU pass
         var inputName = session.InputNames.FirstOrDefault() ?? "input";
         var inputs = new List<NamedOnnxValue>
         {

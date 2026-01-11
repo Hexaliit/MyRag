@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
+using Mostlylucid.Summarizer.Core.Capabilities;
 using VideoSummarizer.Core.Models;
 using VideoSummarizer.Core.Services;
 
@@ -294,10 +295,15 @@ public class KeyframeExtractionWave : IVideoWave
                 kvp => (int)(kvp.Key * context.Metadata!.Fps),
                 kvp => kvp.Value);
 
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            // Create ephemeral capability atoms for this batch operation
+            var backpressure = CapabilityAtoms.CreateBackpressureController(
+                minConcurrency: 1,
+                maxConcurrency: MaxParallelAnalysis,
+                targetLatency: TimeSpan.FromMilliseconds(500));
+            var estimator = CapabilityAtoms.CreateTimeEstimator();
+
             var embeddings = await _batchClipService.GenerateBatchEmbeddingsAsync(
-                frameIndexPaths, ClipBatchSize, ct);
-            stopwatch.Stop();
+                frameIndexPaths, backpressure, estimator, ClipBatchSize, ct);
 
             // Store embeddings in context
             foreach (var (frameIndex, embedding) in embeddings)
@@ -305,10 +311,10 @@ public class KeyframeExtractionWave : IVideoWave
                 context.KeyframeEmbeddings[frameIndex] = embedding;
             }
 
+            var avgBatchTime = estimator.GetAverageDuration("clip_batch");
             _logger.LogInformation(
-                "Batch CLIP: {Count}/{Total} embeddings in {Time}ms ({Avg}ms/frame avg)",
-                embeddings.Count, total, stopwatch.ElapsedMilliseconds,
-                total > 0 ? stopwatch.ElapsedMilliseconds / total : 0);
+                "Batch CLIP: {Count}/{Total} embeddings ({AvgBatch:F1}ms/batch avg)",
+                embeddings.Count, total, avgBatchTime.TotalMilliseconds);
         }
 
         // PHASE 2: ImageSummarizer for OCR, vision LLM, etc. (CLIP disabled/already done)

@@ -67,7 +67,17 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
 
     public Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         context.ReportProgress("Clustering scenes", 0);
+
+        // Emit wave started signal
+        context.AddSignal(new VideoSignal
+        {
+            Key = $"{Name}.started",
+            Value = DateTimeOffset.UtcNow,
+            Source = Name,
+            Tags = [VideoSignalTags.Scene, "wave", "flow"]
+        });
 
         var hasEmbeddings = context.KeyframeEmbeddings.Count > 0;
         var hasTranscripts = context.Utterances.Count > 0;
@@ -139,10 +149,30 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
             }
         ]);
 
+        sw.Stop();
+
+        // Emit wave completed signal with timing
+        context.AddSignals([
+            new VideoSignal
+            {
+                Key = $"{Name}.completed",
+                Value = true,
+                Source = Name,
+                Tags = [VideoSignalTags.Scene, "wave", "flow"]
+            },
+            new VideoSignal
+            {
+                Key = $"{Name}.duration_ms",
+                Value = sw.ElapsedMilliseconds,
+                Source = Name,
+                Tags = [VideoSignalTags.Scene, "timing", "persist"]
+            }
+        ]);
+
         context.ReportProgress("Scene clustering complete", 100);
 
-        _logger.LogInformation("Created {Count} scenes from {Shots} shots using {Method}",
-            context.Scenes.Count, context.Shots.Count, clusteringMethod);
+        _logger.LogInformation("Created {Count} scenes from {Shots} shots using {Method} in {Time}ms",
+            context.Scenes.Count, context.Shots.Count, clusteringMethod, sw.ElapsedMilliseconds);
 
         return Task.CompletedTask;
     }

@@ -46,7 +46,17 @@ public class FFmpegShotDetectionWave : IVideoWave, ISignalAwareVideoWave
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
+        var totalSw = System.Diagnostics.Stopwatch.StartNew();
         context.ReportProgress("Detecting shots (FFmpeg GPU)", 0);
+
+        // Emit wave started signal
+        context.AddSignal(new VideoSignal
+        {
+            Key = $"{Name}.started",
+            Value = DateTimeOffset.UtcNow,
+            Source = Name,
+            Tags = [VideoSignalTags.Shot, "wave", "flow"]
+        });
 
         var videoPath = context.VideoPath;
         var metadata = context.Metadata!;
@@ -59,6 +69,15 @@ public class FFmpegShotDetectionWave : IVideoWave, ISignalAwareVideoWave
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var sceneChanges = await _ffmpegService.DetectSceneChangesAsync(videoPath, SceneThreshold, ct);
         sw.Stop();
+
+        // Emit operation timing signal
+        context.AddSignal(new VideoSignal
+        {
+            Key = "shots.scene_filter_ms",
+            Value = sw.ElapsedMilliseconds,
+            Source = Name,
+            Tags = [VideoSignalTags.Shot, "timing"]
+        });
 
         _logger.LogInformation("FFmpeg scene detection completed in {Time}ms, found {Count} changes",
             sw.ElapsedMilliseconds, sceneChanges.Count);
@@ -120,6 +139,26 @@ public class FFmpegShotDetectionWave : IVideoWave, ISignalAwareVideoWave
                 Value = sw.ElapsedMilliseconds,
                 Source = Name,
                 Tags = [VideoSignalTags.Shot]
+            }
+        ]);
+
+        totalSw.Stop();
+
+        // Emit wave completed signal with timing
+        context.AddSignals([
+            new VideoSignal
+            {
+                Key = $"{Name}.completed",
+                Value = true,
+                Source = Name,
+                Tags = [VideoSignalTags.Shot, "wave", "flow"]
+            },
+            new VideoSignal
+            {
+                Key = $"{Name}.duration_ms",
+                Value = totalSw.ElapsedMilliseconds,
+                Source = Name,
+                Tags = [VideoSignalTags.Shot, "timing", "persist"]
             }
         ]);
 

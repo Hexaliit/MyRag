@@ -45,7 +45,17 @@ public class DeduplicationWave : IVideoWave, ISignalAwareVideoWave
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         context.ReportProgress("Deduplicating similar frames", 0);
+
+        // Emit wave started signal
+        context.AddSignal(new VideoSignal
+        {
+            Key = $"{Name}.started",
+            Value = DateTimeOffset.UtcNow,
+            Source = Name,
+            Tags = [VideoSignalTags.Visual, "wave", "flow"]
+        });
 
         var thumbnails = context.GetCached<Dictionary<double, string>>("thumbnails")!;
         var selections = context.GetCached<List<KeyframeSelection>>("keyframe_selections")!;
@@ -90,6 +100,26 @@ public class DeduplicationWave : IVideoWave, ISignalAwareVideoWave
                 Value = duplicatesSkipped,
                 Source = Name,
                 Tags = [VideoSignalTags.Visual]
+            }
+        ]);
+
+        sw.Stop();
+
+        // Emit wave completed signal with timing
+        context.AddSignals([
+            new VideoSignal
+            {
+                Key = $"{Name}.completed",
+                Value = true,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "wave", "flow"]
+            },
+            new VideoSignal
+            {
+                Key = $"{Name}.duration_ms",
+                Value = sw.ElapsedMilliseconds,
+                Source = Name,
+                Tags = [VideoSignalTags.Visual, "timing", "persist"]
             }
         ]);
 
