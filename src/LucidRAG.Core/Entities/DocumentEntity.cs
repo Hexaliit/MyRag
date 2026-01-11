@@ -54,8 +54,15 @@ public class DocumentEntity
     /// </summary>
     public string? VectorStoreDocId { get; set; }
 
+    /// <summary>
+    /// Optional folder ID for organizing documents within a collection.
+    /// Null means the document is at the root of the collection.
+    /// </summary>
+    public Guid? FolderId { get; set; }
+
     // Navigation
     public CollectionEntity? Collection { get; set; }
+    public FolderEntity? Folder { get; set; }
     public ICollection<DocumentEntityLink> EntityLinks { get; set; } = [];
 }
 

@@ -15,13 +15,13 @@ public class DocumentChunker
     /// <summary>
     ///     Creates a new document chunker.
     /// </summary>
-    /// <param name="maxHeadingLevel">Maximum heading level to split on (1-6). Default is 2 (H1 and H2 only).</param>
+    /// <param name="maxHeadingLevel">Maximum heading level to split on (1-6). Default is 4.</param>
     /// <param name="targetChunkTokens">
-    ///     Target chunk size in tokens. Default is 4000 (~16KB).
-    ///     Chunks smaller than this will be merged with adjacent sections.
+    ///     Target chunk size in tokens. Default is 400 (~1.6KB).
+    ///     Optimized for RAG retrieval - smaller chunks improve precision.
     /// </param>
-    /// <param name="minChunkTokens">Minimum chunk size before merging. Default is 500 (~2KB).</param>
-    public DocumentChunker(int maxHeadingLevel = 2, int targetChunkTokens = 4000, int minChunkTokens = 500)
+    /// <param name="minChunkTokens">Minimum chunk size before merging. Default is 50 (~200 bytes).</param>
+    public DocumentChunker(int maxHeadingLevel = 4, int targetChunkTokens = 400, int minChunkTokens = 50)
     {
         _maxHeadingLevel = Math.Clamp(maxHeadingLevel, 1, 6);
         _targetChunkTokens = targetChunkTokens;
@@ -35,17 +35,20 @@ public class DocumentChunker
     {
         // Extract page markers before processing
         var pageMap = ExtractPageMarkers(markdown);
-        
+
         // Determine if document has markdown headings (ignore markers for detection)
         var hasHeadings = HasMarkdownHeadings(PageMarkerRegex.Replace(markdown, ""));
- 
+
         // First pass: split by structure (headings) or paragraphs for plain text
         var rawSections = hasHeadings
             ? SplitByHeadings(markdown)
             : SplitByParagraphs(markdown);
- 
+
         // Second pass: merge small sections to approach target size
         var mergedSections = MergeSections(rawSections);
+
+        // DEBUG: throw to see counts (TEMPORARY)
+        throw new Exception($"DEBUG: hasHeadings={hasHeadings}, rawSections={rawSections.Count}, mergedSections={mergedSections.Count}, target={_targetChunkTokens}, min={_minChunkTokens}");
 
 
         // Convert to chunks with page info
@@ -288,6 +291,29 @@ public class DocumentChunker
             currentPageEnd = null;
         }
 
+        void AppendSection(RawSection section, int tokens)
+        {
+            if (currentContent.Length > 0) currentContent.AppendLine();
+            if (!string.IsNullOrEmpty(section.Heading))
+            {
+                currentContent.AppendLine($"## {section.Heading}");
+                currentContent.AppendLine();
+            }
+            currentContent.AppendLine(section.Content);
+            currentTokens += tokens;
+
+            if (section.PageStart.HasValue)
+            {
+                currentPageStart = currentPageStart.HasValue
+                    ? Math.Min(currentPageStart.Value, section.PageStart.Value)
+                    : section.PageStart;
+                var sectionEnd = (section.PageEnd ?? section.PageStart)!.Value;
+                currentPageEnd = currentPageEnd.HasValue
+                    ? Math.Max(currentPageEnd.Value, sectionEnd)
+                    : sectionEnd;
+            }
+        }
+
         foreach (var section in sections)
         {
             var sectionTokens = EstimateTokens(section.Content);
@@ -296,13 +322,27 @@ public class DocumentChunker
                 : $"## {section.Heading}\n\n{section.Content}";
             var fullSectionTokens = EstimateTokens(sectionWithHeading);
 
-            // If adding this section would exceed target, flush current and start new
-            if (currentContent.Length > 0 && currentTokens + fullSectionTokens > _targetChunkTokens)
+            // If current buffer is empty, start a new chunk
+            if (currentContent.Length == 0)
             {
+                currentHeading = section.Heading;
+                currentLevel = section.Level;
+                currentContent.AppendLine(section.Content);
+                currentTokens = sectionTokens;
+                currentPageStart = section.PageStart;
+                currentPageEnd = section.PageEnd ?? section.PageStart;
+                continue;
+            }
+
+            // Would adding this section exceed the target?
+            if (currentTokens + fullSectionTokens > _targetChunkTokens)
+            {
+                // Always flush if current buffer has meaningful content
+                // Only merge tiny fragments (< minChunkTokens) with next section
                 if (currentTokens >= _minChunkTokens)
                 {
                     FlushCurrent();
-
+                    // Start new chunk with this section
                     currentHeading = section.Heading;
                     currentLevel = section.Level;
                     currentContent.AppendLine(section.Content);
@@ -312,62 +352,15 @@ public class DocumentChunker
                 }
                 else
                 {
-                    if (currentContent.Length > 0) currentContent.AppendLine();
-                    if (!string.IsNullOrEmpty(section.Heading))
-                    {
-                        currentContent.AppendLine($"## {section.Heading}");
-                        currentContent.AppendLine();
-                    }
-
-                    currentContent.AppendLine(section.Content);
-                    currentTokens += fullSectionTokens;
-
-                    if (section.PageStart.HasValue)
-                    {
-                        currentPageStart = currentPageStart.HasValue
-                            ? Math.Min(currentPageStart.Value, section.PageStart.Value)
-                            : section.PageStart;
-                        var sectionEnd = (section.PageEnd ?? section.PageStart)!.Value;
-                        currentPageEnd = currentPageEnd.HasValue
-                            ? Math.Max(currentPageEnd.Value, sectionEnd)
-                            : sectionEnd;
-                    }
+                    // Current is tiny - merge this section then flush
+                    AppendSection(section, fullSectionTokens);
+                    FlushCurrent();
                 }
             }
             else
             {
-                if (currentContent.Length == 0)
-                {
-                    currentHeading = section.Heading;
-                    currentLevel = section.Level;
-                    currentContent.AppendLine(section.Content);
-                    currentTokens = sectionTokens;
-                    currentPageStart = section.PageStart;
-                    currentPageEnd = section.PageEnd ?? section.PageStart;
-                }
-                else
-                {
-                    if (currentContent.Length > 0) currentContent.AppendLine();
-                    if (!string.IsNullOrEmpty(section.Heading))
-                    {
-                        currentContent.AppendLine($"## {section.Heading}");
-                        currentContent.AppendLine();
-                    }
-
-                    currentContent.AppendLine(section.Content);
-                    currentTokens += fullSectionTokens;
-
-                    if (section.PageStart.HasValue)
-                    {
-                        currentPageStart = currentPageStart.HasValue
-                            ? Math.Min(currentPageStart.Value, section.PageStart.Value)
-                            : section.PageStart;
-                        var sectionEnd = (section.PageEnd ?? section.PageStart)!.Value;
-                        currentPageEnd = currentPageEnd.HasValue
-                            ? Math.Max(currentPageEnd.Value, sectionEnd)
-                            : sectionEnd;
-                    }
-                }
+                // Under target - keep merging
+                AppendSection(section, fullSectionTokens);
             }
         }
 

@@ -10,6 +10,7 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
     : IdentityDbContext<ApplicationUser>(options)
 {
     public DbSet<CollectionEntity> Collections => Set<CollectionEntity>();
+    public DbSet<FolderEntity> Folders => Set<FolderEntity>();
     public DbSet<DocumentEntity> Documents => Set<DocumentEntity>();
     public DbSet<ExtractedEntity> Entities => Set<ExtractedEntity>();
     public DbSet<DocumentEntityLink> DocumentEntityLinks => Set<DocumentEntityLink>();
@@ -61,6 +62,32 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.HasIndex(e => e.Name);
         });
 
+        // Folder - Virtual folders for organizing documents within collections
+        modelBuilder.Entity<FolderEntity>(entity =>
+        {
+            entity.ToTable("folders");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(1000);
+
+            // Indexes for efficient queries
+            entity.HasIndex(e => e.CollectionId);
+            entity.HasIndex(e => e.ParentFolderId);
+            entity.HasIndex(e => new { e.CollectionId, e.ParentFolderId, e.Name }).IsUnique();
+
+            // Relationships
+            entity.HasOne(e => e.Collection)
+                .WithMany()
+                .HasForeignKey(e => e.CollectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Self-referencing hierarchy for nested folders
+            entity.HasOne(e => e.ParentFolder)
+                .WithMany(f => f.ChildFolders)
+                .HasForeignKey(e => e.ParentFolderId)
+                .OnDelete(DeleteBehavior.Restrict); // Prevent cascading deletes through hierarchy
+        });
+
         // Document
         modelBuilder.Entity<DocumentEntity>(entity =>
         {
@@ -77,6 +104,7 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.Property(e => e.SourceUrl).HasMaxLength(2000);
 
             entity.HasIndex(e => e.CollectionId);
+            entity.HasIndex(e => e.FolderId);
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.ContentHash);
             entity.HasIndex(e => e.SourceUrl);
@@ -85,6 +113,11 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
                 .WithMany(c => c.Documents)
                 .HasForeignKey(e => e.CollectionId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Folder)
+                .WithMany(f => f.Documents)
+                .HasForeignKey(e => e.FolderId)
+                .OnDelete(DeleteBehavior.SetNull); // Documents move to root when folder deleted
         });
 
         // ExtractedEntity

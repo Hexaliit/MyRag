@@ -1,10 +1,12 @@
 using AudioSummarizer.Core.Config;
+using AudioSummarizer.Core.Pipeline;
 using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Services.Analysis.Waves;
 using AudioSummarizer.Core.Services.Audio;
 using AudioSummarizer.Core.Services.Fingerprinting;
 using AudioSummarizer.Core.Services.Transcription;
 using AudioSummarizer.Core.Services.Voice;
+using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace AudioSummarizer.Core.Extensions;
 
@@ -67,6 +69,10 @@ public static class ServiceCollectionExtensions
 
         // TODO: Future waves
         // services.AddSingleton<IAudioWave, AcousticProfileWave>();  // Phase 1: Priority 80
+
+        // Register the pipeline for unified pipeline registry
+        services.AddSingleton<AudioPipeline>();
+        services.AddSingleton<IPipeline>(sp => sp.GetRequiredService<AudioPipeline>());
 
         return services;
     }

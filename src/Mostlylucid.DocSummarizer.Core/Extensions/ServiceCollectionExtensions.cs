@@ -96,8 +96,13 @@ public static class ServiceCollectionExtensions
             return CreateLlmService(config);
         });
 
-        // Register document handler registry (extensibility point for new file types)
-        services.TryAddSingleton<IDocumentHandlerRegistry, DocumentHandlerRegistry>();
+        // Register document handler registry with default handlers (extensibility point for new file types)
+        services.TryAddSingleton<IDocumentHandlerRegistry>(sp =>
+        {
+            var registry = new DocumentHandlerRegistry();
+            registry.RegisterDefaultHandlers();
+            return registry;
+        });
 
         services.TryAddSingleton<IDocumentSummarizer, DocumentSummarizerService>();
 
@@ -161,8 +166,13 @@ public static class ServiceCollectionExtensions
             return CreateLlmService(config);
         });
 
-        // Register document handler registry (extensibility point for new file types)
-        services.TryAddSingleton<IDocumentHandlerRegistry, DocumentHandlerRegistry>();
+        // Register document handler registry with default handlers (extensibility point for new file types)
+        services.TryAddSingleton<IDocumentHandlerRegistry>(sp =>
+        {
+            var registry = new DocumentHandlerRegistry();
+            registry.RegisterDefaultHandlers();
+            return registry;
+        });
 
         services.TryAddSingleton<IDocumentSummarizer, DocumentSummarizerService>();
         services.AddHostedService<DocSummarizerInitializer>();

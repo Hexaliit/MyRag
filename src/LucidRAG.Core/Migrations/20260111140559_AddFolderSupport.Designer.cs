@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace LucidRAG.Migrations
 {
     [DbContext(typeof(RagDocumentsDbContext))]
-    [Migration("20260111120337_AddTableCountToDocuments")]
-    partial class AddTableCountToDocuments
+    [Migration("20260111140559_AddFolderSupport")]
+    partial class AddFolderSupport
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -271,6 +271,9 @@ namespace LucidRAG.Migrations
                     b.Property<long?>("FileSizeBytes")
                         .HasColumnType("bigint");
 
+                    b.Property<Guid?>("FolderId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Metadata")
                         .HasColumnType("jsonb");
 
@@ -331,6 +334,8 @@ namespace LucidRAG.Migrations
                     b.HasIndex("CollectionId");
 
                     b.HasIndex("ContentHash");
+
+                    b.HasIndex("FolderId");
 
                     b.HasIndex("SourceUrl");
 
@@ -561,6 +566,48 @@ namespace LucidRAG.Migrations
                         .IsUnique();
 
                     b.ToTable("entities", (string)null);
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.FolderEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<Guid?>("ParentFolderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("ParentFolderId");
+
+                    b.HasIndex("CollectionId", "ParentFolderId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("folders", (string)null);
                 });
 
             modelBuilder.Entity("LucidRAG.Entities.IngestionJobEntity", b =>
@@ -1142,7 +1189,14 @@ namespace LucidRAG.Migrations
                         .HasForeignKey("CollectionId")
                         .OnDelete(DeleteBehavior.Cascade);
 
+                    b.HasOne("LucidRAG.Entities.FolderEntity", "Folder")
+                        .WithMany("Documents")
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Collection");
+
+                    b.Navigation("Folder");
                 });
 
             modelBuilder.Entity("LucidRAG.Entities.DocumentEntityLink", b =>
@@ -1203,6 +1257,24 @@ namespace LucidRAG.Migrations
                         .IsRequired();
 
                     b.Navigation("Entity");
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.FolderEntity", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.CollectionEntity", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LucidRAG.Entities.FolderEntity", "ParentFolder")
+                        .WithMany("ChildFolders")
+                        .HasForeignKey("ParentFolderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Collection");
+
+                    b.Navigation("ParentFolder");
                 });
 
             modelBuilder.Entity("LucidRAG.Entities.IngestionJobEntity", b =>
@@ -1347,6 +1419,13 @@ namespace LucidRAG.Migrations
                     b.Navigation("IncomingRelationships");
 
                     b.Navigation("OutgoingRelationships");
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.FolderEntity", b =>
+                {
+                    b.Navigation("ChildFolders");
+
+                    b.Navigation("Documents");
                 });
 
             modelBuilder.Entity("LucidRAG.Entities.IngestionSourceEntity", b =>

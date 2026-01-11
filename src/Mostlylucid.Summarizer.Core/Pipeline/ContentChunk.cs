@@ -85,5 +85,10 @@ public enum ContentType
     /// <summary>
     /// Entity extracted by GraphRAG.
     /// </summary>
-    Entity
+    Entity,
+
+    /// <summary>
+    /// Metadata about an audio file (format, duration, BPM, etc.) when no transcript available.
+    /// </summary>
+    AudioMetadata
 }

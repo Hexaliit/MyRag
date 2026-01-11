@@ -6,6 +6,8 @@ namespace Mostlylucid.DocSummarizer.Pipeline;
 
 /// <summary>
 /// Pipeline implementation for document files (PDF, DOCX, MD, TXT, HTML).
+/// Extracts content and chunks it for embedding.
+/// Entity extraction is handled by the application layer (LucidRAG) which has access to GraphRag.
 /// </summary>
 public class DocumentPipeline : PipelineBase
 {
@@ -95,6 +97,8 @@ public class DocumentPipeline : PipelineBase
                 ["contentType"] = content.ContentType
             }
         }).ToList();
+
+        progress?.Report(new PipelineProgress("Complete", "Processing complete", 100, chunks.Count, chunks.Count));
 
         _logger.LogInformation("Processed {ChunkCount} chunks from document", chunks.Count);
 

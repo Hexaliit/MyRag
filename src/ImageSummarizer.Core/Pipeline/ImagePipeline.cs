@@ -107,7 +107,7 @@ public class ImagePipeline : PipelineBase
         var allEntities = new List<string>();
         var entityMetadata = new Dictionary<string, object?>();
 
-        // VisionLLM entities
+        // VisionLLM entities (high quality, from vision model)
         var visionEntities = profile.GetValue<List<Models.Dynamic.EntityDetection>>("vision.llm.entities");
         if (visionEntities != null)
         {
@@ -149,6 +149,8 @@ public class ImagePipeline : PipelineBase
         if (allEntities.Count > 0)
         {
             var entityText = string.Join(", ", allEntities.Distinct());
+            _logger.LogDebug("Entity extraction: {Count} entities from {Sources}",
+                allEntities.Count, string.Join("+", entityMetadata.Keys));
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
