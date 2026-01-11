@@ -145,7 +145,9 @@ public static class EvidenceTypes
     public const string Transcript = "transcript";
     public const string TranscriptSegments = "transcript_segments";
     public const string SpeakerDiarization = "speaker_diarization";
+    public const string SpeakerSample = "speaker_sample";         // Audio clip of speaker
     public const string AudioWaveform = "audio_waveform";
+    public const string AudioSignals = "audio_signals";           // Forensic audio signals
 
     // Analysis Evidence
     public const string SignalDump = "signal_dump";
@@ -296,4 +298,85 @@ public record TableEvidenceMetadata
 
     /// <summary>Extraction confidence (0-1).</summary>
     public double Confidence { get; init; }
+}
+
+/// <summary>
+/// Metadata for speaker diarization evidence.
+/// </summary>
+public record SpeakerDiarizationMetadata
+{
+    /// <summary>Number of unique speakers detected.</summary>
+    public int SpeakerCount { get; init; }
+
+    /// <summary>Total number of speaker turns.</summary>
+    public int TurnCount { get; init; }
+
+    /// <summary>Diarization method used (e.g., 'agglomerative_clustering').</summary>
+    public string? Method { get; init; }
+
+    /// <summary>Overall confidence score (0-1).</summary>
+    public double Confidence { get; init; }
+
+    /// <summary>Speaker participation percentages (SpeakerId -> %).</summary>
+    public Dictionary<string, double>? SpeakerParticipation { get; init; }
+
+    /// <summary>Average turn duration in seconds.</summary>
+    public double? AvgTurnDuration { get; init; }
+
+    /// <summary>Model used for voice embeddings.</summary>
+    public string? EmbeddingModel { get; init; }
+}
+
+/// <summary>
+/// Metadata for speaker audio sample evidence.
+/// </summary>
+public record SpeakerSampleMetadata
+{
+    /// <summary>Speaker ID (e.g., 'SPEAKER_00').</summary>
+    public required string SpeakerId { get; init; }
+
+    /// <summary>Start time of sample in seconds.</summary>
+    public double StartSeconds { get; init; }
+
+    /// <summary>End time of sample in seconds.</summary>
+    public double EndSeconds { get; init; }
+
+    /// <summary>Sample duration in seconds.</summary>
+    public double Duration => EndSeconds - StartSeconds;
+
+    /// <summary>Sample rate in Hz.</summary>
+    public int SampleRate { get; init; }
+
+    /// <summary>Number of audio channels (1=mono, 2=stereo).</summary>
+    public int Channels { get; init; }
+
+    /// <summary>Format of the audio sample (e.g., 'wav', 'mp3').</summary>
+    public string? Format { get; init; }
+}
+
+/// <summary>
+/// Metadata for audio forensic signals evidence.
+/// </summary>
+public record AudioSignalsMetadata
+{
+    /// <summary>Number of signals extracted.</summary>
+    public int SignalCount { get; init; }
+
+    /// <summary>Waves that ran during analysis.</summary>
+    public List<string>? WavesExecuted { get; init; }
+
+    /// <summary>Total analysis time in seconds.</summary>
+    public double ProcessingSeconds { get; init; }
+
+    /// <summary>Whether fingerprinting was performed.</summary>
+    public bool HasFingerprint { get; init; }
+
+    /// <summary>Whether transcription was performed.</summary>
+    public bool HasTranscription { get; init; }
+
+    /// <summary>Whether diarization was performed.</summary>
+    public bool HasDiarization { get; init; }
+
+    /// <summary>Content type detected (speech, music, mixed, silence).</summary>
+    public string? ContentType { get; init; }
 }

@@ -115,6 +115,7 @@ internal static class Program
         rootCommand.Subcommands.Add(CliCommands.SearchCommand.Create());
         rootCommand.Subcommands.Add(CliCommands.ChatCommand.Create());
         rootCommand.Subcommands.Add(CliCommands.OcrCommand.Create());
+        rootCommand.Subcommands.Add(CliCommands.AudioCommand.Create());
         rootCommand.Subcommands.Add(CliCommands.ServeCommand.Create());
         rootCommand.Subcommands.Add(CliCommands.CollectionsCommand.Create());
         rootCommand.Subcommands.Add(CliCommands.ConfigCommand.Create());

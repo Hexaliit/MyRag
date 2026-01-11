@@ -1,0 +1,177 @@
+[INF] Starting audio analysis: E:\audiosample\VOXTAB_Interview_audio.mp3
+[INF] Wave IdentityWave completed in 228ms, extracted 9 signals
+[INF] Generated spectral_peaks fingerprint: a12de9713215490b... (PureNet)
+[INF] Wave FingerprintWave completed in 992ms, extracted 4 signals
+[INF] Whisper model loaded successfully
+[INF] Transcribed VOXTAB_Interview_audio.mp3 in 4667ms: 49 segments, avg confidence: 0.000
+[INF] Transcribed VOXTAB_Interview_audio.mp3: 49 segments, 1907 chars, confidence: 0.000 (Whisper.NET)
+[INF] Wave TranscriptionWave completed in 4842ms, extracted 7 signals
+[INF] Audio analysis completed in 6075ms, total signals: 20, errors: 0
+{
+  "audioPath": "E:\\audiosample\\VOXTAB_Interview_audio.mp3",
+  "signals": {
+    "audio.hash.sha256": {
+      "name": "audio.hash.sha256",
+      "value": "8e69671dfbc7cb08c596e5c7fb412dd9cc216b9fca2ffa9fbc5410642208b8fa",
+      "confidence": null,
+      "type": 1,
+      "source": "IdentityWave",
+      "timestamp": "2026-01-10T16:57:09.8226761+00:00"
+    },
+    "audio.format": {
+      "name": "audio.format",
+      "value": "mp3",
+      "confidence": null,
+      "type": 0,
+      "source": "IdentityWave",
+      "timestamp": "2026-01-10T16:57:09.8513416+00:00"
+    },
+    "audio.duration_seconds": {
+      "name": "audio.duration_seconds",
+      "value": 148.3493877,
+      "confidence": null,
+      "type": 0,
+      "source": "IdentityWave",
+      "timestamp": "2026-01-10T16:57:09.8514232+00:00"
+    },
+    "audio.sample_rate": {
+      "name": "audio.sample_rate",
+      "value": 44100,
+      "confidence": null,
+      "type": 0,
+      "source": "IdentityWave",
+      "timestamp": "2026-01-10T16:57:09.8514236+00:00"
+    },
+    "audio.channels": {
+      "name": "audio.channels",
+      "value": 2,
+      "confidence": null,
+      "type": 0,
+      "source": "IdentityWave",
+      "timestamp": "2026-01-10T16:57:09.8514237+00:00"
+    },
+    "audio.bits_per_sample": {
+      "name": "audio.bits_per_sample",
+      "value": 32,
+      "confidence": null,
+      "type": 0,
+      "source": "IdentityWave",
+      "timestamp": "2026-01-10T16:57:09.8514238+00:00"
+    },
+    "audio.bitrate": {
+      "name": "audio.bitrate",
+      "value": 2822400,
+      "confidence": null,
+      "type": 0,
+      "source": "IdentityWave",
+      "timestamp": "2026-01-10T16:57:09.851425+00:00"
+    },
+    "audio.bitrate_kbps": {
+      "name": "audio.bitrate_kbps",
+      "value": 2822,
+      "confidence": null,
+      "type": 0,
+      "source": "IdentityWave",
+      "timestamp": "2026-01-10T16:57:09.8514251+00:00"
+    },
+    "audio.hash.pcm_sha256": {
+      "name": "audio.hash.pcm_sha256",
+      "value": "65f6b558121e326a15934a19ddd78ff45310c4b52dae231fe3bcf45d0f378bfd",
+      "confidence": null,
+      "type": 1,
+      "source": "IdentityWave",
+      "timestamp": "2026-01-10T16:57:10.0409343+00:00"
+    },
+    "audio.fingerprint.type": {
+      "name": "audio.fingerprint.type",
+      "value": "spectral_peaks",
+      "confidence": null,
+      "type": 1,
+      "source": "FingerprintWave",
+      "timestamp": "2026-01-10T16:57:11.0341633+00:00"
+    },
+    "audio.fingerprint.hash": {
+      "name": "audio.fingerprint.hash",
+      "value": "a12de9713215490be0df23952451547187c341d8d1999022b8f0b657c3862b49",
+      "confidence": null,
+      "type": 1,
+      "source": "FingerprintWave",
+      "timestamp": "2026-01-10T16:57:11.0341825+00:00"
+    },
+    "audio.fingerprint.provider": {
+      "name": "audio.fingerprint.provider",
+      "value": "PureNet",
+      "confidence": null,
+      "type": 0,
+      "source": "FingerprintWave",
+      "timestamp": "2026-01-10T16:57:11.0341904+00:00"
+    },
+    "audio.fingerprint.raw_data_size": {
+      "name": "audio.fingerprint.raw_data_size",
+      "value": 10004,
+      "confidence": null,
+      "type": 0,
+      "source": "FingerprintWave",
+      "timestamp": "2026-01-10T16:57:11.0342074+00:00"
+    },
+    "transcription.text": {
+      "name": "transcription.text",
+      "value": "Oh, good morning.\r\nLaura May, isn\u0027t it?\r\nYes, good morning.\r\nOh, I\u0027m Frederick Douglass, I\u0027m managing the marketing department here.\r\nYou can call me Fred.\r\nOkay, Fred.\r\nHave you, have you already been shown around the company?\r\nYes, I got here at 9am and Jessica gave me a tour of the place.\r\nAnd what did you think?\r\nIt\u0027s a lot bigger than I thought it would be.\r\nGuys, a lot of people say that.\r\nNow, we have over 50 people working for his year.\r\nDid you bring your resume?\r\nI sent it by email last week.\r\nOh, yes, of course.\r\nI was reading it only yesterday.\r\nNow, where is it?\r\nOh, here it is.\r\nHere we are.\r\nLaura May, 26 years old born in Germany.\r\nHmm. Okay, let\u0027s see.\r\nWhere did you hear about it?\r\nMy brother worked for you a couple of years ago and has always spoken well of you.\r\nEric, may I? Yes, I remember him.\r\nHow long did he work here for, Sonny?\r\nI think it was about 10 months.\r\nNow he\u0027s living in the UK.\r\nHe\u0027s been working for a magazine in London for around a year.\r\nAha.\r\nYou had to hire him for me, won\u0027t you?\r\nOkay, sure.\r\nNow, tell me something about it.\r\nWhat experience, Laura?\r\nWell, I worked in the offices of my mother\u0027s company when I left an university.\r\nNow, what sort of company does your mother want?\r\nIt\u0027s a caterers.\r\nShe does the catering for weddings, graduations, funerals, that type of thing.\r\nAnd how long did you work there for?\r\nAbout a year or so.\r\nThey put me on the phones and I was also responsible for all the advertising and our leavelets, business cards and the website.\r\nSo, it didn\u0027t do any of the cooking?\r\nNo, they kept me a long way from the kitchen.\r\nSo, what did you do after that?\r\nWell, I traveled for a little while, mostly in Europe and a little in South America.\r\nHow long?\r\nOh, it wasn\u0027t too long.\r\nMaybe about six months.\r\nI had a job that was going to start at the end of the year, so I had about six months free.\r\nSo, I thought, why not?",
+      "confidence": 0,
+      "type": 4,
+      "source": "TranscriptionWave",
+      "timestamp": "2026-01-10T16:57:15.8472776+00:00"
+    },
+    "transcription.language": {
+      "name": "transcription.language",
+      "value": "en",
+      "confidence": null,
+      "type": 0,
+      "source": "TranscriptionWave",
+      "timestamp": "2026-01-10T16:57:15.8473603+00:00"
+    },
+    "transcription.confidence": {
+      "name": "transcription.confidence",
+      "value": 0,
+      "confidence": 0,
+      "type": 4,
+      "source": "TranscriptionWave",
+      "timestamp": "2026-01-10T16:57:15.8473812+00:00"
+    },
+    "transcription.segment_count": {
+      "name": "transcription.segment_count",
+      "value": 49,
+      "confidence": null,
+      "type": 0,
+      "source": "TranscriptionWave",
+      "timestamp": "2026-01-10T16:57:15.8473831+00:00"
+    },
+    "transcription.provider": {
+      "name": "transcription.provider",
+      "value": "Whisper.NET",
+      "confidence": null,
+      "type": 0,
+      "source": "TranscriptionWave",
+      "timestamp": "2026-01-10T16:57:15.8473999+00:00"
+    },
+    "transcription.processing_time_ms": {
+      "name": "transcription.processing_time_ms",
+      "value": 4667,
+      "confidence": null,
+      "type": 0,
+      "source": "TranscriptionWave",
+      "timestamp": "2026-01-10T16:57:15.8474167+00:00"
+    },
+    "transcription.full_data": {
+      "name": "transcription.full_data",
+      "value": "{\r\n  \u0022text\u0022: \u0022Oh, good morning.\\r\\nLaura May, isn\\u0027t it?\\r\\nYes, good morning.\\r\\nOh, I\\u0027m Frederick Douglass, I\\u0027m managing the marketing department here.\\r\\nYou can call me Fred.\\r\\nOkay, Fred.\\r\\nHave you, have you already been shown around the company?\\r\\nYes, I got here at 9am and Jessica gave me a tour of the place.\\r\\nAnd what did you think?\\r\\nIt\\u0027s a lot bigger than I thought it would be.\\r\\nGuys, a lot of people say that.\\r\\nNow, we have over 50 people working for his year.\\r\\nDid you bring your resume?\\r\\nI sent it by email last week.\\r\\nOh, yes, of course.\\r\\nI was reading it only yesterday.\\r\\nNow, where is it?\\r\\nOh, here it is.\\r\\nHere we are.\\r\\nLaura May, 26 years old born in Germany.\\r\\nHmm. Okay, let\\u0027s see.\\r\\nWhere did you hear about it?\\r\\nMy brother worked for you a couple of years ago and has always spoken well of you.\\r\\nEric, may I? Yes, I remember him.\\r\\nHow long did he work here for, Sonny?\\r\\nI think it was about 10 months.\\r\\nNow he\\u0027s living in the UK.\\r\\nHe\\u0027s been working for a magazine in London for around a year.\\r\\nAha.\\r\\nYou had to hire him for me, won\\u0027t you?\\r\\nOkay, sure.\\r\\nNow, tell me something about it.\\r\\nWhat experience, Laura?\\r\\nWell, I worked in the offices of my mother\\u0027s company when I left an university.\\r\\nNow, what sort of company does your mother want?\\r\\nIt\\u0027s a caterers.\\r\\nShe does the catering for weddings, graduations, funerals, that type of thing.\\r\\nAnd how long did you work there for?\\r\\nAbout a year or so.\\r\\nThey put me on the phones and I was also responsible for all the advertising and our leavelets, business cards and the website.\\r\\nSo, it didn\\u0027t do any of the cooking?\\r\\nNo, they kept me a long way from the kitchen.\\r\\nSo, what did you do after that?\\r\\nWell, I traveled for a little while, mostly in Europe and a little in South America.\\r\\nHow long?\\r\\nOh, it wasn\\u0027t too long.\\r\\nMaybe about six months.\\r\\nI had a job that was going to start at the end of the year, so I had about six months free.\\r\\nSo, I thought, why not?\u0022,\r\n  \u0022language\u0022: \u0022en\u0022,\r\n  \u0022confidence\u0022: 0,\r\n  \u0022segments\u0022: [\r\n    {\r\n      \u0022start\u0022: 0,\r\n      \u0022end\u0022: 3,\r\n      \u0022text\u0022: \u0022Oh, good morning.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 3,\r\n      \u0022end\u0022: 5,\r\n      \u0022text\u0022: \u0022Laura May, isn\\u0027t it?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 5,\r\n      \u0022end\u0022: 6,\r\n      \u0022text\u0022: \u0022Yes, good morning.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 6,\r\n      \u0022end\u0022: 9,\r\n      \u0022text\u0022: \u0022Oh, I\\u0027m Frederick Douglass, I\\u0027m managing the marketing department here.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 9,\r\n      \u0022end\u0022: 11,\r\n      \u0022text\u0022: \u0022You can call me Fred.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 11,\r\n      \u0022end\u0022: 13,\r\n      \u0022text\u0022: \u0022Okay, Fred.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 13,\r\n      \u0022end\u0022: 16,\r\n      \u0022text\u0022: \u0022Have you, have you already been shown around the company?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 16,\r\n      \u0022end\u0022: 21,\r\n      \u0022text\u0022: \u0022Yes, I got here at 9am and Jessica gave me a tour of the place.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 21,\r\n      \u0022end\u0022: 23,\r\n      \u0022text\u0022: \u0022And what did you think?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 23,\r\n      \u0022end\u0022: 26,\r\n      \u0022text\u0022: \u0022It\\u0027s a lot bigger than I thought it would be.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 26,\r\n      \u0022end\u0022: 28,\r\n      \u0022text\u0022: \u0022Guys, a lot of people say that.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 28,\r\n      \u0022end\u0022: 32,\r\n      \u0022text\u0022: \u0022Now, we have over 50 people working for his year.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 32,\r\n      \u0022end\u0022: 35,\r\n      \u0022text\u0022: \u0022Did you bring your resume?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 35,\r\n      \u0022end\u0022: 37,\r\n      \u0022text\u0022: \u0022I sent it by email last week.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 37,\r\n      \u0022end\u0022: 39,\r\n      \u0022text\u0022: \u0022Oh, yes, of course.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 39,\r\n      \u0022end\u0022: 41,\r\n      \u0022text\u0022: \u0022I was reading it only yesterday.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 41,\r\n      \u0022end\u0022: 44,\r\n      \u0022text\u0022: \u0022Now, where is it?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 44,\r\n      \u0022end\u0022: 50,\r\n      \u0022text\u0022: \u0022Oh, here it is.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 50,\r\n      \u0022end\u0022: 51,\r\n      \u0022text\u0022: \u0022Here we are.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 51,\r\n      \u0022end\u0022: 56,\r\n      \u0022text\u0022: \u0022Laura May, 26 years old born in Germany.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 56,\r\n      \u0022end\u0022: 59,\r\n      \u0022text\u0022: \u0022Hmm. Okay, let\\u0027s see.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 59,\r\n      \u0022end\u0022: 61,\r\n      \u0022text\u0022: \u0022Where did you hear about it?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 61,\r\n      \u0022end\u0022: 67,\r\n      \u0022text\u0022: \u0022My brother worked for you a couple of years ago and has always spoken well of you.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 67,\r\n      \u0022end\u0022: 70,\r\n      \u0022text\u0022: \u0022Eric, may I? Yes, I remember him.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 70,\r\n      \u0022end\u0022: 73,\r\n      \u0022text\u0022: \u0022How long did he work here for, Sonny?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 73,\r\n      \u0022end\u0022: 76,\r\n      \u0022text\u0022: \u0022I think it was about 10 months.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 76,\r\n      \u0022end\u0022: 78,\r\n      \u0022text\u0022: \u0022Now he\\u0027s living in the UK.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 78,\r\n      \u0022end\u0022: 82,\r\n      \u0022text\u0022: \u0022He\\u0027s been working for a magazine in London for around a year.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 82,\r\n      \u0022end\u0022: 83,\r\n      \u0022text\u0022: \u0022Aha.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 83,\r\n      \u0022end\u0022: 85,\r\n      \u0022text\u0022: \u0022You had to hire him for me, won\\u0027t you?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 85,\r\n      \u0022end\u0022: 87,\r\n      \u0022text\u0022: \u0022Okay, sure.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 87,\r\n      \u0022end\u0022: 89,\r\n      \u0022text\u0022: \u0022Now, tell me something about it.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 89,\r\n      \u0022end\u0022: 91,\r\n      \u0022text\u0022: \u0022What experience, Laura?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 91,\r\n      \u0022end\u0022: 96,\r\n      \u0022text\u0022: \u0022Well, I worked in the offices of my mother\\u0027s company when I left an university.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 96,\r\n      \u0022end\u0022: 98,\r\n      \u0022text\u0022: \u0022Now, what sort of company does your mother want?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 98,\r\n      \u0022end\u0022: 99,\r\n      \u0022text\u0022: \u0022It\\u0027s a caterers.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 99,\r\n      \u0022end\u0022: 105,\r\n      \u0022text\u0022: \u0022She does the catering for weddings, graduations, funerals, that type of thing.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 105,\r\n      \u0022end\u0022: 108,\r\n      \u0022text\u0022: \u0022And how long did you work there for?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 108,\r\n      \u0022end\u0022: 110,\r\n      \u0022text\u0022: \u0022About a year or so.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 110,\r\n      \u0022end\u0022: 119,\r\n      \u0022text\u0022: \u0022They put me on the phones and I was also responsible for all the advertising and our leavelets, business cards and the website.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 119,\r\n      \u0022end\u0022: 123,\r\n      \u0022text\u0022: \u0022So, it didn\\u0027t do any of the cooking?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 123,\r\n      \u0022end\u0022: 127,\r\n      \u0022text\u0022: \u0022No, they kept me a long way from the kitchen.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 127,\r\n      \u0022end\u0022: 130,\r\n      \u0022text\u0022: \u0022So, what did you do after that?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 130,\r\n      \u0022end\u0022: 135,\r\n      \u0022text\u0022: \u0022Well, I traveled for a little while, mostly in Europe and a little in South America.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 135,\r\n      \u0022end\u0022: 137,\r\n      \u0022text\u0022: \u0022How long?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 137,\r\n      \u0022end\u0022: 140,\r\n      \u0022text\u0022: \u0022Oh, it wasn\\u0027t too long.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 140,\r\n      \u0022end\u0022: 142,\r\n      \u0022text\u0022: \u0022Maybe about six months.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 142,\r\n      \u0022end\u0022: 146,\r\n      \u0022text\u0022: \u0022I had a job that was going to start at the end of the year, so I had about six months free.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 146,\r\n      \u0022end\u0022: 148,\r\n      \u0022text\u0022: \u0022So, I thought, why not?\u0022,\r\n      \u0022confidence\u0022: 0\r\n    }\r\n  ]\r\n}",
+      "confidence": null,
+      "type": 4,
+      "source": "TranscriptionWave",
+      "timestamp": "2026-01-10T16:57:15.8771723+00:00"
+    }
+  },
+  "errors": [],
+  "createdAt": "2026-01-10T16:57:09.8027851+00:00",
+  "processingTimeMs": 6075
+}

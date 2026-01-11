@@ -1,0 +1,73 @@
+E:\source\lucidrag-audio\src\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj : warning NU1510: PackageReference System.Text.Json will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [E:\source\lucidrag-audio\src\LucidRAG.Cli\LucidRAG.Cli.csproj]
+E:\source\lucidrag-audio\src\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj : warning NU1510: PackageReference System.Text.Json will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
+[38;5;201m     _                  _   _           ____                                  [0m
+[38;5;201m    / \     _   _    __| | (_)   ___   / ___|   _   _   _ __ ___    _ __ ___  [0m
+[38;5;201m   / _ \   | | | |  / _` | | |  / _ \  \___ \  | | | | | '_ ` _ \  | '_ ` _ \ [0m
+[38;5;201m  / ___ \  | |_| | | (_| | | | | (_) |  ___) | | |_| | | | | | | | | | | | | |[0m
+[38;5;201m /_/   \_\  \__,_|  \__,_| |_|  \___/  |____/   \__,_| |_| |_| |_| |_| |_| |_|[0m
+[38;5;201m                                                                              [0m
+[38;5;201m                 _                     [0m
+[38;5;201m   __ _   _ __  (_)  ____   ___   _ __ [0m
+[38;5;201m  / _` | | '__| | | |_  /  / _ \ | '__|[0m
+[38;5;201m | (_| | | |    | |  / /  |  __/ | |   [0m
+[38;5;201m  \__,_| |_|    |_| /___|  \___| |_|   [0m
+[38;5;201m                                       [0m
+[2mForensic audio characterization without cultural identification[0m
+
+[1;38;5;13m═══ VOXTAB_Academic_audio.mp3 ═══[0m
+
+[INF] Starting audio analysis: E:\audiosample\VOXTAB_Academic_audio.mp3
+[DBG] Executing 3 waves in priority order
+[DBG] Executing wave: IdentityWave (priority 100)
+Analyzing audio...
+[INF] Wave IdentityWave completed in 490ms, extracted 9 signals
+[DBG] Executing wave: FingerprintWave (priority 90)
+[DBG] Generating PureNet fingerprint for E:\audiosample\VOXTAB_Academic_audio.mp3
+[INF] Generated spectral_peaks fingerprint: 97a043f10a0ea749... (PureNet)
+[INF] Wave FingerprintWave completed in 1845ms, extracted 4 signals
+[DBG] Executing wave: TranscriptionWave (priority 60)
+[DBG] Whisper model already exists at C:\Users\scott\AppData\Roaming\lucidrag\models\whisper-base.en.bin
+[DBG] Loading Whisper model from C:\Users\scott\AppData\Roaming\lucidrag\models\whisper-base.en.bin
+[INF] Whisper model loaded successfully
+[DBG] Transcribing E:\audiosample\VOXTAB_Academic_audio.mp3 using Whisper.NET
+[DBG] Transcribing E:\audiosample\VOXTAB_Academic_audio.mp3 with Whisper.NET (language: en)
+[DBG] Converted E:\audiosample\VOXTAB_Academic_audio.mp3 to WAV: C:\Users\scott\AppData\Local\Temp\whisper-e69c6569-794a-47bd-a193-426bad5d8507.wav
+[DBG] Deleted temp WAV file: C:\Users\scott\AppData\Local\Temp\whisper-e69c6569-794a-47bd-a193-426bad5d8507.wav
+[ERR] Whisper.NET transcription failed for E:\audiosample\VOXTAB_Academic_audio.mp3: Unsupported wave file
+Whisper.net.Wave.CorruptedWaveException: Unsupported wave file
+   at Whisper.net.Wave.WaveParser.InternalInitialize(Boolean useAsync, CancellationToken cancellationToken)
+   at Whisper.net.Wave.WaveParser.GetAvgSamplesAsync(CancellationToken cancellationToken)
+   at Whisper.net.WhisperProcessor.ProcessAsync(Stream waveStream, CancellationToken cancellationToken)+MoveNext()
+   at Whisper.net.WhisperProcessor.ProcessAsync(Stream waveStream, CancellationToken cancellationToken)+System.Threading.Tasks.Sources.IValueTaskSource<System.Boolean>.GetResult()
+   at AudioSummarizer.Core.Services.Transcription.WhisperTranscriptionService.TranscribeAsync(String audioPath, String language, CancellationToken cancellationToken) in E:\source\lucidrag-audio\src\AudioSummarizer.Core\Services\Transcription\WhisperTranscriptionService.cs:line 84
+   at AudioSummarizer.Core.Services.Transcription.WhisperTranscriptionService.TranscribeAsync(String audioPath, String language, CancellationToken cancellationToken) in E:\source\lucidrag-audio\src\AudioSummarizer.Core\Services\Transcription\WhisperTranscriptionService.cs:line 84
+   at AudioSummarizer.Core.Services.Transcription.WhisperTranscriptionService.TranscribeAsync(String audioPath, String language, CancellationToken cancellationToken) in E:\source\lucidrag-audio\src\AudioSummarizer.Core\Services\Transcription\WhisperTranscriptionService.cs:line 110
+[ERR] TranscriptionWave failed for E:\audiosample\VOXTAB_Academic_audio.mp3: Unsupported wave file
+Whisper.net.Wave.CorruptedWaveException: Unsupported wave file
+   at Whisper.net.Wave.WaveParser.InternalInitialize(Boolean useAsync, CancellationToken cancellationToken)
+   at Whisper.net.Wave.WaveParser.GetAvgSamplesAsync(CancellationToken cancellationToken)
+   at Whisper.net.WhisperProcessor.ProcessAsync(Stream waveStream, CancellationToken cancellationToken)+MoveNext()
+   at Whisper.net.WhisperProcessor.ProcessAsync(Stream waveStream, CancellationToken cancellationToken)+System.Threading.Tasks.Sources.IValueTaskSource<System.Boolean>.GetResult()
+   at AudioSummarizer.Core.Services.Transcription.WhisperTranscriptionService.TranscribeAsync(String audioPath, String language, CancellationToken cancellationToken) in E:\source\lucidrag-audio\src\AudioSummarizer.Core\Services\Transcription\WhisperTranscriptionService.cs:line 84
+   at AudioSummarizer.Core.Services.Transcription.WhisperTranscriptionService.TranscribeAsync(String audioPath, String language, CancellationToken cancellationToken) in E:\source\lucidrag-audio\src\AudioSummarizer.Core\Services\Transcription\WhisperTranscriptionService.cs:line 84
+   at AudioSummarizer.Core.Services.Transcription.WhisperTranscriptionService.TranscribeAsync(String audioPath, String language, CancellationToken cancellationToken) in E:\source\lucidrag-audio\src\AudioSummarizer.Core\Services\Transcription\WhisperTranscriptionService.cs:line 110
+   at AudioSummarizer.Core.Services.Analysis.Waves.TranscriptionWave.AnalyzeAsync(String audioPath, AnalysisContext context, CancellationToken cancellationToken) in E:\source\lucidrag-audio\src\AudioSummarizer.Core\Services\Analysis\Waves\TranscriptionWave.cs:line 71
+[INF] Wave TranscriptionWave completed in 859ms, extracted 1 signals
+[INF] Audio analysis completed in 3205ms, total signals: 14, errors: 0
+[38;5;13m╭───────────────────┬───────────────────────────╮[0m
+[38;5;13m│[0m [1mProperty[0m          [38;5;13m│[0m [1mValue[0m                     [38;5;13m│[0m
+[38;5;13m├───────────────────┼───────────────────────────┤[0m
+[38;5;13m│[0m File              [38;5;13m│[0m VOXTAB_Academic_audio.mp3 [38;5;13m│[0m
+[38;5;13m│[0m Format            [38;5;13m│[0m MP3                       [38;5;13m│[0m
+[38;5;13m│[0m Duration          [38;5;13m│[0m 03:23.72                  [38;5;13m│[0m
+[38;5;13m│[0m Sample Rate       [38;5;13m│[0m 44,100 Hz                 [38;5;13m│[0m
+[38;5;13m│[0m Channels          [38;5;13m│[0m 2                         [38;5;13m│[0m
+[38;5;13m│[0m Bitrate           [38;5;13m│[0m 2822 kbps                 [38;5;13m│[0m
+[38;5;13m│[0m Signals Extracted [38;5;13m│[0m 14                        [38;5;13m│[0m
+[38;5;13m│[0m Processing Time   [38;5;13m│[0m 3205 ms                   [38;5;13m│[0m
+[38;5;13m╰───────────────────┴───────────────────────────╯[0m
+
+[1;4mIdentity (Cryptographic)[0m
+  [2mSHA-256:[0m 8d7a9fb20aa6dee10bae7b45ac6aad763d9e53c1d024339903b9f3863609b881
+  [2mPCM SHA-256:[0m 0cce5e64c89a595adbfd607b0b06c04c9f5c3e4706fac9f89155b0fd13d5b096
+

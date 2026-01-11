@@ -8,6 +8,8 @@ using Mostlylucid.DocSummarizer.Images.Extensions;
 using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Data.Extensions;
 using Mostlylucid.Summarizer.Core.Extensions;
+using AudioSummarizer.Core.Extensions;
+using AudioSummarizer.Core.Config;
 using LucidRAG.Data;
 using Serilog;
 
@@ -87,6 +89,23 @@ public static class CliServiceRegistration
             opt.Ocr.SpellCheckLanguage = "en_US";
             opt.Ocr.MaxFramesForVoting = 5;
             opt.Ocr.EmitPerformanceMetrics = verbose;
+        });
+
+        // AudioSummarizer.Core - Forensic audio characterization
+        services.AddAudioSummarizer(opt =>
+        {
+            opt.TranscriptionBackend = TranscriptionBackend.Whisper;
+            opt.Whisper.ModelPath = Path.Combine(config.DataDirectory, "models", "whisper-base.en.bin");
+            opt.Whisper.Language = "en";
+            opt.SupportedFormats = new[] { ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".wma", ".aac" };
+            opt.Verbose = verbose;
+            opt.FingerprintProvider = FingerprintProvider.PureNet;
+            opt.Pipeline.EnableFingerprinting = true;
+            opt.Pipeline.EnableAcousticProfiling = true;
+            opt.Pipeline.EnableContentClassification = true;
+            opt.Pipeline.EnableTranscription = true;
+            opt.EnableVoiceEmbeddings = false; // Requires model download
+            opt.EnableSpeakerDiarization = false; // Phase 5 (not yet implemented)
         });
 
         // DataSummarizer.Core for CSV, JSON, Excel, Parquet

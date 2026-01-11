@@ -32,6 +32,7 @@
         <ProjectReference Include="..\LucidRAG.Core\LucidRAG.Core.csproj" />
         <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj" />
         <ProjectReference Include="..\DataSummarizer.Core\DataSummarizer.Core.csproj" />
+        <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj" />
         <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
     </ItemGroup>
 
