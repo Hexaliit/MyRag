@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
-using Mostlylucid.DocSummarizer.Services.Onnx;
+using Microsoft.ML.Tokenizers;
 
 namespace Mostlylucid.GraphRag.Extraction;
 
@@ -19,7 +19,7 @@ public sealed class OnnxNerService : IDisposable
     private readonly string _modelPath;
     private readonly int _maxSequenceLength;
     private InferenceSession? _session;
-    private HuggingFaceTokenizer? _tokenizer;
+    private Tokenizer? _tokenizer;
     private string[]? _labels;
     private bool _initialized;
     private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -53,18 +53,25 @@ public sealed class OnnxNerService : IDisposable
             if (!File.Exists(modelFile))
                 throw new FileNotFoundException($"NER model not found: {modelFile}");
 
-            // Load model
+            // Load model with limited threading to prevent CPU overload
             var options = new SessionOptions
             {
                 GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
-                IntraOpNumThreads = Environment.ProcessorCount
+                IntraOpNumThreads = Math.Min(4, Environment.ProcessorCount),  // Limit to 4 threads max
+                InterOpNumThreads = 1  // Single inter-op thread
             };
             _session = new InferenceSession(modelFile, options);
 
-            // Load tokenizer
-            _tokenizer = File.Exists(tokenizerFile)
-                ? HuggingFaceTokenizer.FromFile(tokenizerFile)
-                : throw new FileNotFoundException($"Tokenizer not found: {tokenizerFile}");
+            // Debug: Log model inputs/outputs
+            Console.WriteLine($"[NER] Model inputs: {string.Join(", ", _session.InputNames)}");
+            Console.WriteLine($"[NER] Model outputs: {string.Join(", ", _session.OutputNames)}");
+
+            // Load tokenizer using Microsoft.ML.Tokenizers
+            if (!File.Exists(tokenizerFile))
+                throw new FileNotFoundException($"Tokenizer not found: {tokenizerFile}");
+
+            using var stream = File.OpenRead(tokenizerFile);
+            _tokenizer = BertTokenizer.Create(stream);
 
             // Load label mapping from config.json
             if (File.Exists(configFile))
@@ -99,36 +106,99 @@ public sealed class OnnxNerService : IDisposable
     /// </summary>
     public async Task<List<EntitySpan>> ExtractSpansAsync(string text, CancellationToken ct = default)
     {
+        var totalSw = System.Diagnostics.Stopwatch.StartNew();
+        Console.WriteLine($"[NER] ExtractSpansAsync starting for {text.Length} chars: \"{text.Substring(0, Math.Min(100, text.Length))}...\"");
+
         await InitializeAsync(ct);
+        Console.WriteLine($"[NER] Initialized in {totalSw.ElapsedMilliseconds}ms");
 
         if (_session == null || _tokenizer == null || _labels == null)
             throw new InvalidOperationException("NER model not initialized");
 
-        // Tokenize
-        var (inputIds, attentionMask, tokenTypeIds) = _tokenizer.Encode(text, _maxSequenceLength);
-        var tokens = _tokenizer.Decode(inputIds);
+        // Tokenize using Microsoft.ML.Tokenizers
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var encoded = _tokenizer.EncodeToTokens(text, out var normalizedText);
 
-        // Create tensors
-        var inputIdsTensor = new DenseTensor<long>(inputIds, new[] { 1, inputIds.Length });
-        var attentionMaskTensor = new DenseTensor<long>(attentionMask, new[] { 1, attentionMask.Length });
-        var tokenTypeIdsTensor = new DenseTensor<long>(tokenTypeIds, new[] { 1, tokenTypeIds.Length });
+        // Get actual token IDs
+        var rawIds = encoded.Select(t => t.Id).ToArray();
+        var rawLength = rawIds.Length;
+
+        // Smart bucketing: pad to nearest power-of-2-ish bucket for efficiency
+        // Buckets: 32, 64, 128, 256, 512
+        var buckets = new[] { 32, 64, 128, 256, 512 };
+        var targetLength = buckets.FirstOrDefault(b => b >= rawLength);
+        if (targetLength == 0) targetLength = 512;
+
+        // Truncate if longer than max
+        if (rawLength > _maxSequenceLength)
+        {
+            targetLength = _maxSequenceLength;
+            rawLength = _maxSequenceLength;
+        }
+
+        // Pad to bucket size
+        var inputIds = new int[targetLength];
+        var attentionMask = new int[targetLength];
+
+        Array.Copy(rawIds, inputIds, Math.Min(rawLength, targetLength));
+
+        // Attention mask: 1 for real tokens, 0 for padding
+        for (int i = 0; i < targetLength; i++)
+        {
+            attentionMask[i] = i < rawLength ? 1 : 0;
+        }
+
+        var tokens = encoded.Select(t => t.Value).ToArray();
+        Console.WriteLine($"[NER] Tokenized in {sw.ElapsedMilliseconds}ms ({rawLength} tokens → {targetLength} bucket, {(targetLength - rawLength)} padding)");
+
+        // Create tensors with bucketed length
+        sw.Restart();
+        var inputIdsLong = new long[targetLength];
+        var attentionMaskLong = new long[targetLength];
+        for (int i = 0; i < targetLength; i++)
+        {
+            inputIdsLong[i] = inputIds[i];
+            attentionMaskLong[i] = attentionMask[i];
+        }
+        var inputIdsTensor = new DenseTensor<long>(inputIdsLong, new[] { 1, targetLength });
+        var attentionMaskTensor = new DenseTensor<long>(attentionMaskLong, new[] { 1, targetLength });
 
         var inputs = new List<NamedOnnxValue>
         {
             NamedOnnxValue.CreateFromTensor("input_ids", inputIdsTensor),
-            NamedOnnxValue.CreateFromTensor("attention_mask", attentionMaskTensor),
-            NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIdsTensor)
+            NamedOnnxValue.CreateFromTensor("attention_mask", attentionMaskTensor)
         };
 
+        // Only add token_type_ids if the model expects it
+        if (_session.InputNames.Contains("token_type_ids"))
+        {
+            var tokenTypeIds = new long[targetLength]; // All zeros for single sentence
+            var tokenTypeIdsTensor = new DenseTensor<long>(tokenTypeIds, new[] { 1, targetLength });
+            inputs.Add(NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIdsTensor));
+        }
+
+        Console.WriteLine($"[NER] Created tensors in {sw.ElapsedMilliseconds}ms (bucket={targetLength} tokens)");
+
         // Run inference
+        sw.Restart();
         using var results = _session.Run(inputs);
+        Console.WriteLine($"[NER] ONNX inference completed in {sw.ElapsedMilliseconds}ms");
 
         // Get logits output [1, seq_len, num_labels]
+        sw.Restart();
+        Console.WriteLine($"[NER] Available outputs: {string.Join(", ", results.Select(r => r.Name))}");
         var output = results.First(r => r.Name == "logits" || r.Name == "output_0");
         var logits = output.AsTensor<float>();
+        var dims = logits.Dimensions.ToArray();
+        Console.WriteLine($"[NER] Extracted logits in {sw.ElapsedMilliseconds}ms, shape: [{string.Join(", ", dims)}]");
 
         // Convert logits to predictions and spans
-        return ExtractEntitiesFromLogits(logits, tokens, text);
+        sw.Restart();
+        var entities = ExtractEntitiesFromLogits(logits, tokens, text);
+        Console.WriteLine($"[NER] Converted to entities in {sw.ElapsedMilliseconds}ms ({entities.Count} entities)");
+        Console.WriteLine($"[NER] Total time: {totalSw.ElapsedMilliseconds}ms");
+
+        return entities;
     }
 
     /// <summary>
@@ -160,6 +230,7 @@ public sealed class OnnxNerService : IDisposable
 
         EntitySpan? currentEntity = null;
         var currentTokens = new List<string>();
+        var labelCounts = new Dictionary<string, int>();
 
         for (int i = 0; i < seqLen && i < tokens.Length; i++)
         {
@@ -182,6 +253,9 @@ public sealed class OnnxNerService : IDisposable
 
             var label = _labels![maxIdx];
             var confidence = Softmax(logits, i, numLabels, maxIdx);
+
+            // Track label distribution for debugging
+            labelCounts[label] = labelCounts.GetValueOrDefault(label, 0) + 1;
 
             // Parse BIO tag
             var match = BioTagRx.Match(label);
@@ -232,6 +306,13 @@ public sealed class OnnxNerService : IDisposable
         {
             currentEntity.Text = MergeTokens(currentTokens);
             spans.Add(currentEntity);
+        }
+
+        // Debug: log label distribution
+        if (labelCounts.Count > 0)
+        {
+            var labelSummary = string.Join(", ", labelCounts.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key}:{kv.Value}"));
+            Console.WriteLine($"[NER] Label distribution: {labelSummary}");
         }
 
         // Filter low-confidence and deduplicate
@@ -355,18 +436,19 @@ public class EntitySpan
 public static class NerModelRegistry
 {
     /// <summary>
-    /// dslim/bert-base-NER - English BERT NER model.
+    /// Xenova/bert-base-NER - English BERT NER model (ONNX format via Transformers.js).
+    /// Properly tested ONNX conversion with quantization support.
     /// Labels: O, B-PER, I-PER, B-ORG, I-ORG, B-LOC, I-LOC, B-MISC, I-MISC
     /// </summary>
     public static readonly NerModelInfo BertBaseNer = new()
     {
         Name = "bert-base-NER",
-        HuggingFaceRepo = "dslim/bert-base-NER",
-        ModelFile = "model.onnx",
+        HuggingFaceRepo = "Xenova/bert-base-NER",
+        ModelFile = "onnx/model_quantized.onnx",
         TokenizerFile = "tokenizer.json",
         MaxSequenceLength = 512,
-        SizeBytes = 433_000_000,
-        DefaultLabels = ["O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC"]
+        SizeBytes = 110_000_000,  // Quantized model is smaller
+        DefaultLabels = ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]
     };
 
     /// <summary>
@@ -402,6 +484,89 @@ public static class NerModelRegistry
     /// </summary>
     public static string GetDownloadUrl(string repo, string file) =>
         $"https://huggingface.co/{repo}/resolve/main/{file}";
+
+    /// <summary>
+    /// Download NER model files from HuggingFace if they don't exist.
+    /// </summary>
+    public static async Task<bool> EnsureModelDownloadedAsync(
+        string modelPath,
+        NerModelInfo modelInfo,
+        IProgress<string>? progress = null,
+        CancellationToken ct = default)
+    {
+        Directory.CreateDirectory(modelPath);
+
+        var modelFile = Path.Combine(modelPath, modelInfo.ModelFile);
+        var tokenizerFile = Path.Combine(modelPath, modelInfo.TokenizerFile);
+        var configFile = Path.Combine(modelPath, "config.json");
+
+        // Create parent directories for model file (e.g., onnx/ subdirectory)
+        var modelDir = Path.GetDirectoryName(modelFile);
+        if (!string.IsNullOrEmpty(modelDir))
+        {
+            Directory.CreateDirectory(modelDir);
+        }
+
+        var needsDownload = !File.Exists(modelFile) || !File.Exists(tokenizerFile);
+        if (!needsDownload)
+        {
+            progress?.Report($"NER model already downloaded: {modelInfo.Name}");
+            return true;
+        }
+
+        progress?.Report($"Downloading NER model: {modelInfo.Name} ({modelInfo.SizeBytes / 1_000_000}MB)...");
+
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+
+        try
+        {
+            // Download model.onnx
+            if (!File.Exists(modelFile))
+            {
+                var modelUrl = modelInfo.GetModelUrl();
+                progress?.Report($"Downloading {modelInfo.ModelFile}...");
+                var modelBytes = await httpClient.GetByteArrayAsync(modelUrl, ct);
+                await File.WriteAllBytesAsync(modelFile, modelBytes, ct);
+                progress?.Report($"Downloaded {modelInfo.ModelFile} ({modelBytes.Length / 1_000_000}MB)");
+            }
+
+            // Download tokenizer.json
+            if (!File.Exists(tokenizerFile))
+            {
+                var tokenizerUrl = modelInfo.GetTokenizerUrl();
+                progress?.Report($"Downloading {modelInfo.TokenizerFile}...");
+                var tokenizerBytes = await httpClient.GetByteArrayAsync(tokenizerUrl, ct);
+                await File.WriteAllBytesAsync(tokenizerFile, tokenizerBytes, ct);
+                progress?.Report($"Downloaded {modelInfo.TokenizerFile}");
+            }
+
+            // Download config.json (optional, has label mappings)
+            if (!File.Exists(configFile))
+            {
+                try
+                {
+                    var configUrl = GetDownloadUrl(modelInfo.HuggingFaceRepo, "config.json");
+                    progress?.Report("Downloading config.json...");
+                    var configBytes = await httpClient.GetByteArrayAsync(configUrl, ct);
+                    await File.WriteAllBytesAsync(configFile, configBytes, ct);
+                    progress?.Report("Downloaded config.json");
+                }
+                catch
+                {
+                    // config.json is optional
+                    progress?.Report("config.json not available (optional)");
+                }
+            }
+
+            progress?.Report($"NER model download complete: {modelInfo.Name}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            progress?.Report($"Failed to download NER model: {ex.Message}");
+            return false;
+        }
+    }
 }
 
 /// <summary>

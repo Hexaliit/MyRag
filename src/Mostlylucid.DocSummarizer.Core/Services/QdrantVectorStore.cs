@@ -368,6 +368,8 @@ public class QdrantVectorStore : IVectorStore
 
             // Create segment with hash-based ID and empty text
             // Text will be hydrated from evidence repository by the caller
+            Console.WriteLine($"[DEBUG QDRANT] PayloadToSegment: segmentHash from payload={segmentHash}, docHash={docHash}, index={index}");
+
             var segment = new Segment(docHash, "", type, index, startChar, endChar)
             {
                 ContentHash = segmentHash,
@@ -379,6 +381,8 @@ public class QdrantVectorStore : IVectorStore
                 QuerySimilarity = score,
                 Embedding = embedding
             };
+
+            Console.WriteLine($"[DEBUG QDRANT] Created segment Id={segment.Id}, ContentHash={segment.ContentHash}");
 
             return segment;
         }

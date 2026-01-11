@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace LucidRAG.Migrations
 {
     [DbContext(typeof(RagDocumentsDbContext))]
-    [Migration("20260110234844_AddCollectionSalientTerms")]
-    partial class AddCollectionSalientTerms
+    [Migration("20260111120337_AddTableCountToDocuments")]
+    partial class AddTableCountToDocuments
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -116,6 +116,9 @@ namespace LucidRAG.Migrations
                     b.Property<float>("Cohesion")
                         .HasColumnType("real");
 
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -147,11 +150,16 @@ namespace LucidRAG.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CollectionId");
+
                     b.HasIndex("EntityCount");
 
                     b.HasIndex("Level");
 
                     b.HasIndex("ParentCommunityId");
+
+                    b.HasIndex("CollectionId", "Name")
+                        .IsUnique();
 
                     b.ToTable("communities", (string)null);
                 });
@@ -1071,10 +1079,18 @@ namespace LucidRAG.Migrations
 
             modelBuilder.Entity("LucidRAG.Entities.CommunityEntity", b =>
                 {
+                    b.HasOne("LucidRAG.Entities.CollectionEntity", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("LucidRAG.Entities.CommunityEntity", "ParentCommunity")
                         .WithMany("ChildCommunities")
                         .HasForeignKey("ParentCommunityId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Collection");
 
                     b.Navigation("ParentCommunity");
                 });

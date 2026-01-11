@@ -26,6 +26,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution", "Solution", "{7B
 		.github\workflows\publish-docsummarizer-nuget.yml = .github\workflows\publish-docsummarizer-nuget.yml
 		.github\workflows\release-lucidrag.yml = .github\workflows\release-lucidrag.yml
 		.github\workflows\release-lucidrag-cli.yml = .github\workflows\release-lucidrag-cli.yml
+		CLAUDE.md = CLAUDE.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.DocSummarizer.Core.Tests", "src\Mostlylucid.DocSummarizer.Core.Tests\Mostlylucid.DocSummarizer.Core.Tests.csproj", "{1499AB32-A308-41A9-8C51-1A34622A1C9D}"

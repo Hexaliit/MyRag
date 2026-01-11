@@ -81,6 +81,7 @@
         <!-- ML/Embeddings -->
         <!-- Cross-platform ONNX runtime - CPU only, works on all platforms -->
         <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
+        <PackageReference Include="Microsoft.ML.Tokenizers" Version="0.24.0-preview.25602.7" />
         <PackageReference Include="Markdig" Version="0.44.0" />
         
         <!-- Document Processing -->

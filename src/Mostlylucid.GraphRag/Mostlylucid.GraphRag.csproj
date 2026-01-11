@@ -15,6 +15,11 @@
         <!-- DuckDB for compact vector + graph storage -->
         <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4-alpha.2" />
 
+        <!-- ML.NET TorchSharp for NER and QA -->
+        <PackageReference Include="Microsoft.ML" Version="5.0.0" />
+        <PackageReference Include="Microsoft.ML.TorchSharp" Version="0.23.0" />
+        <PackageReference Include="TorchSharp-cpu" Version="0.103.1" Condition="'$(RuntimeIdentifier)' == '' OR '$(RuntimeIdentifier)' == 'win-x64' OR '$(RuntimeIdentifier)' == 'linux-x64' OR '$(RuntimeIdentifier)' == 'osx-x64'" />
+
         <!-- Markdown parsing -->
         <PackageReference Include="Markdig" Version="0.44.0" />
 

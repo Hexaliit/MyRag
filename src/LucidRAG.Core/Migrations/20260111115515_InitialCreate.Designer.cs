@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace LucidRAG.Migrations
 {
     [DbContext(typeof(RagDocumentsDbContext))]
-    [Migration("20260111000319_AddCommunityCollectionLink")]
-    partial class AddCommunityCollectionLink
+    [Migration("20260111115515_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

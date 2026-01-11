@@ -278,6 +278,27 @@ public static class ServiceCollectionExtensions
             return new ClipEmbeddingWave(imageConfig, modelDownloader, sessionFactory, logger);
         });
 
+        // ClipZeroShotService - Zero-shot classification using CLIP text embeddings
+        // Matches image embeddings against predetermined entity labels
+        services.TryAddSingleton<ClipZeroShotService>(sp =>
+        {
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
+            var modelDownloader = sp.GetService<ModelDownloader>();
+            var sessionFactory = sp.GetService<OnnxSessionFactory>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ClipZeroShotService>>();
+            return new ClipZeroShotService(imageConfig, modelDownloader, sessionFactory, logger);
+        });
+
+        // ClipClassificationWave - Zero-shot entity classification using predetermined labels
+        // Priority 46: Runs after ClipEmbeddingWave (45), emits entity type signals for NER
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var clipService = sp.GetRequiredService<ClipZeroShotService>();
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ClipClassificationWave>>();
+            return new ClipClassificationWave(clipService, imageConfig, logger);
+        });
+
         // MotionAnalyzer - Optical flow analysis for animated GIFs
         services.TryAddSingleton<MotionAnalyzer>(sp =>
         {

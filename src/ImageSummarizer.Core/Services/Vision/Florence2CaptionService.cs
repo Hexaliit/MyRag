@@ -160,6 +160,154 @@ public class Florence2CaptionService
     }
 
     /// <summary>
+    /// Extract entities using NER-focused short description (~100 words max).
+    /// Optimized for entity extraction rather than visual storytelling.
+    /// Returns both a concise description and extracted entity mentions.
+    /// </summary>
+    public async Task<Florence2EntityExtractionResult> ExtractEntitiesAsync(
+        string imagePath,
+        CancellationToken ct = default)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var entities = new List<ExtractedEntity>();
+
+        try
+        {
+            await EnsureModelLoadedAsync(ct);
+
+            if (_model == null)
+            {
+                return new Florence2EntityExtractionResult(
+                    Success: false,
+                    ShortDescription: null,
+                    Entities: entities,
+                    Error: "Florence-2 model not loaded",
+                    DurationMs: sw.ElapsedMilliseconds);
+            }
+
+            // Get shorter caption (not detailed) - more focused for NER
+            using var imgStream = File.OpenRead(imagePath);
+            var captionResult = _model.Run(TaskTypes.CAPTION, new[] { imgStream }, textInput: null, cancellationToken: ct);
+            var caption = ExtractText(captionResult);
+
+            if (string.IsNullOrWhiteSpace(caption))
+            {
+                return new Florence2EntityExtractionResult(
+                    Success: false,
+                    ShortDescription: null,
+                    Entities: entities,
+                    Error: "No caption generated",
+                    DurationMs: sw.ElapsedMilliseconds);
+            }
+
+            // Clean and truncate to ~100 words for NER focus
+            var shortDescription = TruncateForNer(CleanCaption(caption), maxWords: 100);
+
+            // Extract entity mentions from the caption
+            entities = ExtractEntityMentions(caption);
+
+            _logger?.LogDebug(
+                "Florence-2 NER extraction: {WordCount} words, {EntityCount} entities in {Ms}ms",
+                shortDescription?.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length ?? 0,
+                entities.Count,
+                sw.ElapsedMilliseconds);
+
+            return new Florence2EntityExtractionResult(
+                Success: true,
+                ShortDescription: shortDescription,
+                Entities: entities,
+                Error: null,
+                DurationMs: sw.ElapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Florence-2 NER extraction failed for {Path}", imagePath);
+            return new Florence2EntityExtractionResult(
+                Success: false,
+                ShortDescription: null,
+                Entities: entities,
+                Error: ex.Message,
+                DurationMs: sw.ElapsedMilliseconds);
+        }
+    }
+
+    /// <summary>
+    /// Extract entity mentions from caption text using pattern matching.
+    /// Identifies people, places, objects, and concepts mentioned.
+    /// </summary>
+    private List<ExtractedEntity> ExtractEntityMentions(string caption)
+    {
+        var entities = new List<ExtractedEntity>();
+        var captionLower = caption.ToLowerInvariant();
+
+        // Person detection patterns
+        var personPatterns = new[] { "person", "man", "woman", "child", "people", "group", "crowd", "face", "portrait" };
+        foreach (var pattern in personPatterns)
+        {
+            if (captionLower.Contains(pattern))
+            {
+                entities.Add(new ExtractedEntity(pattern, "PERSON", 0.8, caption));
+                break; // Only add one person entity
+            }
+        }
+
+        // Animal detection patterns
+        var animalPatterns = new[] { "dog", "cat", "bird", "animal", "pet", "horse", "fish", "wildlife" };
+        foreach (var pattern in animalPatterns)
+        {
+            if (captionLower.Contains(pattern))
+            {
+                entities.Add(new ExtractedEntity(pattern, "ANIMAL", 0.75, caption));
+            }
+        }
+
+        // Location/place patterns
+        var placePatterns = new[] { "building", "city", "street", "park", "beach", "mountain", "forest", "ocean", "room", "office", "house", "landscape" };
+        foreach (var pattern in placePatterns)
+        {
+            if (captionLower.Contains(pattern))
+            {
+                entities.Add(new ExtractedEntity(pattern, "LOCATION", 0.7, caption));
+            }
+        }
+
+        // Object detection patterns
+        var objectPatterns = new[] { "car", "vehicle", "phone", "computer", "table", "chair", "food", "book", "screen", "monitor", "keyboard" };
+        foreach (var pattern in objectPatterns)
+        {
+            if (captionLower.Contains(pattern))
+            {
+                entities.Add(new ExtractedEntity(pattern, "OBJECT", 0.7, caption));
+            }
+        }
+
+        // Document/content patterns
+        var contentPatterns = new[] { "text", "document", "sign", "logo", "chart", "diagram", "screenshot", "code", "interface" };
+        foreach (var pattern in contentPatterns)
+        {
+            if (captionLower.Contains(pattern))
+            {
+                entities.Add(new ExtractedEntity(pattern, "CONTENT", 0.65, caption));
+            }
+        }
+
+        return entities.DistinctBy(e => e.Name).ToList();
+    }
+
+    /// <summary>
+    /// Truncate text to approximately maxWords for NER-focused extraction.
+    /// </summary>
+    private static string? TruncateForNer(string? text, int maxWords)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length <= maxWords) return text;
+
+        return string.Join(' ', words.Take(maxWords)) + "...";
+    }
+
+    /// <summary>
     /// Run combined caption + OCR analysis in a single pass.
     /// Useful as a quick "first pass" before full wave pipeline.
     /// </summary>
@@ -931,5 +1079,24 @@ public record Florence2AnalysisResult(
     string? Error,
     long DurationMs,
     bool EnhancedWithColors);
+
+/// <summary>
+/// Result from NER-focused entity extraction
+/// </summary>
+public record Florence2EntityExtractionResult(
+    bool Success,
+    string? ShortDescription,
+    IReadOnlyList<ExtractedEntity> Entities,
+    string? Error,
+    long DurationMs);
+
+/// <summary>
+/// An entity extracted from image description
+/// </summary>
+public record ExtractedEntity(
+    string Name,
+    string Type,
+    double Confidence,
+    string? Context);
 
 // SceneDetectionResult is now defined in Services/Analysis/SceneDetectionService.cs

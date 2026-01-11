@@ -9,6 +9,7 @@ using Mostlylucid.GraphRag.Storage;
 using LucidRAG.Config;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace LucidRAG.Services;
 
@@ -57,6 +58,7 @@ public class EntityGraphService : IEntityGraphService, IDisposable
     private readonly ILogger<EntityGraphService> _logger;
     private readonly GraphRagDb _graphDb;
     private readonly EmbeddingService _embedder;
+    private OnnxNerService? _nerService;  // Not readonly - assigned lazily after downloading models
     private bool _initialized;
 
     public EntityGraphService(
@@ -75,6 +77,9 @@ public class EntityGraphService : IEntityGraphService, IDisposable
 
         _graphDb = new GraphRagDb(graphDbPath, 384);
         _embedder = new EmbeddingService();
+
+        // NER service will be created lazily in EnsureInitializedAsync() after downloading models
+        _nerService = null;
     }
 
     private async Task EnsureInitializedAsync()
@@ -83,6 +88,40 @@ public class EntityGraphService : IEntityGraphService, IDisposable
 
         await _graphDb.InitializeAsync();
         await _embedder.InitializeAsync();
+
+        // Re-enabled with debug logging to diagnose 0 entity extraction
+        if (_nerService == null)
+        {
+            try
+            {
+                var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
+                var modelsDir = Path.Combine(dataDir, "models", "bert-base-ner");
+
+                // Auto-download NER models from HuggingFace if not present
+                var progress = new Progress<string>(msg => _logger.LogInformation("NER: {Message}", msg));
+                var downloaded = await NerModelRegistry.EnsureModelDownloadedAsync(
+                    modelsDir,
+                    NerModelRegistry.BertBaseNer,
+                    progress);
+
+                if (downloaded)
+                {
+                    _nerService = new OnnxNerService(modelsDir, NerModelRegistry.BertBaseNer);
+                    await _nerService.InitializeAsync();
+                    _logger.LogInformation("NER service initialized (DEBUG MODE: label distribution logging enabled)");
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to download NER models, entity extraction will use heuristics");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to initialize NER service, will use heuristic extraction");
+                _nerService = null;
+            }
+        }
+
         _initialized = true;
     }
 
@@ -96,6 +135,11 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         var sw = System.Diagnostics.Stopwatch.StartNew();
         _logger.LogInformation("Extracting entities from {Count} segments for document {DocumentId}",
             segments.Count, documentId);
+
+        // LOG: Show what text we're extracting from
+        var totalChars = segments.Sum(s => s.Text?.Length ?? 0);
+        _logger.LogDebug("GraphRAG extracting from {TotalChars} chars across {SegmentCount} segments. First segment text (100 chars): {FirstText}",
+            totalChars, segments.Count, segments.FirstOrDefault()?.Text?.Substring(0, Math.Min(100, segments.FirstOrDefault()?.Text?.Length ?? 0)));
 
         // Convert Segments to GraphRag ChunkResults
         var docIdStr = documentId.ToString("N");
@@ -121,11 +165,38 @@ public class EntityGraphService : IEntityGraphService, IDisposable
                 chunk.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
         }
 
-        // Run entity extraction using configured mode
-        var extractionMode = _config.ExtractionMode;
-        _logger.LogInformation("Running entity extraction with mode: {Mode}", extractionMode);
+        // Choose extraction profile based on content characteristics
+        // For short segments (likely images), use General profile for visual content
+        // For longer documents, use Technical profile (blog/markdown focus)
+        // Future enhancement: detect profile from content.type signal:
+        //   - Photo -> General (person, location, event, product)
+        //   - Chart/Diagram -> Data (metric, table, category)
+        //   - Technical diagram -> Technical (technology, api, pattern)
+        EntityProfile profile;
+        if (totalChars < 500 && segments.Count <= 3)
+        {
+            profile = EntityTypeProfiles.General; // Images: person, location, product, concept, event, etc.
+            _logger.LogInformation("Using General profile for short content ({Chars} chars, {Segments} segments)", totalChars, segments.Count);
+        }
+        else
+        {
+            profile = EntityTypeProfiles.Technical; // Documents: technology, framework, library, etc.
+            _logger.LogInformation("Using Technical profile for document content ({Chars} chars, {Segments} segments)", totalChars, segments.Count);
+        }
 
-        var extractor = new EntityExtractor(_graphDb, _embedder, null, extractionMode);
+        // Use ProfileAwareEntityExtractor with OnnxNerService for quality entity extraction
+        // NER finds entity spans (WHERE entities are), profile maps them to types (WHAT kind of entity)
+        var extractor = new ProfileAwareEntityExtractor(
+            _graphDb,
+            _embedder,
+            profile,
+            llm: null,  // No LLM needed with NER
+            nerService: _nerService,
+            mode: ExtractionMode.Heuristic); // Heuristic mode with NER fallback
+
+        _logger.LogInformation("Extracting entities with {Profile} profile, NER={HasNer}",
+            profile.DisplayName, _nerService != null);
+
         var result = await extractor.ExtractAsync(null, ct);
 
         // Sync extracted entities to PostgreSQL for relational queries
@@ -284,5 +355,6 @@ public class EntityGraphService : IEntityGraphService, IDisposable
     {
         _graphDb.Dispose();
         _embedder.Dispose();
+        _nerService?.Dispose();
     }
 }

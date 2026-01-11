@@ -21,6 +21,9 @@
     <!-- Tailwind CSS + DaisyUI (Vite bundled) -->
     <link href="/dist/css/styles.css" rel="stylesheet" type="text/css" />
 
+    <!-- App JS (must load before Alpine) -->
+    <script src="/dist/js/main.js"></script>
+
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 
@@ -233,7 +236,5 @@
         </div>
     </div>
 
-    @* Vite bundled JavaScript - publicApp is loaded from /dist/js/main.js *@
-    <script type="module" src="/dist/js/main.js"></script>
 </body>
 </html>

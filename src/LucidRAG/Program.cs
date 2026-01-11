@@ -46,8 +46,7 @@ if (standaloneMode)
 // Serilog
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
-        .Enrich.FromLogContext()
-        .WriteTo.Console());
+        .Enrich.FromLogContext());
 
 // Configuration
 builder.Services.Configure<RagDocumentsConfig>(
@@ -338,26 +337,40 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
-// Ensure database is created/migrated
-using (var scope = app.Services.CreateScope())
+// Database setup - use EnsureCreated for development simplicity
+Log.Information("Setting up database...");
+try
 {
-    var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
-    if (standaloneMode && (connectionString?.StartsWith("Data Source=") ?? false))
+    using (var scope = app.Services.CreateScope())
     {
-        // SQLite - just ensure created
-        await db.Database.EnsureCreatedAsync();
-    }
-    else
-    {
-        await db.Database.MigrateAsync();
+        var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
 
-        // Also migrate tenant management tables (PostgreSQL only)
-        var tenantDb = scope.ServiceProvider.GetService<TenantDbContext>();
-        if (tenantDb != null)
+        // Check if documents table exists by querying information_schema
+        var conn = db.Database.GetDbConnection();
+        await conn.OpenAsync();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'documents'";
+        var tableExists = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
+        await conn.CloseAsync();
+
+        if (!tableExists)
         {
-            await tenantDb.Database.MigrateAsync();
+            Log.Information("Documents table not found, creating schema...");
+            await db.Database.EnsureDeletedAsync();
+            await db.Database.EnsureCreatedAsync();
+            Log.Information("Database schema created");
+        }
+        else
+        {
+            Log.Information("Database schema verified");
         }
     }
+    Log.Information("Database setup complete");
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Failed to setup database");
+    throw;
 }
 
 // Ensure upload directory exists

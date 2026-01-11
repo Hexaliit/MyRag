@@ -187,8 +187,8 @@ public class EvidenceRepository(
         await db.SaveChangesAsync(ct);
 
         logger.LogInformation(
-            "Stored evidence artifact {ArtifactId} type={Type} for entity {EntityId} ({Size} bytes)",
-            artifact.Id, artifactType, entityId, fileSize);
+            "Stored evidence artifact {ArtifactId} type={Type} for entity {EntityId} ({Size} bytes), segmentHash={SegmentHash}",
+            artifact.Id, artifactType, entityId, fileSize, segmentHash);
 
         return artifact.Id;
     }

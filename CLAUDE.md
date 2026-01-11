@@ -59,13 +59,13 @@ Mostlylucid.GraphRag                → Entity extraction & knowledge graph
 Mostlylucid.RAG                     → Vector store abstraction (DuckDB/Qdrant)
 ```
 
-**Dependency flow:**
+**Dependency flow**
 - Applications → Core pipelines → Summarizer.Core
 - Each pipeline owns its domain-specific processing
 - All pipelines implement `IPipeline` interface
 - Unified `ContentHasher` utility (XxHash64) for all content hashing
 
-**Unified Pipeline Pattern:**
+**Unified Pipeline Pattern**
 ```csharp
 // Each Core project registers its pipeline
 services.AddDocSummarizer();          // DocumentPipeline
@@ -150,19 +150,19 @@ Primary configuration in `src/LucidRAG/appsettings.json`:
 
 ### ⚠️ Standalone Mode Limitations
 
-**Current State:**
+**Current State**
 - `VectorStoreBackend.DuckDB` is defined in the enum but **NOT IMPLEMENTED**
 - Code falls back to `InMemory` vector store in standalone mode
 - Document embeddings are **lost on restart**
 - Must re-index all documents on every startup
 
-**Working Standalone:**
+**Working Standalone**
 - ✅ **ImageSummarizer.Cli**: Fully standalone, no database needed
 - ✅ **DataSummarizer**: Uses DuckDB with VSS extension for persistent vectors
 - ⚠️ **LucidRAG (web)**: SQLite metadata + InMemory vectors (no persistence)
 - ⚠️ **LucidRAG.Cli**: SQLite metadata + InMemory vectors (no persistence)
 
-**For Persistent Embeddings:** Use docker-compose.yml with Qdrant
+**For Persistent Embeddings** Use docker-compose.yml with Qdrant
 
 ## CI/CD
 

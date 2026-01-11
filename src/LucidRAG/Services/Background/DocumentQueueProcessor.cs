@@ -186,6 +186,7 @@ public class DocumentQueueProcessor(
         var entityGraph = scope.ServiceProvider.GetRequiredService<IEntityGraphService>();
         var retrievalEntityService = scope.ServiceProvider.GetRequiredService<IRetrievalEntityService>();
         var evidenceRepository = scope.ServiceProvider.GetRequiredService<IEvidenceRepository>();
+        var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
 
         var document = await db.Documents.FindAsync([job.DocumentId], ct);
         if (document is null)
@@ -212,6 +213,7 @@ public class DocumentQueueProcessor(
             // Check if file should use pipeline (images/GIFs) or document summarizer
             var pipeline = pipelineRegistry.FindForFile(job.FilePath);
             DocumentSummary? result = null;
+            List<Mostlylucid.DocSummarizer.Models.Segment>? imageSegments = null; // Store segments for images
 
             if (pipeline != null)
             {
@@ -234,7 +236,13 @@ public class DocumentQueueProcessor(
 
                 // Update document with pipeline results
                 document.SegmentCount = pipelineResult.Chunks.Count;
-                document.VectorStoreDocId = Path.GetFileNameWithoutExtension(job.FilePath); // Use filename as stable ID
+
+                // Compute content hash from file for stable document ID (matches BertRagSummarizer pattern)
+                var fileBytes = await File.ReadAllBytesAsync(job.FilePath, ct);
+                var contentHash = Mostlylucid.Summarizer.Core.Utilities.ContentHasher.ComputeHash(fileBytes);
+                var filename = Path.GetFileNameWithoutExtension(job.FilePath);
+                document.VectorStoreDocId = $"{filename}_{contentHash}";
+
                 document.ProcessingProgress = 60;
                 await db.SaveChangesAsync(ct);
 
@@ -242,11 +250,12 @@ public class DocumentQueueProcessor(
                     Path.GetFileName(job.FilePath), pipelineResult.Chunks.Count,
                     pipelineResult.ProcessingTime.TotalMilliseconds);
 
-                // Convert ContentChunks to Segments and index in vector store
-                var segments = await ConvertAndIndexImageChunksAsync(
+                // Convert ContentChunks to Segments with embeddings and index in vector store
+                imageSegments = await ConvertAndIndexImageChunksAsync(
                     pipelineResult.Chunks,
                     document.VectorStoreDocId,
                     vectorStore,
+                    embeddingService,
                     ct);
 
                 // Create a minimal DocumentSummary for compatibility with downstream code
@@ -256,8 +265,8 @@ public class DocumentQueueProcessor(
                     OpenQuestions: new List<string>(),
                     Trace: new SummarizationTrace(
                         DocumentId: document.VectorStoreDocId,
-                        TotalChunks: segments.Count,
-                        ChunksProcessed: segments.Count,
+                        TotalChunks: imageSegments.Count,
+                        ChunksProcessed: imageSegments.Count,
                         Topics: new List<string>(),
                         TotalTime: pipelineResult.ProcessingTime,
                         CoverageScore: 1.0,
@@ -332,13 +341,22 @@ public class DocumentQueueProcessor(
             {
                 logger.LogDebug("Fetching segments for VectorStoreDocId: {DocId}", result.Trace.DocumentId);
 
-                var segments = await vectorStore.GetDocumentSegmentsAsync(
-                    "ragdocs", // Collection name from config
-                    result.Trace.DocumentId,
-                    ct);
-
-                logger.LogDebug("Retrieved {SegmentCount} segments from vector store for {DocId}",
-                    segments.Count, result.Trace.DocumentId);
+                // For images, we already have the segments from ConvertAndIndexImageChunksAsync
+                // For documents, fetch from vector store
+                List<Mostlylucid.DocSummarizer.Models.Segment> segments;
+                if (imageSegments != null)
+                {
+                    // Image pipeline - reuse segments we just created
+                    segments = imageSegments;
+                    logger.LogDebug("Image processing: using recently created segments ({Count})", segments.Count);
+                }
+                else
+                {
+                    // Document pipeline - fetch from vector store
+                    segments = await vectorStore.GetDocumentSegmentsAsync("ragdocs", result.Trace.DocumentId, ct);
+                    logger.LogDebug("Retrieved {SegmentCount} segments from vector store for {DocId}",
+                        segments.Count, result.Trace.DocumentId);
+                }
 
                 if (segments.Count > 0)
                 {
@@ -429,9 +447,22 @@ public class DocumentQueueProcessor(
         IReadOnlyList<Mostlylucid.Summarizer.Core.Pipeline.ContentChunk> chunks,
         string docId,
         IVectorStore vectorStore,
+        IEmbeddingService embeddingService,
         CancellationToken ct)
     {
         var segments = new List<Mostlylucid.DocSummarizer.Models.Segment>();
+
+        // Initialize embedding service if needed
+        Console.WriteLine($"[DEBUG] Initializing embedding service for {chunks.Count} chunks");
+        await embeddingService.InitializeAsync(ct);
+
+        // Collect all texts for batch embedding
+        var texts = chunks.Select(c => c.Text).ToList();
+        Console.WriteLine($"[DEBUG] Generating embeddings for {texts.Count} texts, first text: {texts.FirstOrDefault()?.Substring(0, Math.Min(50, texts.FirstOrDefault()?.Length ?? 0))}");
+
+        // Generate embeddings for all caption texts in batch
+        var embeddings = await embeddingService.EmbedBatchAsync(texts, ct);
+        Console.WriteLine($"[DEBUG] Generated {embeddings?.Length ?? 0} embeddings, first embedding dim: {embeddings?.FirstOrDefault()?.Length ?? 0}");
 
         for (int i = 0; i < chunks.Count; i++)
         {
@@ -449,16 +480,19 @@ public class DocumentQueueProcessor(
                 SectionTitle = chunk.ContentType.ToString(),
                 SalienceScore = 1.0, // Images are salient by default
                 PositionWeight = 1.0,
-                ChunkIndex = i
+                ChunkIndex = i,
+                Embedding = embeddings[i] // Add generated embedding
             };
 
             segments.Add(segment);
         }
 
-        // Index in vector store
+        // Index in vector store (now with embeddings)
+        Console.WriteLine($"[DEBUG] Upserting {segments.Count} segments to vector store, first segment has embedding: {segments.FirstOrDefault()?.Embedding != null}");
         if (segments.Count > 0)
         {
             await vectorStore.UpsertSegmentsAsync("ragdocs", segments, ct);
+            Console.WriteLine($"[DEBUG] Successfully upserted {segments.Count} segments");
         }
 
         return segments;

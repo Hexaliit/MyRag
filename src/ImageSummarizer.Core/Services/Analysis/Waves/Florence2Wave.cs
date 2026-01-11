@@ -121,16 +121,19 @@ public class Florence2Wave : IAnalysisWave
                 return signals;
             }
 
-            // Add caption signal
+            // Add visual description signal (what Florence-2 calls "caption")
             if (!string.IsNullOrWhiteSpace(result.Caption))
             {
+                var confidence = CalculateCaptionConfidence(result);
+
+                // Emit florence2-specific signal
                 signals.Add(new Signal
                 {
-                    Key = "florence2.caption",
+                    Key = "florence2.description",
                     Value = result.Caption,
-                    Confidence = CalculateCaptionConfidence(result),
+                    Confidence = confidence,
                     Source = Name,
-                    Tags = new List<string> { SignalTags.Content, "caption", "florence2", "onnx" },
+                    Tags = new List<string> { SignalTags.Content, "description", "florence2", "onnx" },
                     Metadata = new Dictionary<string, object>
                     {
                         ["model"] = "florence-2-base",
@@ -140,9 +143,30 @@ public class Florence2Wave : IAnalysisWave
                     }
                 });
 
-                // Note: We intentionally do NOT emit vision.llm.caption here.
-                // Each wave should use its own namespace to avoid duplicate key conflicts.
-                // Output formatters should check both florence2.caption and vision.llm.caption.
+                // ALSO emit standard vision.description signal for ImagePipeline consumption
+                signals.Add(new Signal
+                {
+                    Key = "vision.description",
+                    Value = result.Caption,
+                    Confidence = confidence,
+                    Source = Name,
+                    Tags = new List<string> { SignalTags.Content, "description", "vision" },
+                    Metadata = new Dictionary<string, object>
+                    {
+                        ["source_wave"] = "florence2",
+                        ["model"] = "florence-2-base"
+                    }
+                });
+
+                // For backward compatibility, also emit as vision.caption
+                signals.Add(new Signal
+                {
+                    Key = "vision.caption",
+                    Value = result.Caption,
+                    Confidence = confidence,
+                    Source = Name,
+                    Tags = new List<string> { SignalTags.Content, "caption", "vision" }
+                });
             }
 
             // Add OCR text signal if detected
@@ -234,6 +258,54 @@ public class Florence2Wave : IAnalysisWave
                     result.SceneDetection.AverageMotion);
             }
 
+            // Run NER-focused entity extraction
+            var nerResult = await _florence2Service.ExtractEntitiesAsync(imagePath, ct);
+            if (nerResult.Success && nerResult.Entities.Count > 0)
+            {
+                // Emit individual entity signals
+                foreach (var entity in nerResult.Entities)
+                {
+                    signals.Add(new Signal
+                    {
+                        Key = $"florence2.entity.{entity.Type.ToLowerInvariant()}",
+                        Value = entity.Name,
+                        Confidence = entity.Confidence,
+                        Source = Name,
+                        Tags = new List<string> { SignalTags.Content, "entity", "ner", entity.Type.ToLowerInvariant() }
+                    });
+                }
+
+                // Emit aggregated entity types signal
+                signals.Add(new Signal
+                {
+                    Key = "florence2.entity_types",
+                    Value = nerResult.Entities.Select(e => e.Type).Distinct().ToArray(),
+                    Confidence = nerResult.Entities.Average(e => e.Confidence),
+                    Source = Name,
+                    Tags = new List<string> { SignalTags.Content, "entities", "ner" },
+                    Metadata = new Dictionary<string, object>
+                    {
+                        ["entity_count"] = nerResult.Entities.Count,
+                        ["entities"] = nerResult.Entities.Select(e => new { e.Name, e.Type, e.Confidence }).ToList()
+                    }
+                });
+
+                // Emit short description for NER if different from main caption
+                if (!string.IsNullOrWhiteSpace(nerResult.ShortDescription))
+                {
+                    signals.Add(new Signal
+                    {
+                        Key = "florence2.ner_description",
+                        Value = nerResult.ShortDescription,
+                        Confidence = 0.8,
+                        Source = Name,
+                        Tags = new List<string> { SignalTags.Content, "description", "ner" }
+                    });
+                }
+
+                _logger?.LogDebug("Florence-2 NER: extracted {Count} entities", nerResult.Entities.Count);
+            }
+
             // Determine if we should escalate to Vision LLM
             var shouldEscalate = ShouldEscalateToLlm(result, context);
             signals.Add(new Signal
@@ -246,10 +318,11 @@ public class Florence2Wave : IAnalysisWave
             });
 
             _logger?.LogDebug(
-                "Florence-2 completed in {DurationMs}ms: Caption={HasCaption}, OCR={HasOcr}, ShouldEscalate={ShouldEscalate}",
+                "Florence-2 completed in {DurationMs}ms: Caption={HasCaption}, OCR={HasOcr}, Entities={EntityCount}, ShouldEscalate={ShouldEscalate}",
                 result.DurationMs,
                 !string.IsNullOrWhiteSpace(result.Caption),
                 !string.IsNullOrWhiteSpace(result.OcrText),
+                nerResult.Entities.Count,
                 shouldEscalate);
 
             return signals;

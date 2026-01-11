@@ -132,7 +132,16 @@ public class AgenticSearchService(
 
         if (segmentHashes.Count > 0)
         {
+            logger.LogDebug("Querying evidence for {Count} segment hashes, first 3: {Hashes}",
+                segmentHashes.Count,
+                string.Join(", ", segmentHashes.Take(3)));
+
             var textLookup = await evidenceRepository.GetSegmentTextsByHashesAsync(segmentHashes!, ct);
+
+            logger.LogDebug("Evidence lookup returned {Count} results, keys: {Keys}",
+                textLookup.Count,
+                string.Join(", ", textLookup.Keys.Take(3)));
+
             foreach (var (segment, _) in uniqueSegments)
             {
                 if (!string.IsNullOrEmpty(segment.ContentHash) &&
