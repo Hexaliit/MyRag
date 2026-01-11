@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Models;
-using Mostlylucid.DocSummarizer.Services.Onnx;
 using Mostlylucid.GraphRag;
 using Mostlylucid.GraphRag.Extraction;
 using Mostlylucid.GraphRag.Services;
@@ -10,6 +9,9 @@ using LucidRAG.Config;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using Microsoft.Extensions.Logging;
+
+// Use the GraphRag NER service (not DocSummarizer's standalone version)
+using OnnxNerService = Mostlylucid.GraphRag.Extraction.OnnxNerService;
 
 namespace LucidRAG.Services;
 

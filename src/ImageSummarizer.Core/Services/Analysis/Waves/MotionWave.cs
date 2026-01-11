@@ -227,55 +227,102 @@ public class MotionWave : IAnalysisWave
                 Tags = new List<string> { "motion", "summary" }
             });
 
-            // Identify WHAT is moving using Vision LLM (if motion detected and LLM enabled)
+            // Identify WHAT is moving - OPTIMIZATION: Check existing data before LLM call
             _logger?.LogDebug("Motion identification check: HasMotion={HasMotion}, EnableVisionLlm={EnableVisionLlm}, EnableMotionIdentification={EnableMotionIdentification}",
                 result.HasMotion, _config.EnableVisionLlm, _config.Motion.EnableMotionIdentification);
 
-            if (result.HasMotion && _config.EnableVisionLlm && _config.Motion.EnableMotionIdentification)
+            if (result.HasMotion && _config.Motion.EnableMotionIdentification)
             {
-                _logger?.LogInformation("Attempting to identify moving objects for {ImagePath}", imagePath);
-                var (movingObjects, isInferred) = await IdentifyMovingObjectsAsync(imagePath, result, context, ct);
-                _logger?.LogDebug("IdentifyMovingObjectsAsync returned {Count} objects (inferred={Inferred})",
-                    movingObjects?.Count ?? 0, isInferred);
+                // OPTIMIZATION: First check if Florence2 has already extracted entities we can use
+                // This avoids a separate LLM call when we already have entity data
+                var existingEntities = GetExistingEntities(context);
 
-                if (movingObjects != null && movingObjects.Count > 0)
+                if (existingEntities.Count > 0)
                 {
-                    // Reduce confidence if inferred from entities rather than directly observed
-                    var confidence = isInferred ? 0.65 : 0.85;
+                    // Use existing entities as moving objects (they're likely what's moving in the animation)
+                    _logger?.LogInformation("Using {Count} existing entities from prior waves instead of LLM call for motion identification",
+                        existingEntities.Count);
 
                     signals.Add(new Signal
                     {
                         Key = "motion.moving_objects",
-                        Value = movingObjects,
-                        Confidence = confidence,
+                        Value = existingEntities,
+                        Confidence = 0.7, // Slightly lower confidence since we're inferring
                         Source = Name,
-                        Tags = isInferred
-                            ? new List<string> { "motion", "objects", "inferred" }
-                            : new List<string> { "motion", "objects", "llm" },
+                        Tags = new List<string> { "motion", "objects", "inferred" },
                         Metadata = new Dictionary<string, object>
                         {
-                            ["count"] = movingObjects.Count,
-                            ["primary_object"] = movingObjects.FirstOrDefault() ?? "unknown",
-                            ["inferred_from_entities"] = isInferred,
-                            ["method"] = isInferred ? "entity_correlation" : "vision_llm"
+                            ["count"] = existingEntities.Count,
+                            ["primary_object"] = existingEntities.FirstOrDefault() ?? "unknown",
+                            ["inferred_from_entities"] = true,
+                            ["method"] = "entity_reuse",
+                            ["llm_call_skipped"] = true
                         }
                     });
 
                     // Add individual moving object signals
-                    foreach (var obj in movingObjects.Take(5))
+                    foreach (var obj in existingEntities.Take(5))
                     {
                         signals.Add(new Signal
                         {
                             Key = $"motion.moving.{obj.Replace(" ", "_").ToLowerInvariant()}",
                             Value = obj,
-                            Confidence = isInferred ? 0.6 : 0.8,
+                            Confidence = 0.65,
                             Source = Name,
                             Tags = new List<string> { "motion", "object", "moving" }
                         });
                     }
 
-                    _logger?.LogInformation("Identified moving objects ({Method}): {Objects}",
-                        isInferred ? "inferred" : "observed", string.Join(", ", movingObjects));
+                    _logger?.LogInformation("Identified moving objects (from prior waves): {Objects}",
+                        string.Join(", ", existingEntities));
+                }
+                else if (_config.EnableVisionLlm)
+                {
+                    // No existing entities - fall back to LLM call
+                    _logger?.LogInformation("No existing entities found, attempting LLM identification for {ImagePath}", imagePath);
+                    var (movingObjects, isInferred) = await IdentifyMovingObjectsAsync(imagePath, result, context, ct);
+                    _logger?.LogDebug("IdentifyMovingObjectsAsync returned {Count} objects (inferred={Inferred})",
+                        movingObjects?.Count ?? 0, isInferred);
+
+                    if (movingObjects != null && movingObjects.Count > 0)
+                    {
+                        // Reduce confidence if inferred from entities rather than directly observed
+                        var confidence = isInferred ? 0.65 : 0.85;
+
+                        signals.Add(new Signal
+                        {
+                            Key = "motion.moving_objects",
+                            Value = movingObjects,
+                            Confidence = confidence,
+                            Source = Name,
+                            Tags = isInferred
+                                ? new List<string> { "motion", "objects", "inferred" }
+                                : new List<string> { "motion", "objects", "llm" },
+                            Metadata = new Dictionary<string, object>
+                            {
+                                ["count"] = movingObjects.Count,
+                                ["primary_object"] = movingObjects.FirstOrDefault() ?? "unknown",
+                                ["inferred_from_entities"] = isInferred,
+                                ["method"] = isInferred ? "entity_correlation" : "vision_llm"
+                            }
+                        });
+
+                        // Add individual moving object signals
+                        foreach (var obj in movingObjects.Take(5))
+                        {
+                            signals.Add(new Signal
+                            {
+                                Key = $"motion.moving.{obj.Replace(" ", "_").ToLowerInvariant()}",
+                                Value = obj,
+                                Confidence = isInferred ? 0.6 : 0.8,
+                                Source = Name,
+                                Tags = new List<string> { "motion", "object", "moving" }
+                            });
+                        }
+
+                        _logger?.LogInformation("Identified moving objects ({Method}): {Objects}",
+                            isInferred ? "inferred" : "observed", string.Join(", ", movingObjects));
+                    }
                 }
             }
 
@@ -425,6 +472,68 @@ public class MotionWave : IAnalysisWave
             _logger?.LogWarning(ex, "Failed to identify moving objects");
             return (null, false);
         }
+    }
+
+    /// <summary>
+    /// Check existing signals for entities we can reuse instead of making LLM calls.
+    /// Checks Florence2, MlOcr, and any other prior wave outputs.
+    /// NOTE: Florence2Wave runs at same priority (55), so its signals may not be available yet.
+    /// This checks what's available at the time MotionWave runs.
+    /// </summary>
+    private List<string> GetExistingEntities(AnalysisContext context)
+    {
+        var entities = new List<string>();
+
+        // Check Florence2 NER entities - they're in the metadata of florence2.entity_types signal
+        // Also check individual entity signals like florence2.entity.person
+        var entityTypes = context.GetAllSignals()
+            .Where(s => s.Key.StartsWith("florence2.entity.") && !s.Key.Equals("florence2.entity_types"))
+            .Select(s => s.Value?.ToString())
+            .Where(v => !string.IsNullOrWhiteSpace(v) && IsValidMovingObjectLabel(v))
+            .ToList();
+
+        if (entityTypes.Count > 0)
+        {
+            entities.AddRange(entityTypes!);
+            _logger?.LogDebug("Found {Count} entities from Florence2 signals", entityTypes.Count);
+        }
+
+        // Check MlOcr wave for detected text that might indicate content
+        // (e.g., "MAGIC" text on a GIF about magic tricks)
+        var mlOcrText = context.GetValue<string>("ml_ocr.final_text");
+        if (!string.IsNullOrWhiteSpace(mlOcrText) && mlOcrText.Length > 3 && mlOcrText.Length < 50)
+        {
+            // Short OCR text might be a label/title that describes content
+            var cleanText = mlOcrText.Trim().Split('\n')[0].Trim();
+            if (IsValidMovingObjectLabel(cleanText) && !entities.Contains(cleanText, StringComparer.OrdinalIgnoreCase))
+            {
+                entities.Add($"'{cleanText}' text element");
+            }
+        }
+
+        // Check identity signals for format hints (e.g., "meme" scene type)
+        var sceneType = context.GetValue<string>("scene.type");
+        if (!string.IsNullOrWhiteSpace(sceneType) && sceneType != "unknown")
+        {
+            // Scene type might give hints about what's moving
+            _logger?.LogDebug("Scene type detected: {SceneType}", sceneType);
+        }
+
+        // Check color analysis for dominant subjects (faces indicate people)
+        var hasFaces = context.GetValue<bool>("faces.detected");
+        var faceCount = context.GetValue<int>("faces.count");
+        if (hasFaces && faceCount > 0)
+        {
+            if (!entities.Any(e => e.Contains("person", StringComparison.OrdinalIgnoreCase)))
+            {
+                entities.Add(faceCount == 1 ? "person" : $"{faceCount} people");
+            }
+        }
+
+        _logger?.LogDebug("GetExistingEntities found {Count} candidates: [{Entities}]",
+            entities.Count, string.Join(", ", entities.Take(5)));
+
+        return entities.Distinct().Take(5).ToList();
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Mostlylucid.DocSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace Mostlylucid.DocSummarizer.Services;
 
@@ -473,6 +474,139 @@ public class TextAnalysisService
 
     #endregion
 
+    #region NER-Enhanced TF-IDF Analysis
+
+    /// <summary>
+    /// Extract named entities and boost their TF-IDF scores.
+    /// Returns entities with boosted scores based on entity type importance.
+    /// </summary>
+    public async Task<List<(string term, double score, string? entityType)>> GetNerBoostedTermsAsync(
+        string document,
+        OnnxNerService? nerService,
+        int topN = 15,
+        CancellationToken ct = default)
+    {
+        // Get base TF-IDF scores
+        var baseTerms = GetDistinctiveTerms(document, topN * 2);
+        var termScores = baseTerms.ToDictionary(t => t.term, t => (score: t.score, entityType: (string?)null));
+
+        // If NER service is available, extract entities and boost scores
+        if (nerService?.IsAvailable == true)
+        {
+            try
+            {
+                var entities = await nerService.ExtractEntitiesAsync(document, ct);
+
+                foreach (var entity in entities)
+                {
+                    // Normalize entity text for matching
+                    var entityTerms = Tokenize(entity.Text);
+
+                    foreach (var term in entityTerms)
+                    {
+                        // Boost factor based on entity type
+                        var boost = GetEntityTypeBoost(entity.Type);
+
+                        if (termScores.TryGetValue(term, out var existing))
+                        {
+                            // Boost existing term
+                            termScores[term] = (existing.score * boost, entity.Type);
+                        }
+                        else
+                        {
+                            // Add entity term with base score + boost
+                            var baseTfIdf = ComputeTfIdf(term, document);
+                            termScores[term] = (baseTfIdf * boost, entity.Type);
+                        }
+                    }
+
+                    // Also add full entity name as a term
+                    var fullName = entity.Text.ToLowerInvariant();
+                    if (!termScores.ContainsKey(fullName) && !StopWords.Contains(fullName))
+                    {
+                        var baseTfIdf = ComputeTfIdf(fullName, document);
+                        var boost = GetEntityTypeBoost(entity.Type) * 1.5; // Extra boost for full names
+                        termScores[fullName] = (baseTfIdf * boost, entity.Type);
+                    }
+                }
+            }
+            catch
+            {
+                // NER failed, fall back to base TF-IDF
+            }
+        }
+
+        return termScores
+            .OrderByDescending(kv => kv.Value.score)
+            .Take(topN)
+            .Select(kv => (kv.Key, kv.Value.score, kv.Value.entityType))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Get boost factor for entity type.
+    /// Higher boost for important entity types like persons and organizations.
+    /// </summary>
+    private static double GetEntityTypeBoost(string entityType)
+    {
+        return entityType.ToUpperInvariant() switch
+        {
+            "PER" or "PERSON" => 2.0,      // People are often important
+            "ORG" or "ORGANIZATION" => 1.8, // Organizations/companies
+            "LOC" or "LOCATION" => 1.5,     // Places
+            "MISC" => 1.3,                  // Technologies, products, etc.
+            _ => 1.2                         // Unknown entity types
+        };
+    }
+
+    /// <summary>
+    /// Get important entities from text with TF-IDF weighting.
+    /// Combines NER extraction with TF-IDF for relevance scoring.
+    /// </summary>
+    public async Task<List<ExtractedEntityWithScore>> ExtractWeightedEntitiesAsync(
+        string document,
+        OnnxNerService? nerService,
+        CancellationToken ct = default)
+    {
+        var results = new List<ExtractedEntityWithScore>();
+
+        if (nerService?.IsAvailable != true)
+            return results;
+
+        try
+        {
+            var entities = await nerService.ExtractEntitiesAsync(document, ct);
+
+            foreach (var entity in entities)
+            {
+                // Compute TF-IDF for the entity
+                var tfIdfScore = ComputeTfIdf(entity.Text.ToLowerInvariant(), document);
+                var boost = GetEntityTypeBoost(entity.Type);
+                var importance = ClassifyTermImportance(entity.Text.ToLowerInvariant());
+
+                results.Add(new ExtractedEntityWithScore
+                {
+                    Text = entity.Text,
+                    Type = entity.Type,
+                    NerConfidence = entity.Confidence,
+                    TfIdfScore = tfIdfScore,
+                    BoostedScore = tfIdfScore * boost * entity.Confidence,
+                    Importance = importance
+                });
+            }
+        }
+        catch
+        {
+            // NER failed
+        }
+
+        return results
+            .OrderByDescending(e => e.BoostedScore)
+            .ToList();
+    }
+
+    #endregion
+
     #region TF-IDF Analysis
 
     /// <summary>
@@ -802,4 +936,17 @@ public class TextAnalysisService
     }
 
     #endregion
+}
+
+/// <summary>
+/// Entity extracted by NER with TF-IDF weighting.
+/// </summary>
+public class ExtractedEntityWithScore
+{
+    public string Text { get; set; } = "";
+    public string Type { get; set; } = "";
+    public double NerConfidence { get; set; }
+    public double TfIdfScore { get; set; }
+    public double BoostedScore { get; set; }
+    public ClaimType Importance { get; set; }
 }

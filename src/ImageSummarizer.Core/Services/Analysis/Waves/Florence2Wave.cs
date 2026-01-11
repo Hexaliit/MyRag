@@ -13,7 +13,7 @@ namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 /// Provides sub-second inference without requiring external services.
 /// Uses ColorWave signals to compensate for Florence-2's weak color detection.
 /// Also runs OpenCV complexity assessment to help decide on LLM escalation.
-/// Priority: 55 (after color analysis, can be used as first pass before VisionLlmWave)
+/// Priority: 56 (before MotionWave so its entities can be reused for motion identification)
 ///
 /// In full learning mode, Florence-2 runs alongside Vision LLM to compare results
 /// and learn from differences between fast/local vs slow/cloud approaches.
@@ -27,7 +27,7 @@ public class Florence2Wave : IAnalysisWave
     private ImageConfig Config => _configOptions.Value;
 
     public string Name => "Florence2Wave";
-    public int Priority => 55; // After color, before Vision LLM
+    public int Priority => 56; // Before MotionWave (55) so entities are available for motion ID
     public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "vision", "florence2", "onnx", "local" };
 
     public Florence2Wave(

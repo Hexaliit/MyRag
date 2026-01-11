@@ -70,8 +70,19 @@ public sealed class OnnxNerService : IDisposable
             if (!File.Exists(tokenizerFile))
                 throw new FileNotFoundException($"Tokenizer not found: {tokenizerFile}");
 
+            // Configure BertTokenizer for CASED model (bert-base-NER is cased)
+            var bertOptions = new BertOptions
+            {
+                LowerCaseBeforeTokenization = false, // CRITICAL: bert-base-NER is a cased model
+                ClassificationToken = "[CLS]",
+                SeparatorToken = "[SEP]",
+                PaddingToken = "[PAD]",
+                UnknownToken = "[UNK]",
+                MaskingToken = "[MASK]"
+            };
+
             using var stream = File.OpenRead(tokenizerFile);
-            _tokenizer = BertTokenizer.Create(stream);
+            _tokenizer = BertTokenizer.Create(stream, bertOptions);
 
             // Load label mapping from config.json
             if (File.Exists(configFile))
@@ -119,9 +130,30 @@ public sealed class OnnxNerService : IDisposable
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var encoded = _tokenizer.EncodeToTokens(text, out var normalizedText);
 
-        // Get actual token IDs
-        var rawIds = encoded.Select(t => t.Id).ToArray();
+        // Get CLS and SEP token IDs for BERT format: [CLS] tokens [SEP]
+        // Standard BERT vocab has [CLS]=101, [SEP]=102, [PAD]=0
+        // We encode them to get the correct IDs for this vocab
+        var clsTokens = _tokenizer.EncodeToTokens("[CLS]", out _);
+        var sepTokens = _tokenizer.EncodeToTokens("[SEP]", out _);
+        var clsId = clsTokens.Count > 0 ? clsTokens[0].Id : 101;
+        var sepId = sepTokens.Count > 0 ? sepTokens[0].Id : 102;
+
+        // Build full sequence: [CLS] + content tokens + [SEP]
+        var contentIds = encoded.Select(t => t.Id).ToArray();
+        var rawIds = new int[contentIds.Length + 2];
+        rawIds[0] = clsId;  // [CLS] at start
+        Array.Copy(contentIds, 0, rawIds, 1, contentIds.Length);
+        rawIds[rawIds.Length - 1] = sepId;  // [SEP] at end
         var rawLength = rawIds.Length;
+
+        // Build tokens array with special tokens for entity extraction
+        var contentTokens = encoded.Select(t => t.Value).ToArray();
+        var tokens = new string[contentTokens.Length + 2];
+        tokens[0] = "[CLS]";
+        Array.Copy(contentTokens, 0, tokens, 1, contentTokens.Length);
+        tokens[tokens.Length - 1] = "[SEP]";
+
+        Console.WriteLine($"[NER] Tokens: [{string.Join(", ", tokens.Take(10))}...]");
 
         // Smart bucketing: pad to nearest power-of-2-ish bucket for efficiency
         // Buckets: 32, 64, 128, 256, 512
@@ -148,7 +180,6 @@ public sealed class OnnxNerService : IDisposable
             attentionMask[i] = i < rawLength ? 1 : 0;
         }
 
-        var tokens = encoded.Select(t => t.Value).ToArray();
         Console.WriteLine($"[NER] Tokenized in {sw.ElapsedMilliseconds}ms ({rawLength} tokens → {targetLength} bucket, {(targetLength - rawLength)} padding)");
 
         // Create tensors with bucketed length
@@ -228,14 +259,16 @@ public sealed class OnnxNerService : IDisposable
         var seqLen = dims[1];
         var numLabels = dims[2];
 
-        EntitySpan? currentEntity = null;
-        var currentTokens = new List<string>();
+        // First pass: collect all predictions with confidence scores
+        var predictions = new List<(string token, string label, float confidence, bool isSubword)>();
         var labelCounts = new Dictionary<string, int>();
 
         for (int i = 0; i < seqLen && i < tokens.Length; i++)
         {
+            var token = tokens[i];
+
             // Skip special tokens
-            if (tokens[i] == "[CLS]" || tokens[i] == "[SEP]" || tokens[i] == "[PAD]")
+            if (token is "[CLS]" or "[SEP]" or "[PAD]")
                 continue;
 
             // Get prediction (argmax)
@@ -253,59 +286,10 @@ public sealed class OnnxNerService : IDisposable
 
             var label = _labels![maxIdx];
             var confidence = Softmax(logits, i, numLabels, maxIdx);
+            var isSubword = token.StartsWith("##");
 
-            // Track label distribution for debugging
             labelCounts[label] = labelCounts.GetValueOrDefault(label, 0) + 1;
-
-            // Parse BIO tag
-            var match = BioTagRx.Match(label);
-            if (match.Success)
-            {
-                var bioTag = match.Groups[1].Value; // B or I
-                var entityType = match.Groups[2].Value; // PER, ORG, LOC, MISC
-
-                if (bioTag == "B")
-                {
-                    // Save previous entity if any
-                    if (currentEntity != null && currentTokens.Count > 0)
-                    {
-                        currentEntity.Text = MergeTokens(currentTokens);
-                        spans.Add(currentEntity);
-                    }
-
-                    // Start new entity
-                    currentEntity = new EntitySpan
-                    {
-                        EntityType = entityType,
-                        Confidence = confidence
-                    };
-                    currentTokens = [tokens[i]];
-                }
-                else if (bioTag == "I" && currentEntity != null)
-                {
-                    // Continue current entity
-                    currentTokens.Add(tokens[i]);
-                    currentEntity.Confidence = (currentEntity.Confidence + confidence) / 2;
-                }
-            }
-            else if (label == "O")
-            {
-                // Outside - save and reset
-                if (currentEntity != null && currentTokens.Count > 0)
-                {
-                    currentEntity.Text = MergeTokens(currentTokens);
-                    spans.Add(currentEntity);
-                }
-                currentEntity = null;
-                currentTokens.Clear();
-            }
-        }
-
-        // Don't forget last entity
-        if (currentEntity != null && currentTokens.Count > 0)
-        {
-            currentEntity.Text = MergeTokens(currentTokens);
-            spans.Add(currentEntity);
+            predictions.Add((token, label, confidence, isSubword));
         }
 
         // Debug: log label distribution
@@ -315,12 +299,303 @@ public sealed class OnnxNerService : IDisposable
             Console.WriteLine($"[NER] Label distribution: {labelSummary}");
         }
 
-        // Filter low-confidence and deduplicate
+        // Second pass: merge entities with improved WordPiece handling
+        EntitySpan? currentEntity = null;
+        var currentTokens = new List<string>();
+        float confidenceSum = 0;
+        int confidenceCount = 0;
+
+        for (int i = 0; i < predictions.Count; i++)
+        {
+            var (token, label, confidence, isSubword) = predictions[i];
+            var match = BioTagRx.Match(label);
+
+            // IMPROVED: Subword tokens (##xxx) should ALWAYS continue previous entity if one exists
+            // This handles cases like "Entity" -> ["En", "##ti", "##ty"] where each token might get different tags
+            if (isSubword && currentEntity != null)
+            {
+                currentTokens.Add(token);
+                confidenceSum += confidence;
+                confidenceCount++;
+                continue;
+            }
+
+            // IMPROVED: If current token is a subword continuation of previous non-entity token,
+            // and this subword has an entity tag, start the entity from previous token
+            if (isSubword && currentEntity == null && match.Success && i > 0)
+            {
+                // Look back to find the word start
+                var wordTokens = new List<string> { token };
+                var entityType = match.Groups[2].Value;
+
+                // This subword is an entity - we missed the start, so just start from here
+                currentEntity = new EntitySpan { EntityType = entityType, Confidence = confidence };
+                currentTokens = [token];
+                confidenceSum = confidence;
+                confidenceCount = 1;
+                continue;
+            }
+
+            if (match.Success)
+            {
+                var bioTag = match.Groups[1].Value;
+                var entityType = match.Groups[2].Value;
+
+                if (bioTag == "B")
+                {
+                    // Save previous entity
+                    SaveCurrentEntity(spans, ref currentEntity, currentTokens, confidenceSum, confidenceCount);
+
+                    // Start new entity
+                    currentEntity = new EntitySpan { EntityType = entityType, Confidence = confidence };
+                    currentTokens = [token];
+                    confidenceSum = confidence;
+                    confidenceCount = 1;
+                }
+                else if (bioTag == "I")
+                {
+                    if (currentEntity != null)
+                    {
+                        // Continue current entity
+                        currentTokens.Add(token);
+                        confidenceSum += confidence;
+                        confidenceCount++;
+                    }
+                    else
+                    {
+                        // I- without B- : Start new entity (robustness)
+                        currentEntity = new EntitySpan { EntityType = entityType, Confidence = confidence };
+                        currentTokens = [token];
+                        confidenceSum = confidence;
+                        confidenceCount = 1;
+                    }
+                }
+            }
+            else if (label == "O")
+            {
+                // IMPROVED: If next token is a subword with entity tag, don't close yet
+                // This handles "ML.NET" -> ["M", "##L", ".", "N", "##E", "##T"] better
+                var nextIsEntitySubword = i + 1 < predictions.Count &&
+                                          predictions[i + 1].isSubword &&
+                                          BioTagRx.IsMatch(predictions[i + 1].label);
+
+                if (!nextIsEntitySubword)
+                {
+                    SaveCurrentEntity(spans, ref currentEntity, currentTokens, confidenceSum, confidenceCount);
+                    currentTokens.Clear();
+                    confidenceSum = 0;
+                    confidenceCount = 0;
+                }
+            }
+        }
+
+        // Don't forget last entity
+        SaveCurrentEntity(spans, ref currentEntity, currentTokens, confidenceSum, confidenceCount);
+
+        // Post-process: merge adjacent entities of same type (handles split entities)
+        spans = MergeAdjacentEntities(spans, originalText);
+
+        // Post-process: reclassify technical terms
+        spans = ReclassifyTechnicalTerms(spans);
+
+        // Filter and deduplicate
         return spans
-            .Where(s => s.Confidence >= 0.5 && !string.IsNullOrWhiteSpace(s.Text))
+            .Where(s => s.Confidence >= 0.5 && s.Text.Length >= 2 && !string.IsNullOrWhiteSpace(s.Text))
+            .Where(s => !IsNoiseTerm(s.Text))
             .GroupBy(s => s.Text.ToLowerInvariant())
             .Select(g => g.OrderByDescending(s => s.Confidence).First())
             .ToList();
+    }
+
+    private static void SaveCurrentEntity(List<EntitySpan> spans, ref EntitySpan? current,
+        List<string> tokens, float confidenceSum, int confidenceCount)
+    {
+        if (current != null && tokens.Count > 0)
+        {
+            current.Text = MergeTokens(tokens);
+            current.Confidence = confidenceCount > 0 ? confidenceSum / confidenceCount : current.Confidence;
+
+            // Only add if the merged text is meaningful
+            if (current.Text.Length >= 2 && !IsNoiseTerm(current.Text))
+            {
+                spans.Add(current);
+            }
+        }
+        current = null;
+    }
+
+    /// <summary>
+    /// Merge adjacent entities of the same type that were incorrectly split.
+    /// </summary>
+    private static List<EntitySpan> MergeAdjacentEntities(List<EntitySpan> spans, string originalText)
+    {
+        if (spans.Count < 2) return spans;
+
+        var merged = new List<EntitySpan>();
+        var current = spans[0];
+
+        for (int i = 1; i < spans.Count; i++)
+        {
+            var next = spans[i];
+
+            // Check if entities should be merged:
+            // 1. Same type
+            // 2. Texts appear adjacent in original text (with optional space/punctuation between)
+            var shouldMerge = current.EntityType == next.EntityType &&
+                              AreAdjacentInText(current.Text, next.Text, originalText);
+
+            if (shouldMerge)
+            {
+                // Merge: combine texts
+                current = new EntitySpan
+                {
+                    Text = current.Text + " " + next.Text,
+                    EntityType = current.EntityType,
+                    Confidence = (current.Confidence + next.Confidence) / 2
+                };
+            }
+            else
+            {
+                merged.Add(current);
+                current = next;
+            }
+        }
+        merged.Add(current);
+
+        return merged;
+    }
+
+    private static bool AreAdjacentInText(string first, string second, string originalText)
+    {
+        // Find first text in original
+        var idx1 = originalText.IndexOf(first, StringComparison.OrdinalIgnoreCase);
+        if (idx1 < 0) return false;
+
+        var idx2 = originalText.IndexOf(second, idx1 + first.Length, StringComparison.OrdinalIgnoreCase);
+        if (idx2 < 0) return false;
+
+        // Check if they're close (within 3 characters - allowing for space/punctuation)
+        var gap = idx2 - (idx1 + first.Length);
+        return gap >= 0 && gap <= 3;
+    }
+
+    /// <summary>
+    /// Reclassify technical terms that BERT misclassifies.
+    /// </summary>
+    private static List<EntitySpan> ReclassifyTechnicalTerms(List<EntitySpan> spans)
+    {
+        // Known technology companies (should be ORG)
+        var techCompanies = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Microsoft", "Google", "Amazon", "Apple", "Meta", "Facebook", "OpenAI",
+            "Anthropic", "AWS", "IBM", "Oracle", "Intel", "AMD", "NVIDIA",
+            "GitHub", "GitLab", "Elastic", "Confluent", "Databricks", "Snowflake"
+        };
+
+        // Known technologies/products/databases (should be MISC, not ORG)
+        var techProducts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // Databases
+            "PostgreSQL", "MySQL", "MariaDB", "SQLite", "MongoDB", "Redis", "Cassandra",
+            "DynamoDB", "Elasticsearch", "Neo4j", "DuckDB", "Qdrant", "Pinecone", "Weaviate",
+            // Frameworks & Libraries
+            "Entity Framework", "Entity Framework Core", ".NET", "ML.NET", "ASP.NET",
+            "TensorFlow", "PyTorch", "BERT", "GPT", "CLIP", "Florence", "Whisper",
+            "React", "Angular", "Vue", "Svelte", "Next.js", "Nuxt", "Blazor",
+            // Cloud Services (products, not companies)
+            "Azure", "GCP", "Kubernetes", "Docker", "Terraform", "Ansible",
+            // Languages
+            "C#", "Python", "JavaScript", "TypeScript", "Rust", "Go", "Java", "Kotlin",
+            // Protocols & Standards
+            "SQL", "NoSQL", "GraphQL", "REST", "gRPC", "WebSocket", "ONNX", "HTTP",
+            // AI/ML
+            "RAG", "LLM", "GPT-4", "Claude", "Gemini", "DALL-E", "Midjourney", "Stable Diffusion",
+            // Projects
+            "LucidRAG"
+        };
+
+        foreach (var span in spans)
+        {
+            var normalizedText = span.Text.Trim();
+
+            // First check if it's a known tech product - these should be MISC
+            if (techProducts.Contains(normalizedText) ||
+                techProducts.Any(p => normalizedText.Equals(p, StringComparison.OrdinalIgnoreCase)))
+            {
+                span.EntityType = "MISC";
+                span.Confidence = Math.Max(span.Confidence, 0.85);
+            }
+            // Then check if it's a known company - these should be ORG
+            else if (techCompanies.Contains(normalizedText))
+            {
+                span.EntityType = "ORG";
+                span.Confidence = Math.Max(span.Confidence, 0.9);
+            }
+            // Handle partial matches for compound names
+            else if (span.EntityType == "ORG")
+            {
+                // If tagged as ORG but contains tech product keywords, reclassify as MISC
+                if (techProducts.Any(p => normalizedText.Contains(p, StringComparison.OrdinalIgnoreCase)))
+                {
+                    span.EntityType = "MISC";
+                }
+            }
+        }
+
+        // Also clean up spaces around hyphens/dashes in entity names
+        foreach (var span in spans)
+        {
+            span.Text = Regex.Replace(span.Text, @"\s*-\s*", "-").Trim();
+        }
+
+        return spans;
+    }
+
+    /// <summary>
+    /// Check if a term is noise (common words, punctuation, etc.)
+    /// </summary>
+    private static bool IsNoiseTerm(string text)
+    {
+        var cleaned = text.Trim();
+        var lower = cleaned.ToLowerInvariant();
+
+        // Starts with ## (subword token that escaped)
+        if (cleaned.StartsWith("##")) return true;
+
+        // Too short
+        if (lower.Length < 2) return true;
+
+        // Common noise patterns - generic words that aren't useful entities
+        var noisePatterns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // Articles and conjunctions
+            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with",
+            // Verbs
+            "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+            "use", "uses", "used", "using", "run", "runs", "running", "ran",
+            "build", "builds", "building", "built", "create", "creates", "creating",
+            // Pronouns
+            "this", "that", "these", "those", "it", "its", "he", "she", "they", "we", "you",
+            // Generic words often mis-tagged
+            "generation", "system", "project", "framework", "model", "data", "file", "code",
+            "image", "document", "text", "user", "application", "service", "process",
+            "retrieval", "augmented", "new", "local", "support", "features",
+            // Punctuation
+            ".", ",", "!", "?", "-", "_", ":", ";", "(", ")", "[", "]", "{", "}"
+        };
+
+        if (noisePatterns.Contains(lower)) return true;
+
+        // Only punctuation/numbers/symbols
+        if (Regex.IsMatch(lower, @"^[\d\s\.\-_,;:!?\(\)\[\]\{\}#]+$")) return true;
+
+        // Single character (except valid single-char entities)
+        if (lower.Length == 1) return true;
+
+        // Two-letter common words
+        if (lower.Length == 2 && !char.IsUpper(cleaned[0])) return true;
+
+        return false;
     }
 
     /// <summary>
