@@ -436,18 +436,19 @@ public class EntitySpan
 public static class NerModelRegistry
 {
     /// <summary>
-    /// Xenova/bert-base-NER - English BERT NER model (ONNX format via Transformers.js).
-    /// Properly tested ONNX conversion with quantization support.
+    /// protectai/bert-base-NER-onnx - Pre-exported ONNX model from dslim/bert-base-NER.
+    /// Has both model.onnx and vocab.txt (compatible with Microsoft.ML.Tokenizers.BertTokenizer).
     /// Labels: O, B-PER, I-PER, B-ORG, I-ORG, B-LOC, I-LOC, B-MISC, I-MISC
+    /// License: MIT
     /// </summary>
     public static readonly NerModelInfo BertBaseNer = new()
     {
-        Name = "bert-base-NER",
-        HuggingFaceRepo = "Xenova/bert-base-NER",
-        ModelFile = "onnx/model_quantized.onnx",
-        TokenizerFile = "tokenizer.json",
+        Name = "bert-base-NER-onnx",
+        HuggingFaceRepo = "protectai/bert-base-NER-onnx",
+        ModelFile = "model.onnx",
+        TokenizerFile = "vocab.txt",  // vocab.txt works with BertTokenizer
         MaxSequenceLength = 512,
-        SizeBytes = 110_000_000,  // Quantized model is smaller
+        SizeBytes = 431_000_000,
         DefaultLabels = ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]
     };
 
