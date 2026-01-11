@@ -90,6 +90,8 @@
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
         </Content>
+        <Content Include="package.json" />
+        <Content Update="package-lock.json" />
     </ItemGroup>
 
     <!-- Exclude npm/node artifacts and generated data from project -->
@@ -101,7 +103,6 @@
         <None Remove="package*.json" />
         <Content Remove="package*.json" />
         <None Remove="package-lock.json" />
-        <Content Remove="package-lock.json" />
         <None Remove="screenshots\**" />
         <Content Remove="screenshots\**" />
         <None Remove="data\**" />
