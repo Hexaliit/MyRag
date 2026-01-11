@@ -154,6 +154,10 @@ builder.Services.AddHostedService<DemoContentSeeder>();
 builder.Services.AddSingleton<IWebCrawlerService, WebCrawlerService>();
 builder.Services.AddSingleton<IIngestionService, IngestionService>();
 
+// File explorer services
+builder.Services.AddScoped<IFolderService, FolderService>();
+builder.Services.AddScoped<LucidRAG.Web.Services.IExplorerSearchService, LucidRAG.Web.Services.ExplorerSearchService>();
+
 // YAML manifest-based lens system for customizable response formatting
 builder.Services.AddYamlLenses(builder.Configuration, useEmbedded: false);
 

@@ -1,0 +1,57 @@
+@using LucidRAG.Entities
+@model List<DocumentEntity>
+@* Chat Sidebar - Document selection for chat context *@
+@* HTMX swappable content for chat mode *@
+
+<div id="chat-sidebar-content" class="flex flex-col h-full">
+    <!-- Document Selection Header -->
+    <div class="px-3 py-2 border-b border-base-300 flex items-center gap-2 text-xs">
+        <span class="opacity-60">Select for chat:</span>
+        <button class="btn btn-ghost btn-xs"
+                @@click="selectAllDocuments()"
+                title="Select all completed documents">
+            All
+        </button>
+        <button class="btn btn-ghost btn-xs"
+                @@click="selectedDocIds.clear(); htmx.trigger(document.body, 'documentUploaded');"
+                title="Clear selection">
+            None
+        </button>
+        <span class="ml-auto badge badge-sm badge-ghost" x-text="selectedDocIds.size + ' selected'"></span>
+    </div>
+
+    @await Html.PartialAsync("_SidebarProcessingStatus")
+
+    <!-- Document List -->
+    <div id="document-list" class="flex-1 overflow-y-auto p-2 space-y-1"
+         hx-get="/admin/documents" hx-trigger="documentUploaded from:body" hx-swap="innerHTML">
+        @await Html.PartialAsync("_DocumentList", Model)
+    </div>
+
+    @await Html.PartialAsync("_SidebarGraphHealth")
+
+    <!-- Stats Footer -->
+    <div class="p-3 border-t border-base-300 text-sm text-base-content/60 flex items-center justify-between">
+        <div>
+            <span>📊 <span x-text="documentCount">@Model.Count</span> docs</span>
+            <span class="mx-1">•</span>
+            <span>🔢 <span x-text="segmentCount">@Model.Sum(d => d.SegmentCount)</span> segs</span>
+        </div>
+        <!-- Dev: Clear All Button -->
+        <template x-if="canWrite && !demoMode">
+            <button class="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                    @@click="clearAll()"
+                    :disabled="clearingAll"
+                    title="Clear all data (DEV)">
+                <template x-if="!clearingAll">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </template>
+                <template x-if="clearingAll">
+                    <span class="loading loading-spinner loading-xs"></span>
+                </template>
+            </button>
+        </template>
+    </div>
+</div>

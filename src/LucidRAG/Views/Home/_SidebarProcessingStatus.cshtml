@@ -1,0 +1,42 @@
+@* Processing Status - HTMX swappable partial *@
+@* Shows real-time document processing via SignalR *@
+
+<div id="processing-status-section">
+    <!-- Processing Status (SignalR) -->
+    <template x-if="processingStatus.currentDocument">
+        <div class="px-3 py-2 bg-info/10 border-b border-info/30 animate-pulse">
+            <div class="flex items-center gap-2 text-xs">
+                <span class="loading loading-spinner loading-xs text-info"></span>
+                <span class="font-medium text-info truncate" x-text="processingStatus.currentDocument"></span>
+            </div>
+            <div class="flex items-center gap-2 mt-1">
+                <progress class="progress progress-info h-1 flex-1"
+                          :value="processingStatus.progress"
+                          max="100"></progress>
+                <span class="text-xs opacity-60" x-text="processingStatus.stage || 'Processing...'"></span>
+            </div>
+        </div>
+    </template>
+
+    <!-- Recent Processing Events -->
+    <template x-if="processingStatus.recentEvents.length > 0 && !processingStatus.currentDocument">
+        <div class="px-3 py-1 border-b border-base-300 text-xs">
+            <template x-if="processingStatus.recentEvents[0].type === 'completed'">
+                <div class="flex items-center gap-1 text-success">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span class="truncate" x-text="`${processingStatus.recentEvents[0].documentName} completed`"></span>
+                </div>
+            </template>
+            <template x-if="processingStatus.recentEvents[0].type === 'failed'">
+                <div class="flex items-center gap-1 text-error">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <span class="truncate" x-text="`${processingStatus.recentEvents[0].documentName} failed`"></span>
+                </div>
+            </template>
+        </div>
+    </template>
+</div>

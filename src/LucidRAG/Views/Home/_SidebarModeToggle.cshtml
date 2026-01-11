@@ -1,0 +1,27 @@
+@* Sidebar Mode Toggle - Switch between Chat documents and File Explorer *@
+@* HTMX enabled for mode switching *@
+
+<div id="sidebar-mode-toggle" class="flex items-center border-b border-base-300 bg-base-200/50">
+    <button class="flex-1 py-2 px-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            :class="sidebarMode === 'chat' ? 'bg-base-100 text-primary border-b-2 border-primary' : 'text-base-content/60 hover:text-base-content'"
+            @@click="sidebarMode = 'chat'"
+            hx-get="/admin/chat-sidebar"
+            hx-target="#sidebar-content"
+            hx-swap="innerHTML">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+        <span>Chat</span>
+    </button>
+    <button class="flex-1 py-2 px-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            :class="sidebarMode === 'explorer' ? 'bg-base-100 text-primary border-b-2 border-primary' : 'text-base-content/60 hover:text-base-content'"
+            @@click="sidebarMode = 'explorer'"
+            hx-get="/admin/explorer"
+            hx-target="#sidebar-content"
+            hx-swap="innerHTML">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+        <span>Explorer</span>
+    </button>
+</div>

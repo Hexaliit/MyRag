@@ -1,3 +1,4 @@
+using Htmx;
 using LucidRAG.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -40,5 +41,58 @@ public class HomeController(
         if (doc is null) return NotFound();
 
         return PartialView("_DocumentStatusBadge", doc);
+    }
+
+    /// <summary>
+    /// Returns the File Explorer partial view for HTMX requests.
+    /// </summary>
+    [HttpGet("explorer")]
+    public IActionResult Explorer()
+    {
+        if (Request.IsHtmx())
+        {
+            return PartialView("_FileExplorer");
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Returns the Chat sidebar partial view for HTMX requests.
+    /// </summary>
+    [HttpGet("chat-sidebar")]
+    public async Task<IActionResult> ChatSidebar(CancellationToken ct = default)
+    {
+        if (Request.IsHtmx())
+        {
+            var documents = await documentService.GetDocumentsAsync(ct: ct);
+            return PartialView("_ChatSidebar", documents);
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Returns the collection selector partial view for HTMX requests.
+    /// </summary>
+    [HttpGet("collection-selector")]
+    public IActionResult CollectionSelector()
+    {
+        if (Request.IsHtmx())
+        {
+            return PartialView("_SidebarCollectionSelector");
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Returns the add content section partial view for HTMX requests.
+    /// </summary>
+    [HttpGet("add-content")]
+    public IActionResult AddContent()
+    {
+        if (Request.IsHtmx())
+        {
+            return PartialView("_SidebarAddContent");
+        }
+        return RedirectToAction(nameof(Index));
     }
 }

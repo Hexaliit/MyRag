@@ -1,0 +1,72 @@
+@* Explorer File Grid - Thumbnail/Grid view *@
+
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
+    <!-- Folders -->
+    <template x-for="folder in folders" :key="'folder-' + folder.id">
+        <div class="card bg-base-200 hover:bg-base-300 cursor-pointer transition-colors"
+             :class="isSelected('folder', folder.id) ? 'ring-2 ring-primary' : ''"
+             @@click="selectItem('folder', folder.id, $event)"
+             @@dblclick="navigateToFolder(folder.id)"
+             @@contextmenu.prevent="showContextMenu($event, 'folder', folder.id)"
+             draggable="true"
+             @@dragstart="draggedItem = { type: 'folder', id: folder.id }"
+             @@dragover.prevent="dropTargetId = folder.id"
+             @@drop.prevent="handleDrop($event, folder.id)">
+            <div class="card-body p-3 items-center text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-warning" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                </svg>
+                <p class="text-sm font-medium truncate w-full" x-text="folder.name"></p>
+                <p class="text-xs text-base-content/50" x-text="`${folder.itemCount} items`"></p>
+            </div>
+        </div>
+    </template>
+
+    <!-- Documents -->
+    <template x-for="doc in documents" :key="'doc-' + doc.id">
+        <div class="card bg-base-200 hover:bg-base-300 cursor-pointer transition-colors group"
+             :class="isSelected('doc', doc.id) ? 'ring-2 ring-primary' : ''"
+             @@click="selectItem('doc', doc.id, $event)"
+             @@dblclick="openDocument(doc.id)"
+             @@contextmenu.prevent="showContextMenu($event, 'doc', doc.id)"
+             draggable="true"
+             @@dragstart="draggedItem = { type: 'doc', id: doc.id }">
+            <div class="card-body p-3 items-center text-center relative">
+                <!-- Status indicator -->
+                <div class="absolute top-2 right-2">
+                    <span class="badge badge-xs"
+                          :class="getStatusClass(doc.status)">
+                        <template x-if="doc.status === 'processing'">
+                            <span class="loading loading-spinner loading-xs"></span>
+                        </template>
+                    </span>
+                </div>
+
+                <!-- File icon/thumbnail -->
+                <div class="h-12 w-12 flex items-center justify-center" x-html="getFileIcon(doc)"></div>
+
+                <!-- Name -->
+                <p class="text-sm font-medium truncate w-full mt-2" x-text="doc.name" :title="doc.name"></p>
+
+                <!-- Meta info -->
+                <div class="flex items-center gap-1 text-xs text-base-content/50">
+                    <span x-text="formatSize(doc.fileSizeBytes)"></span>
+                    <span>&middot;</span>
+                    <span x-text="doc.contentType"></span>
+                </div>
+
+                <!-- Hover actions -->
+                <div class="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button class="btn btn-circle btn-xs btn-ghost"
+                            @@click.stop="openDocument(doc.id)"
+                            title="View details">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>

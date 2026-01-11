@@ -45,7 +45,7 @@ public class ExplorerSearchService(
             // Extract sub-queries from the plan
             if (queryPlan.SubQueries.Count > 0)
             {
-                subQueries = queryPlan.SubQueries.Select(sq => sq.Text).ToList();
+                subQueries = queryPlan.SubQueries.Select(sq => sq.Query).ToList();
             }
         }
         catch (Exception ex)
@@ -119,9 +119,9 @@ public class ExplorerSearchService(
             }
         }
 
-        // Extract highlights (matched entities/terms)
+        // Extract highlights from query decomposition
         var highlights = queryPlan?.SubQueries
-            .SelectMany(sq => sq.ExpectedEntities ?? [])
+            .Select(sq => sq.Purpose)
             .Distinct()
             .Take(10)
             .ToList() ?? [];

@@ -47,8 +47,6 @@ public class DocumentChunker
         // Second pass: merge small sections to approach target size
         var mergedSections = MergeSections(rawSections);
 
-        // DEBUG: throw to see counts (TEMPORARY)
-        throw new Exception($"DEBUG: hasHeadings={hasHeadings}, rawSections={rawSections.Count}, mergedSections={mergedSections.Count}, target={_targetChunkTokens}, min={_minChunkTokens}");
 
 
         // Convert to chunks with page info
