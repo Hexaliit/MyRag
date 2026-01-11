@@ -9,14 +9,14 @@ using Mostlylucid.DocSummarizer.Services;
 namespace Mostlylucid.DocSummarizer.OpenAI.Services;
 
 /// <summary>
-/// OpenAI implementation of IEmbeddingService
+///     OpenAI implementation of IEmbeddingService
 /// </summary>
 public class OpenAIEmbeddingService : IEmbeddingService
 {
     private readonly OpenAIConfig _config;
     private readonly HttpClient _httpClient;
-    private readonly ILogger<OpenAIEmbeddingService> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger<OpenAIEmbeddingService> _logger;
 
     public OpenAIEmbeddingService(
         IOptions<OpenAIConfig> config,
@@ -65,16 +65,14 @@ public class OpenAIEmbeddingService : IEmbeddingService
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogError("OpenAI Embedding API error: {StatusCode} - {Error}", response.StatusCode, errorContent);
+                _logger.LogError("OpenAI Embedding API error: {StatusCode} - {Error}", response.StatusCode,
+                    errorContent);
                 throw new HttpRequestException($"OpenAI Embedding API error: {response.StatusCode} - {errorContent}");
             }
 
             var result = await response.Content.ReadFromJsonAsync<EmbeddingResponse>(_jsonOptions, ct);
 
-            if (result?.Data is { Count: > 0 })
-            {
-                return result.Data[0].Embedding ?? [];
-            }
+            if (result?.Data is { Count: > 0 }) return result.Data[0].Embedding ?? [];
 
             return [];
         }
@@ -105,19 +103,18 @@ public class OpenAIEmbeddingService : IEmbeddingService
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogError("OpenAI Embedding API error: {StatusCode} - {Error}", response.StatusCode, errorContent);
+                _logger.LogError("OpenAI Embedding API error: {StatusCode} - {Error}", response.StatusCode,
+                    errorContent);
                 throw new HttpRequestException($"OpenAI Embedding API error: {response.StatusCode} - {errorContent}");
             }
 
             var result = await response.Content.ReadFromJsonAsync<EmbeddingResponse>(_jsonOptions, ct);
 
             if (result?.Data != null)
-            {
                 return result.Data
                     .OrderBy(d => d.Index)
                     .Select(d => d.Embedding ?? [])
                     .ToArray();
-            }
 
             return [];
         }
@@ -135,6 +132,7 @@ public class OpenAIEmbeddingService : IEmbeddingService
             var envVar = apiKey[2..^1];
             return Environment.GetEnvironmentVariable(envVar) ?? "";
         }
+
         return apiKey;
     }
 

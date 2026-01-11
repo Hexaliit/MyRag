@@ -4,13 +4,13 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Storage;
 
 /// <summary>
-/// Interface for storing and retrieving image analysis signals.
-/// Enables testing and swapping between different storage implementations.
+///     Interface for storing and retrieving image analysis signals.
+///     Enables testing and swapping between different storage implementations.
 /// </summary>
 public interface ISignalDatabase
 {
     /// <summary>
-    /// Store a complete dynamic image profile with all signals.
+    ///     Store a complete dynamic image profile with all signals.
     /// </summary>
     Task<long> StoreProfileAsync(
         DynamicImageProfile profile,
@@ -22,12 +22,12 @@ public interface ISignalDatabase
         CancellationToken ct = default);
 
     /// <summary>
-    /// Load all signals for an image by SHA256.
+    ///     Load all signals for an image by SHA256.
     /// </summary>
     Task<DynamicImageProfile?> LoadProfileAsync(string sha256, CancellationToken ct = default);
 
     /// <summary>
-    /// Store user feedback for learning/improvement.
+    ///     Store user feedback for learning/improvement.
     /// </summary>
     Task StoreFeedbackAsync(
         string sha256,
@@ -40,19 +40,19 @@ public interface ISignalDatabase
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get statistics about stored data.
+    ///     Get statistics about stored data.
     /// </summary>
     Task<DatabaseStatistics> GetStatisticsAsync(CancellationToken ct = default);
 
     // Discriminator scoring and effectiveness tracking
 
     /// <summary>
-    /// Store a discriminator score to the immutable ledger
+    ///     Store a discriminator score to the immutable ledger
     /// </summary>
     Task StoreDiscriminatorScoreAsync(DiscriminatorScore score, CancellationToken ct = default);
 
     /// <summary>
-    /// Get discriminator scores for an image
+    ///     Get discriminator scores for an image
     /// </summary>
     Task<List<DiscriminatorScore>> GetDiscriminatorScoresAsync(
         string imageHash,
@@ -60,14 +60,14 @@ public interface ISignalDatabase
         CancellationToken ct = default);
 
     /// <summary>
-    /// Update discriminator effectiveness (with decay)
+    ///     Update discriminator effectiveness (with decay)
     /// </summary>
     Task UpdateDiscriminatorEffectivenessAsync(
         DiscriminatorEffectiveness effectiveness,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get discriminator effectiveness for a specific signal/type/goal
+    ///     Get discriminator effectiveness for a specific signal/type/goal
     /// </summary>
     Task<DiscriminatorEffectiveness?> GetDiscriminatorEffectivenessAsync(
         string signalName,
@@ -76,7 +76,7 @@ public interface ISignalDatabase
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get all discriminator effectiveness records for a type/goal
+    ///     Get all discriminator effectiveness records for a type/goal
     /// </summary>
     Task<List<DiscriminatorEffectiveness>> GetAllDiscriminatorEffectivenessAsync(
         ImageType imageType,
@@ -84,7 +84,7 @@ public interface ISignalDatabase
         CancellationToken ct = default);
 
     /// <summary>
-    /// Retire a discriminator (mark as inactive due to low effectiveness)
+    ///     Retire a discriminator (mark as inactive due to low effectiveness)
     /// </summary>
     Task RetireDiscriminatorAsync(
         string signalName,
@@ -93,12 +93,12 @@ public interface ISignalDatabase
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get total count of discriminator scores
+    ///     Get total count of discriminator scores
     /// </summary>
     Task<int> GetTotalScoreCountAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Get count of scores with feedback
+    ///     Get count of scores with feedback
     /// </summary>
     Task<int> GetTotalFeedbackCountAsync(CancellationToken ct = default);
 }

@@ -1,9 +1,9 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Filters;
 using LucidRAG.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace LucidRAG.Controllers.Api;
 
@@ -14,9 +14,8 @@ public class CollectionsController(
     RagDocumentsDbContext db,
     ILogger<CollectionsController> logger) : ControllerBase
 {
-
     /// <summary>
-    /// List all collections with document counts and processing status
+    ///     List all collections with document counts and processing status
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct = default)
@@ -45,7 +44,7 @@ public class CollectionsController(
     }
 
     /// <summary>
-    /// Get a single collection with details
+    ///     Get a single collection with details
     /// </summary>
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct = default)
@@ -54,10 +53,7 @@ public class CollectionsController(
             .Include(c => c.Documents)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
 
-        if (collection is null)
-        {
-            return NotFound(new { error = "Collection not found" });
-        }
+        if (collection is null) return NotFound(new { error = "Collection not found" });
 
         return Ok(new
         {
@@ -83,22 +79,16 @@ public class CollectionsController(
     }
 
     /// <summary>
-    /// Create a new collection
+    ///     Create a new collection
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateCollectionRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            return BadRequest(new { error = "Name is required" });
-        }
+        if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest(new { error = "Name is required" });
 
         // Check for duplicate name
         var exists = await db.Collections.AnyAsync(c => c.Name == request.Name, ct);
-        if (exists)
-        {
-            return Conflict(new { error = "A collection with this name already exists" });
-        }
+        if (exists) return Conflict(new { error = "A collection with this name already exists" });
 
         var collection = new CollectionEntity
         {
@@ -123,37 +113,26 @@ public class CollectionsController(
     }
 
     /// <summary>
-    /// Update a collection
+    ///     Update a collection
     /// </summary>
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCollectionRequest request, CancellationToken ct = default)
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCollectionRequest request,
+        CancellationToken ct = default)
     {
         var collection = await db.Collections.FindAsync([id], ct);
-        if (collection is null)
-        {
-            return NotFound(new { error = "Collection not found" });
-        }
+        if (collection is null) return NotFound(new { error = "Collection not found" });
 
         if (!string.IsNullOrWhiteSpace(request.Name))
         {
             // Check for duplicate name (excluding current)
             var exists = await db.Collections.AnyAsync(c => c.Name == request.Name && c.Id != id, ct);
-            if (exists)
-            {
-                return Conflict(new { error = "A collection with this name already exists" });
-            }
+            if (exists) return Conflict(new { error = "A collection with this name already exists" });
             collection.Name = request.Name.Trim();
         }
 
-        if (request.Description is not null)
-        {
-            collection.Description = request.Description.Trim();
-        }
+        if (request.Description is not null) collection.Description = request.Description.Trim();
 
-        if (request.Settings is not null)
-        {
-            collection.Settings = request.Settings;
-        }
+        if (request.Settings is not null) collection.Settings = request.Settings;
 
         collection.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
@@ -171,7 +150,7 @@ public class CollectionsController(
     }
 
     /// <summary>
-    /// Delete a collection (cascades to documents)
+    ///     Delete a collection (cascades to documents)
     /// </summary>
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct = default)
@@ -180,10 +159,7 @@ public class CollectionsController(
             .Include(c => c.Documents)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
 
-        if (collection is null)
-        {
-            return NotFound(new { error = "Collection not found" });
-        }
+        if (collection is null) return NotFound(new { error = "Collection not found" });
 
         var documentCount = collection.Documents.Count;
 
@@ -200,30 +176,22 @@ public class CollectionsController(
     }
 
     /// <summary>
-    /// Add documents to a collection
+    ///     Add documents to a collection
     /// </summary>
     [HttpPost("{id:guid}/documents")]
-    public async Task<IActionResult> AddDocuments(Guid id, [FromBody] AddDocumentsRequest request, CancellationToken ct = default)
+    public async Task<IActionResult> AddDocuments(Guid id, [FromBody] AddDocumentsRequest request,
+        CancellationToken ct = default)
     {
         var collection = await db.Collections.FindAsync([id], ct);
-        if (collection is null)
-        {
-            return NotFound(new { error = "Collection not found" });
-        }
+        if (collection is null) return NotFound(new { error = "Collection not found" });
 
         var documents = await db.Documents
             .Where(d => request.DocumentIds.Contains(d.Id))
             .ToListAsync(ct);
 
-        if (documents.Count == 0)
-        {
-            return BadRequest(new { error = "No valid documents found" });
-        }
+        if (documents.Count == 0) return BadRequest(new { error = "No valid documents found" });
 
-        foreach (var doc in documents)
-        {
-            doc.CollectionId = id;
-        }
+        foreach (var doc in documents) doc.CollectionId = id;
 
         collection.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
@@ -239,24 +207,19 @@ public class CollectionsController(
     }
 
     /// <summary>
-    /// Remove documents from a collection (moves to uncategorized)
+    ///     Remove documents from a collection (moves to uncategorized)
     /// </summary>
     [HttpDelete("{id:guid}/documents")]
-    public async Task<IActionResult> RemoveDocuments(Guid id, [FromBody] RemoveDocumentsRequest request, CancellationToken ct = default)
+    public async Task<IActionResult> RemoveDocuments(Guid id, [FromBody] RemoveDocumentsRequest request,
+        CancellationToken ct = default)
     {
         var documents = await db.Documents
             .Where(d => d.CollectionId == id && request.DocumentIds.Contains(d.Id))
             .ToListAsync(ct);
 
-        if (documents.Count == 0)
-        {
-            return BadRequest(new { error = "No matching documents found in this collection" });
-        }
+        if (documents.Count == 0) return BadRequest(new { error = "No matching documents found in this collection" });
 
-        foreach (var doc in documents)
-        {
-            doc.CollectionId = null;
-        }
+        foreach (var doc in documents) doc.CollectionId = null;
 
         await db.SaveChangesAsync(ct);
 

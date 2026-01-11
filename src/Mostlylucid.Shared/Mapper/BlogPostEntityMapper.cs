@@ -5,13 +5,13 @@ namespace Mostlylucid.Shared.Mapper;
 
 public static class BlogPostEntityMapper
 {
-   public static BlogPostDto ToDto(this BlogPostEntity entity, string[] languages = null)
+    public static BlogPostDto ToDto(this BlogPostEntity entity, string[] languages = null)
     {
         return new BlogPostDto
         {
             Id = entity.Id.ToString(),
             Title = entity.Title,
-            Categories = entity.Categories.Select(x=>x.Name).OrderBy(z=>z).ToArray(),
+            Categories = entity.Categories.Select(x => x.Name).OrderBy(z => z).ToArray(),
             Language = entity.LanguageEntity?.Name ?? string.Empty,
             Markdown = entity.Markdown,
             UpdatedDate = entity.UpdatedDate,

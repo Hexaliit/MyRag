@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using SixLabors.ImageSharp;
@@ -6,9 +7,9 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Fast OpenCV-based text detection using MSER (Maximally Stable Extremal Regions).
-/// Much faster than ML-based detection (~5-20ms vs 1-2s for Florence-2).
-/// Used as a pre-filter to quickly determine if an image likely contains text.
+///     Fast OpenCV-based text detection using MSER (Maximally Stable Extremal Regions).
+///     Much faster than ML-based detection (~5-20ms vs 1-2s for Florence-2).
+///     Used as a pre-filter to quickly determine if an image likely contains text.
 /// </summary>
 public class OpenCvTextDetector
 {
@@ -20,25 +21,12 @@ public class OpenCvTextDetector
     }
 
     /// <summary>
-    /// Result of text detection.
-    /// </summary>
-    public class TextDetectionResult
-    {
-        public bool HasTextLikeRegions { get; set; }
-        public int TextRegionCount { get; set; }
-        public double TextAreaRatio { get; set; } // Fraction of image that appears to be text
-        public List<Rect> TextBoundingBoxes { get; set; } = new();
-        public double Confidence { get; set; }
-        public long DetectionTimeMs { get; set; }
-    }
-
-    /// <summary>
-    /// Quickly detects if an image contains text-like regions using MSER.
-    /// This is ~100x faster than ML-based detection.
+    ///     Quickly detects if an image contains text-like regions using MSER.
+    ///     This is ~100x faster than ML-based detection.
     /// </summary>
     public TextDetectionResult DetectTextRegions(string imagePath)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         try
         {
@@ -53,11 +41,11 @@ public class OpenCvTextDetector
     }
 
     /// <summary>
-    /// Detects text regions from an ImageSharp image.
+    ///     Detects text regions from an ImageSharp image.
     /// </summary>
     public TextDetectionResult DetectTextRegions(Image<Rgba32> image)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         try
         {
@@ -71,7 +59,7 @@ public class OpenCvTextDetector
         }
     }
 
-    private TextDetectionResult DetectTextRegionsFromMat(Mat image, System.Diagnostics.Stopwatch sw)
+    private TextDetectionResult DetectTextRegionsFromMat(Mat image, Stopwatch sw)
     {
         var result = new TextDetectionResult();
 
@@ -84,15 +72,15 @@ public class OpenCvTextDetector
 
         // Use MSER to detect text-like regions
         using var mser = MSER.Create(
-            delta: 5,
-            minArea: 60,
-            maxArea: 14400,
-            maxVariation: 0.25,
-            minDiversity: 0.2,
-            maxEvolution: 200,
-            areaThreshold: 1.01,
-            minMargin: 0.003,
-            edgeBlurSize: 5);
+            5,
+            60,
+            14400,
+            0.25,
+            0.2,
+            200,
+            1.01,
+            0.003,
+            5);
 
         mser.DetectRegions(gray, out var msers, out var bboxes);
 
@@ -131,7 +119,7 @@ public class OpenCvTextDetector
 
         // Calculate confidence based on region count and area
         result.Confidence = Math.Min(1.0,
-            (textBoxes.Count * 0.1) + (result.TextAreaRatio * 5));
+            textBoxes.Count * 0.1 + result.TextAreaRatio * 5);
 
         sw.Stop();
         result.DetectionTimeMs = sw.ElapsedMilliseconds;
@@ -144,8 +132,8 @@ public class OpenCvTextDetector
     }
 
     /// <summary>
-    /// Quick subtitle region detection - checks bottom 30% of image for bright text.
-    /// Even faster than full MSER (~2-5ms).
+    ///     Quick subtitle region detection - checks bottom 30% of image for bright text.
+    ///     Even faster than full MSER (~2-5ms).
     /// </summary>
     public bool HasSubtitleRegion(string imagePath)
     {
@@ -161,7 +149,7 @@ public class OpenCvTextDetector
     }
 
     /// <summary>
-    /// Quick subtitle region detection for ImageSharp images.
+    ///     Quick subtitle region detection for ImageSharp images.
     /// </summary>
     public bool HasSubtitleRegion(Image<Rgba32> image)
     {
@@ -209,7 +197,7 @@ public class OpenCvTextDetector
     }
 
     /// <summary>
-    /// Merges overlapping bounding boxes.
+    ///     Merges overlapping bounding boxes.
     /// </summary>
     private List<Rect> MergeOverlappingBoxes(List<Rect> boxes)
     {
@@ -218,13 +206,13 @@ public class OpenCvTextDetector
         var merged = new List<Rect>();
         var used = new bool[boxes.Count];
 
-        for (int i = 0; i < boxes.Count; i++)
+        for (var i = 0; i < boxes.Count; i++)
         {
             if (used[i]) continue;
 
             var current = boxes[i];
 
-            for (int j = i + 1; j < boxes.Count; j++)
+            for (var j = i + 1; j < boxes.Count; j++)
             {
                 if (used[j]) continue;
 
@@ -262,7 +250,7 @@ public class OpenCvTextDetector
     }
 
     /// <summary>
-    /// Converts ImageSharp image to OpenCV Mat.
+    ///     Converts ImageSharp image to OpenCV Mat.
     /// </summary>
     private Mat ImageSharpToMat(Image<Rgba32> image)
     {
@@ -272,12 +260,12 @@ public class OpenCvTextDetector
         {
             unsafe
             {
-                for (int y = 0; y < accessor.Height; y++)
+                for (var y = 0; y < accessor.Height; y++)
                 {
                     var row = accessor.GetRowSpan(y);
                     var matPtr = (byte*)mat.Ptr(y).ToPointer();
 
-                    for (int x = 0; x < row.Length; x++)
+                    for (var x = 0; x < row.Length; x++)
                     {
                         var pixel = row[x];
                         matPtr[x * 4 + 0] = pixel.B;
@@ -290,5 +278,18 @@ public class OpenCvTextDetector
         });
 
         return mat;
+    }
+
+    /// <summary>
+    ///     Result of text detection.
+    /// </summary>
+    public class TextDetectionResult
+    {
+        public bool HasTextLikeRegions { get; set; }
+        public int TextRegionCount { get; set; }
+        public double TextAreaRatio { get; set; } // Fraction of image that appears to be text
+        public List<Rect> TextBoundingBoxes { get; set; } = new();
+        public double Confidence { get; set; }
+        public long DetectionTimeMs { get; set; }
     }
 }

@@ -1,7 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 using LucidRAG.Filters;
 using LucidRAG.Models;
 using LucidRAG.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LucidRAG.Controllers.Api;
 
@@ -13,25 +14,18 @@ public class CrawlController(
     ILogger<CrawlController> logger) : ControllerBase
 {
     /// <summary>
-    /// Start a new web crawl job
+    ///     Start a new web crawl job
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> StartCrawl([FromBody] CrawlRequest request, CancellationToken ct = default)
     {
-        if (request.SeedUrls.Length == 0)
-        {
-            return BadRequest(new { error = "At least one seed URL is required" });
-        }
+        if (request.SeedUrls.Length == 0) return BadRequest(new { error = "At least one seed URL is required" });
 
         // Validate URLs
         foreach (var url in request.SeedUrls)
-        {
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
                 (uri.Scheme != "http" && uri.Scheme != "https"))
-            {
                 return BadRequest(new { error = $"Invalid URL: {url}" });
-            }
-        }
 
         try
         {
@@ -47,16 +41,13 @@ public class CrawlController(
     }
 
     /// <summary>
-    /// Get crawl job status
+    ///     Get crawl job status
     /// </summary>
     [HttpGet("{id:guid}")]
     public IActionResult GetCrawlJob(Guid id)
     {
         var job = crawlerService.GetCrawlJob(id);
-        if (job is null)
-        {
-            return NotFound(new { error = "Crawl job not found" });
-        }
+        if (job is null) return NotFound(new { error = "Crawl job not found" });
 
         return Ok(new
         {
@@ -78,7 +69,7 @@ public class CrawlController(
     }
 
     /// <summary>
-    /// Stream crawl progress via SSE
+    ///     Stream crawl progress via SSE
     /// </summary>
     [HttpGet("{id:guid}/status")]
     public async Task StreamProgress(Guid id, CancellationToken ct = default)
@@ -89,7 +80,7 @@ public class CrawlController(
 
         await foreach (var progress in crawlerService.StreamProgressAsync(id, ct))
         {
-            var data = System.Text.Json.JsonSerializer.Serialize(new
+            var data = JsonSerializer.Serialize(new
             {
                 crawlId = progress.CrawlId,
                 pagesDiscovered = progress.PagesDiscovered,
@@ -106,7 +97,7 @@ public class CrawlController(
     }
 
     /// <summary>
-    /// List all crawl jobs
+    ///     List all crawl jobs
     /// </summary>
     [HttpGet]
     public IActionResult ListCrawlJobs()

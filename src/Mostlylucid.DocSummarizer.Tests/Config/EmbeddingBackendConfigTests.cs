@@ -4,7 +4,7 @@ using Xunit;
 namespace Mostlylucid.DocSummarizer.Tests.Config;
 
 /// <summary>
-/// Tests for EmbeddingBackend enum and OnnxConfig
+///     Tests for EmbeddingBackend enum and OnnxConfig
 /// </summary>
 public class EmbeddingBackendConfigTests
 {

@@ -1,5 +1,4 @@
 using Mostlylucid.DocSummarizer.Models;
-using System.IO;
 using Mostlylucid.DocSummarizer.Services;
 
 namespace Mostlylucid.DocSummarizer.Config;
@@ -73,17 +72,17 @@ public class DocSummarizerConfig
     ///     BertRag pipeline configuration (vector storage, persistence)
     /// </summary>
     public BertRagConfig BertRag { get; set; } = new();
-    
+
     /// <summary>
     ///     Extraction phase configuration (segment parsing and salience scoring)
     /// </summary>
     public ExtractionConfigSection Extraction { get; set; } = new();
-    
+
     /// <summary>
     ///     Retrieval phase configuration (segment selection for synthesis)
     /// </summary>
     public RetrievalConfigSection Retrieval { get; set; } = new();
-    
+
     /// <summary>
     ///     Adaptive retrieval configuration (auto-scales based on document size/type)
     /// </summary>
@@ -228,25 +227,25 @@ public class DoclingConfig
     ///     PDF backend to use: "pypdfium2" (fast) or "docling" (more accurate for complex layouts).
     /// </summary>
     public string PdfBackend { get; set; } = "pypdfium2";
-    
+
     /// <summary>
     ///     Fallback PDF backend for OCR when text layer is garbled.
     ///     Set to "docling" to force OCR-based extraction.
     /// </summary>
     public string OcrPdfBackend { get; set; } = "docling";
-    
+
     /// <summary>
     ///     Enable OCR fallback when extracted text looks corrupt/garbled.
     /// </summary>
     public bool EnableOcrFallback { get; set; } = true;
-    
+
     /// <summary>
     ///     Minimum pages before enabling split processing.
     ///     Documents smaller than this are processed as a single chunk.
     ///     Default: 60 pages.
     /// </summary>
     public int MinPagesForSplit { get; set; } = 60;
-    
+
     /// <summary>
     ///     Auto-detect GPU and adapt settings accordingly.
     ///     When true, queries Docling for CUDA/GPU support and optimizes chunk sizes.
@@ -264,12 +263,12 @@ public class DoclingCapabilities
     ///     Whether Docling service is available
     /// </summary>
     public bool Available { get; set; }
-    
+
     /// <summary>
     ///     Whether GPU/CUDA acceleration is available (null = unknown)
     /// </summary>
     public bool? HasGpu { get; set; }
-    
+
     /// <summary>
     ///     Detected accelerator type (e.g., "cuda", "cpu", "mps")
     /// </summary>
@@ -361,18 +360,17 @@ public class ProcessingConfig
     ///     Memory management settings
     /// </summary>
     public MemoryConfig Memory { get; set; } = new();
- 
+
     /// <summary>
     ///     Chunk cache settings for reusing Docling output
     /// </summary>
     public ChunkCacheConfig ChunkCache { get; set; } = new();
- 
+
     /// <summary>
     ///     Summary length adaptation settings
     /// </summary>
     public SummaryLengthConfig SummaryLength { get; set; } = new();
- }
-
+}
 
 /// <summary>
 ///     Memory management configuration for large document processing
@@ -671,7 +669,7 @@ public enum WebFetchMode
     ///     Simple HTTP client fetch - fast but cannot execute JavaScript
     /// </summary>
     Simple,
-    
+
     /// <summary>
     ///     Playwright headless browser - slower but handles JavaScript-rendered pages (SPAs, React apps)
     /// </summary>
@@ -707,7 +705,8 @@ public class WebFetchConfig
     /// <summary>
     ///     User agent to use for web requests
     /// </summary>
-    public string UserAgent { get; set; } = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 DocSummarizer/1.0";
+    public string UserAgent { get; set; } =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 DocSummarizer/1.0";
 }
 
 /// <summary>
@@ -718,10 +717,10 @@ public class BatchConfig
     /// <summary>
     ///     File extensions to process
     /// </summary>
-    public List<string> FileExtensions { get; set; } = new() 
-    { 
-        ".txt", ".md", ".pdf", ".docx", ".xlsx", ".pptx", 
-        ".html", ".csv", ".png", ".jpg", ".tiff", ".vtt", ".adoc" 
+    public List<string> FileExtensions { get; set; } = new()
+    {
+        ".txt", ".md", ".pdf", ".docx", ".xlsx", ".pptx",
+        ".html", ".csv", ".png", ".jpg", ".tiff", ".vtt", ".adoc"
     };
 
     /// <summary>
@@ -780,7 +779,7 @@ public class BertRagConfig
     ///     Only applies when PersistVectors = true and VectorStore = Qdrant.
     /// </summary>
     public bool ReuseExistingEmbeddings { get; set; } = true;
-    
+
     /// <summary>
     ///     Whether to clear and rebuild the vector index on application startup.
     ///     When true, all existing embeddings are deleted and documents are re-indexed.
@@ -804,77 +803,80 @@ public class ExtractionConfigSection
     ///     Fraction of segments to keep in salience ranking (0.15 = top 15%)
     /// </summary>
     public double ExtractionRatio { get; set; } = 0.15;
-    
+
     /// <summary>
     ///     Minimum segments to extract regardless of ratio
     /// </summary>
     public int MinSegments { get; set; } = 10;
-    
+
     /// <summary>
     ///     Maximum segments to extract regardless of ratio
     /// </summary>
     public int MaxSegments { get; set; } = 100;
-    
+
     /// <summary>
     ///     Maximum segments to embed (pre-filter if document has more)
     /// </summary>
     public int MaxSegmentsToEmbed { get; set; } = 200;
-    
+
     /// <summary>
     ///     MMR lambda: 0=diversity, 1=relevance (0.7 = slight relevance bias)
     /// </summary>
     public double MmrLambda { get; set; } = 0.7;
-    
+
     // === Length-based quality scoring ===
-    
+
     /// <summary>
     ///     Minimum character length for a segment to receive full quality score.
     ///     Segments shorter than this are penalized proportionally.
     ///     Default: 80 characters (~15-20 words, a substantive sentence)
     /// </summary>
     public int IdealMinLength { get; set; } = 80;
-    
+
     /// <summary>
     ///     Maximum character length for quality scoring. Segments beyond this
     ///     receive no additional benefit. Default: 500 characters (~80-100 words)
     /// </summary>
     public int IdealMaxLength { get; set; } = 500;
-    
+
     /// <summary>
     ///     Minimum quality score for very short segments. Prevents short
     ///     headings from being excluded but de-prioritizes them.
     ///     Range 0-1. Default: 0.3
     /// </summary>
     public double MinLengthQualityScore { get; set; } = 0.3;
-    
+
     /// <summary>
     ///     Boost for headings. Default: 1.15 (reduced from 1.5 to prevent
     ///     short headings from dominating top segments)
     /// </summary>
     public double HeadingBoost { get; set; } = 1.15;
-    
+
     /// <summary>
     ///     Boost for the document title (first H1). Important but balanced.
     ///     Default: 1.8 (reduced from 4.5x to allow substantive content to rank)
     /// </summary>
     public double DocumentTitleBoost { get; set; } = 1.8;
-    
+
     /// <summary>
     ///     Convert to the internal ExtractionConfig model
     /// </summary>
-    public ExtractionConfig ToExtractionConfig() => new()
+    public ExtractionConfig ToExtractionConfig()
     {
-        ExtractionRatio = ExtractionRatio,
-        MinSegments = MinSegments,
-        MaxSegments = MaxSegments,
-        MaxSegmentsToEmbed = MaxSegmentsToEmbed,
-        MmrLambda = MmrLambda,
-        IdealMinLength = IdealMinLength,
-        IdealMaxLength = IdealMaxLength,
-        MinLengthQualityScore = MinLengthQualityScore,
-        HeadingBoost = HeadingBoost,
-        DocumentTitleBoost = DocumentTitleBoost
-    };
+        return new ExtractionConfig
+        {
+            ExtractionRatio = ExtractionRatio,
+            MinSegments = MinSegments,
+            MaxSegments = MaxSegments,
+            MaxSegmentsToEmbed = MaxSegmentsToEmbed,
+            MmrLambda = MmrLambda,
+            IdealMinLength = IdealMinLength,
+            IdealMaxLength = IdealMaxLength,
+            MinLengthQualityScore = MinLengthQualityScore,
+            HeadingBoost = HeadingBoost,
+            DocumentTitleBoost = DocumentTitleBoost
+        };
+    }
 }
 
 /// <summary>
@@ -887,50 +889,53 @@ public class RetrievalConfigSection
     ///     May be scaled by adaptive retrieval based on document size/type.
     /// </summary>
     public int TopK { get; set; } = 25;
-    
+
     /// <summary>
     ///     Always include top-N salient segments regardless of query match
     /// </summary>
     public int FallbackCount { get; set; } = 5;
-    
+
     /// <summary>
     ///     Use RRF (Reciprocal Rank Fusion) for combining scores - recommended
     /// </summary>
     public bool UseRRF { get; set; } = true;
-    
+
     /// <summary>
     ///     RRF k parameter (standard is 60)
     /// </summary>
     public int RrfK { get; set; } = 60;
-    
+
     /// <summary>
     ///     Use hybrid search (BM25 + dense + salience) - recommended
     /// </summary>
     public bool UseHybridSearch { get; set; } = true;
-    
+
     /// <summary>
     ///     Query-salience blend alpha (only used when UseRRF = false)
     /// </summary>
     public double Alpha { get; set; } = 0.6;
-    
+
     /// <summary>
     ///     Minimum similarity threshold (only for non-RRF mode)
     /// </summary>
     public double MinSimilarity { get; set; } = 0.3;
-    
+
     /// <summary>
     ///     Convert to the internal RetrievalConfig model
     /// </summary>
-    public RetrievalConfig ToRetrievalConfig() => new()
+    public RetrievalConfig ToRetrievalConfig()
     {
-        TopK = TopK,
-        FallbackCount = FallbackCount,
-        UseRRF = UseRRF,
-        RrfK = RrfK,
-        UseHybridSearch = UseHybridSearch,
-        Alpha = Alpha,
-        MinSimilarity = MinSimilarity
-    };
+        return new RetrievalConfig
+        {
+            TopK = TopK,
+            FallbackCount = FallbackCount,
+            UseRRF = UseRRF,
+            RrfK = RrfK,
+            UseHybridSearch = UseHybridSearch,
+            Alpha = Alpha,
+            MinSimilarity = MinSimilarity
+        };
+    }
 }
 
 /// <summary>
@@ -943,30 +948,30 @@ public class AdaptiveRetrievalConfig
     ///     When enabled, longer documents and narrative content get more segments.
     /// </summary>
     public bool Enabled { get; set; } = true;
-    
+
     /// <summary>
     ///     Minimum coverage percentage to aim for (5.0 = retrieve ~5% of segments).
     ///     Higher values improve summary quality but increase synthesis time.
     /// </summary>
     public double MinCoveragePercent { get; set; } = 5.0;
-    
+
     /// <summary>
     ///     Minimum TopK regardless of document size
     /// </summary>
     public int MinTopK { get; set; } = 15;
-    
+
     /// <summary>
     ///     Maximum TopK regardless of document size (limited by LLM context)
     /// </summary>
     public int MaxTopK { get; set; } = 100;
-    
+
     /// <summary>
     ///     Boost factor for narrative content (fiction, stories).
     ///     Fiction needs more context to avoid hallucinations.
     ///     1.5 = retrieve 50% more segments for narrative content.
     /// </summary>
     public double NarrativeBoost { get; set; } = 1.5;
-    
+
     /// <summary>
     ///     Apply adaptive settings to a RetrievalConfig
     /// </summary>

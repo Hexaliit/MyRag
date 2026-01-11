@@ -4,12 +4,12 @@ using Mostlylucid.DocSummarizer.Core.Models;
 namespace Mostlylucid.DocSummarizer.Core.Services;
 
 /// <summary>
-/// Factory for creating appropriate table extractors based on file type
+///     Factory for creating appropriate table extractors based on file type
 /// </summary>
 public class TableExtractorFactory : ITableExtractorFactory
 {
-    private readonly ILogger<TableExtractorFactory> _logger;
     private readonly List<ITableExtractor> _extractors;
+    private readonly ILogger<TableExtractorFactory> _logger;
     private Dictionary<ITableExtractor, bool>? _availabilityCache;
 
     public TableExtractorFactory(ILogger<TableExtractorFactory> logger, ILoggerFactory loggerFactory)
@@ -25,7 +25,7 @@ public class TableExtractorFactory : ITableExtractorFactory
     }
 
     /// <summary>
-    /// Get appropriate extractor for a file
+    ///     Get appropriate extractor for a file
     /// </summary>
     public async Task<ITableExtractor?> GetExtractorForFileAsync(string filePath, CancellationToken ct = default)
     {
@@ -39,7 +39,6 @@ public class TableExtractorFactory : ITableExtractorFactory
 
         // Find extractor that supports this file type
         foreach (var extractor in _extractors)
-        {
             if (extractor.SupportedExtensions.Contains(ext))
             {
                 // Check if extractor is available
@@ -48,46 +47,36 @@ public class TableExtractorFactory : ITableExtractorFactory
                     _logger.LogDebug("Using {Extractor} for {File}", extractor.Name, Path.GetFileName(filePath));
                     return extractor;
                 }
-                else
-                {
-                    _logger.LogWarning("{Extractor} not available (missing dependencies)", extractor.Name);
-                }
+
+                _logger.LogWarning("{Extractor} not available (missing dependencies)", extractor.Name);
             }
-        }
 
         _logger.LogWarning("No available extractor for file type: {Extension}", ext);
         return null;
     }
 
     /// <summary>
-    /// Get all available extractors (with dependencies installed)
+    ///     Get all available extractors (with dependencies installed)
     /// </summary>
     public async Task<IReadOnlyList<ITableExtractor>> GetAvailableExtractorsAsync(CancellationToken ct = default)
     {
         var available = new List<ITableExtractor>();
 
         foreach (var extractor in _extractors)
-        {
             if (await IsExtractorAvailableAsync(extractor, ct))
-            {
                 available.Add(extractor);
-            }
-        }
 
         return available;
     }
 
     /// <summary>
-    /// Check if extractor is available (with caching)
+    ///     Check if extractor is available (with caching)
     /// </summary>
     private async Task<bool> IsExtractorAvailableAsync(ITableExtractor extractor, CancellationToken ct)
     {
         _availabilityCache ??= new Dictionary<ITableExtractor, bool>();
 
-        if (_availabilityCache.TryGetValue(extractor, out var cached))
-        {
-            return cached;
-        }
+        if (_availabilityCache.TryGetValue(extractor, out var cached)) return cached;
 
         var available = await extractor.IsAvailableAsync(ct);
         _availabilityCache[extractor] = available;
@@ -96,7 +85,7 @@ public class TableExtractorFactory : ITableExtractorFactory
     }
 
     /// <summary>
-    /// Clear availability cache (useful for testing)
+    ///     Clear availability cache (useful for testing)
     /// </summary>
     public void ClearCache()
     {
@@ -105,12 +94,12 @@ public class TableExtractorFactory : ITableExtractorFactory
 }
 
 /// <summary>
-/// Extension methods for table extraction
+///     Extension methods for table extraction
 /// </summary>
 public static class TableExtractorExtensions
 {
     /// <summary>
-    /// Extract tables from a file and export to CSV
+    ///     Extract tables from a file and export to CSV
     /// </summary>
     public static async Task<List<string>> ExtractAndExportToCsvAsync(
         this ITableExtractor extractor,
@@ -121,17 +110,14 @@ public static class TableExtractorExtensions
     {
         var result = await extractor.ExtractTablesAsync(inputPath, options, ct);
 
-        if (!result.Success || result.Tables.Count == 0)
-        {
-            return new List<string>();
-        }
+        if (!result.Success || result.Tables.Count == 0) return new List<string>();
 
         Directory.CreateDirectory(outputDirectory);
 
         var csvPaths = new List<string>();
         var baseName = Path.GetFileNameWithoutExtension(inputPath);
 
-        for (int i = 0; i < result.Tables.Count; i++)
+        for (var i = 0; i < result.Tables.Count; i++)
         {
             var table = result.Tables[i];
 
@@ -149,7 +135,7 @@ public static class TableExtractorExtensions
     }
 
     /// <summary>
-    /// Extract tables from a file using factory
+    ///     Extract tables from a file using factory
     /// </summary>
     public static async Task<TableExtractionResult?> ExtractTablesAsync(
         this ITableExtractorFactory factory,
@@ -158,10 +144,7 @@ public static class TableExtractorExtensions
         CancellationToken ct = default)
     {
         var extractor = await factory.GetExtractorForFileAsync(filePath, ct);
-        if (extractor == null)
-        {
-            return null;
-        }
+        if (extractor == null) return null;
 
         return await extractor.ExtractTablesAsync(filePath, options, ct);
     }

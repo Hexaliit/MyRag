@@ -6,13 +6,13 @@ using FluentAssertions;
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Integration tests for the Config API (capabilities detection and mode switching)
+///     Integration tests for the Config API (capabilities detection and mode switching)
 /// </summary>
 [Collection("Integration")]
 public class ConfigApiTests : IAsyncLifetime
 {
-    private readonly TestWebApplicationFactory _factory;
     private readonly HttpClient _client;
+    private readonly TestWebApplicationFactory _factory;
 
     public ConfigApiTests(TestWebApplicationFactory factory)
     {
@@ -236,17 +236,16 @@ public class ConfigApiTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var ollamaAvailable = result.GetProperty("services").GetProperty("ollama").GetProperty("available").GetBoolean();
+        var ollamaAvailable =
+            result.GetProperty("services").GetProperty("ollama").GetProperty("available").GetBoolean();
         var modes = result.GetProperty("extractionModes");
 
         var hybridMode = modes.EnumerateArray()
             .FirstOrDefault(m => m.GetProperty("value").GetString() == "hybrid");
 
         if (!ollamaAvailable && hybridMode.ValueKind != JsonValueKind.Undefined)
-        {
             // When Ollama is not available, hybrid mode should be marked as unavailable
             hybridMode.GetProperty("available").GetBoolean().Should().BeFalse();
-        }
     }
 
     [Fact]

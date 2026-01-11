@@ -4,14 +4,14 @@ using Mostlylucid.RAG.Models;
 namespace Mostlylucid.RAG.Services;
 
 /// <summary>
-/// Hybrid search service combining PostgreSQL full-text search with semantic vector search
-/// Uses Reciprocal Rank Fusion (RRF) to merge results from both sources
+///     Hybrid search service combining PostgreSQL full-text search with semantic vector search
+///     Uses Reciprocal Rank Fusion (RRF) to merge results from both sources
 /// </summary>
 public class HybridSearchService : IHybridSearchService
 {
+    private const int RrfConstant = 60; // Standard RRF k parameter
     private readonly ILogger<HybridSearchService> _logger;
     private readonly ISemanticSearchService _semanticSearchService;
-    private const int RrfConstant = 60; // Standard RRF k parameter
 
     public HybridSearchService(
         ILogger<HybridSearchService> logger,
@@ -63,8 +63,8 @@ public class HybridSearchService : IHybridSearchService
     }
 
     /// <summary>
-    /// Applies Reciprocal Rank Fusion to combine results from multiple sources
-    /// RRF score = S(1 / (k + rank)) where k is typically 60
+    ///     Applies Reciprocal Rank Fusion to combine results from multiple sources
+    ///     RRF score = S(1 / (k + rank)) where k is typically 60
     /// </summary>
     private List<SearchResult> ApplyReciprocalRankFusion(
         List<SearchResult> semanticResults)
@@ -72,19 +72,17 @@ public class HybridSearchService : IHybridSearchService
         var rrfScores = new Dictionary<string, RrfScore>();
 
         // Process semantic results
-        for (int i = 0; i < semanticResults.Count; i++)
+        for (var i = 0; i < semanticResults.Count; i++)
         {
             var result = semanticResults[i];
             var key = GetResultKey(result);
 
             if (!rrfScores.ContainsKey(key))
-            {
                 rrfScores[key] = new RrfScore
                 {
                     Result = result,
                     SemanticRank = i + 1
                 };
-            }
 
             // RRF formula: 1 / (k + rank)
             var rrfScore = 1.0 / (RrfConstant + i + 1);
@@ -111,7 +109,7 @@ public class HybridSearchService : IHybridSearchService
     }
 
     /// <summary>
-    /// Generates a unique key for deduplication based on slug
+    ///     Generates a unique key for deduplication based on slug
     /// </summary>
     private string GetResultKey(SearchResult result)
     {
@@ -119,7 +117,7 @@ public class HybridSearchService : IHybridSearchService
     }
 
     /// <summary>
-    /// Internal class to track RRF scoring
+    ///     Internal class to track RRF scoring
     /// </summary>
     private class RrfScore
     {

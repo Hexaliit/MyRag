@@ -5,8 +5,8 @@ using Mostlylucid.DataSummarizer.Models;
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Exports data to SQLite with intelligent schema and index creation based on profile stats.
-/// Uses DuckDB's SQLite extension to perform the export.
+///     Exports data to SQLite with intelligent schema and index creation based on profile stats.
+///     Uses DuckDB's SQLite extension to perform the export.
 /// </summary>
 public class SqliteExporter
 {
@@ -18,8 +18,8 @@ public class SqliteExporter
     }
 
     /// <summary>
-    /// Export data from any supported source to a SQLite database.
-    /// Creates table with appropriate types and indexes based on profile analysis.
+    ///     Export data from any supported source to a SQLite database.
+    ///     Creates table with appropriate types and indexes based on profile analysis.
     /// </summary>
     public async Task<SqliteExportResult> ExportAsync(
         string sourcePath,
@@ -82,16 +82,11 @@ public class SqliteExporter
 
             // Load required extensions for source
             foreach (var ext in dataSource.GetRequiredExtensions())
-            {
                 await ExecuteAsync(conn, $"INSTALL {ext}; LOAD {ext};");
-            }
 
             // Attach source if needed (for database sources)
             var attachStmt = dataSource.GetAttachStatement();
-            if (attachStmt != null)
-            {
-                await ExecuteAsync(conn, attachStmt);
-            }
+            if (attachStmt != null) await ExecuteAsync(conn, attachStmt);
 
             // Create SQLite database and export
             await ExecuteAsync(conn, $"ATTACH '{sqlitePath.Replace("'", "''")}' AS sqlite_db (TYPE sqlite)");
@@ -103,38 +98,37 @@ public class SqliteExporter
 
             // Insert data
             var insertSql = $"INSERT INTO sqlite_db.\"{tableName}\" SELECT * FROM {readExpr}";
-            if (_verbose) Console.WriteLine($"[SqliteExporter] Inserting data...");
+            if (_verbose) Console.WriteLine("[SqliteExporter] Inserting data...");
             await ExecuteAsync(conn, insertSql);
 
             // Detach from DuckDB first
             await ExecuteAsync(conn, "DETACH sqlite_db");
-            
+
             // Create indexes using native SQLite (DuckDB's sqlite extension doesn't support CREATE INDEX)
             if (createIndexes)
             {
                 var indexes = SuggestIndexes(tableName, profile);
                 result.IndexesCreated = new List<string>();
-                
+
                 await using var sqliteConn = new SqliteConnection($"Data Source={sqlitePath}");
                 await sqliteConn.OpenAsync();
-                
+
                 foreach (var (indexName, columnName, reason) in indexes)
-                {
                     try
                     {
                         if (_verbose) Console.WriteLine($"[SqliteExporter] Creating index: {indexName}");
-                        
+
                         await using var cmd = sqliteConn.CreateCommand();
                         cmd.CommandText = $"CREATE INDEX \"{indexName}\" ON \"{tableName}\" (\"{columnName}\")";
                         await cmd.ExecuteNonQueryAsync();
-                        
+
                         result.IndexesCreated.Add(indexName);
                     }
                     catch (Exception ex)
                     {
-                        if (_verbose) Console.WriteLine($"[SqliteExporter] Failed to create index {indexName}: {ex.Message}");
+                        if (_verbose)
+                            Console.WriteLine($"[SqliteExporter] Failed to create index {indexName}: {ex.Message}");
                     }
-                }
             }
 
             result.Success = true;
@@ -142,7 +136,8 @@ public class SqliteExporter
 
             if (_verbose)
             {
-                Console.WriteLine($"[SqliteExporter] Export complete: {result.RowCount:N0} rows, {result.ColumnCount} columns");
+                Console.WriteLine(
+                    $"[SqliteExporter] Export complete: {result.RowCount:N0} rows, {result.ColumnCount} columns");
                 if (result.IndexesCreated?.Count > 0)
                     Console.WriteLine($"[SqliteExporter] Created {result.IndexesCreated.Count} indexes");
             }
@@ -158,12 +153,12 @@ public class SqliteExporter
     }
 
     /// <summary>
-    /// Build CREATE TABLE SQL with SQLite-appropriate types based on profile
+    ///     Build CREATE TABLE SQL with SQLite-appropriate types based on profile
     /// </summary>
     private string BuildCreateTableSql(string tableName, DataProfile profile)
     {
         var columns = new List<string>();
-        
+
         foreach (var col in profile.Columns)
         {
             var sqliteType = MapToSqliteType(col);
@@ -175,7 +170,7 @@ public class SqliteExporter
     }
 
     /// <summary>
-    /// Map column profile to appropriate SQLite type
+    ///     Map column profile to appropriate SQLite type
     /// </summary>
     private string MapToSqliteType(ColumnProfile col)
     {
@@ -200,25 +195,25 @@ public class SqliteExporter
     }
 
     /// <summary>
-    /// Check if numeric column is integer (no decimal places)
+    ///     Check if numeric column is integer (no decimal places)
     /// </summary>
     private bool IsInteger(ColumnProfile col)
     {
         if (!col.Min.HasValue || !col.Max.HasValue) return false;
-        
+
         // Check if min/max are whole numbers
-        return col.Min.Value == Math.Floor(col.Min.Value) && 
+        return col.Min.Value == Math.Floor(col.Min.Value) &&
                col.Max.Value == Math.Floor(col.Max.Value) &&
                (col.Mean == null || col.Mean.Value == Math.Floor(col.Mean.Value));
     }
 
     /// <summary>
-    /// Check if categorical column is boolean-like (0/1, true/false, yes/no)
+    ///     Check if categorical column is boolean-like (0/1, true/false, yes/no)
     /// </summary>
     private bool IsBooleanLike(ColumnProfile col)
     {
         if (col.TopValues == null || col.TopValues.Count != 2) return false;
-        
+
         var values = col.TopValues.Select(v => v.Value?.ToLowerInvariant()).ToHashSet();
         return values.SetEquals(new[] { "0", "1" }) ||
                values.SetEquals(new[] { "true", "false" }) ||
@@ -227,9 +222,10 @@ public class SqliteExporter
     }
 
     /// <summary>
-    /// Suggest indexes based on profile statistics
+    ///     Suggest indexes based on profile statistics
     /// </summary>
-    private List<(string IndexName, string ColumnName, string Reason)> SuggestIndexes(string tableName, DataProfile profile)
+    private List<(string IndexName, string ColumnName, string Reason)> SuggestIndexes(string tableName,
+        DataProfile profile)
     {
         var indexes = new List<(string IndexName, string ColumnName, string Reason)>();
 
@@ -245,8 +241,8 @@ public class SqliteExporter
                 reason = "identifier";
             }
             // Index low-cardinality categorical columns (good for filtering)
-            else if (col.InferredType == ColumnType.Categorical && 
-                     col.UniqueCount >= 2 && 
+            else if (col.InferredType == ColumnType.Categorical &&
+                     col.UniqueCount >= 2 &&
                      col.UniqueCount <= 100 &&
                      col.UniquePercent < 50)
             {
@@ -275,20 +271,20 @@ public class SqliteExporter
                 reason = "boolean filter";
             }
 
-        if (shouldIndex)
-                {
-                    var indexName = $"idx_{tableName}_{SanitizeIdentifier(col.Name)}";
-                    indexes.Add((indexName, col.Name, reason));
-                    
-                    if (_verbose) Console.WriteLine($"[SqliteExporter] Will index '{col.Name}' ({reason})");
-                }
+            if (shouldIndex)
+            {
+                var indexName = $"idx_{tableName}_{SanitizeIdentifier(col.Name)}";
+                indexes.Add((indexName, col.Name, reason));
+
+                if (_verbose) Console.WriteLine($"[SqliteExporter] Will index '{col.Name}' ({reason})");
+            }
         }
 
         return indexes;
     }
 
     /// <summary>
-    /// Sanitize string for use as table name
+    ///     Sanitize string for use as table name
     /// </summary>
     private string SanitizeTableName(string name)
     {
@@ -298,23 +294,23 @@ public class SqliteExporter
             .Replace('-', '_')
             .Where(c => char.IsLetterOrDigit(c) || c == '_')
             .ToArray());
-        
+
         // Ensure doesn't start with number
         if (sanitized.Length > 0 && char.IsDigit(sanitized[0]))
             sanitized = "_" + sanitized;
-        
+
         return string.IsNullOrEmpty(sanitized) ? "data" : sanitized;
     }
 
     /// <summary>
-    /// Sanitize string for use as identifier (index name)
+    ///     Sanitize string for use as identifier (index name)
     /// </summary>
     private string SanitizeIdentifier(string name)
     {
         return new string(name
-            .Replace(' ', '_')
-            .Where(c => char.IsLetterOrDigit(c) || c == '_')
-            .ToArray())
+                .Replace(' ', '_')
+                .Where(c => char.IsLetterOrDigit(c) || c == '_')
+                .ToArray())
             .ToLowerInvariant();
     }
 
@@ -327,7 +323,7 @@ public class SqliteExporter
 }
 
 /// <summary>
-/// Result of SQLite export operation
+///     Result of SQLite export operation
 /// </summary>
 public class SqliteExportResult
 {

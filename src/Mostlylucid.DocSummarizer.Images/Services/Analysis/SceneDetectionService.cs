@@ -5,14 +5,13 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Scene detection service using histogram-based comparison.
-/// Extracted to its own service for:
-/// 1. Single Responsibility - scene detection is separate from captioning
-/// 2. Early execution - run in pipeline to inform escalation decisions
-/// 3. Reusability - used by Florence2, VisionLLM, MlOcr, etc.
-///
-/// Based on research: histogram-based methods achieve ~1.7ms per comparison
-/// with F1=0.6+ accuracy, scaling well to video processing.
+///     Scene detection service using histogram-based comparison.
+///     Extracted to its own service for:
+///     1. Single Responsibility - scene detection is separate from captioning
+///     2. Early execution - run in pipeline to inform escalation decisions
+///     3. Reusability - used by Florence2, VisionLLM, MlOcr, etc.
+///     Based on research: histogram-based methods achieve ~1.7ms per comparison
+///     with F1=0.6+ accuracy, scaling well to video processing.
 /// </summary>
 public class SceneDetectionService
 {
@@ -24,8 +23,8 @@ public class SceneDetectionService
     }
 
     /// <summary>
-    /// Detect scenes in an animated image using histogram-based motion detection.
-    /// Returns frame indices at the END of each scene (where subtitles are complete).
+    ///     Detect scenes in an animated image using histogram-based motion detection.
+    ///     Returns frame indices at the END of each scene (where subtitles are complete).
     /// </summary>
     /// <param name="image">The loaded animated image</param>
     /// <param name="maxScenes">Maximum number of scenes to return</param>
@@ -35,7 +34,6 @@ public class SceneDetectionService
         var frameCount = image.Frames.Count;
 
         if (frameCount <= 1)
-        {
             return new AnimatedSceneResult
             {
                 TotalFrames = frameCount,
@@ -46,7 +44,6 @@ public class SceneDetectionService
                 AverageMotion = 0,
                 UsedMotionDetection = false
             };
-        }
 
         if (frameCount <= maxScenes)
         {
@@ -68,19 +65,13 @@ public class SceneDetectionService
         // This scales better for video processing (sample every Nth frame)
         var sampleInterval = frameCount > 100 ? frameCount / 50 : 1; // Sample ~50 frames max
         var sampledFrameIndices = new List<int>();
-        for (int i = 0; i < frameCount; i += sampleInterval)
-        {
-            sampledFrameIndices.Add(i);
-        }
-        if (!sampledFrameIndices.Contains(frameCount - 1))
-        {
-            sampledFrameIndices.Add(frameCount - 1);
-        }
+        for (var i = 0; i < frameCount; i += sampleInterval) sampledFrameIndices.Add(i);
+        if (!sampledFrameIndices.Contains(frameCount - 1)) sampledFrameIndices.Add(frameCount - 1);
 
         // Calculate histogram-based motion scores between sampled frames
         var motionScores = new List<(int frameIdx, double score)>();
         int[]? prevHist = null;
-        int prevFrameIdx = -1;
+        var prevFrameIdx = -1;
 
         foreach (var frameIdx in sampledFrameIndices)
         {
@@ -98,7 +89,6 @@ public class SceneDetectionService
         }
 
         if (motionScores.Count == 0)
-        {
             return new AnimatedSceneResult
             {
                 TotalFrames = frameCount,
@@ -109,7 +99,6 @@ public class SceneDetectionService
                 AverageMotion = 0,
                 UsedMotionDetection = false
             };
-        }
 
         // Find scene boundaries (frames with high motion = scene change)
         var avgMotion = motionScores.Average(m => m.score);
@@ -123,35 +112,30 @@ public class SceneDetectionService
         // Always include first frame as start of first scene
         sceneEndFrames.Add(0);
 
-        for (int i = 0; i < motionScores.Count; i++)
+        for (var i = 0; i < motionScores.Count; i++)
         {
             var (frameIdx, score) = motionScores[i];
 
             // High motion detected = this is end of a scene
             if (score > threshold)
-            {
                 // Add the frame BEFORE the scene change (end of current scene)
                 if (!sceneEndFrames.Contains(frameIdx))
                 {
                     sceneEndFrames.Add(frameIdx);
                     sceneMotionScores.Add(score);
                 }
-            }
         }
 
         // Always include the last frame
         var lastFrame = frameCount - 1;
-        if (!sceneEndFrames.Contains(lastFrame))
-        {
-            sceneEndFrames.Add(lastFrame);
-        }
+        if (!sceneEndFrames.Contains(lastFrame)) sceneEndFrames.Add(lastFrame);
 
         // If we have too many scenes, select the most significant ones
         if (sceneEndFrames.Count > maxScenes)
         {
             // Keep first, last, and highest motion changes
             var sorted = sceneEndFrames
-                .Select(idx => (idx, score: motionScores.FirstOrDefault(m => m.frameIdx == idx).score))
+                .Select(idx => (idx, motionScores.FirstOrDefault(m => m.frameIdx == idx).score))
                 .OrderByDescending(x => x.score)
                 .Take(maxScenes - 2) // Reserve spots for first and last
                 .Select(x => x.idx)
@@ -185,9 +169,9 @@ public class SceneDetectionService
     }
 
     /// <summary>
-    /// Detect frames where text changes (even if overall scene doesn't).
-    /// Useful for detecting subtitle changes, book pages, etc.
-    /// Focuses on the bottom 25% of the image where subtitles typically appear.
+    ///     Detect frames where text changes (even if overall scene doesn't).
+    ///     Useful for detecting subtitle changes, book pages, etc.
+    ///     Focuses on the bottom 25% of the image where subtitles typically appear.
     /// </summary>
     /// <param name="image">The animated image</param>
     /// <param name="maxTextFrames">Maximum frames to return</param>
@@ -204,9 +188,9 @@ public class SceneDetectionService
         var textChangeFrames = new List<int> { 0 }; // Always include first frame
 
         int[]? prevTextRegionHist = null;
-        int prevIdx = 0;
+        var prevIdx = 0;
 
-        for (int i = 0; i < frameCount; i += sampleInterval)
+        for (var i = 0; i < frameCount; i += sampleInterval)
         {
             using var frame = image.Frames.CloneFrame(i);
             var textHist = ComputeTextRegionHistogram(frame);
@@ -244,11 +228,12 @@ public class SceneDetectionService
             // Keep first, last, and evenly distributed middle frames
             var result = new List<int> { textChangeFrames[0] };
             var step = textChangeFrames.Count / (maxTextFrames - 1);
-            for (int i = step; i < textChangeFrames.Count - 1; i += step)
+            for (var i = step; i < textChangeFrames.Count - 1; i += step)
             {
                 result.Add(textChangeFrames[i]);
                 if (result.Count >= maxTextFrames - 1) break;
             }
+
             result.Add(textChangeFrames[^1]);
             return result.Distinct().OrderBy(x => x).ToList();
         }
@@ -257,8 +242,8 @@ public class SceneDetectionService
     }
 
     /// <summary>
-    /// Compute histogram for text region (bottom 25% of image).
-    /// Subtitles and captions typically appear in this region.
+    ///     Compute histogram for text region (bottom 25% of image).
+    ///     Subtitles and captions typically appear in this region.
     /// </summary>
     private static int[] ComputeTextRegionHistogram(Image<Rgba32> frame)
     {
@@ -269,23 +254,21 @@ public class SceneDetectionService
         var textRegionStart = (int)(frame.Height * 0.75);
         var sampleStep = Math.Max(1, frame.Width / 64);
 
-        for (int y = textRegionStart; y < frame.Height; y += 2)
+        for (var y = textRegionStart; y < frame.Height; y += 2)
+        for (var x = 0; x < frame.Width; x += sampleStep)
         {
-            for (int x = 0; x < frame.Width; x += sampleStep)
-            {
-                var p = frame[x, y];
-                hist[p.R * binCount / 256]++;
-                hist[binCount + p.G * binCount / 256]++;
-                hist[2 * binCount + p.B * binCount / 256]++;
-            }
+            var p = frame[x, y];
+            hist[p.R * binCount / 256]++;
+            hist[binCount + p.G * binCount / 256]++;
+            hist[2 * binCount + p.B * binCount / 256]++;
         }
 
         return hist;
     }
 
     /// <summary>
-    /// Enhanced scene detection that also considers text region changes.
-    /// Combines full-frame scene detection with text-region change detection.
+    ///     Enhanced scene detection that also considers text region changes.
+    ///     Combines full-frame scene detection with text-region change detection.
     /// </summary>
     public AnimatedSceneResult DetectScenesWithTextAwareness(Image<Rgba32> image, int maxScenes = 4)
     {
@@ -313,17 +296,13 @@ public class SceneDetectionService
 
             // Add scene boundaries first (they're more significant)
             foreach (var idx in sceneResult.SceneEndFrameIndices)
-            {
                 if (!prioritized.Contains(idx) && prioritized.Count < maxScenes)
                     prioritized.Add(idx);
-            }
 
             // Then add text change frames
             foreach (var idx in textFrames)
-            {
                 if (!prioritized.Contains(idx) && prioritized.Count < maxScenes)
                     prioritized.Add(idx);
-            }
 
             allFrames = prioritized.Distinct().OrderBy(x => x).ToList();
         }
@@ -342,8 +321,8 @@ public class SceneDetectionService
     }
 
     /// <summary>
-    /// Quick check if an animated image has significant scene changes.
-    /// Useful for early escalation decisions without full scene detection.
+    ///     Quick check if an animated image has significant scene changes.
+    ///     Useful for early escalation decisions without full scene detection.
     /// </summary>
     public bool HasSignificantSceneChanges(Image<Rgba32> image, double threshold = 0.15)
     {
@@ -367,8 +346,8 @@ public class SceneDetectionService
     }
 
     /// <summary>
-    /// Compute color histogram for a frame (64 bins per channel = 192 total).
-    /// Histograms can be cached for video processing.
+    ///     Compute color histogram for a frame (64 bins per channel = 192 total).
+    ///     Histograms can be cached for video processing.
     /// </summary>
     private static int[] ComputeColorHistogram(Image<Rgba32> frame)
     {
@@ -377,30 +356,28 @@ public class SceneDetectionService
 
         var sampleStep = Math.Max(2, Math.Min(frame.Width, frame.Height) / 64);
 
-        for (int y = 0; y < frame.Height; y += sampleStep)
+        for (var y = 0; y < frame.Height; y += sampleStep)
+        for (var x = 0; x < frame.Width; x += sampleStep)
         {
-            for (int x = 0; x < frame.Width; x += sampleStep)
-            {
-                var p = frame[x, y];
-                hist[p.R * binCount / 256]++;
-                hist[binCount + p.G * binCount / 256]++;
-                hist[2 * binCount + p.B * binCount / 256]++;
-            }
+            var p = frame[x, y];
+            hist[p.R * binCount / 256]++;
+            hist[binCount + p.G * binCount / 256]++;
+            hist[2 * binCount + p.B * binCount / 256]++;
         }
 
         return hist;
     }
 
     /// <summary>
-    /// Compare two histograms using histogram intersection.
-    /// Returns difference score: 0 = identical, 1 = completely different.
+    ///     Compare two histograms using histogram intersection.
+    ///     Returns difference score: 0 = identical, 1 = completely different.
     /// </summary>
     private static double CompareHistograms(int[] hist1, int[] hist2)
     {
         long intersection = 0;
         long total1 = 0;
 
-        for (int i = 0; i < hist1.Length; i++)
+        for (var i = 0; i < hist1.Length; i++)
         {
             intersection += Math.Min(hist1[i], hist2[i]);
             total1 += hist1[i];
@@ -414,7 +391,7 @@ public class SceneDetectionService
     }
 
     /// <summary>
-    /// Remove visually similar frames from the scene list.
+    ///     Remove visually similar frames from the scene list.
     /// </summary>
     private List<int> DeduplicateSceneFrames(Image<Rgba32> image, List<int> frameIndices)
     {
@@ -449,8 +426,8 @@ public class SceneDetectionService
 }
 
 /// <summary>
-/// Scene detection result for animated images.
-/// Exposes scene boundaries for reuse by other processing waves.
+///     Scene detection result for animated images.
+///     Exposes scene boundaries for reuse by other processing waves.
 /// </summary>
 public record AnimatedSceneResult
 {
@@ -479,15 +456,15 @@ public record AnimatedSceneResult
     public int TextChangeFrameCount { get; init; }
 
     /// <summary>
-    /// Suggest whether LLM escalation is needed based on scene complexity.
-    /// More scenes = more complex animation = more likely to need LLM.
-    /// Text changes also suggest need for OCR.
+    ///     Suggest whether LLM escalation is needed based on scene complexity.
+    ///     More scenes = more complex animation = more likely to need LLM.
+    ///     Text changes also suggest need for OCR.
     /// </summary>
     public bool SuggestEscalation => SceneCount > 2 || AverageMotion > 0.1 || TextChangeFrameCount > 2;
 
     /// <summary>
-    /// Suggest whether text extraction should be prioritized.
-    /// True if text region changes were detected.
+    ///     Suggest whether text extraction should be prioritized.
+    ///     True if text region changes were detected.
     /// </summary>
     public bool SuggestTextExtraction => TextChangeFrameCount > 1;
 }

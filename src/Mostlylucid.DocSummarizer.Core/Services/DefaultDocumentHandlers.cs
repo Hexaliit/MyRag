@@ -1,11 +1,14 @@
+using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using UglyToad.PdfPig;
 
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Default handler for plain text files (.txt, .md)
+///     Default handler for plain text files (.txt, .md)
 /// </summary>
 public class TextDocumentHandler : IDocumentHandler
 {
@@ -13,7 +16,10 @@ public class TextDocumentHandler : IDocumentHandler
     public int Priority => 0;
     public string HandlerName => "Text";
 
-    public bool CanHandle(string filePath) => File.Exists(filePath);
+    public bool CanHandle(string filePath)
+    {
+        return File.Exists(filePath);
+    }
 
     public async Task<DocumentContent> ProcessAsync(string filePath, DocumentHandlerOptions options)
     {
@@ -47,7 +53,7 @@ public class TextDocumentHandler : IDocumentHandler
 }
 
 /// <summary>
-/// Default handler for HTML files
+///     Default handler for HTML files
 /// </summary>
 public class HtmlDocumentHandler : IDocumentHandler
 {
@@ -55,16 +61,19 @@ public class HtmlDocumentHandler : IDocumentHandler
     public int Priority => 0;
     public string HandlerName => "HTML";
 
-    public bool CanHandle(string filePath) => File.Exists(filePath);
+    public bool CanHandle(string filePath)
+    {
+        return File.Exists(filePath);
+    }
 
     public async Task<DocumentContent> ProcessAsync(string filePath, DocumentHandlerOptions options)
     {
         var html = await File.ReadAllTextAsync(filePath, options.CancellationToken);
 
         // Extract title from HTML
-        var titleMatch = System.Text.RegularExpressions.Regex.Match(
+        var titleMatch = Regex.Match(
             html, @"<title[^>]*>([^<]+)</title>",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase);
         var title = titleMatch.Success ? titleMatch.Groups[1].Value : Path.GetFileNameWithoutExtension(filePath);
 
         // Strip HTML tags for a basic markdown conversion
@@ -81,33 +90,33 @@ public class HtmlDocumentHandler : IDocumentHandler
     private static string StripHtml(string html)
     {
         // Remove script and style blocks
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"<script[^>]*>[\s\S]*?</script>", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"<style[^>]*>[\s\S]*?</style>", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<script[^>]*>[\s\S]*?</script>", "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<style[^>]*>[\s\S]*?</style>", "", RegexOptions.IgnoreCase);
 
         // Convert common elements to markdown
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"<h1[^>]*>([^<]+)</h1>", "# $1\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"<h2[^>]*>([^<]+)</h2>", "## $1\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"<h3[^>]*>([^<]+)</h3>", "### $1\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"<p[^>]*>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"<br[^>]*>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"<li[^>]*>", "- ", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<h1[^>]*>([^<]+)</h1>", "# $1\n", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<h2[^>]*>([^<]+)</h2>", "## $1\n", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<h3[^>]*>([^<]+)</h3>", "### $1\n", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<p[^>]*>", "\n", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<br[^>]*>", "\n", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<li[^>]*>", "- ", RegexOptions.IgnoreCase);
 
         // Strip remaining tags
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"<[^>]+>", "");
+        html = Regex.Replace(html, @"<[^>]+>", "");
 
         // Decode HTML entities
-        html = System.Net.WebUtility.HtmlDecode(html);
+        html = WebUtility.HtmlDecode(html);
 
         // Clean up whitespace
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"\n{3,}", "\n\n");
+        html = Regex.Replace(html, @"\n{3,}", "\n\n");
 
         return html.Trim();
     }
 }
 
 /// <summary>
-/// Default handler for PDF files using PdfPig.
-/// Adds page markers for page-aware chunking.
+///     Default handler for PDF files using PdfPig.
+///     Adds page markers for page-aware chunking.
 /// </summary>
 public class PdfDocumentHandler : IDocumentHandler
 {
@@ -115,7 +124,10 @@ public class PdfDocumentHandler : IDocumentHandler
     public int Priority => 0;
     public string HandlerName => "PDF";
 
-    public bool CanHandle(string filePath) => File.Exists(filePath);
+    public bool CanHandle(string filePath)
+    {
+        return File.Exists(filePath);
+    }
 
     public Task<DocumentContent> ProcessAsync(string filePath, DocumentHandlerOptions options)
     {
@@ -156,8 +168,8 @@ public class PdfDocumentHandler : IDocumentHandler
     }
 
     /// <summary>
-    /// Normalize PDF text by detecting and inserting paragraph breaks.
-    /// PDFs often have text without proper paragraph separations.
+    ///     Normalize PDF text by detecting and inserting paragraph breaks.
+    ///     PDFs often have text without proper paragraph separations.
     /// </summary>
     private static string NormalizePdfText(string text)
     {
@@ -170,7 +182,7 @@ public class PdfDocumentHandler : IDocumentHandler
         var lines = text.Split('\n');
         var result = new StringBuilder();
 
-        for (int i = 0; i < lines.Length; i++)
+        for (var i = 0; i < lines.Length; i++)
         {
             var line = lines[i].Trim();
             if (string.IsNullOrWhiteSpace(line))
@@ -185,12 +197,12 @@ public class PdfDocumentHandler : IDocumentHandler
 
             // Check if this line ends a paragraph
             var endsWithPunctuation = line.EndsWith('.') || line.EndsWith('!') ||
-                                       line.EndsWith('?') || line.EndsWith('"') ||
-                                       line.EndsWith('\'');
+                                      line.EndsWith('?') || line.EndsWith('"') ||
+                                      line.EndsWith('\'');
             var isShortLine = line.Length < 60; // Likely a heading or paragraph end
             var nextIsCapital = i + 1 < lines.Length &&
-                               lines[i + 1].TrimStart().Length > 0 &&
-                               char.IsUpper(lines[i + 1].TrimStart()[0]);
+                                lines[i + 1].TrimStart().Length > 0 &&
+                                char.IsUpper(lines[i + 1].TrimStart()[0]);
 
             if (endsWithPunctuation && (isShortLine || nextIsCapital))
             {
@@ -214,7 +226,7 @@ public class PdfDocumentHandler : IDocumentHandler
 }
 
 /// <summary>
-/// Default handler for DOCX files using Open XML SDK
+///     Default handler for DOCX files using Open XML SDK
 /// </summary>
 public class DocxDocumentHandler : IDocumentHandler
 {
@@ -245,8 +257,7 @@ public class DocxDocumentHandler : IDocumentHandler
 
             var body = doc.MainDocumentPart?.Document?.Body;
             if (body != null)
-            {
-                foreach (var para in body.Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>())
+                foreach (var para in body.Descendants<Paragraph>())
                 {
                     var text = para.InnerText;
                     if (!string.IsNullOrWhiteSpace(text))
@@ -262,10 +273,10 @@ public class DocxDocumentHandler : IDocumentHandler
                                 sb.Append(' ');
                             }
                         }
+
                         sb.AppendLine(text);
                     }
                 }
-            }
         }
 
         return Task.FromResult(new DocumentContent
@@ -278,12 +289,12 @@ public class DocxDocumentHandler : IDocumentHandler
 }
 
 /// <summary>
-/// Extension methods to register default document handlers
+///     Extension methods to register default document handlers
 /// </summary>
 public static class DefaultDocumentHandlerExtensions
 {
     /// <summary>
-    /// Register all default document handlers with the registry
+    ///     Register all default document handlers with the registry
     /// </summary>
     public static IDocumentHandlerRegistry RegisterDefaultHandlers(this IDocumentHandlerRegistry registry)
     {

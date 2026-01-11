@@ -1,17 +1,16 @@
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Converts markdown tables to CSV format for profiling.
-/// Useful for analyzing tables embedded in documentation.
+///     Converts markdown tables to CSV format for profiling.
+///     Useful for analyzing tables embedded in documentation.
 /// </summary>
 public static class MarkdownTableConverter
 {
     /// <summary>
-    /// Extract all markdown tables from a markdown file and convert to CSV.
-    /// Returns list of CSV strings (one per table found).
+    ///     Extract all markdown tables from a markdown file and convert to CSV.
+    ///     Returns list of CSV strings (one per table found).
     /// </summary>
     public static List<string> ExtractTablesToCsv(string markdownContent)
     {
@@ -20,23 +19,17 @@ public static class MarkdownTableConverter
 
         List<string>? currentTable = null;
 
-        for (int i = 0; i < lines.Length; i++)
+        for (var i = 0; i < lines.Length; i++)
         {
             var line = lines[i].Trim();
 
             // Detect table start (line with pipes)
             if (line.StartsWith('|') && line.EndsWith('|'))
             {
-                if (currentTable == null)
-                {
-                    currentTable = new List<string>();
-                }
+                if (currentTable == null) currentTable = new List<string>();
 
                 // Skip separator lines (e.g., |---|---|)
-                if (IsSeparatorLine(line))
-                {
-                    continue;
-                }
+                if (IsSeparatorLine(line)) continue;
 
                 currentTable.Add(line);
             }
@@ -44,10 +37,7 @@ public static class MarkdownTableConverter
             {
                 // End of table - convert to CSV
                 var csv = MarkdownTableToCsv(currentTable);
-                if (!string.IsNullOrWhiteSpace(csv))
-                {
-                    tables.Add(csv);
-                }
+                if (!string.IsNullOrWhiteSpace(csv)) tables.Add(csv);
                 currentTable = null;
             }
         }
@@ -56,17 +46,14 @@ public static class MarkdownTableConverter
         if (currentTable != null && currentTable.Count > 0)
         {
             var csv = MarkdownTableToCsv(currentTable);
-            if (!string.IsNullOrWhiteSpace(csv))
-            {
-                tables.Add(csv);
-            }
+            if (!string.IsNullOrWhiteSpace(csv)) tables.Add(csv);
         }
 
         return tables;
     }
 
     /// <summary>
-    /// Convert a single markdown table to CSV.
+    ///     Convert a single markdown table to CSV.
     /// </summary>
     /// <param name="markdownTable">Raw markdown table string (with pipes).</param>
     public static string MarkdownTableToCsv(string markdownTable)
@@ -80,7 +67,7 @@ public static class MarkdownTableConverter
     }
 
     /// <summary>
-    /// Convert markdown table lines to CSV.
+    ///     Convert markdown table lines to CSV.
     /// </summary>
     private static string MarkdownTableToCsv(List<string> tableLines)
     {
@@ -101,8 +88,8 @@ public static class MarkdownTableConverter
     }
 
     /// <summary>
-    /// Parse a markdown table row into cells.
-    /// Example: "| Name | Age | City |" → ["Name", "Age", "City"]
+    ///     Parse a markdown table row into cells.
+    ///     Example: "| Name | Age | City |" → ["Name", "Age", "City"]
     /// </summary>
     private static List<string> ParseTableRow(string line)
     {
@@ -121,7 +108,7 @@ public static class MarkdownTableConverter
     }
 
     /// <summary>
-    /// Check if line is a markdown table separator (e.g., |---|---|).
+    ///     Check if line is a markdown table separator (e.g., |---|---|).
     /// </summary>
     private static bool IsSeparatorLine(string line)
     {
@@ -134,7 +121,7 @@ public static class MarkdownTableConverter
     }
 
     /// <summary>
-    /// Escape a CSV cell value.
+    ///     Escape a CSV cell value.
     /// </summary>
     private static string CsvEscape(string value)
     {
@@ -143,26 +130,24 @@ public static class MarkdownTableConverter
 
         // Escape if contains special chars
         if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
-        {
             return $"\"{value.Replace("\"", "\"\"")}\"";
-        }
 
         return value;
     }
 
     /// <summary>
-    /// Remove common markdown formatting from cell content.
+    ///     Remove common markdown formatting from cell content.
     /// </summary>
     private static string RemoveMarkdownFormatting(string text)
     {
         // Remove bold/italic markers
-        text = Regex.Replace(text, @"\*\*(.+?)\*\*", "$1");  // **bold**
-        text = Regex.Replace(text, @"\*(.+?)\*", "$1");      // *italic*
-        text = Regex.Replace(text, @"__(.+?)__", "$1");      // __bold__
-        text = Regex.Replace(text, @"_(.+?)_", "$1");        // _italic_
+        text = Regex.Replace(text, @"\*\*(.+?)\*\*", "$1"); // **bold**
+        text = Regex.Replace(text, @"\*(.+?)\*", "$1"); // *italic*
+        text = Regex.Replace(text, @"__(.+?)__", "$1"); // __bold__
+        text = Regex.Replace(text, @"_(.+?)_", "$1"); // _italic_
 
         // Remove inline code markers
-        text = Regex.Replace(text, @"`(.+?)`", "$1");        // `code`
+        text = Regex.Replace(text, @"`(.+?)`", "$1"); // `code`
 
         // Remove links but keep text
         text = Regex.Replace(text, @"\[(.+?)\]\(.+?\)", "$1"); // [text](url)
@@ -171,8 +156,8 @@ public static class MarkdownTableConverter
     }
 
     /// <summary>
-    /// Convert markdown file to multiple CSV files (one per table).
-    /// Saves to output directory with numbered filenames.
+    ///     Convert markdown file to multiple CSV files (one per table).
+    ///     Saves to output directory with numbered filenames.
     /// </summary>
     public static async Task<List<string>> ConvertFileAsync(
         string markdownFilePath,
@@ -182,17 +167,14 @@ public static class MarkdownTableConverter
         var content = await File.ReadAllTextAsync(markdownFilePath, ct);
         var tables = ExtractTablesToCsv(content);
 
-        if (tables.Count == 0)
-        {
-            throw new InvalidOperationException($"No markdown tables found in {markdownFilePath}");
-        }
+        if (tables.Count == 0) throw new InvalidOperationException($"No markdown tables found in {markdownFilePath}");
 
         Directory.CreateDirectory(outputDirectory);
 
         var csvPaths = new List<string>();
         var baseName = Path.GetFileNameWithoutExtension(markdownFilePath);
 
-        for (int i = 0; i < tables.Count; i++)
+        for (var i = 0; i < tables.Count; i++)
         {
             var csvFileName = tables.Count == 1
                 ? $"{baseName}.csv"
@@ -207,7 +189,7 @@ public static class MarkdownTableConverter
     }
 
     /// <summary>
-    /// Detect if a file contains markdown tables.
+    ///     Detect if a file contains markdown tables.
     /// </summary>
     public static async Task<bool> ContainsTablesAsync(string filePath, CancellationToken ct = default)
     {

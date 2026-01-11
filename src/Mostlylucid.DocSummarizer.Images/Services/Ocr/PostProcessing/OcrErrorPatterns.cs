@@ -1,20 +1,19 @@
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
 
 /// <summary>
-/// Common OCR error patterns and substitution rules.
-/// These patterns capture frequent misrecognitions by Tesseract and similar OCR engines.
-///
-/// Categories:
-/// - Letter/Number confusion (O→0, l→1, S→5, etc.)
-/// - Letter combinations (rn→m, vv→w, cl→d, etc.)
-/// - Punctuation errors (' → ', . → ,, etc.)
-/// - Case errors (uppercase I → lowercase l, etc.)
+///     Common OCR error patterns and substitution rules.
+///     These patterns capture frequent misrecognitions by Tesseract and similar OCR engines.
+///     Categories:
+///     - Letter/Number confusion (O→0, l→1, S→5, etc.)
+///     - Letter combinations (rn→m, vv→w, cl→d, etc.)
+///     - Punctuation errors (' → ', . → ,, etc.)
+///     - Case errors (uppercase I → lowercase l, etc.)
 /// </summary>
 public static class OcrErrorPatterns
 {
     /// <summary>
-    /// Character-level substitution rules: incorrect → correct
-    /// Applied when the incorrect character is surrounded by letters (word context).
+    ///     Character-level substitution rules: incorrect → correct
+    ///     Applied when the incorrect character is surrounded by letters (word context).
     /// </summary>
     public static readonly Dictionary<char, char> LetterToNumber = new()
     {
@@ -23,12 +22,12 @@ public static class OcrErrorPatterns
         ['I'] = '1', // Uppercase i → Number 1
         ['S'] = '5', // Letter S → Number 5
         ['B'] = '8', // Letter B → Number 8
-        ['Z'] = '2', // Letter Z → Number 2
+        ['Z'] = '2' // Letter Z → Number 2
     };
 
     /// <summary>
-    /// Character-level substitution rules: incorrect → correct
-    /// Applied when the incorrect character is surrounded by digits (numeric context).
+    ///     Character-level substitution rules: incorrect → correct
+    ///     Applied when the incorrect character is surrounded by digits (numeric context).
     /// </summary>
     public static readonly Dictionary<char, char> NumberToLetter = new()
     {
@@ -36,56 +35,56 @@ public static class OcrErrorPatterns
         ['1'] = 'l', // Number 1 → Lowercase L
         ['5'] = 'S', // Number 5 → Letter S
         ['8'] = 'B', // Number 8 → Letter B
-        ['2'] = 'Z', // Number 2 → Letter Z
+        ['2'] = 'Z' // Number 2 → Letter Z
     };
 
     /// <summary>
-    /// Multi-character substitution patterns: incorrect → correct
-    /// Common OCR misrecognitions of character combinations.
+    ///     Multi-character substitution patterns: incorrect → correct
+    ///     Common OCR misrecognitions of character combinations.
     /// </summary>
     public static readonly Dictionary<string, string> CharacterCombinations = new()
     {
         // Letter combinations
-        ["rn"] = "m",     // rn → m (common in serif fonts)
-        ["vv"] = "w",     // vv → w
-        ["VV"] = "W",     // VV → W
-        ["cl"] = "d",     // cl → d
-        ["ii"] = "ü",     // ii → ü (German umlaut)
-        ["fi"] = "fi",    // Ligature preservation
-        ["fl"] = "fl",    // Ligature preservation
+        ["rn"] = "m", // rn → m (common in serif fonts)
+        ["vv"] = "w", // vv → w
+        ["VV"] = "W", // VV → W
+        ["cl"] = "d", // cl → d
+        ["ii"] = "ü", // ii → ü (German umlaut)
+        ["fi"] = "fi", // Ligature preservation
+        ["fl"] = "fl", // Ligature preservation
 
         // Number/letter combinations
-        ["l0"] = "10",    // l0 → 10
-        ["O0"] = "00",    // O0 → 00
-        ["0O"] = "00",    // 0O → 00
+        ["l0"] = "10", // l0 → 10
+        ["O0"] = "00", // O0 → 00
+        ["0O"] = "00", // 0O → 00
 
         // Punctuation
-        [" ,"] = ",",     // Space before comma
-        [" ."] = ".",     // Space before period
-        [",,"] = "\"",    // Double comma → quote
-        ["` "] = "'",     // Backtick → apostrophe
-        [" '"] = "'",     // Space before apostrophe (likely part of word)
+        [" ,"] = ",", // Space before comma
+        [" ."] = ".", // Space before period
+        [",,"] = "\"", // Double comma → quote
+        ["` "] = "'", // Backtick → apostrophe
+        [" '"] = "'" // Space before apostrophe (likely part of word)
     };
 
     /// <summary>
-    /// Case-sensitive substitutions for specific contexts.
+    ///     Case-sensitive substitutions for specific contexts.
     /// </summary>
     public static readonly Dictionary<string, string> CaseSensitive = new()
     {
         // Uppercase I confused with lowercase l at start of words
-        ["I "] = "I ",     // Keep uppercase I as sentence start
-        [" I "] = " I ",   // Keep uppercase I as pronoun
-        [" l "] = " I ",   // Standalone lowercase l → uppercase I (pronoun)
+        ["I "] = "I ", // Keep uppercase I as sentence start
+        [" I "] = " I ", // Keep uppercase I as pronoun
+        [" l "] = " I ", // Standalone lowercase l → uppercase I (pronoun)
 
         // Lowercase L at start of words
-        ["l'"] = "I'",     // l'm → I'm
-        ["lm"] = "Im",     // lm → Im
-        ["lf"] = "If",     // lf → If
-        ["ln"] = "In",     // ln → In
+        ["l'"] = "I'", // l'm → I'm
+        ["lm"] = "Im", // lm → Im
+        ["lf"] = "If", // lf → If
+        ["ln"] = "In" // ln → In
     };
 
     /// <summary>
-    /// Word-level corrections: common OCR mistakes in whole words.
+    ///     Word-level corrections: common OCR mistakes in whole words.
     /// </summary>
     public static readonly Dictionary<string, string> CommonWords = new()
     {
@@ -101,7 +100,7 @@ public static class OcrErrorPatterns
 
         // Common verbs
         ["wlll"] = "will",
-        ["can't"] = "can't",  // Fix apostrophe
+        ["can't"] = "can't", // Fix apostrophe
         ["dont"] = "don't",
         ["doesnt"] = "doesn't",
         ["wont"] = "won't",
@@ -109,21 +108,27 @@ public static class OcrErrorPatterns
 
         // Numbers as words
         ["flve"] = "five",
-        ["nlne"] = "nine",
+        ["nlne"] = "nine"
     };
 
     /// <summary>
-    /// Check if a character is a letter (a-z, A-Z).
+    ///     Check if a character is a letter (a-z, A-Z).
     /// </summary>
-    public static bool IsLetter(char c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    public static bool IsLetter(char c)
+    {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    }
 
     /// <summary>
-    /// Check if a character is a digit (0-9).
+    ///     Check if a character is a digit (0-9).
     /// </summary>
-    public static bool IsDigit(char c) => c >= '0' && c <= '9';
+    public static bool IsDigit(char c)
+    {
+        return c >= '0' && c <= '9';
+    }
 
     /// <summary>
-    /// Get context around a character position (previous and next character).
+    ///     Get context around a character position (previous and next character).
     /// </summary>
     public static (char? Prev, char? Next) GetContext(string text, int index)
     {
@@ -133,7 +138,7 @@ public static class OcrErrorPatterns
     }
 
     /// <summary>
-    /// Determine if context is alphabetic (surrounded by letters).
+    ///     Determine if context is alphabetic (surrounded by letters).
     /// </summary>
     public static bool IsAlphaContext(char? prev, char? next)
     {
@@ -141,7 +146,7 @@ public static class OcrErrorPatterns
     }
 
     /// <summary>
-    /// Determine if context is numeric (surrounded by digits).
+    ///     Determine if context is numeric (surrounded by digits).
     /// </summary>
     public static bool IsNumericContext(char? prev, char? next)
     {

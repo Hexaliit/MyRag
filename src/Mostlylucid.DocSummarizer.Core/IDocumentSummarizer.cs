@@ -6,23 +6,23 @@ using Mostlylucid.DocSummarizer.Services;
 namespace Mostlylucid.DocSummarizer;
 
 /// <summary>
-/// Main interface for document summarization.
-/// Provides a clean, DI-friendly API for summarizing documents from various sources.
+///     Main interface for document summarization.
+///     Provides a clean, DI-friendly API for summarizing documents from various sources.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The summarizer supports multiple modes, defaulting to BertRag which provides:
-/// </para>
-/// <list type="bullet">
-///   <item>Local ONNX-based BERT embeddings (no external API required)</item>
-///   <item>Semantic retrieval with hybrid RRF scoring</item>
-///   <item>Optional LLM synthesis for fluent prose (requires Ollama)</item>
-///   <item>Citation grounding - every claim traceable to source</item>
-/// </list>
-/// <para>
-/// Basic usage:
-/// </para>
-/// <code>
+///     <para>
+///         The summarizer supports multiple modes, defaulting to BertRag which provides:
+///     </para>
+///     <list type="bullet">
+///         <item>Local ONNX-based BERT embeddings (no external API required)</item>
+///         <item>Semantic retrieval with hybrid RRF scoring</item>
+///         <item>Optional LLM synthesis for fluent prose (requires Ollama)</item>
+///         <item>Citation grounding - every claim traceable to source</item>
+///     </list>
+///     <para>
+///         Basic usage:
+///     </para>
+///     <code>
 /// // In Startup/Program.cs
 /// services.AddDocSummarizer();
 /// 
@@ -33,22 +33,22 @@ namespace Mostlylucid.DocSummarizer;
 public interface IDocumentSummarizer
 {
     /// <summary>
-    /// Gets or sets the current summary template.
-    /// Templates control output style, length, tone, and format.
+    ///     Gets or sets the current summary template.
+    ///     Templates control output style, length, tone, and format.
     /// </summary>
     SummaryTemplate Template { get; set; }
 
     /// <summary>
-    /// Summarize markdown content.
+    ///     Summarize markdown content.
     /// </summary>
     /// <param name="markdown">The markdown content to summarize.</param>
     /// <param name="documentId">Optional document identifier for caching. If not provided, a hash will be computed.</param>
     /// <param name="focusQuery">Optional focus query to bias retrieval toward specific topics.</param>
     /// <param name="mode">Summarization mode. Defaults to Auto which selects BertRag for most documents.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A <see cref="DocumentSummary"/> containing the executive summary, topic breakdowns, and trace metadata.</returns>
+    /// <returns>A <see cref="DocumentSummary" /> containing the executive summary, topic breakdowns, and trace metadata.</returns>
     /// <example>
-    /// <code>
+    ///     <code>
     /// var summary = await summarizer.SummarizeMarkdownAsync(
     ///     markdown: "# My Document\n\nContent here...",
     ///     focusQuery: "What are the key architectural decisions?");
@@ -68,17 +68,20 @@ public interface IDocumentSummarizer
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Summarize markdown content with progress reporting via a channel.
+    ///     Summarize markdown content with progress reporting via a channel.
     /// </summary>
     /// <param name="markdown">The markdown content to summarize.</param>
-    /// <param name="progress">Channel writer to receive progress updates. Create with <see cref="ProgressChannel.CreateUnbounded"/> or <see cref="ProgressChannel.CreateBounded"/>.</param>
+    /// <param name="progress">
+    ///     Channel writer to receive progress updates. Create with
+    ///     <see cref="ProgressChannel.CreateUnbounded" /> or <see cref="ProgressChannel.CreateBounded" />.
+    /// </param>
     /// <param name="documentId">Optional document identifier for caching.</param>
     /// <param name="focusQuery">Optional focus query to bias retrieval toward specific topics.</param>
     /// <param name="mode">Summarization mode. Defaults to Auto.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A <see cref="DocumentSummary"/> containing the summary and metadata.</returns>
+    /// <returns>A <see cref="DocumentSummary" /> containing the summary and metadata.</returns>
     /// <example>
-    /// <code>
+    ///     <code>
     /// // Create a progress channel
     /// var channel = ProgressChannel.CreateUnbounded();
     /// 
@@ -107,22 +110,22 @@ public interface IDocumentSummarizer
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Summarize a file (markdown, PDF, DOCX, or text).
+    ///     Summarize a file (markdown, PDF, DOCX, or text).
     /// </summary>
     /// <param name="filePath">Path to the file to summarize.</param>
     /// <param name="focusQuery">Optional focus query to bias retrieval toward specific topics.</param>
     /// <param name="mode">Summarization mode. Defaults to Auto.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A <see cref="DocumentSummary"/> containing the summary and metadata.</returns>
+    /// <returns>A <see cref="DocumentSummary" /> containing the summary and metadata.</returns>
     /// <remarks>
-    /// Supported file types:
-    /// <list type="bullet">
-    ///   <item>.md - Markdown (native support)</item>
-    ///   <item>.pdf - PDF (requires PdfPig, or Docling for complex layouts)</item>
-    ///   <item>.docx - Word documents (requires OpenXml)</item>
-    ///   <item>.txt - Plain text</item>
-    ///   <item>.html - HTML (converted to markdown)</item>
-    /// </list>
+    ///     Supported file types:
+    ///     <list type="bullet">
+    ///         <item>.md - Markdown (native support)</item>
+    ///         <item>.pdf - PDF (requires PdfPig, or Docling for complex layouts)</item>
+    ///         <item>.docx - Word documents (requires OpenXml)</item>
+    ///         <item>.txt - Plain text</item>
+    ///         <item>.html - HTML (converted to markdown)</item>
+    ///     </list>
     /// </remarks>
     Task<DocumentSummary> SummarizeFileAsync(
         string filePath,
@@ -131,7 +134,7 @@ public interface IDocumentSummarizer
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Summarize a file with progress reporting via a channel.
+    ///     Summarize a file with progress reporting via a channel.
     /// </summary>
     Task<DocumentSummary> SummarizeFileAsync(
         string filePath,
@@ -141,14 +144,14 @@ public interface IDocumentSummarizer
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Summarize content from a URL.
+    ///     Summarize content from a URL.
     /// </summary>
     /// <param name="url">The URL to fetch and summarize.</param>
     /// <param name="focusQuery">Optional focus query to bias retrieval toward specific topics.</param>
     /// <param name="mode">Summarization mode. Defaults to Auto.</param>
     /// <param name="usePlaywright">If true, uses Playwright for JavaScript-rendered pages. Defaults to false.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A <see cref="DocumentSummary"/> containing the summary and metadata.</returns>
+    /// <returns>A <see cref="DocumentSummary" /> containing the summary and metadata.</returns>
     Task<DocumentSummary> SummarizeUrlAsync(
         string url,
         string? focusQuery = null,
@@ -157,7 +160,7 @@ public interface IDocumentSummarizer
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Summarize content from a URL with progress reporting via a channel.
+    ///     Summarize content from a URL with progress reporting via a channel.
     /// </summary>
     Task<DocumentSummary> SummarizeUrlAsync(
         string url,
@@ -168,16 +171,16 @@ public interface IDocumentSummarizer
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Answer a question about a document using RAG retrieval.
+    ///     Answer a question about a document using RAG retrieval.
     /// </summary>
     /// <param name="markdown">The markdown content to query.</param>
     /// <param name="question">The question to answer.</param>
     /// <param name="documentId">Optional document identifier for caching.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A <see cref="QueryAnswer"/> containing the answer with supporting evidence.</returns>
+    /// <returns>A <see cref="QueryAnswer" /> containing the answer with supporting evidence.</returns>
     /// <remarks>
-    /// This method uses semantic search to find relevant segments, then synthesizes an answer.
-    /// Each claim in the answer is grounded with citations to source segments.
+    ///     This method uses semantic search to find relevant segments, then synthesizes an answer.
+    ///     Each claim in the answer is grounded with citations to source segments.
     /// </remarks>
     Task<QueryAnswer> QueryAsync(
         string markdown,
@@ -186,20 +189,20 @@ public interface IDocumentSummarizer
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Extract segments from markdown content without summarizing.
-    /// Useful for building search indexes or custom pipelines.
+    ///     Extract segments from markdown content without summarizing.
+    ///     Useful for building search indexes or custom pipelines.
     /// </summary>
     /// <param name="markdown">The markdown content to extract segments from.</param>
     /// <param name="documentId">Optional document identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>An <see cref="ExtractionResult"/> containing all segments with embeddings and salience scores.</returns>
+    /// <returns>An <see cref="ExtractionResult" /> containing all segments with embeddings and salience scores.</returns>
     Task<ExtractionResult> ExtractSegmentsAsync(
         string markdown,
         string? documentId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Extract segments with progress reporting via a channel.
+    ///     Extract segments with progress reporting via a channel.
     /// </summary>
     Task<ExtractionResult> ExtractSegmentsAsync(
         string markdown,
@@ -208,15 +211,15 @@ public interface IDocumentSummarizer
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Check if required services (Ollama, Docling) are available.
+    ///     Check if required services (Ollama, Docling) are available.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A <see cref="ServiceAvailability"/> indicating which services are available.</returns>
+    /// <returns>A <see cref="ServiceAvailability" /> indicating which services are available.</returns>
     Task<ServiceAvailability> CheckServicesAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// Answer to a document query with supporting evidence.
+///     Answer to a document query with supporting evidence.
 /// </summary>
 /// <param name="Answer">The synthesized answer to the question.</param>
 /// <param name="Confidence">Confidence level in the answer.</param>
@@ -229,7 +232,7 @@ public record QueryAnswer(
     string Question);
 
 /// <summary>
-/// A source segment used as evidence for an answer or claim.
+///     A source segment used as evidence for an answer or claim.
 /// </summary>
 /// <param name="SegmentId">Unique identifier for the segment.</param>
 /// <param name="Text">The segment text.</param>
@@ -242,7 +245,7 @@ public record EvidenceSegment(
     string? SectionTitle);
 
 /// <summary>
-/// Result of service availability check.
+///     Result of service availability check.
 /// </summary>
 /// <param name="OllamaAvailable">True if Ollama is running and accessible.</param>
 /// <param name="DoclingAvailable">True if Docling is running and accessible.</param>
@@ -255,17 +258,17 @@ public record ServiceAvailability(
     bool EmbeddingReady)
 {
     /// <summary>
-    /// True if BertRag mode can run (only requires ONNX embeddings, no external services).
+    ///     True if BertRag mode can run (only requires ONNX embeddings, no external services).
     /// </summary>
     public bool CanRunBertOnly => EmbeddingReady;
-    
+
     /// <summary>
-    /// True if full summarization with LLM synthesis is available.
+    ///     True if full summarization with LLM synthesis is available.
     /// </summary>
     public bool CanRunWithLlm => EmbeddingReady && OllamaAvailable;
-    
+
     /// <summary>
-    /// True if PDF/DOCX conversion via Docling is available.
+    ///     True if PDF/DOCX conversion via Docling is available.
     /// </summary>
     public bool CanConvertDocuments => DoclingAvailable;
 }

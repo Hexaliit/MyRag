@@ -1,25 +1,35 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
+using System.Text.Json;
+using LucidRAG.Cli.Services;
+using LucidRAG.Data;
+using LucidRAG.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Mostlylucid.DocSummarizer.Services;
-using LucidRAG.Cli.Services;
-using LucidRAG.Data;
 using Spectre.Console;
 
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// Search indexed documents
+///     Search indexed documents
 /// </summary>
 public static class SearchCommand
 {
     private static readonly Argument<string> QueryArg = new("query") { Description = "Search query" };
-    private static readonly Option<string?> CollectionOpt = new("-c", "--collection") { Description = "Collection to search" };
-    private static readonly Option<int> TopKOpt = new("-k", "--top") { Description = "Number of results", DefaultValueFactory = _ => 10 };
-    private static readonly Option<bool> JsonOpt = new("--json") { Description = "Output as JSON", DefaultValueFactory = _ => false };
+
+    private static readonly Option<string?> CollectionOpt = new("-c", "--collection")
+        { Description = "Collection to search" };
+
+    private static readonly Option<int> TopKOpt = new("-k", "--top")
+        { Description = "Number of results", DefaultValueFactory = _ => 10 };
+
+    private static readonly Option<bool> JsonOpt = new("--json")
+        { Description = "Output as JSON", DefaultValueFactory = _ => false };
+
     private static readonly Option<string?> DataDirOpt = new("--data-dir") { Description = "Data directory" };
-    private static readonly Option<bool> VerboseOpt = new("-v", "--verbose") { Description = "Verbose output", DefaultValueFactory = _ => false };
+
+    private static readonly Option<bool> VerboseOpt = new("-v", "--verbose")
+        { Description = "Verbose output", DefaultValueFactory = _ => false };
 
     public static Command Create()
     {
@@ -61,17 +71,14 @@ public static class SearchCommand
             var embedder = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
 
             // Check for documents
-            var docCount = await db.Documents.CountAsync(d => d.Status == LucidRAG.Entities.DocumentStatus.Completed, ct);
+            var docCount = await db.Documents.CountAsync(d => d.Status == DocumentStatus.Completed, ct);
             if (docCount == 0)
             {
                 if (outputJson)
-                {
-                    Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { query, results = Array.Empty<object>(), error = "No documents indexed" }));
-                }
+                    Console.WriteLine(JsonSerializer.Serialize(new
+                        { query, results = Array.Empty<object>(), error = "No documents indexed" }));
                 else
-                {
                     AnsiConsole.MarkupLine("[yellow]No documents indexed yet. Use 'lucidrag index' first.[/]");
-                }
                 return 1;
             }
 
@@ -83,7 +90,7 @@ public static class SearchCommand
                 "ragdocuments",
                 queryEmbedding,
                 topK,
-                docId: null,
+                null,
                 ct);
 
             // Use QuerySimilarity as the score (DuckDB sets this, not RetrievalScore)
@@ -99,7 +106,8 @@ public static class SearchCommand
                     section = s.SectionTitle ?? s.HeadingPath,
                     text = s.Text.Length > 300 ? s.Text[..297] + "..." : s.Text
                 });
-                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { query, results = jsonResults }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+                Console.WriteLine(JsonSerializer.Serialize(new { query, results = jsonResults },
+                    new JsonSerializerOptions { WriteIndented = true }));
             }
             else
             {
@@ -122,7 +130,9 @@ public static class SearchCommand
                 for (var i = 0; i < segments.Count; i++)
                 {
                     var s = segments[i];
-                    var preview = s.Text.Length > 80 ? s.Text[..77].Replace("\n", " ") + "..." : s.Text.Replace("\n", " ");
+                    var preview = s.Text.Length > 80
+                        ? s.Text[..77].Replace("\n", " ") + "..."
+                        : s.Text.Replace("\n", " ");
                     var scoreColor = s.QuerySimilarity > 0.7 ? "green" : s.QuerySimilarity > 0.5 ? "yellow" : "white";
                     var section = s.SectionTitle ?? s.HeadingPath ?? "[no section]";
 

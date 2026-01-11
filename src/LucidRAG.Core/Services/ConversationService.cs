@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
 using LucidRAG.Entities;
@@ -103,5 +104,66 @@ public class ConversationService(
         await db.SaveChangesAsync(ct);
 
         logger.LogInformation("Deleted conversation {ConversationId}", conversationId);
+    }
+
+    public async Task SetActiveDocumentsAsync(
+        Guid conversationId,
+        Guid[] documentIds,
+        string topicQuery,
+        string? topicSignature = null,
+        CancellationToken ct = default)
+    {
+        var conversation = await db.Conversations.FindAsync([conversationId], ct);
+        if (conversation is null)
+        {
+            logger.LogWarning("Cannot set active documents: conversation {ConversationId} not found", conversationId);
+            return;
+        }
+
+        conversation.ActiveDocumentIds = JsonSerializer.Serialize(documentIds);
+        conversation.LastTopicQuery = topicQuery;
+        conversation.TopicSignature = topicSignature;
+        conversation.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await db.SaveChangesAsync(ct);
+        logger.LogDebug("Set {Count} active documents for conversation {ConversationId}", documentIds.Length, conversationId);
+    }
+
+    public async Task<Guid[]?> GetActiveDocumentsAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        var conversation = await db.Conversations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == conversationId, ct);
+
+        if (conversation?.ActiveDocumentIds is null)
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<Guid[]>(conversation.ActiveDocumentIds);
+        }
+        catch (JsonException)
+        {
+            logger.LogWarning("Failed to deserialize active document IDs for conversation {ConversationId}", conversationId);
+            return null;
+        }
+    }
+
+    public async Task<string?> GetLastTopicQueryAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        var conversation = await db.Conversations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == conversationId, ct);
+
+        return conversation?.LastTopicQuery;
+    }
+
+    public async Task<string?> GetTopicSignatureAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        var conversation = await db.Conversations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == conversationId, ct);
+
+        return conversation?.TopicSignature;
     }
 }

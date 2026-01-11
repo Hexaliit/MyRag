@@ -3,7 +3,7 @@
 Command-line interface for intelligent image analysis with vision LLM integration, caching, and batch processing.
 
 ## Installation
- 
+
 ### Install from NuGet (when published)
 
 ```bash
@@ -49,6 +49,7 @@ lucidrag-image analyze <image-path> [options]
 ```
 
 **Options:**
+
 - `--format <table|json|markdown>` - Output format (default: table)
 - `--include-ocr` - Run OCR if text detected
 - `--include-clip` - Generate CLIP embeddings
@@ -99,6 +100,7 @@ lucidrag-image batch <directory> [options]
 ```
 
 **Options:**
+
 - `--pattern <glob>` - File pattern (default: `**/*`)
 - `--max-parallel <N>` - Worker threads (default: CPU count)
 - `--filter-type <type>` - Filter by image type (Photo, Screenshot, etc.)
@@ -110,6 +112,7 @@ lucidrag-image batch <directory> [options]
 - `--bypass-escalation` - Skip vision LLM (faster)
 
 **Sorting Options:**
+
 - `color` - By dominant color hue
 - `resolution` - By pixel count
 - `sharpness` - By Laplacian variance
@@ -173,11 +176,12 @@ lucidrag-image dedupe <directory> [options]
 ```
 
 **Options:**
+
 - `--threshold <N>` - Hamming distance threshold (default: 5)
-  - 0-2: Identical or near-identical
-  - 3-5: Very similar
-  - 6-10: Somewhat similar
-  - 11+: Different
+    - 0-2: Identical or near-identical
+    - 3-5: Very similar
+    - 6-10: Somewhat similar
+    - 11+: Different
 - `--action <report|move|delete>` - What to do with duplicates
 - `--target-dir <path>` - Move duplicates here (when action=move)
 - `--dry-run` - Show what would happen without doing it
@@ -298,13 +302,14 @@ ollama run minicpm-v:8b "test" < test.jpg
 
 For comprehensive documentation on the underlying library and analysis process:
 
-- **[Core Library README](../Mostlylucid.DocSummarizer.Images/README.md)** - Analysis pipeline, process stages, vision LLM integration
+- **[Core Library README](../Mostlylucid.DocSummarizer.Images/README.md)** - Analysis pipeline, process stages, vision
+  LLM integration
 - **[ANALYZERS.md](../Mostlylucid.DocSummarizer.Images/ANALYZERS.md)** - Detailed analyzer algorithms and metrics
-  - ColorAnalyzer (quantization, color grids, Lanczos3)
-  - EdgeAnalyzer (Sobel operators, entropy)
-  - BlurAnalyzer (Laplacian variance, sharpness categories)
-  - TextLikelinessAnalyzer (heuristic scoring)
-  - TypeDetector (decision tree rules)
+    - ColorAnalyzer (quantization, color grids, Lanczos3)
+    - EdgeAnalyzer (Sobel operators, entropy)
+    - BlurAnalyzer (Laplacian variance, sharpness categories)
+    - TextLikelinessAnalyzer (heuristic scoring)
+    - TypeDetector (decision tree rules)
 - **[ARCHITECTURE_VISION.md](../../ARCHITECTURE_VISION.md)** - Future signal-based pipeline architecture
 - **[GLOBAL_TOOL_SETUP.md](./GLOBAL_TOOL_SETUP.md)** - Publishing as .NET Global Tool
 

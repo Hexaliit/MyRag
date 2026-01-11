@@ -7,15 +7,16 @@ processing tool with AOT compilation support.
 
 ## Universal Tokenizer (New in v2.7)
 
-The ONNX embedding service now supports multiple tokenizer formats via `HuggingFaceTokenizer`, enabling support for a wider range of embedding models.
+The ONNX embedding service now supports multiple tokenizer formats via `HuggingFaceTokenizer`, enabling support for a
+wider range of embedding models.
 
 ### Supported Tokenizer Types
 
-| Type | Models | How It Works |
-|------|--------|--------------|
-| **WordPiece** | BERT, MiniLM, BGE, GTE | Greedy longest-match subword splitting with `##` prefix |
-| **BPE** | GPT-2, RoBERTa, MPNet | Byte-pair encoding with learned merge rules |
-| **Unigram** | T5, XLNet, SentencePiece | Viterbi-based probabilistic tokenization |
+| Type          | Models                   | How It Works                                            |
+|---------------|--------------------------|---------------------------------------------------------|
+| **WordPiece** | BERT, MiniLM, BGE, GTE   | Greedy longest-match subword splitting with `##` prefix |
+| **BPE**       | GPT-2, RoBERTa, MPNet    | Byte-pair encoding with learned merge rules             |
+| **Unigram**   | T5, XLNet, SentencePiece | Viterbi-based probabilistic tokenization                |
 
 ### How It Works
 
@@ -32,28 +33,29 @@ tokenizer.json → Parse Config → Detect Type → Create Model
 ### Automatic Format Detection
 
 The tokenizer automatically:
+
 1. Prefers `tokenizer.json` (universal HuggingFace format)
 2. Falls back to `vocab.txt` (legacy WordPiece) if needed
 3. Resolves special tokens ([CLS], [SEP], [PAD], [UNK]) from config
 
 ### Pre-tokenizers
 
-| Type | Description | Used By |
-|------|-------------|---------|
-| Whitespace | Split on whitespace | General |
-| BERT | Split on whitespace + punctuation | BERT models |
-| Metaspace | Replace spaces with ▁ | SentencePiece |
-| ByteLevel | GPT-2 style byte-level | GPT/RoBERTa |
-| Sequence | Chain multiple pre-tokenizers | Complex pipelines |
+| Type       | Description                       | Used By           |
+|------------|-----------------------------------|-------------------|
+| Whitespace | Split on whitespace               | General           |
+| BERT       | Split on whitespace + punctuation | BERT models       |
+| Metaspace  | Replace spaces with ▁             | SentencePiece     |
+| ByteLevel  | GPT-2 style byte-level            | GPT/RoBERTa       |
+| Sequence   | Chain multiple pre-tokenizers     | Complex pipelines |
 
 ### Normalizers
 
-| Type | Description |
-|------|-------------|
-| BERT | Clean whitespace, handle Chinese chars, optional lowercase |
-| Lowercase | Convert to lowercase |
-| NFC/NFKC | Unicode normalization |
-| Sequence | Chain multiple normalizers |
+| Type      | Description                                                |
+|-----------|------------------------------------------------------------|
+| BERT      | Clean whitespace, handle Chinese chars, optional lowercase |
+| Lowercase | Convert to lowercase                                       |
+| NFC/NFKC  | Unicode normalization                                      |
+| Sequence  | Chain multiple normalizers                                 |
 
 ### Usage
 
@@ -72,8 +74,9 @@ The `UIService` consolidates multiple progress/display implementations into one 
 ### The Problem
 
 Previously, DocSummarizer had 5+ different UI implementations:
+
 - `ProgressService` - Plain Console.WriteLine
-- `SpectreProgressService` - Rich Spectre.Console output  
+- `SpectreProgressService` - Rich Spectre.Console output
 - `SimpleProgressService` - Simple console output
 - `ConsoleProgressReporter` / `NullProgressReporter` - IProgressReporter implementations
 - Direct `Console.WriteLine` and `AnsiConsole` calls

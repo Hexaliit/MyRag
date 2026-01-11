@@ -12,9 +12,9 @@ public interface IPoseEmbeddingService
 
 public sealed class PoseEmbeddingService : IPoseEmbeddingService
 {
-    private readonly ILogger<PoseEmbeddingService> _logger;
     private readonly int _embeddingDimensions;
-    
+    private readonly ILogger<PoseEmbeddingService> _logger;
+
     public PoseEmbeddingService(
         ILogger<PoseEmbeddingService> logger,
         int embeddingDimensions = 128)
@@ -22,38 +22,38 @@ public sealed class PoseEmbeddingService : IPoseEmbeddingService
         _logger = logger;
         _embeddingDimensions = embeddingDimensions;
     }
-    
+
     public float[] CreateEmbedding(SignAtom atom)
     {
         if (atom.Frames.Count == 0)
             return new float[_embeddingDimensions];
-        
+
         var landmarks = atom.Frames
             .Where(f => f.HasAnyHand)
             .Select(f => f.LeftHand ?? f.RightHand)
             .Where(h => h != null)
             .Select(h => CanonicalLandmarks.FromLandmarks(h!))
             .ToArray();
-        
+
         return CreateEmbedding(landmarks);
     }
-    
+
     public float[] CreateEmbedding(CanonicalLandmarks[] landmarks)
     {
         if (landmarks.Length == 0)
             return new float[_embeddingDimensions];
-        
+
         var embedding = new float[_embeddingDimensions];
-        
+
         var landmarkCount = Math.Min(landmarks.Length, 10);
         var dimensionsPerLandmark = _embeddingDimensions / landmarkCount;
-        
-        for (int i = 0; i < landmarkCount; i++)
+
+        for (var i = 0; i < landmarkCount; i++)
         {
             var landmarksSpan = landmarks[i].AsSpan();
             var offset = i * dimensionsPerLandmark;
-            
-            for (int j = 0; j < Math.Min(landmarksSpan.Length, dimensionsPerLandmark / 3); j++)
+
+            for (var j = 0; j < Math.Min(landmarksSpan.Length, dimensionsPerLandmark / 3); j++)
             {
                 var pt = landmarksSpan[j];
                 embedding[offset + j * 3] = pt.X;
@@ -61,10 +61,10 @@ public sealed class PoseEmbeddingService : IPoseEmbeddingService
                 embedding[offset + j * 3 + 2] = pt.Z;
             }
         }
-        
+
         return embedding;
     }
-    
+
     public float[] CreateEmbedding(FrameLandmarks[] frames)
     {
         var canonical = frames
@@ -73,7 +73,7 @@ public sealed class PoseEmbeddingService : IPoseEmbeddingService
             .Where(h => h != null)
             .Select(h => CanonicalLandmarks.FromLandmarks(h!))
             .ToArray();
-        
+
         return CreateEmbedding(canonical);
     }
 }

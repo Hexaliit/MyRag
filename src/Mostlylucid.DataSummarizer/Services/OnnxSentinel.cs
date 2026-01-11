@@ -6,18 +6,18 @@ using Mostlylucid.DataSummarizer.Models;
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Optional ONNX-based sentinel that scores columns based on profile features.
-/// You can plug in any ONNX model that accepts a single float feature vector.
-/// If the model is absent or incompatible, the sentinel safely no-ops.
+///     Optional ONNX-based sentinel that scores columns based on profile features.
+///     You can plug in any ONNX model that accepts a single float feature vector.
+///     If the model is absent or incompatible, the sentinel safely no-ops.
 /// </summary>
 public class OnnxSentinel : IDisposable
 {
     private readonly string _modelPath;
     private readonly bool _verbose;
-    private InferenceSession? _session;
+    private int _featureLength;
     private string? _inputName;
     private string? _outputName;
-    private int _featureLength;
+    private InferenceSession? _session;
 
     public OnnxSentinel(string modelPath, bool verbose = false)
     {
@@ -32,6 +32,12 @@ public class OnnxSentinel : IDisposable
             EnsureLoaded();
             return _session != null && _inputName != null && _outputName != null && _featureLength > 0;
         }
+    }
+
+    public void Dispose()
+    {
+        _session?.Dispose();
+        _session = null;
     }
 
     public List<DataInsight> ScoreColumns(DataProfile profile)
@@ -125,9 +131,8 @@ public class OnnxSentinel : IDisposable
 
             _outputName = _session.OutputMetadata.First().Key;
             if (_verbose)
-            {
-                Console.WriteLine($"[OnnxSentinel] Loaded {_modelPath} (input: {_inputName}, features: {_featureLength})");
-            }
+                Console.WriteLine(
+                    $"[OnnxSentinel] Loaded {_modelPath} (input: {_inputName}, features: {_featureLength})");
         }
         catch (Exception ex)
         {
@@ -155,17 +160,11 @@ public class OnnxSentinel : IDisposable
             outlierRatio,
             imbalance,
             (float)(col.AvgLength ?? 0),
-            (float)(col.MaxLength ?? 0),
+            col.MaxLength ?? 0,
             col.InferredType == ColumnType.Numeric ? 1f : 0f,
             col.InferredType == ColumnType.Categorical ? 1f : 0f,
             col.InferredType == ColumnType.DateTime ? 1f : 0f,
             col.InferredType == ColumnType.Text ? 1f : 0f
         };
-    }
-
-    public void Dispose()
-    {
-        _session?.Dispose();
-        _session = null;
     }
 }

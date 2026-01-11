@@ -3,7 +3,7 @@ using Spectre.Console;
 namespace LucidRAG.Cli.Services;
 
 /// <summary>
-/// Rich progress rendering using Spectre.Console
+///     Rich progress rendering using Spectre.Console
 /// </summary>
 public class CliProgressRenderer
 {
@@ -57,17 +57,15 @@ public class CliProgressRenderer
         AnsiConsole.MarkupLine($"[cyan]>[/] {Markup.Escape(message)}");
     }
 
-    public void WriteTable<T>(string title, IEnumerable<T> items, params (string Header, Func<T, string> Selector)[] columns)
+    public void WriteTable<T>(string title, IEnumerable<T> items,
+        params (string Header, Func<T, string> Selector)[] columns)
     {
         var table = new Table()
             .Border(TableBorder.Rounded)
             .BorderColor(Color.Cyan1)
             .Title($"[cyan]{Markup.Escape(title)}[/]");
 
-        foreach (var (header, _) in columns)
-        {
-            table.AddColumn(new TableColumn($"[cyan]{Markup.Escape(header)}[/]"));
-        }
+        foreach (var (header, _) in columns) table.AddColumn(new TableColumn($"[cyan]{Markup.Escape(header)}[/]"));
 
         foreach (var item in items)
         {

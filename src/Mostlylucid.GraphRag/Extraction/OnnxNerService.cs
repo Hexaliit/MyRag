@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.ML.OnnxRuntime;
@@ -7,25 +8,23 @@ using Microsoft.ML.Tokenizers;
 namespace Mostlylucid.GraphRag.Extraction;
 
 /// <summary>
-/// ONNX-based Named Entity Recognition service.
-/// Uses transformer models (BERT-based) for entity span detection.
-///
-/// The NER model finds WHERE entities are in the text (spans).
-/// Entity TYPE classification is done separately using EntityTypeProfiles.
+///     ONNX-based Named Entity Recognition service.
+///     Uses transformer models (BERT-based) for entity span detection.
+///     The NER model finds WHERE entities are in the text (spans).
+///     Entity TYPE classification is done separately using EntityTypeProfiles.
 /// </summary>
 public sealed class OnnxNerService : IDisposable
 {
-    private readonly NerModelInfo _modelInfo;
-    private readonly string _modelPath;
-    private readonly int _maxSequenceLength;
-    private InferenceSession? _session;
-    private Tokenizer? _tokenizer;
-    private string[]? _labels;
-    private bool _initialized;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
-
     // BIO tag patterns
     private static readonly Regex BioTagRx = new(@"^([BI])-(.+)$", RegexOptions.Compiled);
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly int _maxSequenceLength;
+    private readonly NerModelInfo _modelInfo;
+    private readonly string _modelPath;
+    private bool _initialized;
+    private string[]? _labels;
+    private InferenceSession? _session;
+    private Tokenizer? _tokenizer;
 
     public OnnxNerService(string modelPath, NerModelInfo? modelInfo = null, int maxSequenceLength = 512)
     {
@@ -34,8 +33,14 @@ public sealed class OnnxNerService : IDisposable
         _maxSequenceLength = Math.Min(maxSequenceLength, _modelInfo.MaxSequenceLength);
     }
 
+    public void Dispose()
+    {
+        _session?.Dispose();
+        _initLock.Dispose();
+    }
+
     /// <summary>
-    /// Initialize the NER model and tokenizer.
+    ///     Initialize the NER model and tokenizer.
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -57,8 +62,8 @@ public sealed class OnnxNerService : IDisposable
             var options = new SessionOptions
             {
                 GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
-                IntraOpNumThreads = Math.Min(4, Environment.ProcessorCount),  // Limit to 4 threads max
-                InterOpNumThreads = 1  // Single inter-op thread
+                IntraOpNumThreads = Math.Min(4, Environment.ProcessorCount), // Limit to 4 threads max
+                InterOpNumThreads = 1 // Single inter-op thread
             };
             _session = new InferenceSession(modelFile, options);
 
@@ -94,9 +99,7 @@ public sealed class OnnxNerService : IDisposable
                     var maxId = id2label.EnumerateObject().Max(p => int.Parse(p.Name));
                     _labels = new string[maxId + 1];
                     foreach (var prop in id2label.EnumerateObject())
-                    {
                         _labels[int.Parse(prop.Name)] = prop.Value.GetString() ?? "O";
-                    }
                 }
             }
 
@@ -112,13 +115,14 @@ public sealed class OnnxNerService : IDisposable
     }
 
     /// <summary>
-    /// Extract entity spans from text.
-    /// Returns raw spans with BIO-derived entity types.
+    ///     Extract entity spans from text.
+    ///     Returns raw spans with BIO-derived entity types.
     /// </summary>
     public async Task<List<EntitySpan>> ExtractSpansAsync(string text, CancellationToken ct = default)
     {
-        var totalSw = System.Diagnostics.Stopwatch.StartNew();
-        Console.WriteLine($"[NER] ExtractSpansAsync starting for {text.Length} chars: \"{text.Substring(0, Math.Min(100, text.Length))}...\"");
+        var totalSw = Stopwatch.StartNew();
+        Console.WriteLine(
+            $"[NER] ExtractSpansAsync starting for {text.Length} chars: \"{text.Substring(0, Math.Min(100, text.Length))}...\"");
 
         await InitializeAsync(ct);
         Console.WriteLine($"[NER] Initialized in {totalSw.ElapsedMilliseconds}ms");
@@ -127,7 +131,7 @@ public sealed class OnnxNerService : IDisposable
             throw new InvalidOperationException("NER model not initialized");
 
         // Tokenize using Microsoft.ML.Tokenizers
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         var encoded = _tokenizer.EncodeToTokens(text, out var normalizedText);
 
         // Get CLS and SEP token IDs for BERT format: [CLS] tokens [SEP]
@@ -141,9 +145,9 @@ public sealed class OnnxNerService : IDisposable
         // Build full sequence: [CLS] + content tokens + [SEP]
         var contentIds = encoded.Select(t => t.Id).ToArray();
         var rawIds = new int[contentIds.Length + 2];
-        rawIds[0] = clsId;  // [CLS] at start
+        rawIds[0] = clsId; // [CLS] at start
         Array.Copy(contentIds, 0, rawIds, 1, contentIds.Length);
-        rawIds[rawIds.Length - 1] = sepId;  // [SEP] at end
+        rawIds[rawIds.Length - 1] = sepId; // [SEP] at end
         var rawLength = rawIds.Length;
 
         // Build tokens array with special tokens for entity extraction
@@ -175,22 +179,21 @@ public sealed class OnnxNerService : IDisposable
         Array.Copy(rawIds, inputIds, Math.Min(rawLength, targetLength));
 
         // Attention mask: 1 for real tokens, 0 for padding
-        for (int i = 0; i < targetLength; i++)
-        {
-            attentionMask[i] = i < rawLength ? 1 : 0;
-        }
+        for (var i = 0; i < targetLength; i++) attentionMask[i] = i < rawLength ? 1 : 0;
 
-        Console.WriteLine($"[NER] Tokenized in {sw.ElapsedMilliseconds}ms ({rawLength} tokens → {targetLength} bucket, {(targetLength - rawLength)} padding)");
+        Console.WriteLine(
+            $"[NER] Tokenized in {sw.ElapsedMilliseconds}ms ({rawLength} tokens → {targetLength} bucket, {targetLength - rawLength} padding)");
 
         // Create tensors with bucketed length
         sw.Restart();
         var inputIdsLong = new long[targetLength];
         var attentionMaskLong = new long[targetLength];
-        for (int i = 0; i < targetLength; i++)
+        for (var i = 0; i < targetLength; i++)
         {
             inputIdsLong[i] = inputIds[i];
             attentionMaskLong[i] = attentionMask[i];
         }
+
         var inputIdsTensor = new DenseTensor<long>(inputIdsLong, new[] { 1, targetLength });
         var attentionMaskTensor = new DenseTensor<long>(attentionMaskLong, new[] { 1, targetLength });
 
@@ -233,8 +236,8 @@ public sealed class OnnxNerService : IDisposable
     }
 
     /// <summary>
-    /// Extract entities with profile-aware type mapping.
-    /// Maps generic NER types to profile-specific types.
+    ///     Extract entities with profile-aware type mapping.
+    ///     Maps generic NER types to profile-specific types.
     /// </summary>
     public async Task<List<EntityCandidate>> ExtractWithProfileAsync(
         string text,
@@ -263,7 +266,7 @@ public sealed class OnnxNerService : IDisposable
         var predictions = new List<(string token, string label, float confidence, bool isSubword)>();
         var labelCounts = new Dictionary<string, int>();
 
-        for (int i = 0; i < seqLen && i < tokens.Length; i++)
+        for (var i = 0; i < seqLen && i < tokens.Length; i++)
         {
             var token = tokens[i];
 
@@ -274,7 +277,7 @@ public sealed class OnnxNerService : IDisposable
             // Get prediction (argmax)
             var maxProb = float.MinValue;
             var maxIdx = 0;
-            for (int j = 0; j < numLabels; j++)
+            for (var j = 0; j < numLabels; j++)
             {
                 var prob = logits[0, i, j];
                 if (prob > maxProb)
@@ -295,7 +298,8 @@ public sealed class OnnxNerService : IDisposable
         // Debug: log label distribution
         if (labelCounts.Count > 0)
         {
-            var labelSummary = string.Join(", ", labelCounts.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key}:{kv.Value}"));
+            var labelSummary = string.Join(", ",
+                labelCounts.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key}:{kv.Value}"));
             Console.WriteLine($"[NER] Label distribution: {labelSummary}");
         }
 
@@ -303,9 +307,9 @@ public sealed class OnnxNerService : IDisposable
         EntitySpan? currentEntity = null;
         var currentTokens = new List<string>();
         float confidenceSum = 0;
-        int confidenceCount = 0;
+        var confidenceCount = 0;
 
-        for (int i = 0; i < predictions.Count; i++)
+        for (var i = 0; i < predictions.Count; i++)
         {
             var (token, label, confidence, isSubword) = predictions[i];
             var match = BioTagRx.Match(label);
@@ -416,16 +420,14 @@ public sealed class OnnxNerService : IDisposable
             current.Confidence = confidenceCount > 0 ? confidenceSum / confidenceCount : current.Confidence;
 
             // Only add if the merged text is meaningful
-            if (current.Text.Length >= 2 && !IsNoiseTerm(current.Text))
-            {
-                spans.Add(current);
-            }
+            if (current.Text.Length >= 2 && !IsNoiseTerm(current.Text)) spans.Add(current);
         }
+
         current = null;
     }
 
     /// <summary>
-    /// Merge adjacent entities of the same type that were incorrectly split.
+    ///     Merge adjacent entities of the same type that were incorrectly split.
     /// </summary>
     private static List<EntitySpan> MergeAdjacentEntities(List<EntitySpan> spans, string originalText)
     {
@@ -434,7 +436,7 @@ public sealed class OnnxNerService : IDisposable
         var merged = new List<EntitySpan>();
         var current = spans[0];
 
-        for (int i = 1; i < spans.Count; i++)
+        for (var i = 1; i < spans.Count; i++)
         {
             var next = spans[i];
 
@@ -460,6 +462,7 @@ public sealed class OnnxNerService : IDisposable
                 current = next;
             }
         }
+
         merged.Add(current);
 
         return merged;
@@ -480,7 +483,7 @@ public sealed class OnnxNerService : IDisposable
     }
 
     /// <summary>
-    /// Reclassify technical terms that BERT misclassifies.
+    ///     Reclassify technical terms that BERT misclassifies.
     /// </summary>
     private static List<EntitySpan> ReclassifyTechnicalTerms(List<EntitySpan> spans)
     {
@@ -536,23 +539,18 @@ public sealed class OnnxNerService : IDisposable
             {
                 // If tagged as ORG but contains tech product keywords, reclassify as MISC
                 if (techProducts.Any(p => normalizedText.Contains(p, StringComparison.OrdinalIgnoreCase)))
-                {
                     span.EntityType = "MISC";
-                }
             }
         }
 
         // Also clean up spaces around hyphens/dashes in entity names
-        foreach (var span in spans)
-        {
-            span.Text = Regex.Replace(span.Text, @"\s*-\s*", "-").Trim();
-        }
+        foreach (var span in spans) span.Text = Regex.Replace(span.Text, @"\s*-\s*", "-").Trim();
 
         return spans;
     }
 
     /// <summary>
-    /// Check if a term is noise (common words, punctuation, etc.)
+    ///     Check if a term is noise (common words, punctuation, etc.)
     /// </summary>
     private static bool IsNoiseTerm(string text)
     {
@@ -599,32 +597,28 @@ public sealed class OnnxNerService : IDisposable
     }
 
     /// <summary>
-    /// Merge WordPiece tokens back to original text.
-    /// Handles ## prefixes from BERT tokenization.
+    ///     Merge WordPiece tokens back to original text.
+    ///     Handles ## prefixes from BERT tokenization.
     /// </summary>
     private static string MergeTokens(List<string> tokens)
     {
         if (tokens.Count == 0) return "";
 
         var merged = tokens[0];
-        for (int i = 1; i < tokens.Count; i++)
+        for (var i = 1; i < tokens.Count; i++)
         {
             var token = tokens[i];
             if (token.StartsWith("##"))
-            {
                 merged += token[2..]; // Remove ## and append directly
-            }
             else
-            {
                 merged += " " + token;
-            }
         }
 
         return merged.Trim();
     }
 
     /// <summary>
-    /// Map generic NER type (PER, ORG, LOC, MISC) to profile-specific type.
+    ///     Map generic NER type (PER, ORG, LOC, MISC) to profile-specific type.
     /// </summary>
     private static string MapToProfileType(string nerType, EntityProfile profile)
     {
@@ -661,31 +655,26 @@ public sealed class OnnxNerService : IDisposable
             if (match != null)
                 return match.Name;
         }
+
         return profile.EntityTypes.FirstOrDefault()?.Name ?? "concept";
     }
 
     private static float Softmax(Tensor<float> logits, int seqIdx, int numLabels, int targetIdx)
     {
         var maxLogit = float.MinValue;
-        for (int j = 0; j < numLabels; j++)
+        for (var j = 0; j < numLabels; j++)
             maxLogit = Math.Max(maxLogit, logits[0, seqIdx, j]);
 
         var sumExp = 0f;
-        for (int j = 0; j < numLabels; j++)
+        for (var j = 0; j < numLabels; j++)
             sumExp += MathF.Exp(logits[0, seqIdx, j] - maxLogit);
 
         return MathF.Exp(logits[0, seqIdx, targetIdx] - maxLogit) / sumExp;
     }
-
-    public void Dispose()
-    {
-        _session?.Dispose();
-        _initLock.Dispose();
-    }
 }
 
 /// <summary>
-/// Entity span detected by NER model.
+///     Entity span detected by NER model.
 /// </summary>
 public class EntitySpan
 {
@@ -706,29 +695,29 @@ public class EntitySpan
 }
 
 /// <summary>
-/// Registry of available NER ONNX models.
+///     Registry of available NER ONNX models.
 /// </summary>
 public static class NerModelRegistry
 {
     /// <summary>
-    /// protectai/bert-base-NER-onnx - Pre-exported ONNX model from dslim/bert-base-NER.
-    /// Has both model.onnx and vocab.txt (compatible with Microsoft.ML.Tokenizers.BertTokenizer).
-    /// Labels: O, B-PER, I-PER, B-ORG, I-ORG, B-LOC, I-LOC, B-MISC, I-MISC
-    /// License: MIT
+    ///     protectai/bert-base-NER-onnx - Pre-exported ONNX model from dslim/bert-base-NER.
+    ///     Has both model.onnx and vocab.txt (compatible with Microsoft.ML.Tokenizers.BertTokenizer).
+    ///     Labels: O, B-PER, I-PER, B-ORG, I-ORG, B-LOC, I-LOC, B-MISC, I-MISC
+    ///     License: MIT
     /// </summary>
     public static readonly NerModelInfo BertBaseNer = new()
     {
         Name = "bert-base-NER-onnx",
         HuggingFaceRepo = "protectai/bert-base-NER-onnx",
         ModelFile = "model.onnx",
-        TokenizerFile = "vocab.txt",  // vocab.txt works with BertTokenizer
+        TokenizerFile = "vocab.txt", // vocab.txt works with BertTokenizer
         MaxSequenceLength = 512,
         SizeBytes = 431_000_000,
         DefaultLabels = ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]
     };
 
     /// <summary>
-    /// Multilingual NER model supporting 9 languages.
+    ///     Multilingual NER model supporting 9 languages.
     /// </summary>
     public static readonly NerModelInfo DistilBertMultilingual = new()
     {
@@ -742,7 +731,7 @@ public static class NerModelRegistry
     };
 
     /// <summary>
-    /// WikiNEuRal multilingual NER (high quality but non-commercial license).
+    ///     WikiNEuRal multilingual NER (high quality but non-commercial license).
     /// </summary>
     public static readonly NerModelInfo WikiNeural = new()
     {
@@ -756,13 +745,15 @@ public static class NerModelRegistry
     };
 
     /// <summary>
-    /// Get download URL for HuggingFace file.
+    ///     Get download URL for HuggingFace file.
     /// </summary>
-    public static string GetDownloadUrl(string repo, string file) =>
-        $"https://huggingface.co/{repo}/resolve/main/{file}";
+    public static string GetDownloadUrl(string repo, string file)
+    {
+        return $"https://huggingface.co/{repo}/resolve/main/{file}";
+    }
 
     /// <summary>
-    /// Download NER model files from HuggingFace if they don't exist.
+    ///     Download NER model files from HuggingFace if they don't exist.
     /// </summary>
     public static async Task<bool> EnsureModelDownloadedAsync(
         string modelPath,
@@ -778,10 +769,7 @@ public static class NerModelRegistry
 
         // Create parent directories for model file (e.g., onnx/ subdirectory)
         var modelDir = Path.GetDirectoryName(modelFile);
-        if (!string.IsNullOrEmpty(modelDir))
-        {
-            Directory.CreateDirectory(modelDir);
-        }
+        if (!string.IsNullOrEmpty(modelDir)) Directory.CreateDirectory(modelDir);
 
         var needsDownload = !File.Exists(modelFile) || !File.Exists(tokenizerFile);
         if (!needsDownload)
@@ -818,7 +806,6 @@ public static class NerModelRegistry
 
             // Download config.json (optional, has label mappings)
             if (!File.Exists(configFile))
-            {
                 try
                 {
                     var configUrl = GetDownloadUrl(modelInfo.HuggingFaceRepo, "config.json");
@@ -832,7 +819,6 @@ public static class NerModelRegistry
                     // config.json is optional
                     progress?.Report("config.json not available (optional)");
                 }
-            }
 
             progress?.Report($"NER model download complete: {modelInfo.Name}");
             return true;
@@ -846,7 +832,7 @@ public static class NerModelRegistry
 }
 
 /// <summary>
-/// NER model metadata.
+///     NER model metadata.
 /// </summary>
 public sealed class NerModelInfo
 {
@@ -858,6 +844,13 @@ public sealed class NerModelInfo
     public required long SizeBytes { get; init; }
     public required string[] DefaultLabels { get; init; }
 
-    public string GetModelUrl() => NerModelRegistry.GetDownloadUrl(HuggingFaceRepo, ModelFile);
-    public string GetTokenizerUrl() => NerModelRegistry.GetDownloadUrl(HuggingFaceRepo, TokenizerFile);
+    public string GetModelUrl()
+    {
+        return NerModelRegistry.GetDownloadUrl(HuggingFaceRepo, ModelFile);
+    }
+
+    public string GetTokenizerUrl()
+    {
+        return NerModelRegistry.GetDownloadUrl(HuggingFaceRepo, TokenizerFile);
+    }
 }

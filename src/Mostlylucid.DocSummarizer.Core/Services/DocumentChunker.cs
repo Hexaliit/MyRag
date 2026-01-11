@@ -8,6 +8,9 @@ public class DocumentChunker
 {
     // Rough estimate: 1 token ≈ 4 characters for English text
     private const int CharsPerToken = 4;
+
+    // Regex to extract page markers: <!-- PAGE:1-5 --> or <!-- PAGE:1 -->
+    private static readonly Regex PageMarkerRegex = new(@"<!--\s*PAGE:(\d+)(?:-(\d+))?\s*-->", RegexOptions.Compiled);
     private readonly int _maxHeadingLevel;
     private readonly int _minChunkTokens;
     private readonly int _targetChunkTokens;
@@ -28,9 +31,6 @@ public class DocumentChunker
         _minChunkTokens = minChunkTokens;
     }
 
-    // Regex to extract page markers: <!-- PAGE:1-5 --> or <!-- PAGE:1 -->
-    private static readonly Regex PageMarkerRegex = new(@"<!--\s*PAGE:(\d+)(?:-(\d+))?\s*-->", RegexOptions.Compiled);
-    
     public List<DocumentChunk> ChunkByStructure(string markdown)
     {
         // Extract page markers before processing
@@ -48,7 +48,6 @@ public class DocumentChunker
         var mergedSections = MergeSections(rawSections);
 
 
-
         // Convert to chunks with page info
         var chunks = new List<DocumentChunk>();
         var index = 0;
@@ -57,10 +56,10 @@ public class DocumentChunker
         foreach (var section in mergedSections)
         {
             if (string.IsNullOrWhiteSpace(section.Content)) continue;
-            
+
             // Try to find page info for this section
             var (pageStart, pageEnd) = GetPageInfoForSection(section, pageMap, index, totalSections);
-            
+
             chunks.Add(new DocumentChunk(
                 index++,
                 section.Heading,
@@ -73,15 +72,15 @@ public class DocumentChunker
 
         return chunks;
     }
-    
+
     /// <summary>
-    /// Extract page markers from markdown into a position-to-page map
+    ///     Extract page markers from markdown into a position-to-page map
     /// </summary>
     private static Dictionary<int, (int start, int end)> ExtractPageMarkers(string markdown)
     {
         var map = new Dictionary<int, (int start, int end)>();
         var matches = PageMarkerRegex.Matches(markdown);
-        
+
         foreach (Match match in matches)
         {
             var position = match.Index;
@@ -89,16 +88,16 @@ public class DocumentChunker
             var endPage = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : startPage;
             map[position] = (startPage, endPage);
         }
-        
+
         return map;
     }
-    
+
     /// <summary>
-    /// Get page info for a section - uses section's page info if available, 
-    /// falls back to pageMap estimation, or returns null for estimation by caller
+    ///     Get page info for a section - uses section's page info if available,
+    ///     falls back to pageMap estimation, or returns null for estimation by caller
     /// </summary>
     private static (int? pageStart, int? pageEnd) GetPageInfoForSection(
-        RawSection section, 
+        RawSection section,
         Dictionary<int, (int start, int end)> pageMap,
         int sectionIndex,
         int totalSections)
@@ -106,21 +105,21 @@ public class DocumentChunker
         // If section already has page info (from marker parsing), use it
         if (section.PageStart.HasValue)
             return (section.PageStart, section.PageEnd ?? section.PageStart);
-        
+
         // If we have page markers, estimate based on section index distribution
         if (pageMap.Count > 0)
         {
             var sortedMarkers = pageMap.OrderBy(kv => kv.Key).ToList();
             var totalPages = sortedMarkers.Max(m => m.Value.end);
-            
+
             // Estimate page based on section's position in document
             var estimatedPage = totalSections > 0
                 ? (int)Math.Ceiling((double)(sectionIndex + 1) / totalSections * totalPages)
                 : 1;
-            
+
             return (Math.Max(1, estimatedPage), Math.Max(1, estimatedPage));
         }
-        
+
         // No page markers - return null (caller will estimate or use section number)
         return (null, null);
     }
@@ -225,12 +224,12 @@ public class DocumentChunker
             if (pageMatch.Success)
             {
                 currentPageStart = int.Parse(pageMatch.Groups[1].Value);
-                currentPageEnd = pageMatch.Groups[2].Success 
-                    ? int.Parse(pageMatch.Groups[2].Value) 
+                currentPageEnd = pageMatch.Groups[2].Success
+                    ? int.Parse(pageMatch.Groups[2].Value)
                     : currentPageStart;
                 continue; // Don't include marker in content
             }
-            
+
             var headingLevel = GetHeadingLevel(line);
 
             // Only split on headings up to the configured max level
@@ -239,7 +238,8 @@ public class DocumentChunker
                 // Flush previous section with current page info
                 if (content.Length > 0 || heading != null)
                 {
-                    sections.Add(new RawSection(heading ?? "", level, content.ToString().Trim(), currentPageStart, currentPageEnd));
+                    sections.Add(new RawSection(heading ?? "", level, content.ToString().Trim(), currentPageStart,
+                        currentPageEnd));
                     content.Clear();
                 }
 
@@ -254,7 +254,8 @@ public class DocumentChunker
 
         // Flush final section
         if (content.Length > 0 || heading != null)
-            sections.Add(new RawSection(heading ?? "", level, content.ToString().Trim(), currentPageStart, currentPageEnd));
+            sections.Add(new RawSection(heading ?? "", level, content.ToString().Trim(), currentPageStart,
+                currentPageEnd));
 
         return sections;
     }
@@ -297,6 +298,7 @@ public class DocumentChunker
                 currentContent.AppendLine($"## {section.Heading}");
                 currentContent.AppendLine();
             }
+
             currentContent.AppendLine(section.Content);
             currentTokens += tokens;
 

@@ -1,13 +1,14 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Models;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Processing.Processors.Quantization;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Strategy;
 
 /// <summary>
-/// Executes analysis strategies by applying preprocessing steps using ImageSharp
+///     Executes analysis strategies by applying preprocessing steps using ImageSharp
 /// </summary>
 public class StrategyExecutor
 {
@@ -22,7 +23,7 @@ public class StrategyExecutor
     }
 
     /// <summary>
-    /// Select the best strategy for the given profile and goal
+    ///     Select the best strategy for the given profile and goal
     /// </summary>
     public AnalysisStrategy? SelectStrategy(ImageProfile profile, string goal)
     {
@@ -43,7 +44,7 @@ public class StrategyExecutor
     }
 
     /// <summary>
-    /// Execute a strategy on an image, returning the path to the preprocessed result
+    ///     Execute a strategy on an image, returning the path to the preprocessed result
     /// </summary>
     public async Task<string> ExecuteStrategyAsync(
         string imagePath,
@@ -77,7 +78,7 @@ public class StrategyExecutor
     }
 
     /// <summary>
-    /// Apply a single preprocessing step using ImageSharp
+    ///     Apply a single preprocessing step using ImageSharp
     /// </summary>
     private async Task<string> ApplyPreprocessingStepAsync(
         string inputPath,
@@ -147,7 +148,7 @@ public class StrategyExecutor
                 ? Convert.ToInt32(nc)
                 : 8;
             _logger.LogDebug("Quantizing to {NumColors} colors", numColors);
-            image.Mutate(x => x.Quantize(new SixLabors.ImageSharp.Processing.Processors.Quantization.WebSafePaletteQuantizer()));
+            image.Mutate(x => x.Quantize(new WebSafePaletteQuantizer()));
         }
         else if (stepId.Contains("invert"))
         {
@@ -260,7 +261,7 @@ public class StrategyExecutor
     }
 
     /// <summary>
-    /// Clean up temporary files created during strategy execution
+    ///     Clean up temporary files created during strategy execution
     /// </summary>
     public void CleanupTempFiles()
     {
@@ -270,7 +271,6 @@ public class StrategyExecutor
             {
                 var files = Directory.GetFiles(_tempDirectory);
                 foreach (var file in files)
-                {
                     try
                     {
                         File.Delete(file);
@@ -279,7 +279,6 @@ public class StrategyExecutor
                     {
                         _logger.LogWarning(ex, "Failed to delete temp file {File}", file);
                     }
-                }
             }
         }
         catch (Exception ex)
@@ -290,7 +289,7 @@ public class StrategyExecutor
 }
 
 /// <summary>
-/// Result of strategy execution with metadata
+///     Result of strategy execution with metadata
 /// </summary>
 public record StrategyExecutionResult(
     string PreprocessedImagePath,

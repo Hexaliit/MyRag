@@ -1,27 +1,41 @@
-using System.Linq;
+using System.Collections.Concurrent;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
-using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using System.Text.Json;
-using static Mostlylucid.DocSummarizer.Images.Models.Dynamic.ImageLedger;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Vision LLM Wave - Generates captions and extracts entities using vision-language models
-/// Uses Ollama with LLaVA, MiniCPM-V, or similar multimodal models
-/// Priority: 50 (runs after basic analysis, provides rich features for synthesis)
+///     Vision LLM Wave - Generates captions and extracts entities using vision-language models
+///     Uses Ollama with LLaVA, MiniCPM-V, or similar multimodal models
+///     Priority: 50 (runs after basic analysis, provides rich features for synthesis)
 /// </summary>
 public class VisionLlmWave : IAnalysisWave
 {
+    // Cache for model context sizes
+    private static readonly ConcurrentDictionary<string, int> _modelContextCache = new();
     private readonly IOptions<ImageConfig> _configOptions;
-    private readonly ILogger<VisionLlmWave>? _logger;
     private readonly HttpClient _httpClient;
+    private readonly ILogger<VisionLlmWave>? _logger;
+
+    public VisionLlmWave(
+        IOptions<ImageConfig> config,
+        ILogger<VisionLlmWave>? logger = null,
+        HttpClient? httpClient = null)
+    {
+        _configOptions = config;
+        _logger = logger;
+        _httpClient = httpClient ?? new HttpClient();
+    }
 
     // Access config at runtime to get latest values
     private ImageConfig Config => _configOptions.Value;
@@ -31,8 +45,8 @@ public class VisionLlmWave : IAnalysisWave
     public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "vision", "llm", "ml" };
 
     /// <summary>
-    /// Check if VisionLLM should run - this is expensive (LLM call).
-    /// Respects auto-routing decisions (fast route skips VisionLLM).
+    ///     Check if VisionLLM should run - this is expensive (LLM call).
+    ///     Respects auto-routing decisions (fast route skips VisionLLM).
     /// </summary>
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -50,16 +64,6 @@ public class VisionLlmWave : IAnalysisWave
         }
 
         return true;
-    }
-
-    public VisionLlmWave(
-        IOptions<ImageConfig> config,
-        ILogger<VisionLlmWave>? logger = null,
-        HttpClient? httpClient = null)
-    {
-        _configOptions = config;
-        _logger = logger;
-        _httpClient = httpClient ?? new HttpClient();
     }
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
@@ -90,7 +94,7 @@ public class VisionLlmWave : IAnalysisWave
             var frameCount = context.GetValue<int>("identity.frame_count");
 
             string imageBase64;
-            int framesUsed = 1;
+            var framesUsed = 1;
 
             if (isAnimated && frameCount > 1)
             {
@@ -99,7 +103,8 @@ public class VisionLlmWave : IAnalysisWave
                 var filmstripResult = await CreateFilmstripForCaptionAsync(imagePath, frameCount, ct);
                 imageBase64 = filmstripResult.Base64;
                 framesUsed = filmstripResult.FrameCount;
-                _logger?.LogInformation("Created filmstrip with {FrameCount} frames for caption generation", framesUsed);
+                _logger?.LogInformation("Created filmstrip with {FrameCount} frames for caption generation",
+                    framesUsed);
             }
             else
             {
@@ -110,7 +115,6 @@ public class VisionLlmWave : IAnalysisWave
             // Generate primary caption (with motion context if available)
             var caption = await GenerateCaptionAsync(imageBase64, context, ct, framesUsed);
             if (!string.IsNullOrEmpty(caption))
-            {
                 signals.Add(new Signal
                 {
                     Key = "vision.llm.caption",
@@ -124,12 +128,12 @@ public class VisionLlmWave : IAnalysisWave
                         ["generation_method"] = "vision_llm"
                     }
                 });
-            }
 
             // Check if OCR was unreliable (garbled text or low quality)
             var ocrGarbled = context.GetValue<bool>("ocr.quality.is_garbled");
             var textLikeliness = context.GetValue<double>("content.text_likeliness");
-            var ocrText = context.GetValue<string>("ocr.full_text") ?? context.GetValue<string>("ocr.voting.consensus_text");
+            var ocrText = context.GetValue<string>("ocr.full_text") ??
+                          context.GetValue<string>("ocr.voting.consensus_text");
 
             // Also check MlOcrWave text (OpenCV+Florence2 fusion)
             var mlOcrText = context.GetValue<string>("ocr.ml.fused_text");
@@ -147,23 +151,22 @@ public class VisionLlmWave : IAnalysisWave
                                     (isAnimated && string.IsNullOrWhiteSpace(effectiveOcrText));
 
             if (hasGoodOcrText)
-            {
                 _logger?.LogDebug("Skipping VisionLLM text extraction: OCR already succeeded with '{Text}'",
                     effectiveOcrText?.Substring(0, Math.Min(50, effectiveOcrText?.Length ?? 0)));
-            }
 
             // If OCR failed/garbled and text is likely, use VisionLLM
             if (shouldExtractText)
             {
                 // For animated images, create a mosaic of all unique frames so LLM can read all text
-                string textImageBase64 = imageBase64;
-                string imageSource = "original";
-                int textFrameCount = 1;
+                var textImageBase64 = imageBase64;
+                var imageSource = "original";
+                var textFrameCount = 1;
 
                 var frames = context.GetCached<List<Image<Rgba32>>>("ocr.frames");
 
                 // Get OpenCV-detected text regions per frame (if available)
-                var perFrameRegions = context.GetCached<Dictionary<int, List<Dictionary<string, int>>>>("ocr.opencv.per_frame_regions");
+                var perFrameRegions =
+                    context.GetCached<Dictionary<int, List<Dictionary<string, int>>>>("ocr.opencv.per_frame_regions");
 
                 if (frames != null && frames.Count > 1)
                 {
@@ -176,13 +179,16 @@ public class VisionLlmWave : IAnalysisWave
                             using var strip = CreateTextRegionFilmstrip(frames, perFrameRegions);
                             if (strip != null)
                             {
-                                var tempPath = Path.Combine(Path.GetTempPath(), $"vllm_text_strip_{Guid.NewGuid()}.png");
+                                var tempPath = Path.Combine(Path.GetTempPath(),
+                                    $"vllm_text_strip_{Guid.NewGuid()}.png");
                                 await strip.SaveAsPngAsync(tempPath, ct);
                                 textImageBase64 = Convert.ToBase64String(await File.ReadAllBytesAsync(tempPath, ct));
                                 File.Delete(tempPath);
                                 imageSource = "text_region_strip";
                                 textFrameCount = perFrameRegions.Count;
-                                _logger?.LogInformation("Created text-region-only strip from {FrameCount} frames for Vision LLM", textFrameCount);
+                                _logger?.LogInformation(
+                                    "Created text-region-only strip from {FrameCount} frames for Vision LLM",
+                                    textFrameCount);
                             }
                             else
                             {
@@ -206,7 +212,8 @@ public class VisionLlmWave : IAnalysisWave
                             File.Delete(tempPath);
                             imageSource = "frame_strip";
                             textFrameCount = frames.Count;
-                            _logger?.LogInformation("Created strip of {FrameCount} frames for Vision LLM text extraction", textFrameCount);
+                            _logger?.LogInformation(
+                                "Created strip of {FrameCount} frames for Vision LLM text extraction", textFrameCount);
                         }
                     }
                     catch (Exception ex)
@@ -219,7 +226,6 @@ public class VisionLlmWave : IAnalysisWave
                     // Fallback to temporal median if no frames cached
                     var temporalMedian = context.GetCached<Image<Rgba32>>("ocr.temporal_median");
                     if (temporalMedian != null)
-                    {
                         try
                         {
                             var tempPath = Path.Combine(Path.GetTempPath(), $"vllm_composite_{Guid.NewGuid()}.png");
@@ -233,12 +239,10 @@ public class VisionLlmWave : IAnalysisWave
                         {
                             _logger?.LogWarning(ex, "Failed to convert temporal median to base64, using original");
                         }
-                    }
                 }
 
                 var llmText = await ExtractTextAsync(textImageBase64, textFrameCount, ct);
                 if (!string.IsNullOrEmpty(llmText))
-                {
                     signals.Add(new Signal
                     {
                         Key = "vision.llm.text",
@@ -250,11 +254,11 @@ public class VisionLlmWave : IAnalysisWave
                         {
                             ["model"] = Config.VisionLlmModel ?? "llava",
                             ["ocr_was_garbled"] = ocrGarbled,
-                            ["fallback_reason"] = isAnimated ? "animated_subtitle_check" : (ocrGarbled ? "ocr_quality_poor" : "text_likely"),
+                            ["fallback_reason"] = isAnimated ? "animated_subtitle_check" :
+                                ocrGarbled ? "ocr_quality_poor" : "text_likely",
                             ["image_source"] = imageSource
                         }
                     });
-                }
             }
 
             // Extract entities/objects
@@ -277,7 +281,6 @@ public class VisionLlmWave : IAnalysisWave
 
                 // Individual entity signals for easy querying
                 foreach (var entity in entities.Take(10))
-                {
                     signals.Add(new Signal
                     {
                         Key = $"vision.llm.entity.{entity.Type}",
@@ -290,13 +293,11 @@ public class VisionLlmWave : IAnalysisWave
                             ["attributes"] = entity.Attributes ?? new Dictionary<string, string>()
                         }
                     });
-                }
             }
 
             // Scene classification
             var scene = await ClassifySceneAsync(imageBase64, ct);
             if (!string.IsNullOrEmpty(scene))
-            {
                 signals.Add(new Signal
                 {
                     Key = "vision.llm.scene",
@@ -305,14 +306,12 @@ public class VisionLlmWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { "vision", "scene", "llm" }
                 });
-            }
 
             // Detailed description (for complex images or animations)
             if (Config.VisionLlmGenerateDetailedDescription)
             {
                 var description = await GenerateDetailedDescriptionAsync(imageBase64, context, ct);
                 if (!string.IsNullOrEmpty(description))
-                {
                     signals.Add(new Signal
                     {
                         Key = "vision.llm.detailed_description",
@@ -326,7 +325,6 @@ public class VisionLlmWave : IAnalysisWave
                             ["use_case"] = "complex_image_understanding"
                         }
                     });
-                }
             }
 
             _logger?.LogInformation(
@@ -358,7 +356,7 @@ public class VisionLlmWave : IAnalysisWave
         // This significantly reduces base64 size and leaves more context for prompts
         var maxDimension = GetMaxImageDimension();
 
-        using var image = await SixLabors.ImageSharp.Image.LoadAsync(imagePath, ct);
+        using var image = await Image.LoadAsync(imagePath, ct);
         var originalWidth = image.Width;
         var originalHeight = image.Height;
 
@@ -376,16 +374,17 @@ public class VisionLlmWave : IAnalysisWave
 
         // Encode as JPEG for smaller base64 (PNG can be huge)
         using var ms = new MemoryStream();
-        await image.SaveAsJpegAsync(ms, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 85 }, ct);
+        await image.SaveAsJpegAsync(ms, new JpegEncoder { Quality = 85 }, ct);
         return Convert.ToBase64String(ms.ToArray());
     }
 
     /// <summary>
-    /// Creates a filmstrip of key frames from an animated GIF for caption generation.
-    /// Extracts evenly-spaced frames to show the animation sequence.
-    /// For subtitle GIFs, also samples frames from text-changing regions.
+    ///     Creates a filmstrip of key frames from an animated GIF for caption generation.
+    ///     Extracts evenly-spaced frames to show the animation sequence.
+    ///     For subtitle GIFs, also samples frames from text-changing regions.
     /// </summary>
-    private async Task<(string Base64, int FrameCount)> CreateFilmstripForCaptionAsync(string imagePath, int totalFrames, CancellationToken ct)
+    private async Task<(string Base64, int FrameCount)> CreateFilmstripForCaptionAsync(string imagePath,
+        int totalFrames, CancellationToken ct)
     {
         // Target 6-12 frames for caption filmstrip - increased for better subtitle coverage
         const int MinFrames = 6;
@@ -397,27 +396,21 @@ public class VisionLlmWave : IAnalysisWave
         try
         {
             // Load the GIF and extract frames
-            using var gif = await SixLabors.ImageSharp.Image.LoadAsync(imagePath, ct);
+            using var gif = await Image.LoadAsync(imagePath, ct);
             var frameCount = gif.Frames.Count;
 
             if (frameCount <= 1)
-            {
                 // Not animated, return single frame
                 return (await ConvertImageToBase64(imagePath, ct), 1);
-            }
 
             // Calculate which frames to extract (evenly spaced)
             var frameIndices = new List<int>();
             var step = Math.Max(1, (double)(frameCount - 1) / (targetFrames - 1));
-            for (int i = 0; i < targetFrames && i * step < frameCount; i++)
-            {
-                frameIndices.Add((int)(i * step));
-            }
+            for (var i = 0; i < targetFrames && i * step < frameCount; i++) frameIndices.Add((int)(i * step));
 
             // Extract frames
             var extractedFrames = new List<Image<Rgba32>>();
             foreach (var idx in frameIndices)
-            {
                 if (idx < frameCount)
                 {
                     // CloneFrame returns Image, need to convert to Image<Rgba32>
@@ -425,12 +418,8 @@ public class VisionLlmWave : IAnalysisWave
                     var rgbaFrame = genericFrame.CloneAs<Rgba32>();
                     extractedFrames.Add(rgbaFrame);
                 }
-            }
 
-            if (extractedFrames.Count == 0)
-            {
-                return (await ConvertImageToBase64(imagePath, ct), 1);
-            }
+            if (extractedFrames.Count == 0) return (await ConvertImageToBase64(imagePath, ct), 1);
 
             // Scale frames to reasonable size while maintaining aspect ratio
             var firstFrame = extractedFrames[0];
@@ -439,20 +428,19 @@ public class VisionLlmWave : IAnalysisWave
             var frameHeight = (int)(firstFrame.Height * scale);
 
             // Create horizontal filmstrip
-            var stripWidth = frameWidth * extractedFrames.Count + (extractedFrames.Count - 1) * 2; // 2px gap between frames
+            var stripWidth =
+                frameWidth * extractedFrames.Count + (extractedFrames.Count - 1) * 2; // 2px gap between frames
             var stripHeight = frameHeight;
 
             using var filmstrip = new Image<Rgba32>(stripWidth, stripHeight);
             filmstrip.Mutate(ctx => ctx.BackgroundColor(Color.Black));
 
-            int xOffset = 0;
+            var xOffset = 0;
             foreach (var frame in extractedFrames)
             {
                 // Resize frame if needed
                 if (frame.Width != frameWidth || frame.Height != frameHeight)
-                {
                     frame.Mutate(x => x.Resize(frameWidth, frameHeight));
-                }
 
                 filmstrip.Mutate(x => x.DrawImage(frame, new Point(xOffset, 0), 1f));
                 xOffset += frameWidth + 2; // 2px gap
@@ -462,7 +450,7 @@ public class VisionLlmWave : IAnalysisWave
 
             // Convert to base64
             using var ms = new MemoryStream();
-            await filmstrip.SaveAsJpegAsync(ms, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 85 }, ct);
+            await filmstrip.SaveAsJpegAsync(ms, new JpegEncoder { Quality = 85 }, ct);
             var base64 = Convert.ToBase64String(ms.ToArray());
 
             _logger?.LogDebug("Created filmstrip: {Width}x{Height}, {FrameCount} frames from {TotalFrames} total",
@@ -477,12 +465,9 @@ public class VisionLlmWave : IAnalysisWave
         }
     }
 
-    // Cache for model context sizes
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _modelContextCache = new();
-
     /// <summary>
-    /// Get maximum image dimension based on model context size.
-    /// Queries Ollama for context window size to adapt image sizing.
+    ///     Get maximum image dimension based on model context size.
+    ///     Queries Ollama for context window size to adapt image sizing.
     /// </summary>
     private int GetMaxImageDimension()
     {
@@ -518,8 +503,8 @@ public class VisionLlmWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Convert context window size to appropriate image dimension.
-    /// Larger context = can handle larger images with more prompt space.
+    ///     Convert context window size to appropriate image dimension.
+    ///     Larger context = can handle larger images with more prompt space.
     /// </summary>
     private static int ContextSizeToImageDimension(int contextSize)
     {
@@ -529,58 +514,51 @@ public class VisionLlmWave : IAnalysisWave
         // We want to leave ~50% of context for prompts and response
         return contextSize switch
         {
-            < 4096 => 384,    // Very limited - tiny image
-            < 8192 => 512,    // Small context
-            < 16384 => 768,   // Standard context
-            < 32768 => 1024,  // Large context
-            < 65536 => 1280,  // Very large context
-            _ => 1536         // Massive context (GPT-4V, Claude, etc.)
+            < 4096 => 384, // Very limited - tiny image
+            < 8192 => 512, // Small context
+            < 16384 => 768, // Standard context
+            < 32768 => 1024, // Large context
+            < 65536 => 1280, // Very large context
+            _ => 1536 // Massive context (GPT-4V, Claude, etc.)
         };
     }
 
     /// <summary>
-    /// Fetch context window size from Ollama API.
+    ///     Fetch context window size from Ollama API.
     /// </summary>
     private int FetchContextSizeFromOllama(string model)
     {
         try
         {
-            using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
             var url = $"{Config.OllamaBaseUrl}/api/show";
-            var content = new System.Net.Http.StringContent(
-                System.Text.Json.JsonSerializer.Serialize(new { name = model }),
-                System.Text.Encoding.UTF8,
+            var content = new StringContent(
+                JsonSerializer.Serialize(new { name = model }),
+                Encoding.UTF8,
                 "application/json");
 
             var response = client.PostAsync(url, content).GetAwaiter().GetResult();
             if (response.IsSuccessStatusCode)
             {
                 var json = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                var doc = System.Text.Json.JsonDocument.Parse(json);
+                var doc = JsonDocument.Parse(json);
 
                 // Try to get context length from model info
                 if (doc.RootElement.TryGetProperty("model_info", out var modelInfo))
-                {
                     // Look for context length in various places
                     foreach (var prop in modelInfo.EnumerateObject())
                     {
                         var name = prop.Name.ToLowerInvariant();
-                        if (name.Contains("context") && prop.Value.ValueKind == System.Text.Json.JsonValueKind.Number)
-                        {
+                        if (name.Contains("context") && prop.Value.ValueKind == JsonValueKind.Number)
                             return prop.Value.GetInt32();
-                        }
                     }
-                }
 
                 // Try parameters
                 if (doc.RootElement.TryGetProperty("parameters", out var parameters))
                 {
                     var paramText = parameters.GetString() ?? "";
-                    var match = System.Text.RegularExpressions.Regex.Match(paramText, @"num_ctx\s+(\d+)");
-                    if (match.Success && int.TryParse(match.Groups[1].Value, out var ctx))
-                    {
-                        return ctx;
-                    }
+                    var match = Regex.Match(paramText, @"num_ctx\s+(\d+)");
+                    if (match.Success && int.TryParse(match.Groups[1].Value, out var ctx)) return ctx;
                 }
 
                 _logger?.LogDebug("Ollama model {Model} info retrieved but no context size found", model);
@@ -594,13 +572,15 @@ public class VisionLlmWave : IAnalysisWave
         return 0; // Fall back to heuristics
     }
 
-    private async Task<string?> GenerateCaptionAsync(string imageBase64, AnalysisContext context, CancellationToken ct, int filmstripFrames = 1)
+    private async Task<string?> GenerateCaptionAsync(string imageBase64, AnalysisContext context, CancellationToken ct,
+        int filmstripFrames = 1)
     {
         // Gather motion and object context from prior waves
         // IMPORTANT: Use correct signal keys from IdentityWave and MotionWave
         var isAnimated = context.GetValue<bool>("identity.is_animated");
         var motionSummary = context.GetValue<string>("motion.summary");
-        var motionType = context.GetValue<string>("motion.type"); // MotionWave emits "motion.type" not "motion.motion_type"
+        var motionType =
+            context.GetValue<string>("motion.type"); // MotionWave emits "motion.type" not "motion.motion_type"
         var totalFrameCount = context.GetValue<int>("identity.frame_count"); // IdentityWave emits this, not MotionWave
         var movingObjects = context.GetValue<List<string>>("motion.moving_objects");
         var dominantColors = context.GetValue<List<object>>("color.dominant_colors");
@@ -623,7 +603,8 @@ public class VisionLlmWave : IAnalysisWave
         {
             // FILMSTRIP MODE: The image shows multiple frames arranged horizontally
             // Tell the LLM what it's seeing and ask for action description
-            promptParts.Add($"This is a FILMSTRIP of {filmstripFrames} sequential frames from an animated GIF ({totalFrameCount} total frames).");
+            promptParts.Add(
+                $"This is a FILMSTRIP of {filmstripFrames} sequential frames from an animated GIF ({totalFrameCount} total frames).");
             promptParts.Add("The frames are arranged LEFT to RIGHT showing the animation sequence.");
             promptParts.Add("DESCRIBE THE ACTION: What happens from start to finish? What moves or changes?");
 
@@ -662,19 +643,16 @@ public class VisionLlmWave : IAnalysisWave
 
         // Apply temporal verb gate for static images
         // "Probability proposes, determinism persists" - don't claim motion without evidence
-        if (!isAnimated && filmstripFrames <= 1)
-        {
-            cleaned = GateTemporalVerbs(cleaned);
-        }
+        if (!isAnimated && filmstripFrames <= 1) cleaned = GateTemporalVerbs(cleaned);
 
         return cleaned;
     }
 
     /// <summary>
-    /// Gate temporal verbs in captions for static images.
-    /// When is_animated=false, we have no temporal evidence, so action verbs
-    /// like "moving", "dancing", "walking" must be converted to static equivalents.
-    /// This enforces "probability proposes, determinism persists".
+    ///     Gate temporal verbs in captions for static images.
+    ///     When is_animated=false, we have no temporal evidence, so action verbs
+    ///     like "moving", "dancing", "walking" must be converted to static equivalents.
+    ///     This enforces "probability proposes, determinism persists".
     /// </summary>
     private string? GateTemporalVerbs(string? caption)
     {
@@ -718,32 +696,28 @@ public class VisionLlmWave : IAnalysisWave
             (@"\bmoving their\b", "with their"),
             (@"\bswinging their\b", "with their"),
             (@"\braising their\b", "with their"),
-            (@"\blowering their\b", "with their"),
+            (@"\blowering their\b", "with their")
         };
 
         foreach (var (pattern, replacement) in temporalToStatic)
-        {
-            result = System.Text.RegularExpressions.Regex.Replace(
+            result = Regex.Replace(
                 result, pattern, replacement,
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        }
+                RegexOptions.IgnoreCase);
 
         // Clean up any double spaces from removals
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"\s{2,}", " ").Trim();
+        result = Regex.Replace(result, @"\s{2,}", " ").Trim();
 
         // Log if we made changes
         if (result != caption)
-        {
             _logger?.LogDebug("Temporal verb gate applied: '{Original}' → '{Gated}'",
                 caption?.Substring(0, Math.Min(50, caption?.Length ?? 0)),
                 result.Substring(0, Math.Min(50, result.Length)));
-        }
 
         return result;
     }
 
     /// <summary>
-    /// Clean LLM response, removing prompt leakage and extracting actual caption.
+    ///     Clean LLM response, removing prompt leakage and extracting actual caption.
     /// </summary>
     private string? CleanCaptionResponse(string? response)
     {
@@ -760,23 +734,22 @@ public class VisionLlmWave : IAnalysisWave
             if (jsonStart >= 0 && jsonEnd > jsonStart)
             {
                 var json = cleaned.Substring(jsonStart, jsonEnd - jsonStart + 1);
-                var doc = System.Text.Json.JsonDocument.Parse(json);
+                var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("caption", out var captionProp))
                 {
                     var caption = captionProp.GetString();
                     if (!string.IsNullOrWhiteSpace(caption))
                         return SanitizeCaption(caption);
                 }
+
                 // Also check for "description", "scene" etc
                 foreach (var propName in new[] { "description", "scene", "summary" })
-                {
                     if (doc.RootElement.TryGetProperty(propName, out var prop))
                     {
                         var val = prop.GetString();
                         if (!string.IsNullOrWhiteSpace(val))
                             return SanitizeCaption(val);
                     }
-                }
             }
         }
         catch
@@ -785,18 +758,15 @@ public class VisionLlmWave : IAnalysisWave
         }
 
         // Regex fallback for partial JSON
-        var match = System.Text.RegularExpressions.Regex.Match(cleaned, @"""(?:caption|description)""\s*:\s*""([^""]+)""");
-        if (match.Success && match.Groups.Count > 1)
-        {
-            return SanitizeCaption(match.Groups[1].Value);
-        }
+        var match = Regex.Match(cleaned, @"""(?:caption|description)""\s*:\s*""([^""]+)""");
+        if (match.Success && match.Groups.Count > 1) return SanitizeCaption(match.Groups[1].Value);
 
         // Plain text - sanitize it
         return SanitizeCaption(cleaned);
     }
 
     /// <summary>
-    /// Remove prompt leakage and instruction text from captions.
+    ///     Remove prompt leakage and instruction text from captions.
     /// </summary>
     private string SanitizeCaption(string caption)
     {
@@ -839,30 +809,25 @@ public class VisionLlmWave : IAnalysisWave
             @"^(?:From|Given) (?:the|this) (?:image|visual|provided).*?[:,]\s*",
             @"^(?:Visual|Image) analysis (?:shows|indicates|reveals)[:,]?\s*",
             @"^Using (?:the )?(?:provided |given )?image.*?[:,]\s*",
-            @"\*\*(?:Caption|Description|Summary)\*\*:?\s*",  // Markdown bold headers
-            @"^(?:\*\*)?(?:Caption|Description|Summary)(?:\*\*)?:?\s*",  // With or without markdown
+            @"\*\*(?:Caption|Description|Summary)\*\*:?\s*", // Markdown bold headers
+            @"^(?:\*\*)?(?:Caption|Description|Summary)(?:\*\*)?:?\s*", // With or without markdown
             @"^(?:The )?(?:JSON )?output (?:generated|produced|created).*?(?:includes|contains|describes).*?[:,]\s*",
             @"^(?:The )?(?:generated |produced )?(?:JSON |structured )?(?:output|response|result).*?[:,]\s*",
             @"^(?:The )?image (?:provided|given|shown) (?:seems|appears) to (?:be |show |depict )?",
             @"^.*?(?:does not|doesn't) provide (?:clear |enough )?(?:visual )?(?:information|details).*",
             @"^I (?:observed|noticed|can observe|can see) (?:several |some |many )?(?:notable |key |important )?(?:features|elements|things).*?[.:]\s*",
-            @"^In this (?:outdoor |indoor )?(?:setting|scene|image).*?(?:featuring|showing|with)?\s*",
+            @"^In this (?:outdoor |indoor )?(?:setting|scene|image).*?(?:featuring|showing|with)?\s*"
         };
 
         foreach (var pattern in leakagePatterns)
-        {
-            result = System.Text.RegularExpressions.Regex.Replace(
-                result, pattern, "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        }
+            result = Regex.Replace(
+                result, pattern, "", RegexOptions.IgnoreCase);
 
         // Clean up quotes
         result = result.Trim('"', '\'', ' ');
 
         // Ensure first letter is capitalized
-        if (result.Length > 0 && char.IsLower(result[0]))
-        {
-            result = char.ToUpper(result[0]) + result[1..];
-        }
+        if (result.Length > 0 && char.IsLower(result[0])) result = char.ToUpper(result[0]) + result[1..];
 
         // NOTE: Do NOT truncate captions here - let the UI decide how to display
         // WCAG truncation should only be applied when generating @alttext signals
@@ -904,7 +869,8 @@ Be comprehensive but concise. Only output the JSON array, no other text.";
         catch (JsonException ex)
         {
             // Expected for malformed LLM output - log at debug level without stack trace
-            _logger?.LogDebug("Entity extraction JSON parse failed: {Message}, falling back to text parsing", ex.Message);
+            _logger?.LogDebug("Entity extraction JSON parse failed: {Message}, falling back to text parsing",
+                ex.Message);
         }
         catch (Exception ex)
         {
@@ -916,18 +882,18 @@ Be comprehensive but concise. Only output the JSON array, no other text.";
     }
 
     /// <summary>
-    /// Clean up common JSON issues from LLM output.
+    ///     Clean up common JSON issues from LLM output.
     /// </summary>
     private static string CleanLlmJson(string json)
     {
         // Remove trailing commas before ] or }
-        json = System.Text.RegularExpressions.Regex.Replace(json, @",\s*([}\]])", "$1");
+        json = Regex.Replace(json, @",\s*([}\]])", "$1");
 
         // Fix unquoted property names (common LLM error)
-        json = System.Text.RegularExpressions.Regex.Replace(json, @"(\{|\,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:", "$1\"$2\":");
+        json = Regex.Replace(json, @"(\{|\,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:", "$1\"$2\":");
 
         // Remove control characters
-        json = System.Text.RegularExpressions.Regex.Replace(json, @"[\x00-\x1F]+", " ");
+        json = Regex.Replace(json, @"[\x00-\x1F]+", " ");
 
         return json;
     }
@@ -942,7 +908,8 @@ Be comprehensive but concise. Only output the JSON array, no other text.";
             // Simple heuristic: look for "person", "dog", "car", etc.
             var lowerLine = line.ToLowerInvariant();
 
-            if (lowerLine.Contains("person") || lowerLine.Contains("human") || lowerLine.Contains("man") || lowerLine.Contains("woman"))
+            if (lowerLine.Contains("person") || lowerLine.Contains("human") || lowerLine.Contains("man") ||
+                lowerLine.Contains("woman"))
                 entities.Add(new EntityDetection { Type = "person", Label = "person", Confidence = 0.7 });
             else if (lowerLine.Contains("dog") || lowerLine.Contains("cat") || lowerLine.Contains("animal"))
                 entities.Add(new EntityDetection { Type = "animal", Label = ExtractFirstNoun(line), Confidence = 0.7 });
@@ -964,7 +931,8 @@ Be comprehensive but concise. Only output the JSON array, no other text.";
 
     private async Task<string?> ClassifySceneAsync(string imageBase64, CancellationToken ct)
     {
-        var prompt = "What type of scene is this? Choose one: indoor, outdoor, food, nature, urban, document, screenshot, meme, art, other. Answer with just the category.";
+        var prompt =
+            "What type of scene is this? Choose one: indoor, outdoor, food, nature, urban, document, screenshot, meme, art, other. Answer with just the category.";
         var response = await QueryVisionLlmAsync(imageBase64, prompt, ct);
 
         // Extract single word category
@@ -977,7 +945,8 @@ Be comprehensive but concise. Only output the JSON array, no other text.";
         return null;
     }
 
-    private async Task<string?> GenerateDetailedDescriptionAsync(string imageBase64, AnalysisContext context, CancellationToken ct)
+    private async Task<string?> GenerateDetailedDescriptionAsync(string imageBase64, AnalysisContext context,
+        CancellationToken ct)
     {
         // Simplified prompt - let the LLM describe what it sees without forcing "animated" language
         var prompt = @"Provide a factual description of this image including:
@@ -994,7 +963,6 @@ Be factual - only describe what you can see. Keep it under 100 words.";
     {
         string prompt;
         if (frameCount > 1)
-        {
             // STRICT prompt for subtitle extraction from filmstrip
             prompt = $@"This filmstrip shows {frameCount} frames from a movie or TV show with subtitles.
 
@@ -1002,13 +970,10 @@ Read the yellow or white subtitle text at the bottom of each frame, left to righ
 Return ONLY the exact subtitle words you see. No XML tags, no formatting, just the words.
 
 If you cannot read any text, reply: NO_TEXT";
-        }
         else
-        {
             prompt = @"Read any text visible in this image.
 Return ONLY the exact words you see. No XML tags, no formatting, just the words.
 If no text is visible, reply: NO_TEXT";
-        }
 
         var response = await QueryVisionLlmAsync(imageBase64, prompt, ct);
 
@@ -1028,14 +993,13 @@ If no text is visible, reply: NO_TEXT";
             response.Contains("doesn't contain", StringComparison.OrdinalIgnoreCase) ||
             response.Contains("does not contain", StringComparison.OrdinalIgnoreCase) ||
             response.Contains("There seems to be", StringComparison.OrdinalIgnoreCase))
-        {
             return null;
-        }
 
         // Deduplicate repeated lines (frames often show same subtitle)
         var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var uniqueLines = lines
-            .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("["))  // Skip empty and meta-comments like "[dialogue...]"
+            .Where(l => !string.IsNullOrWhiteSpace(l) &&
+                        !l.StartsWith("[")) // Skip empty and meta-comments like "[dialogue...]"
             .Distinct()
             .ToList();
 
@@ -1049,7 +1013,7 @@ If no text is visible, reply: NO_TEXT";
     }
 
     /// <summary>
-    /// Removes repeated phrases within text. E.g., "Hello World Hello World Hello World" -> "Hello World"
+    ///     Removes repeated phrases within text. E.g., "Hello World Hello World Hello World" -> "Hello World"
     /// </summary>
     private static string DeduplicateRepeatedPhrases(string text)
     {
@@ -1071,8 +1035,8 @@ If no text is visible, reply: NO_TEXT";
     }
 
     /// <summary>
-    /// Deduplicates repeated content within a single line.
-    /// Tries to find repeating patterns and reduce to single instance.
+    ///     Deduplicates repeated content within a single line.
+    ///     Tries to find repeating patterns and reduce to single instance.
     /// </summary>
     private static string DeduplicateLineContent(string line)
     {
@@ -1080,7 +1044,7 @@ If no text is visible, reply: NO_TEXT";
             return line;
 
         // Try to find repeating patterns of various lengths
-        for (int patternLen = 2; patternLen <= line.Length / 2; patternLen++)
+        for (var patternLen = 2; patternLen <= line.Length / 2; patternLen++)
         {
             var pattern = line.Substring(0, patternLen).Trim();
             if (string.IsNullOrWhiteSpace(pattern))
@@ -1090,23 +1054,21 @@ If no text is visible, reply: NO_TEXT";
             var cleaned = line.Replace(pattern, "").Trim();
 
             // If removing the pattern leaves only whitespace/punctuation, it was repeated
-            if (cleaned.Length < pattern.Length && string.IsNullOrWhiteSpace(cleaned.Replace(" ", "").Replace(",", "").Replace(".", "")))
-            {
-                return pattern;
-            }
+            if (cleaned.Length < pattern.Length &&
+                string.IsNullOrWhiteSpace(cleaned.Replace(" ", "").Replace(",", "").Replace(".", ""))) return pattern;
         }
 
         // Also try splitting by common separators and deduplicating
-        var words = line.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var words = line.Split(new[] { ' ', ',', ';' },
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (words.Length > 2)
-        {
             // Check for repeated word sequences
-            for (int phraseLen = 1; phraseLen <= words.Length / 2; phraseLen++)
+            for (var phraseLen = 1; phraseLen <= words.Length / 2; phraseLen++)
             {
                 var phrase = string.Join(" ", words.Take(phraseLen));
                 var allMatch = true;
 
-                for (int i = phraseLen; i < words.Length; i += phraseLen)
+                for (var i = phraseLen; i < words.Length; i += phraseLen)
                 {
                     var nextPhrase = string.Join(" ", words.Skip(i).Take(phraseLen));
                     if (!phrase.Equals(nextPhrase, StringComparison.OrdinalIgnoreCase))
@@ -1119,18 +1081,17 @@ If no text is visible, reply: NO_TEXT";
                 if (allMatch)
                     return phrase;
             }
-        }
 
         return line;
     }
 
     /// <summary>
-    /// Creates a filmstrip showing ONLY the text regions from each frame.
-    /// Uses OpenCV-detected bounding boxes to crop to text areas only.
-    /// This is much more efficient than full-frame strips as it:
-    /// - Reduces noise/background that confuses OCR
-    /// - Creates smaller images (faster to process)
-    /// - Focuses Vision LLM attention on actual text
+    ///     Creates a filmstrip showing ONLY the text regions from each frame.
+    ///     Uses OpenCV-detected bounding boxes to crop to text areas only.
+    ///     This is much more efficient than full-frame strips as it:
+    ///     - Reduces noise/background that confuses OCR
+    ///     - Creates smaller images (faster to process)
+    ///     - Focuses Vision LLM attention on actual text
     /// </summary>
     private Image<Rgba32>? CreateTextRegionFilmstrip(
         List<Image<Rgba32>> frames,
@@ -1224,7 +1185,7 @@ If no text is visible, reply: NO_TEXT";
     }
 
     /// <summary>
-    /// Merges multiple text regions into a single bounding box with padding.
+    ///     Merges multiple text regions into a single bounding box with padding.
     /// </summary>
     private (int X, int Y, int Width, int Height) MergeTextRegions(
         List<Dictionary<string, int>> regions,
@@ -1266,9 +1227,9 @@ If no text is visible, reply: NO_TEXT";
     }
 
     /// <summary>
-    /// Creates frame strips for Vision LLM, preserving temporal order.
-    /// For long GIFs (>10 frames), splits into multiple chunks with overlap.
-    /// Returns list of strips and whether chunking was used.
+    ///     Creates frame strips for Vision LLM, preserving temporal order.
+    ///     For long GIFs (>10 frames), splits into multiple chunks with overlap.
+    ///     Returns list of strips and whether chunking was used.
     /// </summary>
     private (List<Image<Rgba32>> Strips, bool Chunked) CreateFrameStrips(List<Image<Rgba32>> frames)
     {
@@ -1280,13 +1241,10 @@ If no text is visible, reply: NO_TEXT";
 
         // Chunking config
         const int MaxFramesPerStrip = 8; // Optimal for readability
-        const int OverlapFrames = 2;     // Overlap between chunks for continuity
+        const int OverlapFrames = 2; // Overlap between chunks for continuity
 
         // For short GIFs, create single strip
-        if (frames.Count <= MaxFramesPerStrip)
-        {
-            return (new List<Image<Rgba32>> { CreateSingleStrip(frames) }, false);
-        }
+        if (frames.Count <= MaxFramesPerStrip) return (new List<Image<Rgba32>> { CreateSingleStrip(frames) }, false);
 
         // For long GIFs, create multiple strips with overlap
         _logger?.LogInformation(
@@ -1294,11 +1252,11 @@ If no text is visible, reply: NO_TEXT";
             frames.Count, MaxFramesPerStrip, OverlapFrames);
 
         var strips = new List<Image<Rgba32>>();
-        int start = 0;
+        var start = 0;
 
         while (start < frames.Count)
         {
-            int end = Math.Min(start + MaxFramesPerStrip, frames.Count);
+            var end = Math.Min(start + MaxFramesPerStrip, frames.Count);
             var chunk = frames.GetRange(start, end - start);
 
             strips.Add(CreateSingleStrip(chunk));
@@ -1316,8 +1274,8 @@ If no text is visible, reply: NO_TEXT";
     }
 
     /// <summary>
-    /// Creates a horizontal strip of frames for Vision LLM, preserving temporal order.
-    /// Uses maximum resolution the model can handle for best text clarity.
+    ///     Creates a horizontal strip of frames for Vision LLM, preserving temporal order.
+    ///     Uses maximum resolution the model can handle for best text clarity.
     /// </summary>
     private Image<Rgba32> CreateFrameStrip(List<Image<Rgba32>> frames)
     {
@@ -1326,13 +1284,13 @@ If no text is visible, reply: NO_TEXT";
         if (strips.Count == 1) return strips[0];
 
         // If multiple strips, combine them vertically
-        int totalHeight = strips.Sum(s => s.Height) + (strips.Count - 1) * 4; // 4px gap
-        int maxWidth = strips.Max(s => s.Width);
+        var totalHeight = strips.Sum(s => s.Height) + (strips.Count - 1) * 4; // 4px gap
+        var maxWidth = strips.Max(s => s.Width);
 
         var combined = new Image<Rgba32>(maxWidth, totalHeight);
         combined.Mutate(ctx => ctx.BackgroundColor(Color.Black));
 
-        int yOffset = 0;
+        var yOffset = 0;
         foreach (var strip in strips)
         {
             combined.Mutate(x => x.DrawImage(strip, new Point(0, yOffset), 1f));
@@ -1344,7 +1302,7 @@ If no text is visible, reply: NO_TEXT";
     }
 
     /// <summary>
-    /// Creates a single horizontal strip from a subset of frames
+    ///     Creates a single horizontal strip from a subset of frames
     /// </summary>
     private Image<Rgba32> CreateSingleStrip(List<Image<Rgba32>> frames)
     {
@@ -1357,7 +1315,7 @@ If no text is visible, reply: NO_TEXT";
         // Model-specific max dimensions (most vision models handle 1024-2048 well)
         // minicpm-v, llava, llama3.2-vision all support at least 1024px
         var model = Config.VisionLlmModel?.ToLowerInvariant() ?? "llava";
-        int maxStripWidth = model switch
+        var maxStripWidth = model switch
         {
             var m when m.Contains("minicpm") => 2048, // MiniCPM-V handles high res
             var m when m.Contains("llama3.2") => 1120, // Llama 3.2 vision uses 560x560 per tile
@@ -1370,12 +1328,12 @@ If no text is visible, reply: NO_TEXT";
         var nativeHeight = firstFrame.Height;
 
         // Start with native size
-        int totalNativeWidth = nativeWidth * frames.Count;
+        var totalNativeWidth = nativeWidth * frames.Count;
 
         // Only scale DOWN if total exceeds model's max
-        double scale = Math.Min(1.0, (double)maxStripWidth / totalNativeWidth);
-        int finalFrameWidth = (int)(nativeWidth * scale);
-        int finalFrameHeight = (int)(nativeHeight * scale);
+        var scale = Math.Min(1.0, (double)maxStripWidth / totalNativeWidth);
+        var finalFrameWidth = (int)(nativeWidth * scale);
+        var finalFrameHeight = (int)(nativeHeight * scale);
 
         // Ensure we don't upscale
         finalFrameWidth = Math.Min(finalFrameWidth, nativeWidth);
@@ -1386,7 +1344,7 @@ If no text is visible, reply: NO_TEXT";
         finalFrameHeight = Math.Max(finalFrameHeight, 60);
 
         // Recalculate total width
-        int totalWidth = finalFrameWidth * frames.Count;
+        var totalWidth = finalFrameWidth * frames.Count;
 
         _logger?.LogDebug("Frame strip: {FrameCount} frames, {Width}x{Height} each, total {Total}px",
             frames.Count, finalFrameWidth, finalFrameHeight, totalWidth);
@@ -1395,8 +1353,8 @@ If no text is visible, reply: NO_TEXT";
         var strip = new Image<Rgba32>(totalWidth, finalFrameHeight);
 
         // Draw each frame
-        int xOffset = 0;
-        for (int i = 0; i < frames.Count; i++)
+        var xOffset = 0;
+        for (var i = 0; i < frames.Count; i++)
         {
             var resized = frames[i].Clone();
             resized.Mutate(x => x.Resize(finalFrameWidth, finalFrameHeight));
@@ -1420,14 +1378,14 @@ If no text is visible, reply: NO_TEXT";
 
             var requestBody = new
             {
-                model = model,
-                prompt = prompt,
+                model,
+                prompt,
                 images = new[] { imageBase64 },
                 stream = false
             };
 
             var requestJson = JsonSerializer.Serialize(requestBody);
-            var content = new StringContent(requestJson, System.Text.Encoding.UTF8, "application/json");
+            var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.PostAsync($"{ollamaUrl}/api/generate", content, ct);
 
@@ -1455,10 +1413,9 @@ If no text is visible, reply: NO_TEXT";
 }
 
 /// <summary>
-/// Ollama API response
+///     Ollama API response
 /// </summary>
 file class OllamaResponse
 {
-    [System.Text.Json.Serialization.JsonPropertyName("response")]
-    public string? Response { get; set; }
+    [JsonPropertyName("response")] public string? Response { get; set; }
 }

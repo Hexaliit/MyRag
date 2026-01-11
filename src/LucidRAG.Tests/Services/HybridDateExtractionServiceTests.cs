@@ -4,19 +4,85 @@ using LucidRAG.Services;
 namespace LucidRAG.Tests.Services;
 
 /// <summary>
-/// Unit tests for HybridDateExtractionService.
-/// Tests relative dates, quarters, seasons, fiscal years, and NER integration.
+///     Unit tests for HybridDateExtractionService.
+///     Tests relative dates, quarters, seasons, fiscal years, and NER integration.
 /// </summary>
 public class HybridDateExtractionServiceTests
 {
-    private readonly HybridDateExtractionService _service;
     private readonly DateTimeOffset _referenceDate = new(2024, 6, 15, 12, 0, 0, TimeSpan.Zero);
+    private readonly HybridDateExtractionService _service;
 
     public HybridDateExtractionServiceTests()
     {
         var regexService = new DateExtractionService();
         _service = new HybridDateExtractionService(regexService);
     }
+
+    #region Quarter Tests
+
+    [Theory]
+    [InlineData("Q1 2024", 2024, 1, 1)]
+    [InlineData("Q2 2024", 2024, 4, 1)]
+    [InlineData("Q3 2024", 2024, 7, 1)]
+    [InlineData("Q4 2024", 2024, 10, 1)]
+    public void ExtractAllDates_Quarter_ReturnsQuarterStart(string input, int year, int month, int day)
+    {
+        // Act
+        var results = _service.ExtractAllDates(input);
+
+        // Assert
+        results.Should().ContainSingle();
+        results[0].ParsedDate!.Value.Year.Should().Be(year);
+        results[0].ParsedDate!.Value.Month.Should().Be(month);
+        results[0].ParsedDate!.Value.Day.Should().Be(day);
+        results[0].DatePrecision.Should().Be(DatePrecision.Quarter);
+        results[0].Format.Should().Be("Quarter");
+    }
+
+    #endregion
+
+    #region Season Tests
+
+    [Theory]
+    [InlineData("spring 2024", 3)]
+    [InlineData("summer 2024", 6)]
+    [InlineData("fall 2024", 9)]
+    [InlineData("autumn 2024", 9)]
+    [InlineData("winter 2024", 12)]
+    public void ExtractAllDates_Season_ReturnsSeasonStart(string input, int expectedMonth)
+    {
+        // Act
+        var results = _service.ExtractAllDates(input);
+
+        // Assert
+        results.Should().ContainSingle();
+        results[0].ParsedDate!.Value.Month.Should().Be(expectedMonth);
+        results[0].DatePrecision.Should().Be(DatePrecision.Season);
+        results[0].IsAmbiguous.Should().BeTrue(); // Seasons are hemisphere-dependent
+    }
+
+    #endregion
+
+    #region Fiscal Year Tests
+
+    [Theory]
+    [InlineData("FY24", 2024)]
+    [InlineData("FY 2024", 2024)]
+    [InlineData("fiscal year 2024", 2024)]
+    [InlineData("Fiscal Year '24", 2024)]
+    public void ExtractAllDates_FiscalYear_ReturnsYear(string input, int expectedYear)
+    {
+        // Act
+        var results = _service.ExtractAllDates(input);
+
+        // Assert
+        results.Should().ContainSingle();
+        results[0].ParsedDate!.Value.Year.Should().Be(expectedYear);
+        results[0].DatePrecision.Should().Be(DatePrecision.Year);
+        results[0].IsAmbiguous.Should().BeTrue(); // FY start varies by company
+    }
+
+    #endregion
 
     #region Simple Day Tests
 
@@ -197,72 +263,6 @@ public class HybridDateExtractionServiceTests
 
     #endregion
 
-    #region Quarter Tests
-
-    [Theory]
-    [InlineData("Q1 2024", 2024, 1, 1)]
-    [InlineData("Q2 2024", 2024, 4, 1)]
-    [InlineData("Q3 2024", 2024, 7, 1)]
-    [InlineData("Q4 2024", 2024, 10, 1)]
-    public void ExtractAllDates_Quarter_ReturnsQuarterStart(string input, int year, int month, int day)
-    {
-        // Act
-        var results = _service.ExtractAllDates(input);
-
-        // Assert
-        results.Should().ContainSingle();
-        results[0].ParsedDate!.Value.Year.Should().Be(year);
-        results[0].ParsedDate!.Value.Month.Should().Be(month);
-        results[0].ParsedDate!.Value.Day.Should().Be(day);
-        results[0].DatePrecision.Should().Be(DatePrecision.Quarter);
-        results[0].Format.Should().Be("Quarter");
-    }
-
-    #endregion
-
-    #region Season Tests
-
-    [Theory]
-    [InlineData("spring 2024", 3)]
-    [InlineData("summer 2024", 6)]
-    [InlineData("fall 2024", 9)]
-    [InlineData("autumn 2024", 9)]
-    [InlineData("winter 2024", 12)]
-    public void ExtractAllDates_Season_ReturnsSeasonStart(string input, int expectedMonth)
-    {
-        // Act
-        var results = _service.ExtractAllDates(input);
-
-        // Assert
-        results.Should().ContainSingle();
-        results[0].ParsedDate!.Value.Month.Should().Be(expectedMonth);
-        results[0].DatePrecision.Should().Be(DatePrecision.Season);
-        results[0].IsAmbiguous.Should().BeTrue(); // Seasons are hemisphere-dependent
-    }
-
-    #endregion
-
-    #region Fiscal Year Tests
-
-    [Theory]
-    [InlineData("FY24", 2024)]
-    [InlineData("FY 2024", 2024)]
-    [InlineData("fiscal year 2024", 2024)]
-    [InlineData("Fiscal Year '24", 2024)]
-    public void ExtractAllDates_FiscalYear_ReturnsYear(string input, int expectedYear)
-    {
-        // Act
-        var results = _service.ExtractAllDates(input);
-
-        // Assert
-        results.Should().ContainSingle();
-        results[0].ParsedDate!.Value.Year.Should().Be(expectedYear);
-        results[0].DatePrecision.Should().Be(DatePrecision.Year);
-        results[0].IsAmbiguous.Should().BeTrue(); // FY start varies by company
-    }
-
-    #endregion
-
     #region Combined Tests (Absolute + Relative)
 
     [Fact]
@@ -371,7 +371,8 @@ public class HybridDateExtractionServiceTests
         };
 
         // Act
-        var results = _service.ParseNerDateSpans(nerSpans, "From 2024-01-15 to Q2 2024, yesterday was...", referenceDate: _referenceDate);
+        var results = _service.ParseNerDateSpans(nerSpans, "From 2024-01-15 to Q2 2024, yesterday was...",
+            referenceDate: _referenceDate);
 
         // Assert
         results.Should().HaveCount(3);

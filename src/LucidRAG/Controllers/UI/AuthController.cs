@@ -1,12 +1,12 @@
+using LucidRAG.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using LucidRAG.Identity;
 
 namespace LucidRAG.Controllers.UI;
 
 /// <summary>
-/// Authentication controller for login, register, and logout.
+///     Authentication controller for login, register, and logout.
 /// </summary>
 public class AuthController(
     SignInManager<ApplicationUser> signInManager,
@@ -26,16 +26,13 @@ public class AuthController(
     {
         ViewData["ReturnUrl"] = returnUrl;
 
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
+        if (!ModelState.IsValid) return View(model);
 
         var result = await signInManager.PasswordSignInAsync(
             model.Email,
             model.Password,
             model.RememberMe,
-            lockoutOnFailure: true);
+            true);
 
         if (result.Succeeded)
         {
@@ -78,10 +75,7 @@ public class AuthController(
     {
         ViewData["ReturnUrl"] = returnUrl;
 
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
+        if (!ModelState.IsValid) return View(model);
 
         var user = new ApplicationUser
         {
@@ -95,14 +89,11 @@ public class AuthController(
         if (result.Succeeded)
         {
             logger.LogInformation("User {Email} created", model.Email);
-            await signInManager.SignInAsync(user, isPersistent: false);
+            await signInManager.SignInAsync(user, false);
             return LocalRedirect(returnUrl ?? "/");
         }
 
-        foreach (var error in result.Errors)
-        {
-            ModelState.AddModelError(string.Empty, error.Description);
-        }
+        foreach (var error in result.Errors) ModelState.AddModelError(string.Empty, error.Description);
 
         return View(model);
     }
@@ -125,7 +116,7 @@ public class AuthController(
 }
 
 /// <summary>
-/// Login view model.
+///     Login view model.
 /// </summary>
 public class LoginViewModel
 {
@@ -135,7 +126,7 @@ public class LoginViewModel
 }
 
 /// <summary>
-/// Register view model.
+///     Register view model.
 /// </summary>
 public class RegisterViewModel
 {

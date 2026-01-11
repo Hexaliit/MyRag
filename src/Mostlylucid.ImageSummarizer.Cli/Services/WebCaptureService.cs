@@ -1,16 +1,16 @@
-using System.Net.Http.Headers;
+using System.Diagnostics;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Mostlylucid.ImageSummarizer.Cli.Services;
 
 /// <summary>
-/// Service for capturing images from URLs - both direct images and web page screenshots.
+///     Service for capturing images from URLs - both direct images and web page screenshots.
 /// </summary>
 public class WebCaptureService : IDisposable
 {
-    private readonly HttpClient _httpClient;
-    private readonly string _cacheDir;
-
     // Common image extensions
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -23,6 +23,9 @@ public class WebCaptureService : IDisposable
         "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp",
         "image/tiff", "image/svg+xml"
     };
+
+    private readonly string _cacheDir;
+    private readonly HttpClient _httpClient;
 
     public WebCaptureService(string? cacheDir = null)
     {
@@ -38,8 +41,13 @@ public class WebCaptureService : IDisposable
         Directory.CreateDirectory(_cacheDir);
     }
 
+    public void Dispose()
+    {
+        _httpClient.Dispose();
+    }
+
     /// <summary>
-    /// Check if input looks like a URL
+    ///     Check if input looks like a URL
     /// </summary>
     public static bool IsUrl(string input)
     {
@@ -49,26 +57,21 @@ public class WebCaptureService : IDisposable
     }
 
     /// <summary>
-    /// Capture image from URL - either direct download or web page screenshot
-    /// Returns local file path and metadata about the source.
+    ///     Capture image from URL - either direct download or web page screenshot
+    ///     Returns local file path and metadata about the source.
     /// </summary>
     public async Task<WebCaptureResult> CaptureAsync(string url, CancellationToken ct = default)
     {
         var uri = new Uri(url);
         var isDirectImage = IsDirectImageUrl(uri);
 
-        if (isDirectImage)
-        {
-            return await DownloadImageAsync(uri, ct);
-        }
-        else
-        {
-            return await CaptureWebPageAsync(uri, ct);
-        }
+        if (isDirectImage) return await DownloadImageAsync(uri, ct);
+
+        return await CaptureWebPageAsync(uri, ct);
     }
 
     /// <summary>
-    /// Download a direct image URL
+    ///     Download a direct image URL
     /// </summary>
     private async Task<WebCaptureResult> DownloadImageAsync(Uri uri, CancellationToken ct)
     {
@@ -77,12 +80,12 @@ public class WebCaptureService : IDisposable
 
         var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/unknown";
         var extension = GetExtensionFromContentType(contentType) ??
-                       Path.GetExtension(uri.LocalPath) ??
-                       ".jpg";
+                        Path.GetExtension(uri.LocalPath) ??
+                        ".jpg";
 
         // Generate cache filename from URL hash
-        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(uri.ToString()))).Substring(0, 16);
+        var hash = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(uri.ToString()))).Substring(0, 16);
         var fileName = $"img_{hash}{extension}";
         var localPath = Path.Combine(_cacheDir, fileName);
 
@@ -100,7 +103,7 @@ public class WebCaptureService : IDisposable
     }
 
     /// <summary>
-    /// Capture screenshot of a web page using Puppeteer (via node subprocess)
+    ///     Capture screenshot of a web page using Puppeteer (via node subprocess)
     /// </summary>
     private async Task<WebCaptureResult> CaptureWebPageAsync(Uri uri, CancellationToken ct)
     {
@@ -108,19 +111,17 @@ public class WebCaptureService : IDisposable
         var scriptPath = FindPuppeteerScript();
 
         if (scriptPath == null)
-        {
             // Fall back to trying to find any image on the page
             return await TryExtractImageFromPageAsync(uri, ct);
-        }
 
         // Generate output filename
-        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(uri.ToString()))).Substring(0, 16);
+        var hash = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(uri.ToString()))).Substring(0, 16);
         var fileName = $"page_{hash}.png";
         var localPath = Path.Combine(_cacheDir, fileName);
 
         // Run puppeteer script
-        var startInfo = new System.Diagnostics.ProcessStartInfo
+        var startInfo = new ProcessStartInfo
         {
             FileName = "node",
             Arguments = $"\"{scriptPath}\" \"{uri}\" \"{localPath}\"",
@@ -132,7 +133,7 @@ public class WebCaptureService : IDisposable
 
         try
         {
-            using var process = System.Diagnostics.Process.Start(startInfo);
+            using var process = Process.Start(startInfo);
             if (process == null)
                 throw new InvalidOperationException("Failed to start node process");
 
@@ -166,7 +167,7 @@ public class WebCaptureService : IDisposable
     }
 
     /// <summary>
-    /// Try to extract the first significant image from a web page
+    ///     Try to extract the first significant image from a web page
     /// </summary>
     private async Task<WebCaptureResult> TryExtractImageFromPageAsync(Uri uri, CancellationToken ct)
     {
@@ -181,36 +182,23 @@ public class WebCaptureService : IDisposable
         string? imageUrl = null;
 
         if (ogImageMatch.Success)
-        {
             imageUrl = ogImageMatch.Groups[1].Value;
-        }
-        else if (imgMatch.Success)
-        {
-            imageUrl = imgMatch.Groups[1].Value;
-        }
+        else if (imgMatch.Success) imageUrl = imgMatch.Groups[1].Value;
 
         if (string.IsNullOrEmpty(imageUrl))
-        {
             throw new InvalidOperationException(
                 $"Could not find any images on {uri}. " +
                 "Install Node.js and Puppeteer for full web page screenshots: npm install -g puppeteer");
-        }
 
         // Resolve relative URLs
-        if (!imageUrl.StartsWith("http"))
-        {
-            imageUrl = new Uri(uri, imageUrl).ToString();
-        }
+        if (!imageUrl.StartsWith("http")) imageUrl = new Uri(uri, imageUrl).ToString();
 
         // Extract alt text if available
         string? altText = null;
         if (imgMatch.Success)
         {
             var altMatch = Regex.Match(imgMatch.Value, @"alt=[""']([^""']*)[""']", RegexOptions.IgnoreCase);
-            if (altMatch.Success)
-            {
-                altText = altMatch.Groups[1].Value;
-            }
+            if (altMatch.Success) altText = altMatch.Groups[1].Value;
         }
 
         var result = await DownloadImageAsync(new Uri(imageUrl), ct);
@@ -222,7 +210,7 @@ public class WebCaptureService : IDisposable
     }
 
     /// <summary>
-    /// Extract page title from HTML
+    ///     Extract page title from HTML
     /// </summary>
     private async Task<string?> ExtractPageTitleAsync(Uri uri, CancellationToken ct)
     {
@@ -230,7 +218,7 @@ public class WebCaptureService : IDisposable
         {
             var html = await _httpClient.GetStringAsync(uri, ct);
             var titleMatch = Regex.Match(html, @"<title>([^<]+)</title>", RegexOptions.IgnoreCase);
-            return titleMatch.Success ? System.Net.WebUtility.HtmlDecode(titleMatch.Groups[1].Value.Trim()) : null;
+            return titleMatch.Success ? WebUtility.HtmlDecode(titleMatch.Groups[1].Value.Trim()) : null;
         }
         catch
         {
@@ -239,7 +227,7 @@ public class WebCaptureService : IDisposable
     }
 
     /// <summary>
-    /// Check if URL appears to be a direct image link
+    ///     Check if URL appears to be a direct image link
     /// </summary>
     private bool IsDirectImageUrl(Uri uri)
     {
@@ -248,7 +236,7 @@ public class WebCaptureService : IDisposable
     }
 
     /// <summary>
-    /// Get file extension from content type
+    ///     Get file extension from content type
     /// </summary>
     private static string? GetExtensionFromContentType(string contentType)
     {
@@ -266,7 +254,7 @@ public class WebCaptureService : IDisposable
     }
 
     /// <summary>
-    /// Find puppeteer capture script in known locations
+    ///     Find puppeteer capture script in known locations
     /// </summary>
     private string? FindPuppeteerScript()
     {
@@ -280,76 +268,71 @@ public class WebCaptureService : IDisposable
 
         return locations.FirstOrDefault(File.Exists);
     }
-
-    public void Dispose()
-    {
-        _httpClient.Dispose();
-    }
 }
 
 /// <summary>
-/// Result of a web capture operation
+///     Result of a web capture operation
 /// </summary>
 public class WebCaptureResult
 {
     /// <summary>
-    /// Local file path to the captured image
+    ///     Local file path to the captured image
     /// </summary>
     public required string LocalPath { get; set; }
 
     /// <summary>
-    /// Original source URL
+    ///     Original source URL
     /// </summary>
     public required string SourceUrl { get; set; }
 
     /// <summary>
-    /// How the image was captured
+    ///     How the image was captured
     /// </summary>
     public CaptureType CaptureType { get; set; }
 
     /// <summary>
-    /// Content type of the captured image
+    ///     Content type of the captured image
     /// </summary>
     public string? ContentType { get; set; }
 
     /// <summary>
-    /// File size in bytes
+    ///     File size in bytes
     /// </summary>
     public long FileSize { get; set; }
 
     /// <summary>
-    /// Page title (for web page screenshots)
+    ///     Page title (for web page screenshots)
     /// </summary>
     public string? PageTitle { get; set; }
 
     /// <summary>
-    /// Original alt text from the image element (if extracted)
+    ///     Original alt text from the image element (if extracted)
     /// </summary>
     public string? OriginalAltText { get; set; }
 
     /// <summary>
-    /// Page URL (for extracted images)
+    ///     Page URL (for extracted images)
     /// </summary>
     public string? PageUrl { get; set; }
 }
 
 /// <summary>
-/// Type of capture performed
+///     Type of capture performed
 /// </summary>
 public enum CaptureType
 {
     /// <summary>
-    /// Direct image download
+    ///     Direct image download
     /// </summary>
     DirectImage,
 
     /// <summary>
-    /// Full web page screenshot
+    ///     Full web page screenshot
     /// </summary>
     WebPageScreenshot,
 
     /// <summary>
-    /// Image extracted from web page (og:image or first img)
+    ///     Image extracted from web page (og:image or first img)
     /// </summary>
     ExtractedImage
 }

@@ -1,20 +1,18 @@
 namespace Mostlylucid.GraphRag.Extraction;
 
 /// <summary>
-/// Defines entity type profiles for different content types and domains.
-///
-/// Profiles provide context-aware entity extraction:
-/// - Technical docs: technology, framework, library, api, pattern
-/// - Legal docs: party, clause, term, obligation, date
-/// - Business docs: company, person, product, metric, process
-///
-/// "Lenses" are domain-specific overlays that can be applied on top of base profiles.
+///     Defines entity type profiles for different content types and domains.
+///     Profiles provide context-aware entity extraction:
+///     - Technical docs: technology, framework, library, api, pattern
+///     - Legal docs: party, clause, term, obligation, date
+///     - Business docs: company, person, product, metric, process
+///     "Lenses" are domain-specific overlays that can be applied on top of base profiles.
 /// </summary>
 public static class EntityTypeProfiles
 {
     /// <summary>
-    /// Default profile for technical/software documentation.
-    /// Used for markdown, code docs, technical blogs.
+    ///     Default profile for technical/software documentation.
+    ///     Used for markdown, code docs, technical blogs.
     /// </summary>
     public static readonly EntityProfile Technical = new()
     {
@@ -22,16 +20,17 @@ public static class EntityTypeProfiles
         DisplayName = "Technical Documentation",
         EntityTypes =
         [
-            new("technology", "Technologies, platforms, and tech stacks", ["tech", "platform"]),
-            new("framework", "Software frameworks and SDKs", ["sdk"]),
-            new("library", "Libraries and packages", ["package", "module", "nuget", "npm"]),
-            new("language", "Programming languages", ["lang"]),
-            new("tool", "Development tools and utilities", ["utility", "cli"]),
-            new("database", "Databases and data stores", ["datastore", "storage"]),
-            new("api", "APIs, endpoints, and protocols", ["endpoint", "protocol", "rest", "graphql"]),
-            new("pattern", "Design patterns and architectures", ["architecture", "design"]),
-            new("concept", "Technical concepts and principles", ["principle", "methodology"]),
-            new("service", "Services and cloud resources", ["cloud", "saas"])
+            new EntityTypeDefinition("technology", "Technologies, platforms, and tech stacks", ["tech", "platform"]),
+            new EntityTypeDefinition("framework", "Software frameworks and SDKs", ["sdk"]),
+            new EntityTypeDefinition("library", "Libraries and packages", ["package", "module", "nuget", "npm"]),
+            new EntityTypeDefinition("language", "Programming languages", ["lang"]),
+            new EntityTypeDefinition("tool", "Development tools and utilities", ["utility", "cli"]),
+            new EntityTypeDefinition("database", "Databases and data stores", ["datastore", "storage"]),
+            new EntityTypeDefinition("api", "APIs, endpoints, and protocols",
+                ["endpoint", "protocol", "rest", "graphql"]),
+            new EntityTypeDefinition("pattern", "Design patterns and architectures", ["architecture", "design"]),
+            new EntityTypeDefinition("concept", "Technical concepts and principles", ["principle", "methodology"]),
+            new EntityTypeDefinition("service", "Services and cloud resources", ["cloud", "saas"])
         ],
         StructuralSignals = ["inline_code", "heading", "link_text"],
         MinIdfThreshold = 3.5,
@@ -39,8 +38,8 @@ public static class EntityTypeProfiles
     };
 
     /// <summary>
-    /// Profile for source code files.
-    /// Focuses on code-specific entities.
+    ///     Profile for source code files.
+    ///     Focuses on code-specific entities.
     /// </summary>
     public static readonly EntityProfile Code = new()
     {
@@ -48,14 +47,15 @@ public static class EntityTypeProfiles
         DisplayName = "Source Code",
         EntityTypes =
         [
-            new("class", "Classes, structs, and types", ["type", "struct", "interface", "enum"]),
-            new("function", "Functions, methods, and procedures", ["method", "procedure", "handler"]),
-            new("variable", "Variables, constants, and fields", ["field", "property", "constant"]),
-            new("namespace", "Namespaces and modules", ["module", "package"]),
-            new("dependency", "External dependencies and imports", ["import", "require", "using"]),
-            new("pattern", "Design patterns implemented", ["architecture"]),
-            new("api", "API endpoints and contracts", ["endpoint", "route", "controller"]),
-            new("error", "Error types and exceptions", ["exception"])
+            new EntityTypeDefinition("class", "Classes, structs, and types", ["type", "struct", "interface", "enum"]),
+            new EntityTypeDefinition("function", "Functions, methods, and procedures",
+                ["method", "procedure", "handler"]),
+            new EntityTypeDefinition("variable", "Variables, constants, and fields", ["field", "property", "constant"]),
+            new EntityTypeDefinition("namespace", "Namespaces and modules", ["module", "package"]),
+            new EntityTypeDefinition("dependency", "External dependencies and imports", ["import", "require", "using"]),
+            new EntityTypeDefinition("pattern", "Design patterns implemented", ["architecture"]),
+            new EntityTypeDefinition("api", "API endpoints and contracts", ["endpoint", "route", "controller"]),
+            new EntityTypeDefinition("error", "Error types and exceptions", ["exception"])
         ],
         StructuralSignals = ["inline_code", "code_block"],
         MinIdfThreshold = 3.0,
@@ -63,7 +63,7 @@ public static class EntityTypeProfiles
     };
 
     /// <summary>
-    /// Profile for legal documents (contracts, agreements, policies).
+    ///     Profile for legal documents (contracts, agreements, policies).
     /// </summary>
     public static readonly EntityProfile Legal = new()
     {
@@ -71,16 +71,16 @@ public static class EntityTypeProfiles
         DisplayName = "Legal Documents",
         EntityTypes =
         [
-            new("party", "Parties to the agreement", ["signatory", "contractor", "vendor"]),
-            new("person", "Named individuals", ["individual", "officer", "director"]),
-            new("organization", "Companies and legal entities", ["company", "corporation", "llc"]),
-            new("clause", "Contract clauses and sections", ["section", "article", "provision"]),
-            new("term", "Defined terms", ["definition"]),
-            new("obligation", "Duties and obligations", ["duty", "requirement", "shall"]),
-            new("right", "Rights and permissions", ["permission", "entitlement"]),
-            new("date", "Dates and deadlines", ["deadline", "effective_date", "termination"]),
-            new("amount", "Monetary amounts and fees", ["fee", "payment", "compensation"]),
-            new("jurisdiction", "Jurisdictions and governing law", ["venue", "law"])
+            new EntityTypeDefinition("party", "Parties to the agreement", ["signatory", "contractor", "vendor"]),
+            new EntityTypeDefinition("person", "Named individuals", ["individual", "officer", "director"]),
+            new EntityTypeDefinition("organization", "Companies and legal entities", ["company", "corporation", "llc"]),
+            new EntityTypeDefinition("clause", "Contract clauses and sections", ["section", "article", "provision"]),
+            new EntityTypeDefinition("term", "Defined terms", ["definition"]),
+            new EntityTypeDefinition("obligation", "Duties and obligations", ["duty", "requirement", "shall"]),
+            new EntityTypeDefinition("right", "Rights and permissions", ["permission", "entitlement"]),
+            new EntityTypeDefinition("date", "Dates and deadlines", ["deadline", "effective_date", "termination"]),
+            new EntityTypeDefinition("amount", "Monetary amounts and fees", ["fee", "payment", "compensation"]),
+            new EntityTypeDefinition("jurisdiction", "Jurisdictions and governing law", ["venue", "law"])
         ],
         StructuralSignals = ["heading", "bold", "numbered_item"],
         MinIdfThreshold = 2.5,
@@ -88,7 +88,7 @@ public static class EntityTypeProfiles
     };
 
     /// <summary>
-    /// Profile for business/corporate documents.
+    ///     Profile for business/corporate documents.
     /// </summary>
     public static readonly EntityProfile Business = new()
     {
@@ -96,16 +96,16 @@ public static class EntityTypeProfiles
         DisplayName = "Business Documents",
         EntityTypes =
         [
-            new("company", "Companies and organizations", ["organization", "firm", "corporation"]),
-            new("person", "People and contacts", ["contact", "stakeholder", "executive"]),
-            new("product", "Products and offerings", ["offering", "solution", "service"]),
-            new("metric", "KPIs and measurements", ["kpi", "measure", "indicator"]),
-            new("process", "Business processes", ["workflow", "procedure"]),
-            new("department", "Teams and departments", ["team", "unit", "division"]),
-            new("project", "Projects and initiatives", ["initiative", "program"]),
-            new("location", "Locations and regions", ["region", "office", "site"]),
-            new("date", "Important dates", ["deadline", "milestone"]),
-            new("amount", "Financial figures", ["budget", "cost", "revenue"])
+            new EntityTypeDefinition("company", "Companies and organizations", ["organization", "firm", "corporation"]),
+            new EntityTypeDefinition("person", "People and contacts", ["contact", "stakeholder", "executive"]),
+            new EntityTypeDefinition("product", "Products and offerings", ["offering", "solution", "service"]),
+            new EntityTypeDefinition("metric", "KPIs and measurements", ["kpi", "measure", "indicator"]),
+            new EntityTypeDefinition("process", "Business processes", ["workflow", "procedure"]),
+            new EntityTypeDefinition("department", "Teams and departments", ["team", "unit", "division"]),
+            new EntityTypeDefinition("project", "Projects and initiatives", ["initiative", "program"]),
+            new EntityTypeDefinition("location", "Locations and regions", ["region", "office", "site"]),
+            new EntityTypeDefinition("date", "Important dates", ["deadline", "milestone"]),
+            new EntityTypeDefinition("amount", "Financial figures", ["budget", "cost", "revenue"])
         ],
         StructuralSignals = ["heading", "table_cell", "bold"],
         MinIdfThreshold = 3.0,
@@ -113,7 +113,7 @@ public static class EntityTypeProfiles
     };
 
     /// <summary>
-    /// Profile for tabular/structured data.
+    ///     Profile for tabular/structured data.
     /// </summary>
     public static readonly EntityProfile Data = new()
     {
@@ -121,13 +121,13 @@ public static class EntityTypeProfiles
         DisplayName = "Structured Data",
         EntityTypes =
         [
-            new("column", "Data columns and fields", ["field", "attribute"]),
-            new("table", "Tables and datasets", ["dataset", "sheet"]),
-            new("key", "Primary and foreign keys", ["id", "identifier"]),
-            new("metric", "Numeric metrics and measures", ["measure", "value"]),
-            new("category", "Categorical values", ["type", "class", "group"]),
-            new("date", "Date/time fields", ["timestamp", "datetime"]),
-            new("entity", "Business entities in data", ["record", "row"])
+            new EntityTypeDefinition("column", "Data columns and fields", ["field", "attribute"]),
+            new EntityTypeDefinition("table", "Tables and datasets", ["dataset", "sheet"]),
+            new EntityTypeDefinition("key", "Primary and foreign keys", ["id", "identifier"]),
+            new EntityTypeDefinition("metric", "Numeric metrics and measures", ["measure", "value"]),
+            new EntityTypeDefinition("category", "Categorical values", ["type", "class", "group"]),
+            new EntityTypeDefinition("date", "Date/time fields", ["timestamp", "datetime"]),
+            new EntityTypeDefinition("entity", "Business entities in data", ["record", "row"])
         ],
         StructuralSignals = ["table_header", "column_name"],
         MinIdfThreshold = 2.0,
@@ -135,8 +135,8 @@ public static class EntityTypeProfiles
     };
 
     /// <summary>
-    /// Profile for general/mixed content.
-    /// Balanced approach when document type is unclear.
+    ///     Profile for general/mixed content.
+    ///     Balanced approach when document type is unclear.
     /// </summary>
     public static readonly EntityProfile General = new()
     {
@@ -144,14 +144,14 @@ public static class EntityTypeProfiles
         DisplayName = "General Content",
         EntityTypes =
         [
-            new("person", "People and individuals", ["individual", "author"]),
-            new("organization", "Organizations and companies", ["company", "institution"]),
-            new("location", "Places and locations", ["place", "region", "country"]),
-            new("concept", "Key concepts and ideas", ["idea", "topic", "theme"]),
-            new("event", "Events and occurrences", ["meeting", "conference"]),
-            new("date", "Dates and times", ["time", "period"]),
-            new("product", "Products and services", ["service", "offering"]),
-            new("technology", "Technologies mentioned", ["tool", "platform"])
+            new EntityTypeDefinition("person", "People and individuals", ["individual", "author"]),
+            new EntityTypeDefinition("organization", "Organizations and companies", ["company", "institution"]),
+            new EntityTypeDefinition("location", "Places and locations", ["place", "region", "country"]),
+            new EntityTypeDefinition("concept", "Key concepts and ideas", ["idea", "topic", "theme"]),
+            new EntityTypeDefinition("event", "Events and occurrences", ["meeting", "conference"]),
+            new EntityTypeDefinition("date", "Dates and times", ["time", "period"]),
+            new EntityTypeDefinition("product", "Products and services", ["service", "offering"]),
+            new EntityTypeDefinition("technology", "Technologies mentioned", ["tool", "platform"])
         ],
         StructuralSignals = ["heading", "bold", "link_text"],
         MinIdfThreshold = 3.5,
@@ -159,7 +159,13 @@ public static class EntityTypeProfiles
     };
 
     /// <summary>
-    /// Get the appropriate profile for a content type.
+    ///     Get all available profiles.
+    /// </summary>
+    public static IReadOnlyList<EntityProfile> All =>
+        [Technical, Code, Legal, Business, Data, General];
+
+    /// <summary>
+    ///     Get the appropriate profile for a content type.
     /// </summary>
     public static EntityProfile GetForContentType(string contentType)
     {
@@ -173,7 +179,7 @@ public static class EntityTypeProfiles
     }
 
     /// <summary>
-    /// Get profile by ID.
+    ///     Get profile by ID.
     /// </summary>
     public static EntityProfile? GetById(string profileId)
     {
@@ -188,16 +194,10 @@ public static class EntityTypeProfiles
             _ => null
         };
     }
-
-    /// <summary>
-    /// Get all available profiles.
-    /// </summary>
-    public static IReadOnlyList<EntityProfile> All =>
-        [Technical, Code, Legal, Business, Data, General];
 }
 
 /// <summary>
-/// Entity extraction profile defining types and thresholds for a content domain.
+///     Entity extraction profile defining types and thresholds for a content domain.
 /// </summary>
 public sealed class EntityProfile
 {
@@ -223,12 +223,14 @@ public sealed class EntityProfile
     public string TypeListForPrompt => string.Join(", ", EntityTypes.Select(t => t.Name));
 
     /// <summary>Check if a signal is relevant for this profile.</summary>
-    public bool IsRelevantSignal(string signal) =>
-        StructuralSignals.Contains(signal, StringComparer.OrdinalIgnoreCase);
+    public bool IsRelevantSignal(string signal)
+    {
+        return StructuralSignals.Contains(signal, StringComparer.OrdinalIgnoreCase);
+    }
 }
 
 /// <summary>
-/// Definition of an entity type within a profile.
+///     Definition of an entity type within a profile.
 /// </summary>
 /// <param name="Name">Primary type name (e.g., "technology").</param>
 /// <param name="Description">Human-readable description.</param>
@@ -239,7 +241,7 @@ public sealed record EntityTypeDefinition(
     string[] Aliases)
 {
     /// <summary>
-    /// Check if a given type name matches this definition (including aliases).
+    ///     Check if a given type name matches this definition (including aliases).
     /// </summary>
     public bool Matches(string typeName)
     {
@@ -249,7 +251,7 @@ public sealed record EntityTypeDefinition(
     }
 
     /// <summary>
-    /// Normalize a type name to the canonical form.
+    ///     Normalize a type name to the canonical form.
     /// </summary>
     public static string Normalize(string typeName, EntityProfile profile)
     {
@@ -257,10 +259,8 @@ public sealed record EntityTypeDefinition(
         var lower = typeName.ToLowerInvariant();
 
         foreach (var def in profile.EntityTypes)
-        {
             if (def.Matches(lower))
                 return def.Name;
-        }
 
         return lower; // Keep as-is if no match
     }

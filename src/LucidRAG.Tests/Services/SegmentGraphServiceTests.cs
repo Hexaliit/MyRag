@@ -1,26 +1,25 @@
 using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.DocSummarizer.Models;
 
 namespace LucidRAG.Tests.Services;
 
 /// <summary>
-/// Unit tests for SegmentGraphService.
-/// Tests segment graph building, traversal, and expansion.
-/// Requires PostgreSQL database - tests are skipped if database unavailable.
+///     Unit tests for SegmentGraphService.
+///     Tests segment graph building, traversal, and expansion.
+///     Requires PostgreSQL database - tests are skipped if database unavailable.
 /// </summary>
 [Collection("Integration")]
 [Trait("Category", "Integration")]
 public class SegmentGraphServiceTests : IDisposable
 {
     private readonly RagDocumentsDbContext? _db;
+    private readonly bool _dbAvailable;
     private readonly SegmentGraphService? _service;
     private readonly Guid _testDocumentId = Guid.NewGuid();
-    private readonly bool _dbAvailable;
 
     public SegmentGraphServiceTests()
     {
@@ -217,7 +216,7 @@ public class SegmentGraphServiceTests : IDisposable
         await SeedManyLinksAsync("source_hash", 20);
 
         // Act
-        var connected = await _service!.GetConnectedSegmentsAsync("source_hash", maxResults: 5);
+        var connected = await _service!.GetConnectedSegmentsAsync("source_hash", 5);
 
         // Assert
         connected.Should().HaveCount(5);
@@ -253,7 +252,7 @@ public class SegmentGraphServiceTests : IDisposable
         var initialHashes = new[] { "hash1" };
 
         // Act
-        var expanded = await _service!.ExpandRetrievalAsync(initialHashes, expansionDepth: 1);
+        var expanded = await _service!.ExpandRetrievalAsync(initialHashes, 1);
 
         // Assert
         expanded.Should().NotBeEmpty();
@@ -289,8 +288,8 @@ public class SegmentGraphServiceTests : IDisposable
         var initialHashes = new[] { "chain_start" };
 
         // Act
-        var depth1 = await _service!.ExpandRetrievalAsync(initialHashes, expansionDepth: 1);
-        var depth2 = await _service.ExpandRetrievalAsync(initialHashes, expansionDepth: 2);
+        var depth1 = await _service!.ExpandRetrievalAsync(initialHashes, 1);
+        var depth2 = await _service.ExpandRetrievalAsync(initialHashes, 2);
 
         // Assert
         depth2.Count.Should().BeGreaterThanOrEqualTo(depth1.Count);
@@ -381,13 +380,13 @@ public class SegmentGraphServiceTests : IDisposable
     {
         // Use the proper Segment constructor with content hash override
         var segment = new Segment(
-            docId: "test_doc",
-            text: content,
-            type: SegmentType.Sentence,
-            index: index,
-            startChar: 0,
-            endChar: content.Length,
-            contentHashOverride: hash)
+            "test_doc",
+            content,
+            SegmentType.Sentence,
+            index,
+            0,
+            content.Length,
+            hash)
         {
             HeadingPath = headingPath ?? "",
             Embedding = embedding
@@ -403,10 +402,8 @@ public class SegmentGraphServiceTests : IDisposable
         // Normalize
         var magnitude = MathF.Sqrt(embedding.Sum(x => x * x));
         if (magnitude > 0)
-        {
-            for (int i = 0; i < embedding.Length; i++)
+            for (var i = 0; i < embedding.Length; i++)
                 embedding[i] /= magnitude;
-        }
         return embedding;
     }
 
@@ -456,7 +453,7 @@ public class SegmentGraphServiceTests : IDisposable
             SourceSegmentHash = sourceHash,
             TargetSegmentHash = $"target_{i}",
             LinkType = SegmentLinkTypes.Sequential,
-            Weight = 0.5 + (i * 0.01)
+            Weight = 0.5 + i * 0.01
         });
 
         _db!.Set<SegmentLink>().AddRange(links);

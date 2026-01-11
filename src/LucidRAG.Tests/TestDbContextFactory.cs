@@ -1,15 +1,15 @@
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace LucidRAG.Tests;
 
 /// <summary>
-/// Factory for creating test database contexts
+///     Factory for creating test database contexts
 /// </summary>
 public static class TestDbContextFactory
 {
     /// <summary>
-    /// Create an in-memory database context for unit testing
+    ///     Create an in-memory database context for unit testing
     /// </summary>
     public static RagDocumentsDbContext CreateInMemory(string? databaseName = null)
     {
@@ -23,8 +23,8 @@ public static class TestDbContextFactory
     }
 
     /// <summary>
-    /// Create a real PostgreSQL database context for integration testing
-    /// Uses the existing dev database
+    ///     Create a real PostgreSQL database context for integration testing
+    ///     Uses the existing dev database
     /// </summary>
     public static RagDocumentsDbContext CreatePostgres(string connectionString)
     {

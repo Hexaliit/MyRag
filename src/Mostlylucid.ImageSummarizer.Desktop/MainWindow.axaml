@@ -13,17 +13,17 @@
 
     <Window.Styles>
         <Style Selector="TextBlock.header">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
         <Style Selector="Button.primary">
-            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Padding" Value="16,8" />
         </Style>
         <Style Selector="ComboBox">
-            <Setter Property="MinWidth" Value="120"/>
+            <Setter Property="MinWidth" Value="120" />
         </Style>
     </Window.Styles>
 
@@ -37,52 +37,53 @@
                         Classes="primary"
                         Margin="0,0,8,8">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z"
-                                  Width="14" Height="14"/>
-                        <TextBlock Text="Browse"/>
+                        <PathIcon
+                            Data="M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z"
+                            Width="14" Height="14" />
+                        <TextBlock Text="Browse" />
                     </StackPanel>
                 </Button>
 
                 <ComboBox ItemsSource="{Binding Pipelines}"
                           SelectedItem="{Binding SelectedPipeline}"
                           ToolTip.Tip="Analysis pipeline (auto = smart routing)"
-                          Margin="0,0,8,8"/>
+                          Margin="0,0,8,8" />
 
                 <!-- Quality tier dropdown (only shown for auto pipeline) -->
                 <ComboBox ItemsSource="{Binding QualityTiers}"
                           SelectedItem="{Binding PreferredRoute}"
                           IsVisible="{Binding ShowQualityTier}"
                           ToolTip.Tip="Quality tier: fast (Florence2), balanced (+ OCR/Motion), quality (full LLM)"
-                          Margin="0,0,8,8"/>
+                          Margin="0,0,8,8" />
 
                 <ComboBox ItemsSource="{Binding OutputFormats}"
                           SelectedItem="{Binding SelectedOutput}"
                           ToolTip.Tip="Output format"
-                          Margin="0,0,8,8"/>
+                          Margin="0,0,8,8" />
 
                 <CheckBox Content="LLM"
                           IsChecked="{Binding EnableVisionLlm}"
                           VerticalAlignment="Center"
                           ToolTip.Tip="Enable Vision LLM for enhanced captions (requires Ollama)"
-                          Margin="0,0,8,8"/>
+                          Margin="0,0,8,8" />
 
                 <CheckBox Content="OCR"
                           IsChecked="{Binding EnableOcr}"
                           VerticalAlignment="Center"
                           ToolTip.Tip="Enable OCR text extraction (Florence-2 + Tesseract)"
-                          Margin="0,0,8,8"/>
+                          Margin="0,0,8,8" />
 
                 <ComboBox ItemsSource="{Binding AvailableModels}"
                           SelectedItem="{Binding VisionModel}"
                           IsVisible="{Binding EnableVisionLlm}"
                           ToolTip.Tip="Vision model"
-                          Margin="0,0,8,8"/>
+                          Margin="0,0,8,8" />
 
                 <Button Command="{Binding AnalyzeCommand}"
                         IsEnabled="{Binding !IsProcessing}"
                         Classes="primary"
                         Margin="0,0,8,8">
-                    <TextBlock Text="Analyze"/>
+                    <TextBlock Text="Analyze" />
                 </Button>
             </WrapPanel>
 
@@ -91,39 +92,47 @@
                 <!-- Services row -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <StackPanel Orientation="Horizontal" Spacing="4" ToolTip.Tip="{Binding OcrStatus}">
-                        <Ellipse Width="8" Height="8" Fill="{Binding TesseractModelColor}"/>
-                        <TextBlock Text="OCR" FontSize="10" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <Ellipse Width="8" Height="8" Fill="{Binding TesseractModelColor}" />
+                        <TextBlock Text="OCR" FontSize="10"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="4" ToolTip.Tip="{Binding OpenCvStatus}">
-                        <Ellipse Width="8" Height="8" Fill="{Binding OpenCvStatusColor}"/>
-                        <TextBlock Text="CV" FontSize="10" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <Ellipse Width="8" Height="8" Fill="{Binding OpenCvStatusColor}" />
+                        <TextBlock Text="CV" FontSize="10"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="4" ToolTip.Tip="{Binding OllamaStatus}">
-                        <Ellipse Width="8" Height="8" Fill="{Binding OllamaStatusColor}"/>
-                        <TextBlock Text="LLM" FontSize="10" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <Ellipse Width="8" Height="8" Fill="{Binding OllamaStatusColor}" />
+                        <TextBlock Text="LLM" FontSize="10"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                     </StackPanel>
                 </StackPanel>
                 <!-- ML Models row -->
                 <StackPanel Orientation="Horizontal" Spacing="6">
                     <StackPanel Orientation="Horizontal" Spacing="3" ToolTip.Tip="{Binding Florence2Status}">
-                        <Ellipse Width="6" Height="6" Fill="{Binding Florence2ModelColor}"/>
-                        <TextBlock Text="Flor" FontSize="9" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <Ellipse Width="6" Height="6" Fill="{Binding Florence2ModelColor}" />
+                        <TextBlock Text="Flor" FontSize="9"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="3" ToolTip.Tip="{Binding EastModelStatus}">
-                        <Ellipse Width="6" Height="6" Fill="{Binding EastModelColor}"/>
-                        <TextBlock Text="EAST" FontSize="9" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <Ellipse Width="6" Height="6" Fill="{Binding EastModelColor}" />
+                        <TextBlock Text="EAST" FontSize="9"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="3" ToolTip.Tip="{Binding CraftModelStatus}">
-                        <Ellipse Width="6" Height="6" Fill="{Binding CraftModelColor}"/>
-                        <TextBlock Text="CRFT" FontSize="9" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <Ellipse Width="6" Height="6" Fill="{Binding CraftModelColor}" />
+                        <TextBlock Text="CRFT" FontSize="9"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="3" ToolTip.Tip="{Binding ClipModelStatus}">
-                        <Ellipse Width="6" Height="6" Fill="{Binding ClipModelColor}"/>
-                        <TextBlock Text="CLIP" FontSize="9" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <Ellipse Width="6" Height="6" Fill="{Binding ClipModelColor}" />
+                        <TextBlock Text="CLIP" FontSize="9"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="3" ToolTip.Tip="{Binding EsrganModelStatus}">
-                        <Ellipse Width="6" Height="6" Fill="{Binding EsrganModelColor}"/>
-                        <TextBlock Text="ESRG" FontSize="9" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        <Ellipse Width="6" Height="6" Fill="{Binding EsrganModelColor}" />
+                        <TextBlock Text="ESRG" FontSize="9"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                     </StackPanel>
                 </StackPanel>
             </StackPanel>
@@ -147,26 +156,26 @@
                                     IsVisible="{Binding ImagePreview, Converter={x:Static ObjectConverters.IsNull}}">
                             <PathIcon Data="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"
                                       Width="48" Height="48"
-                                      Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                      Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                             <TextBlock Text="Drop image here"
                                        HorizontalAlignment="Center"
                                        Foreground="{DynamicResource SystemControlForegroundBaseMediumHighBrush}"
-                                       Margin="0,16,0,0"/>
+                                       Margin="0,16,0,0" />
                             <TextBlock Text="or click Browse"
                                        HorizontalAlignment="Center"
                                        Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                                       FontSize="12"/>
+                                       FontSize="12" />
                         </StackPanel>
 
                         <!-- Static image preview (non-animated) -->
                         <Image Source="{Binding ImagePreview}"
                                Stretch="Uniform"
-                               IsVisible="{Binding IsStaticImage}"/>
+                               IsVisible="{Binding IsStaticImage}" />
 
                         <!-- Animated GIF preview -->
                         <Image anim:ImageBehavior.AnimatedSource="{Binding GifPath}"
                                Stretch="Uniform"
-                               IsVisible="{Binding IsAnimatedGif}"/>
+                               IsVisible="{Binding IsAnimatedGif}" />
                     </Grid>
                 </Border>
 
@@ -183,17 +192,17 @@
                         <TextBlock Text="🎞️ Filmstrip"
                                    FontSize="11"
                                    Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                                   Margin="0,0,0,4"/>
+                                   Margin="0,0,0,4" />
                         <Image Source="{Binding FilmstripPreview}"
                                Stretch="Uniform"
-                               MaxHeight="90"/>
+                               MaxHeight="90" />
                     </StackPanel>
                 </Border>
             </Grid>
 
             <!-- Right: Results -->
             <Grid Grid.Column="2" RowDefinitions="Auto,2*,Auto,*,Auto">
-                <TextBlock Grid.Row="0" Text="Result" Classes="header"/>
+                <TextBlock Grid.Row="0" Text="Result" Classes="header" />
 
                 <TextBox Grid.Row="1"
                          Text="{Binding ResultText}"
@@ -203,15 +212,15 @@
                          FontFamily="Cascadia Code, Consolas, monospace"
                          FontSize="13"
                          Padding="12"
-                         CornerRadius="8"/>
+                         CornerRadius="8" />
 
                 <!-- Signal Log Header -->
                 <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,12,0,4">
-                    <TextBlock Text="Signal Log" Classes="header" Margin="0"/>
+                    <TextBlock Text="Signal Log" Classes="header" Margin="0" />
                     <TextBlock Text="{Binding SignalLogCount, StringFormat='({0})'}"
                                FontSize="11"
                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                               VerticalAlignment="Center"/>
+                               VerticalAlignment="Center" />
                 </StackPanel>
 
                 <!-- Live Signal Log -->
@@ -232,16 +241,16 @@
                                     <TextBlock Grid.Column="0"
                                                Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss.ff}'}"
                                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                                               Margin="0,0,8,0"/>
+                                               Margin="0,0,8,0" />
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding Message}"
                                                TextTrimming="CharacterEllipsis"
-                                               ToolTip.Tip="{Binding Message}"/>
+                                               ToolTip.Tip="{Binding Message}" />
                                     <TextBlock Grid.Column="2"
                                                Text="{Binding Confidence, StringFormat='{}{0:P0}'}"
                                                Foreground="{Binding ConfidenceColor}"
                                                Margin="8,0,0,0"
-                                               IsVisible="{Binding HasConfidence}"/>
+                                               IsVisible="{Binding HasConfidence}" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -254,9 +263,10 @@
                         HorizontalAlignment="Right"
                         Margin="0,8,0,0">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"
-                                  Width="14" Height="14"/>
-                        <TextBlock Text="Copy"/>
+                        <PathIcon
+                            Data="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"
+                            Width="14" Height="14" />
+                        <TextBlock Text="Copy" />
                     </StackPanel>
                 </Button>
             </Grid>
@@ -280,26 +290,26 @@
                         <TextBlock Text="{Binding SelectedRoute, StringFormat='⚡ {0}'}"
                                    FontWeight="SemiBold"
                                    Foreground="White"
-                                   FontSize="11"/>
+                                   FontSize="11" />
                     </StackPanel>
                 </Border>
 
                 <!-- Status text (center) -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" />
                     <TextBlock Text="{Binding FallbackMode}" FontSize="11" FontStyle="Italic"
                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                               VerticalAlignment="Center"/>
+                               VerticalAlignment="Center" />
                 </StackPanel>
 
                 <!-- Ollama URL (right) -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" IsVisible="{Binding EnableVisionLlm}">
                     <TextBlock Text="Ollama:" VerticalAlignment="Center" FontSize="11"
-                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                     <TextBox Text="{Binding OllamaUrl}"
                              Width="180"
                              FontSize="11"
-                             Padding="4,2"/>
+                             Padding="4,2" />
                 </StackPanel>
             </Grid>
         </Border>

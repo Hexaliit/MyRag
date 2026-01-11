@@ -1,33 +1,39 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
 using LucidRAG.ImageCli.Services;
-using Mostlylucid.DocSummarizer.Images.Services;
-using Mostlylucid.DocSummarizer.Images.Services.Vision;
 using Microsoft.Extensions.Configuration;
+using Mostlylucid.DocSummarizer.Images.Services;
 using Spectre.Console;
 
 namespace LucidRAG.ImageCli.Commands;
 
 /// <summary>
-/// Command for finding and managing duplicate images.
+///     Command for finding and managing duplicate images.
 /// </summary>
 public static class DedupeCommand
 {
-    private static readonly Argument<string> DirectoryArg = new("directory") { Description = "Directory to scan for duplicates" };
+    private static readonly Argument<string> DirectoryArg = new("directory")
+        { Description = "Directory to scan for duplicates" };
 
-    private static readonly Option<int> ThresholdOpt = new("--threshold", "-t") { Description = "Hamming distance threshold (0-64, lower = more strict)", DefaultValueFactory = _ => 5 };
+    private static readonly Option<int> ThresholdOpt = new("--threshold", "-t")
+        { Description = "Hamming distance threshold (0-64, lower = more strict)", DefaultValueFactory = _ => 5 };
 
-    private static readonly Option<string> PatternOpt = new("--pattern", "-p") { Description = "Glob pattern for filtering files", DefaultValueFactory = _ => "**/*" };
+    private static readonly Option<string> PatternOpt = new("--pattern", "-p")
+        { Description = "Glob pattern for filtering files", DefaultValueFactory = _ => "**/*" };
 
-    private static readonly Option<bool> RecursiveOpt = new("--recursive", "-r") { Description = "Scan subdirectories recursively", DefaultValueFactory = _ => true };
+    private static readonly Option<bool> RecursiveOpt = new("--recursive", "-r")
+        { Description = "Scan subdirectories recursively", DefaultValueFactory = _ => true };
 
-    private static readonly Option<DeduplicationAction> ActionOpt = new("--action", "-a") { Description = "Action to perform on duplicates", DefaultValueFactory = _ => DeduplicationAction.Report };
+    private static readonly Option<DeduplicationAction> ActionOpt = new("--action", "-a")
+        { Description = "Action to perform on duplicates", DefaultValueFactory = _ => DeduplicationAction.Report };
 
-    private static readonly Option<string?> MoveToOpt = new("--move-to") { Description = "Directory to move duplicate files to (required for move action)" };
+    private static readonly Option<string?> MoveToOpt = new("--move-to")
+        { Description = "Directory to move duplicate files to (required for move action)" };
 
-    private static readonly Option<bool> DryRunOpt = new("--dry-run") { Description = "Show what would be done without actually doing it", DefaultValueFactory = _ => false };
+    private static readonly Option<bool> DryRunOpt = new("--dry-run")
+        { Description = "Show what would be done without actually doing it", DefaultValueFactory = _ => false };
 
-    private static readonly Option<GroupingStrategy> GroupByOpt = new("--group-by") { Description = "How to group similar images", DefaultValueFactory = _ => GroupingStrategy.Hash };
+    private static readonly Option<GroupingStrategy> GroupByOpt = new("--group-by")
+        { Description = "How to group similar images", DefaultValueFactory = _ => GroupingStrategy.Hash };
 
     public static Command Create()
     {
@@ -75,7 +81,7 @@ public static class DedupeCommand
             // Build service provider
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                .AddJsonFile("appsettings.json", optional: true)
+                .AddJsonFile("appsettings.json", true)
                 .Build();
 
             var services = Program.BuildServiceProvider(configuration);
@@ -90,9 +96,9 @@ public static class DedupeCommand
                 AnsiConsole.MarkupLine($"[cyan]ℹ[/] Scanning directory: {Markup.Escape(directory)}");
 
                 var imageFiles = Directory.GetFiles(
-                    directory,
-                    "*.*",
-                    recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
+                        directory,
+                        "*.*",
+                        recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
                     .Where(f => IsImageFile(f))
                     .ToList();
 
@@ -121,10 +127,7 @@ public static class DedupeCommand
                         var task = ctx.AddTask("[cyan]Calculating perceptual hashes[/]");
                         task.MaxValue = imageFiles.Count;
 
-                        var progress = new Progress<(int Processed, int Total)>(p =>
-                        {
-                            task.Value = p.Processed;
-                        });
+                        var progress = new Progress<(int Processed, int Total)>(p => { task.Value = p.Processed; });
 
                         result = await dedupeService.FindDuplicatesAsync(
                             imageFiles,
@@ -198,11 +201,11 @@ public static class DedupeCommand
         table.AddColumn("Similarity");
         table.AddColumn("Sample Files");
 
-        for (int i = 0; i < topGroups.Count; i++)
+        for (var i = 0; i < topGroups.Count; i++)
         {
             var group = topGroups[i];
             var sizeRange = $"{FormatBytes(group.Images.Min(img => img.FileSize))} - " +
-                          $"{FormatBytes(group.Images.Max(img => img.FileSize))}";
+                            $"{FormatBytes(group.Images.Max(img => img.FileSize))}";
 
             var maxDistance = group.Images.Max(img => img.HammingDistance);
             var similarity = $"{(64 - maxDistance) * 100.0 / 64:F1}%";
@@ -210,10 +213,7 @@ public static class DedupeCommand
             var sampleFiles = string.Join("\n",
                 group.Images.Take(3).Select(img => Path.GetFileName(img.FilePath)));
 
-            if (group.Images.Count > 3)
-            {
-                sampleFiles += $"\n[dim]... and {group.Images.Count - 3} more[/]";
-            }
+            if (group.Images.Count > 3) sampleFiles += $"\n[dim]... and {group.Images.Count - 3} more[/]";
 
             table.AddRow(
                 $"[yellow]{i + 1}[/]",
@@ -224,10 +224,7 @@ public static class DedupeCommand
             );
         }
 
-        if (result.Groups.Count > 20)
-        {
-            table.Caption($"[dim]Showing first 20 of {result.Groups.Count} groups[/]");
-        }
+        if (result.Groups.Count > 20) table.Caption($"[dim]Showing first 20 of {result.Groups.Count} groups[/]");
 
         AnsiConsole.Write(table);
     }
@@ -237,11 +234,12 @@ public static class DedupeCommand
         var message = action switch
         {
             DeduplicationAction.Move => $"Move {result.TotalDuplicates} duplicate files?",
-            DeduplicationAction.Delete => $"[red]DELETE {result.TotalDuplicates} duplicate files? THIS CANNOT BE UNDONE![/]",
+            DeduplicationAction.Delete =>
+                $"[red]DELETE {result.TotalDuplicates} duplicate files? THIS CANNOT BE UNDONE![/]",
             _ => "Continue?"
         };
 
-        return AnsiConsole.Confirm(message, defaultValue: false);
+        return AnsiConsole.Confirm(message, false);
     }
 
     private static async Task PerformActionOnGroups(
@@ -304,7 +302,7 @@ public static class DedupeCommand
     {
         string[] sizes = ["B", "KB", "MB", "GB", "TB"];
         double len = bytes;
-        int order = 0;
+        var order = 0;
 
         while (len >= 1024 && order < sizes.Length - 1)
         {
@@ -327,6 +325,6 @@ file static class ServiceProviderExtensions
     public static T GetRequiredService<T>(this IServiceProvider services) where T : notnull
     {
         return (T)(services.GetService(typeof(T)) ??
-            throw new InvalidOperationException($"Service of type {typeof(T)} not found"));
+                   throw new InvalidOperationException($"Service of type {typeof(T)} not found"));
     }
 }

@@ -8,18 +8,24 @@
         <div class="flex items-center gap-4">
             <!-- Title -->
             <h2 class="font-semibold flex items-center gap-2 shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
                 </svg>
-                <span x-text="currentCollectionId ? collections.find(c => c.id === currentCollectionId)?.name || 'Documents' : 'All Documents'"></span>
+                <span
+                    x-text="currentCollectionId ? collections.find(c => c.id === currentCollectionId)?.name || 'Documents' : 'All Documents'"></span>
             </h2>
 
             <!-- Command Palette Search -->
             <div class="relative flex-1 max-w-xl">
                 <div class="join w-full">
                     <div class="relative flex-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                         </svg>
                         <input type="text"
                                class="input input-bordered w-full pl-9 pr-16"
@@ -28,8 +34,9 @@
                                @@keyup.enter="executeSearch()"
                                @@keyup.escape="clearSearch()"
                                @@focus="showSearchHints = true"
-                               @@blur="setTimeout(() => showSearchHints = false, 200)" />
-                        <kbd class="kbd kbd-sm absolute right-2 top-1/2 -translate-y-1/2 text-base-content/40">Ctrl+K</kbd>
+                               @@blur="setTimeout(() => showSearchHints = false, 200)"/>
+                        <kbd
+                            class="kbd kbd-sm absolute right-2 top-1/2 -translate-y-1/2 text-base-content/40">Ctrl+K</kbd>
                     </div>
                     <button class="btn btn-primary join-item" @@click="executeSearch()" :disabled="!searchQuery.trim()">
                         Search
@@ -62,14 +69,20 @@
 
             <!-- View Toggle -->
             <div class="btn-group shrink-0">
-                <button class="btn btn-sm" :class="explorerViewMode === 'list' ? 'btn-active' : ''" @@click="explorerViewMode = 'list'; localStorage.setItem('explorer-view', 'list')">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                <button class="btn btn-sm" :class="explorerViewMode === 'list' ? 'btn-active' : ''"
+                        @@click="explorerViewMode = 'list'; localStorage.setItem('explorer-view', 'list')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
                     </svg>
                 </button>
-                <button class="btn btn-sm" :class="explorerViewMode === 'grid' ? 'btn-active' : ''" @@click="explorerViewMode = 'grid'; localStorage.setItem('explorer-view', 'grid')">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                <button class="btn btn-sm" :class="explorerViewMode === 'grid' ? 'btn-active' : ''"
+                        @@click="explorerViewMode = 'grid'; localStorage.setItem('explorer-view', 'grid')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
                     </svg>
                 </button>
             </div>
@@ -86,8 +99,9 @@
             <span class="badge badge-sm badge-info gap-1">
                 <span x-text="type"></span>
                 <button class="hover:text-error" @@click="toggleFilter('type', type)">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </span>
@@ -98,8 +112,9 @@
             <span class="badge badge-sm badge-success gap-1">
                 <span x-text="communities.find(c => c.id === currentCommunityId)?.name || 'Community'"></span>
                 <button class="hover:text-error" @@click="currentCommunityId = null; loadExplorerContents()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </span>
@@ -109,9 +124,11 @@
         <template x-for="entityId in [...selectedEntities]" :key="'entity-' + entityId">
             <span class="badge badge-sm badge-secondary gap-1">
                 <span x-text="getEntityName(entityId)"></span>
-                <button class="hover:text-error" @@click="selectedEntities.delete(entityId); selectedEntities = new Set(selectedEntities); loadExplorerContents()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <button class="hover:text-error"
+                        @@click="selectedEntities.delete(entityId); selectedEntities = new Set(selectedEntities); loadExplorerContents()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </span>
@@ -122,8 +139,9 @@
             <span class="badge badge-sm badge-accent gap-1">
                 Has images
                 <button class="hover:text-error" @@click="signals.hasImages = false; loadExplorerContents()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </span>
@@ -132,8 +150,9 @@
             <span class="badge badge-sm badge-accent gap-1">
                 Has tables
                 <button class="hover:text-error" @@click="signals.hasTables = false; loadExplorerContents()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </span>
@@ -141,8 +160,10 @@
 
         <!-- Clear all -->
         <button class="btn btn-ghost btn-xs gap-1 ml-auto" @@click="clearAllFilters()">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                 stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
             </svg>
             Clear all
         </button>
@@ -168,14 +189,19 @@
                 <!-- Empty State -->
                 <template x-if="explorerDocuments.length === 0 && folders.length === 0">
                     <div class="flex flex-col items-center justify-center h-64 text-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-base-content/20 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-base-content/20 mb-4" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/>
                         </svg>
                         <h3 class="text-lg font-semibold text-base-content/60">No documents found</h3>
                         <p class="text-sm text-base-content/40 mt-1">Upload documents or adjust your filters</p>
-                        <button class="btn btn-primary btn-sm mt-4 gap-2" x-show="canWrite" @@click="$refs.mainFileInput.click()">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        <button class="btn btn-primary btn-sm mt-4 gap-2" x-show="canWrite"
+                                @@click="$refs.mainFileInput.click()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                             </svg>
                             Upload Documents
                         </button>
@@ -190,11 +216,14 @@
                             <div class="card bg-base-200 hover:bg-base-300 cursor-pointer transition-colors"
                                  @@click="navigateToFolder(folder.id)">
                                 <div class="card-body p-4 items-center text-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-warning" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-warning"
+                                         fill="currentColor" viewBox="0 0 24 24">
+                                        <path
+                                            d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                                     </svg>
                                     <h3 class="font-medium text-sm truncate w-full" x-text="folder.name"></h3>
-                                    <p class="text-xs text-base-content/50" x-text="folder.documentCount + ' files'"></p>
+                                    <p class="text-xs text-base-content/50"
+                                       x-text="folder.documentCount + ' files'"></p>
                                 </div>
                             </div>
                         </template>
@@ -207,18 +236,23 @@
                                  @@dblclick="openDocument(doc.id)">
                                 <div class="card-body p-4 items-center text-center">
                                     <div class="relative">
-                                        <span x-html="getFileIcon(doc.mimeType || doc.name)" class="h-12 w-12 text-base-content/60"></span>
+                                        <span x-html="getFileIcon(doc.mimeType || doc.name)"
+                                              class="h-12 w-12 text-base-content/60"></span>
                                         <template x-if="selectedDocIds.has(doc.id)">
                                             <div class="absolute -top-1 -right-1 bg-primary rounded-full p-0.5">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-primary-content" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                                <svg xmlns="http://www.w3.org/2000/svg"
+                                                     class="h-3 w-3 text-primary-content" fill="none"
+                                                     viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                          stroke-width="2" d="M5 13l4 4L19 7"/>
                                                 </svg>
                                             </div>
                                         </template>
                                     </div>
                                     <h3 class="font-medium text-sm truncate w-full" x-text="doc.name"></h3>
                                     <div class="flex items-center gap-1">
-                                        <span class="badge badge-xs" :class="getStatusBadgeClass(doc.status)" x-text="doc.status"></span>
+                                        <span class="badge badge-xs" :class="getStatusBadgeClass(doc.status)"
+                                              x-text="doc.status"></span>
                                     </div>
                                 </div>
                             </div>
@@ -231,35 +265,42 @@
                     <div class="space-y-1">
                         <!-- Folders -->
                         <template x-for="folder in folders" :key="'folder-' + folder.id">
-                            <div class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 cursor-pointer transition-colors"
-                                 @@click="navigateToFolder(folder.id)">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-warning shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                            <div
+                                class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 cursor-pointer transition-colors"
+                                @@click="navigateToFolder(folder.id)">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-warning shrink-0"
+                                     fill="currentColor" viewBox="0 0 24 24">
+                                    <path
+                                        d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                                 </svg>
                                 <div class="flex-1 min-w-0">
                                     <h3 class="font-medium truncate" x-text="folder.name"></h3>
                                 </div>
-                                <span class="text-sm text-base-content/50" x-text="folder.documentCount + ' files'"></span>
+                                <span class="text-sm text-base-content/50"
+                                      x-text="folder.documentCount + ' files'"></span>
                             </div>
                         </template>
 
                         <!-- Documents -->
                         <template x-for="doc in explorerDocuments" :key="'doc-' + doc.id">
-                            <div class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 cursor-pointer transition-colors"
-                                 :class="selectedDocIds.has(doc.id) ? 'bg-primary/10 ring-1 ring-primary' : ''"
-                                 @@click="toggleDocSelection(doc.id)"
-                                 @@dblclick="openDocument(doc.id)">
+                            <div
+                                class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 cursor-pointer transition-colors"
+                                :class="selectedDocIds.has(doc.id) ? 'bg-primary/10 ring-1 ring-primary' : ''"
+                                @@click="toggleDocSelection(doc.id)"
+                                @@dblclick="openDocument(doc.id)">
                                 <div class="form-control">
                                     <input type="checkbox" class="checkbox checkbox-primary checkbox-sm"
                                            :checked="selectedDocIds.has(doc.id)"
-                                           @@click.stop="toggleDocSelection(doc.id)" />
+                                           @@click.stop="toggleDocSelection(doc.id)"/>
                                 </div>
                                 <span x-html="getFileIcon(doc.mimeType || doc.name)" class="h-6 w-6 shrink-0"></span>
                                 <div class="flex-1 min-w-0">
                                     <h3 class="font-medium truncate" x-text="doc.name"></h3>
-                                    <p class="text-xs text-base-content/50 truncate" x-text="doc.originalFilename || ''"></p>
+                                    <p class="text-xs text-base-content/50 truncate"
+                                       x-text="doc.originalFilename || ''"></p>
                                 </div>
-                                <span class="badge badge-sm" :class="getStatusBadgeClass(doc.status)" x-text="doc.status"></span>
+                                <span class="badge badge-sm" :class="getStatusBadgeClass(doc.status)"
+                                      x-text="doc.status"></span>
                                 <span class="text-sm text-base-content/50" x-text="formatFileSize(doc.fileSize)"></span>
                                 <span class="text-sm text-base-content/50" x-text="formatDate(doc.createdAt)"></span>
                             </div>
@@ -281,14 +322,18 @@
         </div>
         <div class="flex items-center gap-2">
             <button class="btn btn-primary btn-sm gap-2" @@click="chatWithSelection()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                 </svg>
                 Chat with Selection
             </button>
             <button class="btn btn-error btn-sm btn-outline gap-2" x-show="canWrite" @@click="deleteSelection()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                 </svg>
                 Delete
             </button>
@@ -296,6 +341,7 @@
     </div>
 
     <!-- Hidden file input -->
-    <input type="file" x-ref="mainFileInput" multiple accept=".pdf,.docx,.doc,.md,.html,.txt,.png,.jpg,.jpeg,.gif,.mp3,.wav,.m4a"
-           class="hidden" @@change="uploadFiles($event.target.files); $event.target.value = ''" />
+    <input type="file" x-ref="mainFileInput" multiple
+           accept=".pdf,.docx,.doc,.md,.html,.txt,.png,.jpg,.jpeg,.gif,.mp3,.wav,.m4a"
+           class="hidden" @@change="uploadFiles($event.target.files); $event.target.value = ''"/>
 </div>

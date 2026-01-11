@@ -1,11 +1,10 @@
 ﻿using Mostlylucid.Shared.Entities;
-using Mostlylucid.Shared.Models.EmailSubscription;
 
 namespace Mostlylucid.Shared.Models.EmailSubscription;
 
 public static class Mapper
 {
-     public static EmailSubscriptionModel FromEntity(this EmailSubscriptionEntity entity)
+    public static EmailSubscriptionModel FromEntity(this EmailSubscriptionEntity entity)
     {
         return new EmailSubscriptionModel
         {
@@ -22,7 +21,7 @@ public static class Mapper
             EmailConfirmed = entity.EmailConfirmed
         };
     }
-    
+
     public static EmailSubscriptionEntity ToEntity(this EmailSubscriptionModel model)
     {
         return new EmailSubscriptionEntity

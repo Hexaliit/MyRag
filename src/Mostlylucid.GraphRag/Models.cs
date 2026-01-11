@@ -11,19 +11,34 @@ public record ChunkResult(string Id, string DocumentId, string Text, int ChunkIn
 public record EntityResult(string Id, string Name, string Type, string? Description, int MentionCount);
 
 public record RelationshipResult(
-    string Id, string SourceEntityId, string TargetEntityId, 
-    string RelationshipType, string? Description, float Weight,
-    string SourceName, string TargetName);
+    string Id,
+    string SourceEntityId,
+    string TargetEntityId,
+    string RelationshipType,
+    string? Description,
+    float Weight,
+    string SourceName,
+    string TargetName);
 
 public record CommunityResult(string Id, int Level, string[] EntityIds, string? Summary);
 
-public record DbStats(long DocumentCount, long ChunkCount, long EntityCount, long RelationshipCount, long CommunityCount);
+public record DbStats(
+    long DocumentCount,
+    long ChunkCount,
+    long EntityCount,
+    long RelationshipCount,
+    long CommunityCount);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Query Types
 // ═══════════════════════════════════════════════════════════════════════════
 
-public enum QueryMode { Local, Global, Drift }
+public enum QueryMode
+{
+    Local,
+    Global,
+    Drift
+}
 
 public record QueryResult(QueryMode Mode, string Query, string Answer)
 {
@@ -51,7 +66,14 @@ public record HierarchicalCommunities(List<CommunityLevel> Levels);
 // Pipeline Types  
 // ═══════════════════════════════════════════════════════════════════════════
 
-public enum PipelinePhase { Indexing, EntityExtraction, CommunityDetection, Summarization, Complete }
+public enum PipelinePhase
+{
+    Indexing,
+    EntityExtraction,
+    CommunityDetection,
+    Summarization,
+    Complete
+}
 
 public record PipelineProgress(PipelinePhase Phase, double Percentage, string Message);
 
@@ -61,23 +83,23 @@ public record ProgressInfo(int Current, int Total, string Message)
 }
 
 /// <summary>
-/// Entity extraction mode - controls how entities are identified.
+///     Entity extraction mode - controls how entities are identified.
 /// </summary>
 public enum ExtractionMode
 {
     /// <summary>
-    /// Heuristic extraction using IDF + structural signals (fast, no LLM per chunk)
+    ///     Heuristic extraction using IDF + structural signals (fast, no LLM per chunk)
     /// </summary>
     Heuristic,
-    
+
     /// <summary>
-    /// LLM-based extraction (MSFT GraphRAG style - 2 LLM calls per chunk)
+    ///     LLM-based extraction (MSFT GraphRAG style - 2 LLM calls per chunk)
     /// </summary>
     Llm,
-    
+
     /// <summary>
-    /// Hybrid: Heuristic extraction for candidates, then LLM enhancement per document.
-    /// Best of both worlds - deterministic coverage with LLM-quality relationships.
+    ///     Hybrid: Heuristic extraction for candidates, then LLM enhancement per document.
+    ///     Best of both worlds - deterministic coverage with LLM-quality relationships.
     /// </summary>
     Hybrid
 }
@@ -92,7 +114,7 @@ public class GraphRagConfig
 }
 
 /// <summary>
-/// Extraction statistics with LLM call tracking for cost comparison
+///     Extraction statistics with LLM call tracking for cost comparison
 /// </summary>
 public record ExtractionResult
 {

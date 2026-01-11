@@ -1,19 +1,20 @@
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
+using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.DocSummarizer.Images.Services;
 
 /// <summary>
-/// Matches signals using glob patterns. Supports:
-/// - Wildcards: motion.* matches motion.direction, motion.magnitude
-/// - Partial: color.dominant* matches color.dominant_rgb, color.dominant_name
-/// - Collections: @motion expands to predefined signal groups
+///     Matches signals using glob patterns. Supports:
+///     - Wildcards: motion.* matches motion.direction, motion.magnitude
+///     - Partial: color.dominant* matches color.dominant_rgb, color.dominant_name
+///     - Collections: @motion expands to predefined signal groups
 /// </summary>
 public static class SignalGlobMatcher
 {
     /// <summary>
-    /// Predefined signal collections for common use cases.
-    /// Use @collection_name to expand.
+    ///     Predefined signal collections for common use cases.
+    ///     Use @collection_name to expand.
     /// </summary>
     private static readonly Dictionary<string, string[]> SignalCollections = new()
     {
@@ -26,14 +27,18 @@ public static class SignalGlobMatcher
         ["faces"] = new[] { "face.*", "vision.llm.entity.person" },
         ["all"] = new[] { "*" },
         // Use case specific collections
-        ["alttext"] = new[] { "vision.llm.caption", "florence2.caption", "vision.llm.text", "ocr.*", "content.extracted_text", "motion.summary", "identity.format", "identity.is_animated" },
+        ["alttext"] = new[]
+        {
+            "vision.llm.caption", "florence2.caption", "vision.llm.text", "ocr.*", "content.extracted_text",
+            "motion.summary", "identity.format", "identity.is_animated"
+        },
         ["tool"] = new[] { "identity.*", "color.dominant*", "motion.*", "vision.llm.*", "florence2.*", "ocr.voting.*" },
         ["caption"] = new[] { "vision.llm.caption", "florence2.caption" }
     };
 
     /// <summary>
-    /// Parse a comma-separated glob pattern string into expanded patterns.
-    /// Handles @collection expansion.
+    ///     Parse a comma-separated glob pattern string into expanded patterns.
+    ///     Handles @collection expansion.
     /// </summary>
     public static List<string> ParseGlobs(string? globString)
     {
@@ -44,41 +49,34 @@ public static class SignalGlobMatcher
         var parts = globString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         foreach (var part in parts)
-        {
             if (part.StartsWith('@'))
             {
                 // Collection reference
                 var collectionName = part[1..].ToLowerInvariant();
-                if (SignalCollections.TryGetValue(collectionName, out var collection))
-                {
-                    patterns.AddRange(collection);
-                }
+                if (SignalCollections.TryGetValue(collectionName, out var collection)) patterns.AddRange(collection);
             }
             else
             {
                 patterns.Add(part);
             }
-        }
 
         return patterns.Distinct().ToList();
     }
 
     /// <summary>
-    /// Check if a signal key matches any of the glob patterns.
-    /// Uses Ephemeral's StringPatternMatcher for consistent glob matching.
+    ///     Check if a signal key matches any of the glob patterns.
+    ///     Uses Ephemeral's StringPatternMatcher for consistent glob matching.
     /// </summary>
     public static bool Matches(string signalKey, IEnumerable<string> patterns)
     {
         foreach (var pattern in patterns)
-        {
             if (StringPatternMatcher.Matches(signalKey, pattern))
                 return true;
-        }
         return false;
     }
 
     /// <summary>
-    /// Filter signals from a profile based on glob patterns.
+    ///     Filter signals from a profile based on glob patterns.
     /// </summary>
     public static IEnumerable<Signal> FilterSignals(DynamicImageProfile profile, string? globString)
     {
@@ -87,8 +85,8 @@ public static class SignalGlobMatcher
     }
 
     /// <summary>
-    /// Get the wave tags that would produce signals matching the globs.
-    /// Uses WaveRegistry to trace dependencies (e.g., motion.* needs identity.is_animated).
+    ///     Get the wave tags that would produce signals matching the globs.
+    ///     Uses WaveRegistry to trace dependencies (e.g., motion.* needs identity.is_animated).
     /// </summary>
     public static HashSet<string> GetRequiredWaveTags(string? globString)
     {
@@ -99,20 +97,15 @@ public static class SignalGlobMatcher
             return new HashSet<string> { "*" };
 
         // Use WaveRegistry to find required waves with dependency tracing
-        var requiredWaves = Analysis.WaveRegistry.GetRequiredWaves(patterns);
+        var requiredWaves = WaveRegistry.GetRequiredWaves(patterns);
         var tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var wave in requiredWaves)
-        {
-            foreach (var tag in wave.Tags)
-            {
-                tags.Add(tag);
-            }
-        }
+        foreach (var tag in wave.Tags)
+            tags.Add(tag);
 
         // Fallback: if WaveRegistry didn't find anything, use prefix mapping
         if (tags.Count == 0)
-        {
             foreach (var pattern in patterns)
             {
                 var prefix = pattern.Split('.')[0].TrimEnd('*');
@@ -150,13 +143,15 @@ public static class SignalGlobMatcher
                         break;
                 }
             }
-        }
 
         return tags;
     }
 
     /// <summary>
-    /// Get available collection names for help display.
+    ///     Get available collection names for help display.
     /// </summary>
-    public static IReadOnlyDictionary<string, string[]> GetCollections() => SignalCollections;
+    public static IReadOnlyDictionary<string, string[]> GetCollections()
+    {
+        return SignalCollections;
+    }
 }

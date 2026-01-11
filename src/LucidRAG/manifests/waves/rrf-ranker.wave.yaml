@@ -45,7 +45,7 @@ emits:
   on_complete:
     - key: retrieval.rrf.final_score
       type: number
-      confidence_range: [0.0, 1.0]
+      confidence_range: [ 0.0, 1.0 ]
     - key: retrieval.rrf.rank
       type: number
     - key: retrieval.rrf.completed

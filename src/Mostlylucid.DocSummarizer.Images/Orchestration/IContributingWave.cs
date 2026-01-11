@@ -6,7 +6,6 @@ namespace Mostlylucid.DocSummarizer.Images.Orchestration;
 ///     A wave that emits contributions (evidence) to the image analysis ledger.
 ///     Part of the blackboard architecture - waves contribute evidence,
 ///     the orchestrator aggregates into a final profile.
-///
 ///     This follows the BotDetection IContributingDetector pattern.
 /// </summary>
 public interface IContributingWave

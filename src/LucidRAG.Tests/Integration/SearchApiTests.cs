@@ -7,13 +7,13 @@ using FluentAssertions;
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Integration tests for the Search API (standalone search without conversation memory)
+///     Integration tests for the Search API (standalone search without conversation memory)
 /// </summary>
 [Collection("Integration")]
 public class SearchApiTests : IAsyncLifetime
 {
-    private readonly TestWebApplicationFactory _factory;
     private readonly HttpClient _client;
+    private readonly TestWebApplicationFactory _factory;
 
     public SearchApiTests(TestWebApplicationFactory factory)
     {
@@ -250,13 +250,16 @@ public class SearchApiTests : IAsyncLifetime
     public async Task Search_WithCollectionId_FiltersResults()
     {
         // Arrange - Create collection and add document
-        var collectionResponse = await _client.PostAsJsonAsync("/api/collections", new { name = "Search Filter Collection" });
+        var collectionResponse =
+            await _client.PostAsJsonAsync("/api/collections", new { name = "Search Filter Collection" });
         var collectionResult = await collectionResponse.Content.ReadFromJsonAsync<JsonElement>();
         var collectionId = collectionResult.GetProperty("id").GetString();
 
         // Upload document to collection
         var docContent = new MultipartFormDataContent();
-        docContent.Add(new StringContent("# Filtered Content\n\nThis is unique filtered content about zebras.", Encoding.UTF8), "file", "filtered.md");
+        docContent.Add(
+            new StringContent("# Filtered Content\n\nThis is unique filtered content about zebras.", Encoding.UTF8),
+            "file", "filtered.md");
         docContent.Add(new StringContent(collectionId!), "collectionId");
         var docResponse = await _client.PostAsync("/api/documents/upload", docContent);
         var docResult = await docResponse.Content.ReadFromJsonAsync<JsonElement>();
@@ -289,10 +292,8 @@ public class SearchApiTests : IAsyncLifetime
         var documents = listResult.GetProperty("documents");
 
         if (documents.GetArrayLength() == 0)
-        {
             // Skip if no documents
             return;
-        }
 
         var docId = documents[0].GetProperty("id").GetString()!;
 

@@ -1,22 +1,25 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Simple disk-based cache for Docling chunks keyed by file hash.
-/// Supports lazy content loading to reduce memory usage for large documents.
+///     Simple disk-based cache for Docling chunks keyed by file hash.
+///     Supports lazy content loading to reduce memory usage for large documents.
 /// </summary>
 public class ChunkCacheService
 {
     private readonly ChunkCacheConfig _config;
-    private readonly bool _verbose;
+
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.General)
     {
         WriteIndented = false,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
+
+    private readonly bool _verbose;
 
     public ChunkCacheService(ChunkCacheConfig config, bool verbose = false)
     {
@@ -29,10 +32,11 @@ public class ChunkCacheService
     public bool Enabled => _config.EnableChunkCache;
 
     /// <summary>
-    /// Try to load cached chunks for a document if the file hash matches.
-    /// Returns a ChunkStore that provides lazy or eager access to chunks.
+    ///     Try to load cached chunks for a document if the file hash matches.
+    ///     Returns a ChunkStore that provides lazy or eager access to chunks.
     /// </summary>
-    public async Task<CachedChunkStore?> TryLoadStoreAsync(string docId, string fileHash, CancellationToken ct = default)
+    public async Task<CachedChunkStore?> TryLoadStoreAsync(string docId, string fileHash,
+        CancellationToken ct = default)
     {
         if (!Enabled) return null;
 
@@ -41,17 +45,15 @@ public class ChunkCacheService
         var contentDir = basePath + "_content";
 
         if (File.Exists(metadataPath) && Directory.Exists(contentDir))
-        {
             return await TryLoadV2StoreAsync(metadataPath, contentDir, fileHash, ct);
-        }
 
         return null;
     }
 
     /// <summary>
-    /// Try to load cached chunks for a document if the file hash matches.
-    /// For backward compatibility - returns List&lt;DocumentChunk&gt; with all content loaded.
-    /// Prefer TryLoadStoreAsync for memory-efficient access.
+    ///     Try to load cached chunks for a document if the file hash matches.
+    ///     For backward compatibility - returns List&lt;DocumentChunk&gt; with all content loaded.
+    ///     Prefer TryLoadStoreAsync for memory-efficient access.
     /// </summary>
     public async Task<List<DocumentChunk>?> TryLoadAsync(string docId, string fileHash, CancellationToken ct = default)
     {
@@ -60,9 +62,10 @@ public class ChunkCacheService
     }
 
     /// <summary>
-    /// Load cache: metadata JSON + separate content files
+    ///     Load cache: metadata JSON + separate content files
     /// </summary>
-    private async Task<CachedChunkStore?> TryLoadV2StoreAsync(string metadataPath, string contentDir, string fileHash, CancellationToken ct)
+    private async Task<CachedChunkStore?> TryLoadV2StoreAsync(string metadataPath, string contentDir, string fileHash,
+        CancellationToken ct)
     {
         try
         {
@@ -101,18 +104,16 @@ public class ChunkCacheService
         }
         catch (Exception ex)
         {
-            if (_verbose)
-            {
-                Console.WriteLine($"[Cache] Failed to load cache: {ex.Message}");
-            }
+            if (_verbose) Console.WriteLine($"[Cache] Failed to load cache: {ex.Message}");
             return null;
         }
     }
 
     /// <summary>
-    /// Persist chunks for future runs.
+    ///     Persist chunks for future runs.
     /// </summary>
-    public async Task SaveAsync(string docId, string fileHash, List<DocumentChunk> chunks, CancellationToken ct = default)
+    public async Task SaveAsync(string docId, string fileHash, List<DocumentChunk> chunks,
+        CancellationToken ct = default)
     {
         if (!Enabled || chunks.Count == 0) return;
 
@@ -162,7 +163,7 @@ public class ChunkCacheService
     }
 
     /// <summary>
-    /// Remove cache files older than retention window.
+    ///     Remove cache files older than retention window.
     /// </summary>
     public void CleanupExpired()
     {
@@ -171,10 +172,9 @@ public class ChunkCacheService
         if (!Directory.Exists(dir)) return;
 
         var cutoff = DateTimeOffset.UtcNow.AddDays(-_config.RetentionDays);
-        
+
         // Clean up expired cache entries
         foreach (var file in Directory.EnumerateFiles(dir, "*.json"))
-        {
             try
             {
                 var info = new FileInfo(file);
@@ -189,29 +189,28 @@ public class ChunkCacheService
             {
                 // Ignore cleanup issues
             }
-        }
 
         // Clean up orphaned content directories
         foreach (var contentDir in Directory.EnumerateDirectories(dir, "*_content"))
-        {
             try
             {
                 var metadataPath = contentDir.Replace("_content", ".json");
                 if (!File.Exists(metadataPath))
                 {
                     Directory.Delete(contentDir, true);
-                    if (_verbose) Console.WriteLine($"[Cache] Removed orphaned content directory: {Path.GetFileName(contentDir)}");
+                    if (_verbose)
+                        Console.WriteLine(
+                            $"[Cache] Removed orphaned content directory: {Path.GetFileName(contentDir)}");
                 }
             }
             catch
             {
                 // Ignore cleanup issues
             }
-        }
     }
 
     /// <summary>
-    /// Get estimated memory savings from lazy loading for a cached document
+    ///     Get estimated memory savings from lazy loading for a cached document
     /// </summary>
     public long GetEstimatedMemorySavings(string docId, string fileHash)
     {
@@ -265,7 +264,7 @@ public class ChunkCacheService
     }
 
     /// <summary>
-    /// Get base path for cache (without extension)
+    ///     Get base path for cache (without extension)
     /// </summary>
     private string GetCacheBasePath(string docId, string fileHash)
     {
@@ -279,7 +278,8 @@ public class ChunkCacheService
         if (!string.IsNullOrWhiteSpace(_config.CacheDirectory))
             return _config.CacheDirectory!;
 
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".docsummarizer", "chunks");
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".docsummarizer",
+            "chunks");
     }
 
     private void EnsureCacheDirectory()
@@ -305,7 +305,7 @@ public class ChunkCacheService
 #region Cache Entry Models
 
 /// <summary>
-/// Cache metadata entry (content stored in separate files)
+///     Cache metadata entry (content stored in separate files)
 /// </summary>
 public class ChunkCacheMetadata
 {
@@ -318,7 +318,7 @@ public class ChunkCacheMetadata
 }
 
 /// <summary>
-/// Chunk metadata entry (no content - content stored in separate file)
+///     Chunk metadata entry (no content - content stored in separate file)
 /// </summary>
 public class ChunkCacheMetadataEntry
 {
@@ -336,20 +336,20 @@ public class ChunkCacheMetadataEntry
 #region Cached Chunk Store
 
 /// <summary>
-/// Provides access to cached chunks with optional lazy content loading.
-/// Content can be loaded on-demand from disk to reduce memory usage.
+///     Provides access to cached chunks with optional lazy content loading.
+///     Content can be loaded on-demand from disk to reduce memory usage.
 /// </summary>
 public class CachedChunkStore : IDisposable
 {
-    private readonly List<ChunkCacheMetadataEntry> _metadata;
+    private readonly Dictionary<int, string> _contentCache = new();
     private readonly string _contentDir;
     private readonly bool _lazyLoad;
-    private readonly Dictionary<int, string> _contentCache = new();
     private readonly object _lock = new();
+    private readonly List<ChunkCacheMetadataEntry> _metadata;
     private bool _disposed;
 
     /// <summary>
-    /// Create a store from cache metadata
+    ///     Create a store from cache metadata
     /// </summary>
     public CachedChunkStore(List<ChunkCacheMetadataEntry> metadata, string contentDir, bool lazyLoad)
     {
@@ -357,26 +357,23 @@ public class CachedChunkStore : IDisposable
         _contentDir = contentDir;
         _lazyLoad = lazyLoad;
         Count = metadata.Count;
-        
+
         // If not lazy loading, pre-load all content
-        if (!lazyLoad)
-        {
-            PreloadAllContent();
-        }
+        if (!lazyLoad) PreloadAllContent();
     }
 
     /// <summary>
-    /// Number of chunks in the store
+    ///     Number of chunks in the store
     /// </summary>
     public int Count { get; }
 
     /// <summary>
-    /// Whether content is loaded lazily
+    ///     Whether content is loaded lazily
     /// </summary>
     public bool IsLazyLoading => _lazyLoad && _metadata != null;
 
     /// <summary>
-    /// Estimated memory used by cached content (bytes)
+    ///     Estimated memory used by cached content (bytes)
     /// </summary>
     public long CachedContentMemory
     {
@@ -389,8 +386,15 @@ public class CachedChunkStore : IDisposable
         }
     }
 
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _contentCache.Clear();
+        _disposed = true;
+    }
+
     /// <summary>
-    /// Get a chunk by index. Content is loaded on-demand if lazy loading is enabled.
+    ///     Get a chunk by index. Content is loaded on-demand if lazy loading is enabled.
     /// </summary>
     public DocumentChunk Get(int index)
     {
@@ -414,7 +418,7 @@ public class CachedChunkStore : IDisposable
     }
 
     /// <summary>
-    /// Get chunk content by order. Loads from disk if not cached.
+    ///     Get chunk content by order. Loads from disk if not cached.
     /// </summary>
     public string GetContent(int order)
     {
@@ -436,18 +440,16 @@ public class CachedChunkStore : IDisposable
 
         // Cache if we're not in lazy mode (or if explicitly requested)
         if (!_lazyLoad)
-        {
             lock (_lock)
             {
                 _contentCache[order] = content;
             }
-        }
 
         return content;
     }
 
     /// <summary>
-    /// Pre-load content for specific chunks (useful for batch processing)
+    ///     Pre-load content for specific chunks (useful for batch processing)
     /// </summary>
     public void PreloadContent(IEnumerable<int> orders)
     {
@@ -473,7 +475,7 @@ public class CachedChunkStore : IDisposable
     }
 
     /// <summary>
-    /// Release cached content to free memory (content will be reloaded on next access)
+    ///     Release cached content to free memory (content will be reloaded on next access)
     /// </summary>
     public void ReleaseContent()
     {
@@ -484,34 +486,28 @@ public class CachedChunkStore : IDisposable
     }
 
     /// <summary>
-    /// Release content for specific chunks
+    ///     Release content for specific chunks
     /// </summary>
     public void ReleaseContent(IEnumerable<int> orders)
     {
         lock (_lock)
         {
-            foreach (var order in orders)
-            {
-                _contentCache.Remove(order);
-            }
+            foreach (var order in orders) _contentCache.Remove(order);
         }
     }
 
     /// <summary>
-    /// Enumerate all chunks. Content is loaded on-demand.
+    ///     Enumerate all chunks. Content is loaded on-demand.
     /// </summary>
     public IEnumerable<DocumentChunk> Enumerate()
     {
         ThrowIfDisposed();
 
-        for (var i = 0; i < _metadata.Count; i++)
-        {
-            yield return Get(i);
-        }
+        for (var i = 0; i < _metadata.Count; i++) yield return Get(i);
     }
 
     /// <summary>
-    /// Convert to a list. Loads all content into memory.
+    ///     Convert to a list. Loads all content into memory.
     /// </summary>
     public List<DocumentChunk> ToList()
     {
@@ -520,8 +516,8 @@ public class CachedChunkStore : IDisposable
     }
 
     /// <summary>
-    /// Process chunks in batches to limit memory usage.
-    /// Content is loaded for each batch and released after processing.
+    ///     Process chunks in batches to limit memory usage.
+    ///     Content is loaded for each batch and released after processing.
     /// </summary>
     public async Task ProcessInBatchesAsync<T>(
         int batchSize,
@@ -534,7 +530,7 @@ public class CachedChunkStore : IDisposable
         {
             var batch = new List<DocumentChunk>();
             var orders = new List<int>();
-            
+
             for (var j = i; j < Math.Min(i + batchSize, Count); j++)
             {
                 batch.Add(Get(j));
@@ -545,10 +541,7 @@ public class CachedChunkStore : IDisposable
             onBatchComplete?.Invoke(result);
 
             // Release content for processed batch if lazy loading
-            if (_lazyLoad && orders.Count > 0)
-            {
-                ReleaseContent(orders);
-            }
+            if (_lazyLoad && orders.Count > 0) ReleaseContent(orders);
         }
     }
 
@@ -569,13 +562,6 @@ public class CachedChunkStore : IDisposable
     {
         if (_disposed)
             throw new ObjectDisposedException(nameof(CachedChunkStore));
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _contentCache.Clear();
-        _disposed = true;
     }
 }
 

@@ -2,152 +2,160 @@
 
 <table class="table table-sm w-full">
     <thead class="sticky top-0 bg-base-100 z-10">
-        <tr>
-            <th class="w-8">
-                <input type="checkbox"
-                       class="checkbox checkbox-xs"
-                       @@change="$event.target.checked ? selectAll() : clearSelection()" />
-            </th>
-            <th class="cursor-pointer" @@click="setSortBy('name')">
+    <tr>
+        <th class="w-8">
+            <input type="checkbox"
+                   class="checkbox checkbox-xs"
+                   @@change="$event.target.checked ? selectAll() : clearSelection()"/>
+        </th>
+        <th class="cursor-pointer" @@click="setSortBy('name')">
                 <span class="flex items-center gap-1">
                     Name
                     <template x-if="sortBy === 'name'">
                         <span x-text="sortOrder === 'asc' ? '▲' : '▼'" class="text-xs"></span>
                     </template>
                 </span>
-            </th>
-            <th class="w-20">Type</th>
-            <th class="w-32 cursor-pointer" @@click="setSortBy('date')">
+        </th>
+        <th class="w-20">Type</th>
+        <th class="w-32 cursor-pointer" @@click="setSortBy('date')">
                 <span class="flex items-center gap-1">
                     Date
                     <template x-if="sortBy === 'date'">
                         <span x-text="sortOrder === 'asc' ? '▲' : '▼'" class="text-xs"></span>
                     </template>
                 </span>
-            </th>
-            <th class="w-24 cursor-pointer" @@click="setSortBy('size')">
+        </th>
+        <th class="w-24 cursor-pointer" @@click="setSortBy('size')">
                 <span class="flex items-center gap-1">
                     Size
                     <template x-if="sortBy === 'size'">
                         <span x-text="sortOrder === 'asc' ? '▲' : '▼'" class="text-xs"></span>
                     </template>
                 </span>
-            </th>
-            <th class="w-24">Status</th>
-            <th class="w-16"></th>
-        </tr>
+        </th>
+        <th class="w-24">Status</th>
+        <th class="w-16"></th>
+    </tr>
     </thead>
     <tbody>
-        <!-- Folders -->
-        <template x-for="folder in folders" :key="'folder-' + folder.id">
-            <tr class="hover:bg-base-200 cursor-pointer"
-                :class="isSelected('folder', folder.id) ? 'bg-primary/10' : ''"
-                @@click="selectItem('folder', folder.id, $event)"
-                @@dblclick="navigateToFolder(folder.id)"
-                @@contextmenu.prevent="showContextMenu($event, 'folder', folder.id)"
-                draggable="true"
-                @@dragstart="draggedItem = { type: 'folder', id: folder.id }"
-                @@dragover.prevent="dropTargetId = folder.id"
-                @@dragleave="dropTargetId = null"
-                @@drop.prevent="handleDrop($event, folder.id)">
-                <td>
-                    <input type="checkbox"
-                           class="checkbox checkbox-xs"
-                           :checked="isSelected('folder', folder.id)"
-                           @@click.stop />
-                </td>
-                <td>
-                    <div class="flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
-                        </svg>
-                        <span class="truncate" x-text="folder.name"></span>
-                        <span class="badge badge-xs badge-ghost" x-text="folder.itemCount"></span>
-                    </div>
-                </td>
-                <td class="text-base-content/60">Folder</td>
-                <td class="text-base-content/60" x-text="formatDate(folder.updatedAt)"></td>
-                <td class="text-base-content/60">--</td>
-                <td>--</td>
-                <td>
-                    <button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100"
-                            @@click.stop="showContextMenu($event, 'folder', folder.id)">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                        </svg>
-                    </button>
-                </td>
-            </tr>
-        </template>
+    <!-- Folders -->
+    <template x-for="folder in folders" :key="'folder-' + folder.id">
+        <tr class="hover:bg-base-200 cursor-pointer"
+            :class="isSelected('folder', folder.id) ? 'bg-primary/10' : ''"
+            @@click="selectItem('folder', folder.id, $event)"
+            @@dblclick="navigateToFolder(folder.id)"
+            @@contextmenu.prevent="showContextMenu($event, 'folder', folder.id)"
+            draggable="true"
+            @@dragstart="draggedItem = { type: 'folder', id: folder.id }"
+            @@dragover.prevent="dropTargetId = folder.id"
+            @@dragleave="dropTargetId = null"
+            @@drop.prevent="handleDrop($event, folder.id)">
+            <td>
+                <input type="checkbox"
+                       class="checkbox checkbox-xs"
+                       :checked="isSelected('folder', folder.id)"
+                       @@click.stop/>
+            </td>
+            <td>
+                <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning" fill="currentColor"
+                         viewBox="0 0 24 24">
+                        <path
+                            d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                    </svg>
+                    <span class="truncate" x-text="folder.name"></span>
+                    <span class="badge badge-xs badge-ghost" x-text="folder.itemCount"></span>
+                </div>
+            </td>
+            <td class="text-base-content/60">Folder</td>
+            <td class="text-base-content/60" x-text="formatDate(folder.updatedAt)"></td>
+            <td class="text-base-content/60">--</td>
+            <td>--</td>
+            <td>
+                <button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100"
+                        @@click.stop="showContextMenu($event, 'folder', folder.id)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
+                    </svg>
+                </button>
+            </td>
+        </tr>
+    </template>
 
-        <!-- Documents -->
-        <template x-for="doc in documents" :key="'doc-' + doc.id">
-            <tr class="hover:bg-base-200 cursor-pointer group"
-                :class="isSelected('doc', doc.id) ? 'bg-primary/10' : ''"
-                @@click="selectItem('doc', doc.id, $event)"
-                @@dblclick="openDocument(doc.id)"
-                @@contextmenu.prevent="showContextMenu($event, 'doc', doc.id)"
-                draggable="true"
-                @@dragstart="draggedItem = { type: 'doc', id: doc.id }">
-                <td>
-                    <input type="checkbox"
-                           class="checkbox checkbox-xs"
-                           :checked="isSelected('doc', doc.id)"
-                           @@click.stop />
-                </td>
-                <td>
-                    <div class="flex items-center gap-2">
-                        <span x-html="getFileIcon(doc)"></span>
-                        <span class="truncate" x-text="doc.name"></span>
-                        <template x-if="doc.entityCount > 0">
+    <!-- Documents -->
+    <template x-for="doc in documents" :key="'doc-' + doc.id">
+        <tr class="hover:bg-base-200 cursor-pointer group"
+            :class="isSelected('doc', doc.id) ? 'bg-primary/10' : ''"
+            @@click="selectItem('doc', doc.id, $event)"
+            @@dblclick="openDocument(doc.id)"
+            @@contextmenu.prevent="showContextMenu($event, 'doc', doc.id)"
+            draggable="true"
+            @@dragstart="draggedItem = { type: 'doc', id: doc.id }">
+            <td>
+                <input type="checkbox"
+                       class="checkbox checkbox-xs"
+                       :checked="isSelected('doc', doc.id)"
+                       @@click.stop/>
+            </td>
+            <td>
+                <div class="flex items-center gap-2">
+                    <span x-html="getFileIcon(doc)"></span>
+                    <span class="truncate" x-text="doc.name"></span>
+                    <template x-if="doc.entityCount > 0">
                             <span class="badge badge-xs badge-outline"
                                   :title="`${doc.entityCount} entities`"
                                   x-text="doc.entityCount + ' entities'"></span>
-                        </template>
-                        <template x-if="doc.tableCount > 0">
+                    </template>
+                    <template x-if="doc.tableCount > 0">
                             <span class="badge badge-xs badge-outline"
                                   :title="`${doc.tableCount} tables`">
                                 📊 <span x-text="doc.tableCount"></span>
                             </span>
-                        </template>
-                    </div>
-                </td>
-                <td>
-                    <span class="badge badge-xs badge-ghost" x-text="doc.contentType"></span>
-                </td>
-                <td class="text-base-content/60" x-text="formatDate(doc.createdAt)"></td>
-                <td class="text-base-content/60" x-text="formatSize(doc.fileSizeBytes)"></td>
-                <td>
+                    </template>
+                </div>
+            </td>
+            <td>
+                <span class="badge badge-xs badge-ghost" x-text="doc.contentType"></span>
+            </td>
+            <td class="text-base-content/60" x-text="formatDate(doc.createdAt)"></td>
+            <td class="text-base-content/60" x-text="formatSize(doc.fileSizeBytes)"></td>
+            <td>
                     <span class="badge badge-xs"
                           :class="getStatusClass(doc.status)"
                           x-text="doc.status"></span>
-                    <template x-if="doc.status === 'processing'">
-                        <progress class="progress progress-primary w-12 h-1 ml-1"
-                                  :value="doc.progress * 100"
-                                  max="100"></progress>
-                    </template>
-                </td>
-                <td>
-                    <div class="flex gap-1 opacity-0 group-hover:opacity-100">
-                        <button class="btn btn-ghost btn-xs"
-                                @@click.stop="openDocument(doc.id)"
-                                title="View details">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <template x-if="doc.status === 'processing'">
+                    <progress class="progress progress-primary w-12 h-1 ml-1"
+                              :value="doc.progress * 100"
+                              max="100"></progress>
+                </template>
+            </td>
+            <td>
+                <div class="flex gap-1 opacity-0 group-hover:opacity-100">
+                    <button class="btn btn-ghost btn-xs"
+                            @@click.stop="openDocument(doc.id)"
+                            title="View details">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </button>
+                    <template x-if="canWrite">
+                        <button class="btn btn-ghost btn-xs text-error"
+                                @@click.stop="selectedItems.clear(); selectedItems.add('doc:' + doc.id); deleteSelected()"
+                                title="Delete">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M6 18L18 6M6 6l12 12"/>
                             </svg>
                         </button>
-                        <template x-if="canWrite">
-                            <button class="btn btn-ghost btn-xs text-error"
-                                    @@click.stop="selectedItems.clear(); selectedItems.add('doc:' + doc.id); deleteSelected()"
-                                    title="Delete">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </template>
-                    </div>
-                </td>
-            </tr>
-        </template>
+                    </template>
+                </div>
+            </td>
+        </tr>
+    </template>
     </tbody>
 </table>

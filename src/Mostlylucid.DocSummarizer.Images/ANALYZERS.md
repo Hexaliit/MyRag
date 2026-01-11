@@ -1,6 +1,7 @@
 # Image Analyzers Reference
 
-This document provides detailed technical information about each analyzer component in the Mostlylucid.DocSummarizer.Images library.
+This document provides detailed technical information about each analyzer component in the
+Mostlylucid.DocSummarizer.Images library.
 
 ## Overview
 
@@ -27,7 +28,8 @@ graph LR
     style F stroke:#DDA0DD
 ```
 
-All analyzers operate on **downscaled versions** of images (256-512px) for performance, making analysis fast and memory-efficient.
+All analyzers operate on **downscaled versions** of images (256-512px) for performance, making analysis fast and
+memory-efficient.
 
 ---
 
@@ -38,6 +40,7 @@ Extracts color information using quantization-based sampling.
 ### Algorithm
 
 **Quantized Bucket Sampling:**
+
 1. Downsample image to 256x256 for performance
 2. Quantize RGB channels to reduce color space (default: 4 bits per channel = 16 buckets)
 3. Count pixel frequency in each quantized bucket
@@ -46,6 +49,7 @@ Extracts color information using quantization-based sampling.
 6. Generate human-readable color names using nearest CSS color
 
 **Color Grid Generation:**
+
 1. Resize image to NxN grid (default: 3x3 = 9 cells) using Lanczos3 resampling
 2. For each cell, apply same quantization algorithm
 3. Store dominant color and coverage percentage per cell
@@ -70,15 +74,15 @@ config.ColorGrid.SampleStep = 2;        // Pixel sampling step (default: 2)
 
 ### Output Signals
 
-| Signal Key | Type | Confidence | Description |
-|------------|------|------------|-------------|
-| `color.dominant_color_names` | `List<string>` | 0.9 | Color names (e.g., "Navy", "White") |
-| `color.dominant_color_hexes` | `List<string>` | 0.9 | Hex codes (e.g., "#000080") |
-| `color.dominant_color_percentages` | `List<double>` | 0.9 | Coverage percentages |
-| `color.mean_luminance` | `double` | 1.0 | Average brightness (0-255) |
-| `color.mean_saturation` | `double` | 1.0 | Average saturation (0.0-1.0) |
-| `color.is_mostly_grayscale` | `bool` | 1.0 | Grayscale detection flag |
-| `color.grid` | `ColorGrid` | 0.9 | Spatial color distribution |
+| Signal Key                         | Type           | Confidence | Description                         |
+|------------------------------------|----------------|------------|-------------------------------------|
+| `color.dominant_color_names`       | `List<string>` | 0.9        | Color names (e.g., "Navy", "White") |
+| `color.dominant_color_hexes`       | `List<string>` | 0.9        | Hex codes (e.g., "#000080")         |
+| `color.dominant_color_percentages` | `List<double>` | 0.9        | Coverage percentages                |
+| `color.mean_luminance`             | `double`       | 1.0        | Average brightness (0-255)          |
+| `color.mean_saturation`            | `double`       | 1.0        | Average saturation (0.0-1.0)        |
+| `color.is_mostly_grayscale`        | `bool`         | 1.0        | Grayscale detection flag            |
+| `color.grid`                       | `ColorGrid`    | 0.9        | Spatial color distribution          |
 
 ### Example Usage
 
@@ -124,6 +128,7 @@ Measures visual complexity and structure using Sobel edge detection.
 ### Algorithm
 
 **Sobel Edge Detection:**
+
 1. Convert to grayscale luminance
 2. Apply Sobel operators (horizontal and vertical gradient kernels)
 3. Calculate gradient magnitude at each pixel: `sqrt(Gx² + Gy²)`
@@ -131,31 +136,35 @@ Measures visual complexity and structure using Sobel edge detection.
 5. Calculate edge density as percentage of edge pixels
 
 **Straight Edge Detection:**
+
 1. Calculate gradient direction: `atan2(Gy, Gx)`
 2. Classify edges as horizontal, vertical, or diagonal
 3. Compute ratio of straight edges (horizontal + vertical) to total edges
 4. High ratio indicates diagrams, charts, screenshots
 
 **Luminance Entropy:**
+
 1. Build histogram of luminance values (8 bins)
 2. Calculate Shannon entropy: `-Σ(p * log₂(p))`
 3. Range: 0.0 (uniform) to 8.0 (maximum complexity)
 
 ### Metrics
 
-| Metric | Range | Interpretation |
-|--------|-------|----------------|
-| **Edge Density** | 0.0-1.0 | Proportion of pixels with high gradient |
-| **Luminance Entropy** | 0.0-8.0 | Information content of brightness distribution |
-| **Straight Edge Ratio** | 0.0-1.0 | Proportion of horizontal/vertical edges |
+| Metric                  | Range   | Interpretation                                 |
+|-------------------------|---------|------------------------------------------------|
+| **Edge Density**        | 0.0-1.0 | Proportion of pixels with high gradient        |
+| **Luminance Entropy**   | 0.0-8.0 | Information content of brightness distribution |
+| **Straight Edge Ratio** | 0.0-1.0 | Proportion of horizontal/vertical edges        |
 
 **Edge Density Interpretation:**
+
 - **< 0.05**: Very smooth (solid colors, gradients)
 - **0.05-0.15**: Low complexity (simple icons, logos)
 - **0.15-0.30**: Medium complexity (typical photos)
 - **> 0.30**: High complexity (text, detailed images, patterns)
 
 **Straight Edge Ratio Interpretation:**
+
 - **< 0.3**: Natural/organic content (photos, artwork)
 - **0.3-0.6**: Mixed content
 - **> 0.6**: Structured content (diagrams, screenshots, charts)
@@ -169,11 +178,11 @@ config.EdgeDetection.DownsampleSize = 512;       // Processing size (default: 51
 
 ### Output Signals
 
-| Signal Key | Type | Confidence | Description |
-|------------|------|------------|-------------|
-| `quality.edge_density` | `double` | 0.9 | Percentage of edge pixels (0.0-1.0) |
-| `quality.luminance_entropy` | `double` | 0.9 | Shannon entropy (0.0-8.0) |
-| `quality.straight_edge_ratio` | `double` | 0.8 | Proportion of straight edges (0.0-1.0) |
+| Signal Key                    | Type     | Confidence | Description                            |
+|-------------------------------|----------|------------|----------------------------------------|
+| `quality.edge_density`        | `double` | 0.9        | Percentage of edge pixels (0.0-1.0)    |
+| `quality.luminance_entropy`   | `double` | 0.9        | Shannon entropy (0.0-8.0)              |
+| `quality.straight_edge_ratio` | `double` | 0.8        | Proportion of straight edges (0.0-1.0) |
 
 ### Example Usage
 
@@ -222,6 +231,7 @@ Detects sharpness and blur using Laplacian variance.
 ### Algorithm
 
 **Laplacian Variance Method:**
+
 1. Convert to grayscale luminance
 2. Apply Laplacian operator (second derivative kernel):
    ```
@@ -234,6 +244,7 @@ Detects sharpness and blur using Laplacian variance.
 5. Lower variance = smooth edges = blurry image
 
 **Why Laplacian Variance Works:**
+
 - Sharp edges produce high Laplacian responses (large second derivative)
 - Blurry edges produce low Laplacian responses (smooth gradients)
 - Variance measures consistency of edge strength
@@ -241,16 +252,17 @@ Detects sharpness and blur using Laplacian variance.
 
 ### Sharpness Categories
 
-| Laplacian Variance | Category | Description |
-|-------------------|----------|-------------|
-| **< 100** | Very Blurry | Severely out of focus, unusable |
-| **100-300** | Blurry | Soft focus, low detail |
-| **300-500** | Soft | Acceptable for most uses |
-| **500-1000** | Sharp | Good focus, clear details |
-| **1000-3000** | Very Sharp | Excellent focus, high detail |
-| **> 3000** | Extremely Sharp | Professional quality, diagrams, text |
+| Laplacian Variance | Category        | Description                          |
+|--------------------|-----------------|--------------------------------------|
+| **< 100**          | Very Blurry     | Severely out of focus, unusable      |
+| **100-300**        | Blurry          | Soft focus, low detail               |
+| **300-500**        | Soft            | Acceptable for most uses             |
+| **500-1000**       | Sharp           | Good focus, clear details            |
+| **1000-3000**      | Very Sharp      | Excellent focus, high detail         |
+| **> 3000**         | Extremely Sharp | Professional quality, diagrams, text |
 
 **Typical Values by Image Type:**
+
 - **Photos (in focus)**: 800-2000
 - **Photos (slightly soft)**: 300-800
 - **Screenshots/Text**: 2000-5000+
@@ -267,10 +279,10 @@ config.BlurDetection.BlurThreshold = 300;        // Blur/sharp boundary (default
 
 ### Output Signals
 
-| Signal Key | Type | Confidence | Description |
-|------------|------|------------|-------------|
-| `quality.sharpness` | `double` | 0.8 | Laplacian variance (typical: 0-5000+) |
-| `quality.is_blurry` | `bool` | 0.8 | True if sharpness < threshold |
+| Signal Key          | Type     | Confidence | Description                           |
+|---------------------|----------|------------|---------------------------------------|
+| `quality.sharpness` | `double` | 0.8        | Laplacian variance (typical: 0-5000+) |
+| `quality.is_blurry` | `bool`   | 0.8        | True if sharpness < threshold         |
 
 ### Example Usage
 
@@ -328,22 +340,26 @@ Heuristic-based detection of text content **without running OCR**.
 **Multi-Factor Heuristic Scoring (weighted combination):**
 
 #### 1. High-Frequency Edge Density (30% weight)
+
 - Apply high-pass filter to detect fine details
 - Text has high concentration of small edges (letters)
 - Score: edge density in high-frequency range
 
 #### 2. Bimodal Luminance Distribution (25% weight)
+
 - Build luminance histogram
 - Text typically has two peaks: background + foreground
 - Measure histogram bimodality using valley depth
 - Strong bimodality → likely text on background
 
 #### 3. Horizontal Stroke Bias (20% weight)
+
 - Calculate ratio of horizontal to vertical edges
 - Text has slight horizontal bias (baselines, caps)
 - Ratio near 1.0-1.2 indicates text presence
 
 #### 4. Local Contrast Variation (25% weight)
+
 - Measure standard deviation of local contrast
 - Text regions have consistent high contrast
 - Calculate variance of contrast across image regions
@@ -352,14 +368,15 @@ Heuristic-based detection of text content **without running OCR**.
 
 ### Score Interpretation
 
-| Score Range | Likelihood | Typical Content |
-|-------------|-----------|-----------------|
-| **< 0.2** | Low | Photos, artwork, natural images |
-| **0.2-0.4** | Medium | Mixed content, some text |
-| **0.4-0.6** | High | Screenshots, documents |
-| **> 0.6** | Very High | Pure text, memes, slides |
+| Score Range | Likelihood | Typical Content                 |
+|-------------|------------|---------------------------------|
+| **< 0.2**   | Low        | Photos, artwork, natural images |
+| **0.2-0.4** | Medium     | Mixed content, some text        |
+| **0.4-0.6** | High       | Screenshots, documents          |
+| **> 0.6**   | Very High  | Pure text, memes, slides        |
 
 **Typical Values by Image Type:**
+
 - **Photos**: 0.05-0.15
 - **Artwork**: 0.1-0.2
 - **Mixed content**: 0.2-0.4
@@ -376,11 +393,11 @@ config.TextDetection.DownsampleSize = 512;           // Processing size (default
 
 ### Output Signals
 
-| Signal Key | Type | Confidence | Description |
-|------------|------|------------|-------------|
-| `content.text_likeliness` | `double` | 0.7 | Probability of text content (0.0-1.0) |
-| `content.has_text` | `bool` | 0.7 | True if score > threshold |
-| `content.salient_regions` | `List<SaliencyRegion>` | 0.6 | Regions likely containing text |
+| Signal Key                | Type                   | Confidence | Description                           |
+|---------------------------|------------------------|------------|---------------------------------------|
+| `content.text_likeliness` | `double`               | 0.7        | Probability of text content (0.0-1.0) |
+| `content.has_text`        | `bool`                 | 0.7        | True if score > threshold             |
+| `content.salient_regions` | `List<SaliencyRegion>` | 0.6        | Regions likely containing text        |
 
 ### Example Usage
 
@@ -476,18 +493,21 @@ graph TD
 ### Detection Rules
 
 #### Icon Detection
+
 - **Size**: Width or height < 128px
 - **Aspect Ratio**: Near square (0.8-1.2)
 - **Complexity**: Low edge density (< 0.15)
 - **Confidence**: 0.6-0.8
 
 #### Screenshot Detection
+
 - **Text Likeliness**: > 0.5
 - **Sharpness**: > 1500 (very sharp)
 - **Aspect Ratio**: Typical screen ratios (16:9, 16:10, 4:3)
 - **Confidence**: 0.7-0.9
 
 #### Photo Detection
+
 - **Saturation**: > 0.3 (colorful)
 - **Entropy**: > 5.0 (complex)
 - **Edge Pattern**: Natural/organic (straight edge ratio < 0.4)
@@ -495,23 +515,27 @@ graph TD
 - **Confidence**: 0.6-0.9
 
 #### Diagram Detection
+
 - **Saturation**: Low (< 0.2, mostly grayscale)
 - **Straight Edges**: High ratio (> 0.6)
 - **Sharpness**: Very high (> 2000)
 - **Confidence**: 0.5-0.8
 
 #### Chart Detection
+
 - **Similar to Diagram** but with color usage
 - **Grid patterns**: Detected via edge analysis
 - **Confidence**: 0.4-0.7
 
 #### Scanned Document Detection
+
 - **Text Likeliness**: High (> 0.5)
 - **Sharpness**: Moderate (300-1500)
 - **Compression Artifacts**: Present
 - **Confidence**: 0.4-0.6
 
 #### Meme Detection
+
 - **Text Likeliness**: Moderate-High (0.3-0.6)
 - **Aspect Ratio**: Vertical or square
 - **Bright Colors**: High saturation
@@ -519,6 +543,7 @@ graph TD
 - **Confidence**: 0.3-0.6 (least confident)
 
 #### Artwork Detection
+
 - **Saturation**: Variable
 - **Entropy**: High
 - **Edge Pattern**: Artistic (not natural, not geometric)
@@ -543,10 +568,10 @@ public enum ImageType
 
 ### Output Signals
 
-| Signal Key | Type | Confidence | Description |
-|------------|------|------------|-------------|
-| `content.type` | `ImageType` | Variable | Detected image type |
-| `content.type_confidence` | `double` | 0.3-0.9 | Confidence in classification |
+| Signal Key                | Type        | Confidence | Description                  |
+|---------------------------|-------------|------------|------------------------------|
+| `content.type`            | `ImageType` | Variable   | Detected image type          |
+| `content.type_confidence` | `double`    | 0.3-0.9    | Confidence in classification |
 
 ### Example Usage
 
@@ -599,11 +624,13 @@ if (profile.TypeConfidence < 0.5)
 ### Confidence Factors
 
 High confidence (0.7-0.9):
+
 - Clear screenshots with sharp text
 - Obvious photos with natural content
 - Small, simple icons
 
 Low confidence (0.3-0.5):
+
 - Borderline cases (photo vs. artwork)
 - Mixed content (diagram with photos)
 - Unusual aspect ratios or sizes
@@ -621,18 +648,19 @@ Low confidence (0.3-0.5):
 
 **Typical analysis timeline for 1920x1080 image on modern hardware:**
 
-| Component | Time | Memory | Notes |
-|-----------|------|--------|-------|
-| Image Load | ~10ms | ~6MB | SixLabors.ImageSharp |
-| Downsample | ~5ms | ~200KB | To 512x512 for processing |
-| ColorAnalyzer | ~8ms | ~500KB | Includes grid generation |
-| EdgeAnalyzer | ~12ms | ~1MB | Sobel + entropy |
-| BlurAnalyzer | ~6ms | ~1MB | Laplacian variance |
-| TextLikelinessAnalyzer | ~14ms | ~2MB | Multi-factor heuristic |
-| TypeDetector | ~2ms | ~10KB | Decision tree |
-| **Total** | **~50ms** | **~10MB** | Full pipeline |
+| Component              | Time      | Memory    | Notes                     |
+|------------------------|-----------|-----------|---------------------------|
+| Image Load             | ~10ms     | ~6MB      | SixLabors.ImageSharp      |
+| Downsample             | ~5ms      | ~200KB    | To 512x512 for processing |
+| ColorAnalyzer          | ~8ms      | ~500KB    | Includes grid generation  |
+| EdgeAnalyzer           | ~12ms     | ~1MB      | Sobel + entropy           |
+| BlurAnalyzer           | ~6ms      | ~1MB      | Laplacian variance        |
+| TextLikelinessAnalyzer | ~14ms     | ~2MB      | Multi-factor heuristic    |
+| TypeDetector           | ~2ms      | ~10KB     | Decision tree             |
+| **Total**              | **~50ms** | **~10MB** | Full pipeline             |
 
 **Optimization tips:**
+
 - Process in parallel for batch operations
 - Reuse `Image<>` objects when analyzing multiple times
 - Cache results in SignalDatabase for repeated access
@@ -645,16 +673,16 @@ Low confidence (0.3-0.5):
 ### Academic Papers
 
 1. **Laplacian Variance for Blur Detection**
-   - Pech-Pacheco et al. (2000). "Diatom autofocusing in brightfield microscopy"
-   - Method: Variance of Laplacian operator
+    - Pech-Pacheco et al. (2000). "Diatom autofocusing in brightfield microscopy"
+    - Method: Variance of Laplacian operator
 
 2. **Sobel Edge Detection**
-   - Sobel & Feldman (1968). "A 3x3 isotropic gradient operator"
-   - Classic edge detection algorithm
+    - Sobel & Feldman (1968). "A 3x3 isotropic gradient operator"
+    - Classic edge detection algorithm
 
 3. **Shannon Entropy**
-   - Shannon (1948). "A Mathematical Theory of Communication"
-   - Information content measurement
+    - Shannon (1948). "A Mathematical Theory of Communication"
+    - Information content measurement
 
 ### Implementation References
 
@@ -696,6 +724,7 @@ public class CustomAnalyzer : IImageAnalyzer
 ### Contributing Analyzers
 
 We welcome contributions! See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines on:
+
 - Adding new analyzers
 - Improving existing algorithms
 - Performance optimizations

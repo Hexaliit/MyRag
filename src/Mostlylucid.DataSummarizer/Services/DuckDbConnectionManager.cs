@@ -1,28 +1,36 @@
 using DuckDB.NET.Data;
 using Mostlylucid.DataSummarizer.Models;
+using ColumnInfo = Mostlylucid.DataSummarizer.Models.ColumnInfo;
 
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Manages DuckDB connections with extension loading and source attachment.
-/// Supports files, databases, cloud storage, and lakehouse formats.
+///     Manages DuckDB connections with extension loading and source attachment.
+///     Supports files, databases, cloud storage, and lakehouse formats.
 /// </summary>
 public class DuckDbConnectionManager : IDisposable
 {
-    private DuckDBConnection? _connection;
     private readonly HashSet<string> _loadedExtensions = new();
     private readonly bool _verbose;
+    private DuckDBConnection? _connection;
 
     public DuckDbConnectionManager(bool verbose = false)
     {
         _verbose = verbose;
     }
 
-    public DuckDBConnection Connection => _connection 
-        ?? throw new InvalidOperationException("Connection not initialized. Call ConnectAsync first.");
+    public DuckDBConnection Connection => _connection
+                                          ?? throw new InvalidOperationException(
+                                              "Connection not initialized. Call ConnectAsync first.");
+
+    public void Dispose()
+    {
+        _connection?.Dispose();
+        _connection = null;
+    }
 
     /// <summary>
-    /// Initialize connection and prepare for the given data source
+    ///     Initialize connection and prepare for the given data source
     /// </summary>
     public async Task ConnectAsync(DataSource source)
     {
@@ -30,10 +38,7 @@ public class DuckDbConnectionManager : IDisposable
         await _connection.OpenAsync();
 
         // Load required extensions
-        foreach (var ext in source.GetRequiredExtensions())
-        {
-            await LoadExtensionAsync(ext);
-        }
+        foreach (var ext in source.GetRequiredExtensions()) await LoadExtensionAsync(ext);
 
         // Attach database if needed
         var attachStmt = source.GetAttachStatement();
@@ -45,7 +50,7 @@ public class DuckDbConnectionManager : IDisposable
     }
 
     /// <summary>
-    /// Load an extension if not already loaded
+    ///     Load an extension if not already loaded
     /// </summary>
     public async Task LoadExtensionAsync(string extension)
     {
@@ -54,11 +59,11 @@ public class DuckDbConnectionManager : IDisposable
         try
         {
             if (_verbose) Console.WriteLine($"[DuckDB] Loading extension: {extension}");
-            
+
             // Install and load
             await ExecuteAsync($"INSTALL {extension}");
             await ExecuteAsync($"LOAD {extension}");
-            
+
             _loadedExtensions.Add(extension);
         }
         catch (Exception ex)
@@ -69,13 +74,13 @@ public class DuckDbConnectionManager : IDisposable
     }
 
     /// <summary>
-    /// List tables in an attached database
+    ///     List tables in an attached database
     /// </summary>
     public async Task<List<TableInfo>> ListTablesAsync(DataSource source)
     {
         var tables = new List<TableInfo>();
-        
-        string sql = source.Type switch
+
+        var sql = source.Type switch
         {
             DataSourceType.Sqlite => "SELECT name FROM sqlite_db.sqlite_master WHERE type='table'",
             DataSourceType.Postgres => @"
@@ -93,7 +98,7 @@ public class DuckDbConnectionManager : IDisposable
         while (await reader.ReadAsync())
         {
             var info = new TableInfo();
-            
+
             if (source.Type == DataSourceType.Postgres && reader.FieldCount >= 2)
             {
                 info.Schema = reader.GetString(0);
@@ -103,7 +108,7 @@ public class DuckDbConnectionManager : IDisposable
             {
                 info.Name = reader.GetString(0);
             }
-            
+
             tables.Add(info);
         }
 
@@ -111,31 +116,29 @@ public class DuckDbConnectionManager : IDisposable
     }
 
     /// <summary>
-    /// Get column information for a source
+    ///     Get column information for a source
     /// </summary>
-    public async Task<List<Models.ColumnInfo>> DescribeAsync(DataSource source)
+    public async Task<List<ColumnInfo>> DescribeAsync(DataSource source)
     {
-        var columns = new List<Models.ColumnInfo>();
+        var columns = new List<ColumnInfo>();
         var readExpr = source.GetReadExpression();
-        
+
         await using var cmd = _connection!.CreateCommand();
         cmd.CommandText = $"DESCRIBE SELECT * FROM {readExpr}";
         await using var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
-        {
-            columns.Add(new Models.ColumnInfo
+            columns.Add(new ColumnInfo
             {
                 Name = reader.GetString(0),
                 Type = reader.GetString(1)
             });
-        }
 
         return columns;
     }
 
     /// <summary>
-    /// Get row count for a source
+    ///     Get row count for a source
     /// </summary>
     public async Task<long> CountAsync(DataSource source)
     {
@@ -144,13 +147,13 @@ public class DuckDbConnectionManager : IDisposable
     }
 
     /// <summary>
-    /// Run SUMMARIZE on the source
+    ///     Run SUMMARIZE on the source
     /// </summary>
     public async Task<List<Dictionary<string, object?>>> SummarizeAsync(DataSource source)
     {
         var readExpr = source.GetReadExpression();
         var results = new List<Dictionary<string, object?>>();
-        
+
         await using var cmd = _connection!.CreateCommand();
         cmd.CommandText = $"SUMMARIZE SELECT * FROM {readExpr}";
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -162,10 +165,8 @@ public class DuckDbConnectionManager : IDisposable
         while (await reader.ReadAsync())
         {
             var row = new Dictionary<string, object?>();
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
+            for (var i = 0; i < reader.FieldCount; i++)
                 row[columns[i]] = reader.IsDBNull(i) ? null : reader.GetValue(i);
-            }
             results.Add(row);
         }
 
@@ -173,12 +174,12 @@ public class DuckDbConnectionManager : IDisposable
     }
 
     /// <summary>
-    /// Execute a query and return results
+    ///     Execute a query and return results
     /// </summary>
     public async Task<QueryResult> QueryAsync(string sql)
     {
         var result = new QueryResult { Sql = sql };
-        
+
         try
         {
             await using var cmd = _connection!.CreateCommand();
@@ -186,19 +187,13 @@ public class DuckDbConnectionManager : IDisposable
             await using var reader = await cmd.ExecuteReaderAsync();
 
             // Get columns
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                result.Columns.Add(reader.GetName(i));
-            }
+            for (var i = 0; i < reader.FieldCount; i++) result.Columns.Add(reader.GetName(i));
 
             // Get rows (limit to 1000)
             while (await reader.ReadAsync() && result.Rows.Count < 1000)
             {
                 var row = new List<object?>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    row.Add(reader.IsDBNull(i) ? null : reader.GetValue(i));
-                }
+                for (var i = 0; i < reader.FieldCount; i++) row.Add(reader.IsDBNull(i) ? null : reader.GetValue(i));
                 result.Rows.Add(row);
             }
 
@@ -214,7 +209,7 @@ public class DuckDbConnectionManager : IDisposable
     }
 
     /// <summary>
-    /// Validate SQL without executing
+    ///     Validate SQL without executing
     /// </summary>
     public async Task<string?> ValidateSqlAsync(string sql)
     {
@@ -232,13 +227,13 @@ public class DuckDbConnectionManager : IDisposable
     }
 
     /// <summary>
-    /// Get sample rows
+    ///     Get sample rows
     /// </summary>
     public async Task<List<Dictionary<string, string>>> GetSampleRowsAsync(DataSource source, int limit = 5)
     {
         var readExpr = source.GetReadExpression();
         var results = new List<Dictionary<string, string>>();
-        
+
         await using var cmd = _connection!.CreateCommand();
         cmd.CommandText = $"SELECT * FROM {readExpr} LIMIT {limit}";
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -250,10 +245,8 @@ public class DuckDbConnectionManager : IDisposable
         while (await reader.ReadAsync())
         {
             var row = new Dictionary<string, string>();
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
+            for (var i = 0; i < reader.FieldCount; i++)
                 row[columns[i]] = reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "";
-            }
             results.Add(row);
         }
 
@@ -272,22 +265,16 @@ public class DuckDbConnectionManager : IDisposable
         await using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         var result = await cmd.ExecuteScalarAsync();
-        
+
         if (result == null || result == DBNull.Value)
             return default!;
-        
-        return (T)Convert.ChangeType(result, Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T));
-    }
 
-    public void Dispose()
-    {
-        _connection?.Dispose();
-        _connection = null;
+        return (T)Convert.ChangeType(result, Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T));
     }
 }
 
 /// <summary>
-/// Query execution result
+///     Query execution result
 /// </summary>
 public class QueryResult
 {

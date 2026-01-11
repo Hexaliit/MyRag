@@ -5,38 +5,37 @@ using Microsoft.ML.TorchSharp;
 namespace Mostlylucid.GraphRag.Extraction;
 
 /// <summary>
-/// NER service using ML.NET TorchSharp (RoBERTa-based).
-/// More reliable than raw ONNX as it's properly integrated with ML.NET pipeline.
-///
-/// ML.NET 3.0+ provides built-in NER support via TorchSharp bindings.
-/// This uses RoBERTa model which is pre-trained for token classification.
+///     NER service using ML.NET TorchSharp (RoBERTa-based).
+///     More reliable than raw ONNX as it's properly integrated with ML.NET pipeline.
+///     ML.NET 3.0+ provides built-in NER support via TorchSharp bindings.
+///     This uses RoBERTa model which is pre-trained for token classification.
 /// </summary>
 public sealed class TorchSharpNerService : IDisposable
 {
-    private readonly MLContext _mlContext;
-    private readonly string _modelPath;
-    private ITransformer? _trainedModel;
-    private PredictionEngine<NerInput, NerPrediction>? _predictionEngine;
-    private bool _initialized;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
-
     // Standard NER labels (CoNLL-2003 style)
     private static readonly string[] DefaultLabels =
     {
-        "O",        // Outside any entity
-        "B-PER",    // Beginning of person name
-        "I-PER",    // Inside person name
-        "B-ORG",    // Beginning of organization
-        "I-ORG",    // Inside organization
-        "B-LOC",    // Beginning of location
-        "I-LOC",    // Inside location
-        "B-MISC",   // Beginning of miscellaneous entity
-        "I-MISC"    // Inside miscellaneous entity
+        "O", // Outside any entity
+        "B-PER", // Beginning of person name
+        "I-PER", // Inside person name
+        "B-ORG", // Beginning of organization
+        "I-ORG", // Inside organization
+        "B-LOC", // Beginning of location
+        "I-LOC", // Inside location
+        "B-MISC", // Beginning of miscellaneous entity
+        "I-MISC" // Inside miscellaneous entity
     };
+
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly MLContext _mlContext;
+    private readonly string _modelPath;
+    private bool _initialized;
+    private PredictionEngine<NerInput, NerPrediction>? _predictionEngine;
+    private ITransformer? _trainedModel;
 
     public TorchSharpNerService(string? modelPath = null)
     {
-        _mlContext = new MLContext(seed: 42);
+        _mlContext = new MLContext(42);
         _modelPath = modelPath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LucidRAG", "models", "torchsharp-ner");
@@ -44,8 +43,14 @@ public sealed class TorchSharpNerService : IDisposable
         Directory.CreateDirectory(_modelPath);
     }
 
+    public void Dispose()
+    {
+        _predictionEngine?.Dispose();
+        _initLock.Dispose();
+    }
+
     /// <summary>
-    /// Initialize the NER model (loads pre-trained or trains a minimal model).
+    ///     Initialize the NER model (loads pre-trained or trains a minimal model).
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -77,7 +82,7 @@ public sealed class TorchSharpNerService : IDisposable
 
             // Create prediction engine - ignoreMissingColumns=true because inference doesn't have Labels
             _predictionEngine = _mlContext.Model.CreatePredictionEngine<NerInput, NerPrediction>(
-                _trainedModel, ignoreMissingColumns: true);
+                _trainedModel, true);
 
             _initialized = true;
             Console.WriteLine("[TorchSharp NER] Initialized successfully");
@@ -89,7 +94,7 @@ public sealed class TorchSharpNerService : IDisposable
     }
 
     /// <summary>
-    /// Extract named entities from text.
+    ///     Extract named entities from text.
     /// </summary>
     public async Task<List<EntitySpan>> ExtractAsync(string text, CancellationToken ct = default)
     {
@@ -105,7 +110,7 @@ public sealed class TorchSharpNerService : IDisposable
     }
 
     /// <summary>
-    /// Extract entities with profile-aware type mapping.
+    ///     Extract entities with profile-aware type mapping.
     /// </summary>
     public async Task<List<EntityCandidate>> ExtractWithProfileAsync(
         string text,
@@ -136,7 +141,7 @@ public sealed class TorchSharpNerService : IDisposable
         EntitySpan? current = null;
         var currentWords = new List<string>();
 
-        for (int i = 0; i < Math.Min(words.Length, prediction.PredictedLabels.Length); i++)
+        for (var i = 0; i < Math.Min(words.Length, prediction.PredictedLabels.Length); i++)
         {
             var label = prediction.PredictedLabels[i];
             var word = words[i];
@@ -172,6 +177,7 @@ public sealed class TorchSharpNerService : IDisposable
                     current.Text = string.Join(" ", currentWords);
                     entities.Add(current);
                 }
+
                 current = null;
                 currentWords.Clear();
             }
@@ -201,15 +207,14 @@ public sealed class TorchSharpNerService : IDisposable
         // Define the NER training pipeline
         // ML.NET NER requires: MapValueToKey on labels -> NER trainer -> MapKeyToValue
         var pipeline = _mlContext.Transforms.Conversion.MapValueToKey(
-                outputColumnName: "LabelKey",
-                inputColumnName: nameof(NerTrainingData.Labels))
+                "LabelKey",
+                nameof(NerTrainingData.Labels))
             .Append(_mlContext.MulticlassClassification.Trainers.NamedEntityRecognition(
-                labelColumnName: "LabelKey",
-                outputColumnName: "PredictedLabelKey",
-                sentence1ColumnName: nameof(NerTrainingData.Sentence)))
+                "LabelKey",
+                "PredictedLabelKey"))
             .Append(_mlContext.Transforms.Conversion.MapKeyToValue(
-                outputColumnName: nameof(NerPrediction.PredictedLabels),
-                inputColumnName: "PredictedLabelKey"));
+                nameof(NerPrediction.PredictedLabels),
+                "PredictedLabelKey"));
 
         // Train the model
         Console.WriteLine("[TorchSharp NER] Starting training...");
@@ -225,35 +230,43 @@ public sealed class TorchSharpNerService : IDisposable
         // Each example needs sentence and corresponding BIO labels per word
         return new List<NerTrainingData>
         {
-            new() {
+            new()
+            {
                 Sentence = "John Smith works at Microsoft in Seattle",
                 Labels = new[] { "B-PER", "I-PER", "O", "O", "B-ORG", "O", "B-LOC" }
             },
-            new() {
+            new()
+            {
                 Sentence = "Apple announced new products in San Francisco yesterday",
                 Labels = new[] { "B-ORG", "O", "O", "O", "O", "B-LOC", "I-LOC", "O" }
             },
-            new() {
+            new()
+            {
                 Sentence = "The CEO of Google visited the White House",
                 Labels = new[] { "O", "O", "O", "B-ORG", "O", "O", "B-LOC", "I-LOC" }
             },
-            new() {
+            new()
+            {
                 Sentence = "Scott Galloway wrote about Entity Framework and PostgreSQL",
                 Labels = new[] { "B-PER", "I-PER", "O", "O", "B-MISC", "I-MISC", "O", "B-MISC" }
             },
-            new() {
+            new()
+            {
                 Sentence = "Microsoft Azure and Amazon AWS compete in cloud computing",
                 Labels = new[] { "B-ORG", "B-MISC", "O", "B-ORG", "B-MISC", "O", "O", "O", "O" }
             },
-            new() {
+            new()
+            {
                 Sentence = "The Eiffel Tower is located in Paris France",
                 Labels = new[] { "O", "B-LOC", "I-LOC", "O", "O", "O", "B-LOC", "B-LOC" }
             },
-            new() {
+            new()
+            {
                 Sentence = "OpenAI released ChatGPT in November 2022",
                 Labels = new[] { "B-ORG", "O", "B-MISC", "O", "O", "O" }
             },
-            new() {
+            new()
+            {
                 Sentence = "Dr Jane Watson joined IBM Research last month",
                 Labels = new[] { "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O" }
             }
@@ -283,18 +296,13 @@ public sealed class TorchSharpNerService : IDisposable
             if (match != null)
                 return match.Name;
         }
-        return profile.EntityTypes.FirstOrDefault()?.Name ?? "concept";
-    }
 
-    public void Dispose()
-    {
-        _predictionEngine?.Dispose();
-        _initLock.Dispose();
+        return profile.EntityTypes.FirstOrDefault()?.Name ?? "concept";
     }
 }
 
 /// <summary>
-/// Input schema for NER prediction.
+///     Input schema for NER prediction.
 /// </summary>
 public class NerInput
 {
@@ -302,16 +310,15 @@ public class NerInput
 }
 
 /// <summary>
-/// Output schema for NER prediction.
+///     Output schema for NER prediction.
 /// </summary>
 public class NerPrediction
 {
-    [ColumnName("PredictedLabels")]
-    public string[] PredictedLabels { get; set; } = Array.Empty<string>();
+    [ColumnName("PredictedLabels")] public string[] PredictedLabels { get; set; } = Array.Empty<string>();
 }
 
 /// <summary>
-/// Training data schema for NER.
+///     Training data schema for NER.
 /// </summary>
 public class NerTrainingData
 {

@@ -3,23 +3,23 @@ using Mostlylucid.DataSummarizer.Models;
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Compares two data profiles to detect drift, schema changes, and statistical differences.
-/// Useful for monitoring data quality over time or comparing training vs. production data.
+///     Compares two data profiles to detect drift, schema changes, and statistical differences.
+///     Useful for monitoring data quality over time or comparing training vs. production data.
 /// </summary>
 public class ProfileComparator
 {
     /// <summary>
-    /// Default threshold for considering a change significant
+    ///     Default threshold for considering a change significant
     /// </summary>
     public double SignificanceThreshold { get; set; } = 0.1;
 
     /// <summary>
-    /// Compare two profiles and generate a comprehensive drift report
+    ///     Compare two profiles and generate a comprehensive drift report
     /// </summary>
     public ProfileDiffResult Compare(DataProfile baseline, DataProfile current, ProfileDiffOptions? options = null)
     {
         options ??= new ProfileDiffOptions();
-        
+
         var result = new ProfileDiffResult
         {
             BaselineSource = baseline.SourcePath,
@@ -31,30 +31,28 @@ public class ProfileComparator
 
         // Schema comparison
         result.SchemaChanges = CompareSchemas(baseline, current);
-        
+
         // Row count change
         result.RowCountChange = CalculateRowCountChange(baseline.RowCount, current.RowCount);
-        
+
         // Column-level statistical comparison
         var baselineColumns = baseline.Columns.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
         var currentColumns = current.Columns.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
-        
+
         foreach (var colName in baselineColumns.Keys.Intersect(currentColumns.Keys, StringComparer.OrdinalIgnoreCase))
         {
             var baseCol = baselineColumns[colName];
             var currCol = currentColumns[colName];
-            
+
             var colDiff = CompareColumns(baseCol, currCol, options);
             if (colDiff.HasSignificantChanges(options.SignificanceThreshold ?? SignificanceThreshold))
-            {
                 result.ColumnDiffs.Add(colDiff);
-            }
         }
-        
+
         // Calculate overall drift score
         result.OverallDriftScore = CalculateOverallDriftScore(result, options);
         result.HasSignificantDrift = result.OverallDriftScore > (options.DriftThreshold ?? 0.2);
-        
+
         // Generate summary
         result.Summary = GenerateSummary(result);
         result.Recommendations = GenerateRecommendations(result);
@@ -66,28 +64,26 @@ public class ProfileComparator
     {
         var baselineNames = baseline.Columns.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var currentNames = current.Columns.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        
+
         var added = currentNames.Except(baselineNames, StringComparer.OrdinalIgnoreCase).ToList();
         var removed = baselineNames.Except(currentNames, StringComparer.OrdinalIgnoreCase).ToList();
-        
+
         // Type changes
         var typeChanges = new List<TypeChange>();
         var baselineByName = baseline.Columns.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
         var currentByName = current.Columns.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
-        
+
         foreach (var name in baselineNames.Intersect(currentNames, StringComparer.OrdinalIgnoreCase))
         {
             var baseType = baselineByName[name].InferredType;
             var currType = currentByName[name].InferredType;
             if (baseType != currType)
-            {
                 typeChanges.Add(new TypeChange
                 {
                     ColumnName = name,
                     BaselineType = baseType,
                     CurrentType = currType
                 });
-            }
         }
 
         return new SchemaChanges
@@ -102,8 +98,8 @@ public class ProfileComparator
     private RowCountChange CalculateRowCountChange(long baseline, long current)
     {
         var change = current - baseline;
-        var percentChange = baseline > 0 ? (double)change / baseline * 100 : (current > 0 ? 100 : 0);
-        
+        var percentChange = baseline > 0 ? (double)change / baseline * 100 : current > 0 ? 100 : 0;
+
         return new RowCountChange
         {
             Baseline = baseline,
@@ -129,9 +125,11 @@ public class ProfileComparator
             Baseline = baseline.NullPercent,
             Current = current.NullPercent,
             AbsoluteChange = current.NullPercent - baseline.NullPercent,
-            PercentChange = baseline.NullPercent > 0 
-                ? (current.NullPercent - baseline.NullPercent) / baseline.NullPercent * 100 
-                : (current.NullPercent > 0 ? 100 : 0)
+            PercentChange = baseline.NullPercent > 0
+                ? (current.NullPercent - baseline.NullPercent) / baseline.NullPercent * 100
+                : current.NullPercent > 0
+                    ? 100
+                    : 0
         };
 
         // Unique percent change
@@ -141,34 +139,34 @@ public class ProfileComparator
             Baseline = baseline.UniquePercent,
             Current = current.UniquePercent,
             AbsoluteChange = current.UniquePercent - baseline.UniquePercent,
-            PercentChange = baseline.UniquePercent > 0 
-                ? (current.UniquePercent - baseline.UniquePercent) / baseline.UniquePercent * 100 
-                : (current.UniquePercent > 0 ? 100 : 0)
+            PercentChange = baseline.UniquePercent > 0
+                ? (current.UniquePercent - baseline.UniquePercent) / baseline.UniquePercent * 100
+                : current.UniquePercent > 0
+                    ? 100
+                    : 0
         };
 
         // Numeric stats comparison
         if (baseline.InferredType == ColumnType.Numeric && baseline.Mean.HasValue && current.Mean.HasValue)
         {
             diff.NumericChanges = CompareNumericStats(baseline, current);
-            
+
             // Calculate PSI for numeric columns (approximate using mean/stddev shift)
             if (baseline.StdDev.HasValue && current.StdDev.HasValue && baseline.StdDev > 0)
-            {
                 diff.Psi = CalculateApproximatePsi(baseline, current);
-            }
-            
+
             // Also compute KS distance (quantile-based approximation)
             var ksDistance = DistanceMetrics.ApproximateKolmogorovSmirnov(baseline, current);
             diff.KsDistance = ksDistance;
         }
 
         // Categorical distribution comparison
-        if (baseline.InferredType == ColumnType.Categorical && 
+        if (baseline.InferredType == ColumnType.Categorical &&
             baseline.TopValues?.Count > 0 && current.TopValues?.Count > 0)
         {
             diff.CategoricalChanges = CompareCategoricalDistribution(baseline.TopValues, current.TopValues);
             diff.Psi = CalculateCategoricalPsi(baseline.TopValues, current.TopValues);
-            
+
             // Also compute JS divergence
             var pDist = baseline.TopValues.ToDictionary(v => v.Value, v => v.Percent / 100.0);
             var qDist = current.TopValues.ToDictionary(v => v.Value, v => v.Percent / 100.0);
@@ -176,10 +174,7 @@ public class ProfileComparator
         }
 
         // Date range changes
-        if (baseline.InferredType == ColumnType.DateTime)
-        {
-            diff.DateRangeChanges = CompareDateRanges(baseline, current);
-        }
+        if (baseline.InferredType == ColumnType.DateTime) diff.DateRangeChanges = CompareDateRanges(baseline, current);
 
         return diff;
     }
@@ -187,36 +182,24 @@ public class ProfileComparator
     private NumericChanges CompareNumericStats(ColumnProfile baseline, ColumnProfile current)
     {
         var changes = new NumericChanges();
-        
+
         if (baseline.Mean.HasValue && current.Mean.HasValue)
-        {
             changes.MeanChange = CreateMetricChange("Mean", baseline.Mean.Value, current.Mean.Value);
-        }
-        
+
         if (baseline.Median.HasValue && current.Median.HasValue)
-        {
             changes.MedianChange = CreateMetricChange("Median", baseline.Median.Value, current.Median.Value);
-        }
-        
+
         if (baseline.StdDev.HasValue && current.StdDev.HasValue)
-        {
             changes.StdDevChange = CreateMetricChange("StdDev", baseline.StdDev.Value, current.StdDev.Value);
-        }
-        
+
         if (baseline.Min.HasValue && current.Min.HasValue)
-        {
             changes.MinChange = CreateMetricChange("Min", baseline.Min.Value, current.Min.Value);
-        }
-        
+
         if (baseline.Max.HasValue && current.Max.HasValue)
-        {
             changes.MaxChange = CreateMetricChange("Max", baseline.Max.Value, current.Max.Value);
-        }
-        
+
         if (baseline.Skewness.HasValue && current.Skewness.HasValue)
-        {
             changes.SkewnessChange = CreateMetricChange("Skewness", baseline.Skewness.Value, current.Skewness.Value);
-        }
 
         return changes;
     }
@@ -229,86 +212,83 @@ public class ProfileComparator
             Baseline = baseline,
             Current = current,
             AbsoluteChange = current - baseline,
-            PercentChange = baseline != 0 ? (current - baseline) / Math.Abs(baseline) * 100 : (current != 0 ? 100 : 0)
+            PercentChange = baseline != 0 ? (current - baseline) / Math.Abs(baseline) * 100 : current != 0 ? 100 : 0
         };
     }
 
     /// <summary>
-    /// Approximate PSI using normalized mean shift
-    /// True PSI requires binned distributions; this is a practical approximation
+    ///     Approximate PSI using normalized mean shift
+    ///     True PSI requires binned distributions; this is a practical approximation
     /// </summary>
     private double CalculateApproximatePsi(ColumnProfile baseline, ColumnProfile current)
     {
         if (!baseline.Mean.HasValue || !current.Mean.HasValue ||
             !baseline.StdDev.HasValue || !current.StdDev.HasValue ||
             baseline.StdDev.Value <= 0)
-        {
             return 0;
-        }
 
         // Standardized mean shift (Cohen's d style)
-        var pooledStd = Math.Sqrt((baseline.StdDev.Value * baseline.StdDev.Value + 
+        var pooledStd = Math.Sqrt((baseline.StdDev.Value * baseline.StdDev.Value +
                                    current.StdDev.Value * current.StdDev.Value) / 2);
-        
+
         if (pooledStd <= 0) return 0;
-        
+
         var meanShift = Math.Abs(current.Mean.Value - baseline.Mean.Value) / pooledStd;
-        
+
         // Variance ratio (F-ratio style)
-        var varianceRatio = Math.Max(current.StdDev.Value, baseline.StdDev.Value) / 
-                           Math.Max(0.001, Math.Min(current.StdDev.Value, baseline.StdDev.Value));
-        
+        var varianceRatio = Math.Max(current.StdDev.Value, baseline.StdDev.Value) /
+                            Math.Max(0.001, Math.Min(current.StdDev.Value, baseline.StdDev.Value));
+
         // Combine into PSI-like score (0-1 scale, >0.2 is significant)
-        var psi = (meanShift * 0.1) + (Math.Log(varianceRatio) * 0.1);
+        var psi = meanShift * 0.1 + Math.Log(varianceRatio) * 0.1;
         return Math.Min(1.0, Math.Max(0, psi));
     }
 
     /// <summary>
-    /// Calculate PSI for categorical distributions
-    /// PSI = Σ (actual% - expected%) * ln(actual% / expected%)
+    ///     Calculate PSI for categorical distributions
+    ///     PSI = Σ (actual% - expected%) * ln(actual% / expected%)
     /// </summary>
     private double CalculateCategoricalPsi(List<ValueCount> baseline, List<ValueCount> current)
     {
         var baselineDict = baseline.ToDictionary(v => v.Value, v => v.Percent / 100.0);
         var currentDict = current.ToDictionary(v => v.Value, v => v.Percent / 100.0);
-        
+
         var allKeys = baselineDict.Keys.Union(currentDict.Keys).ToList();
-        
+
         double psi = 0;
         const double epsilon = 0.0001; // Avoid log(0)
-        
+
         foreach (var key in allKeys)
         {
             var baseProb = baselineDict.GetValueOrDefault(key, epsilon);
             var currProb = currentDict.GetValueOrDefault(key, epsilon);
-            
+
             // Ensure neither is zero
             baseProb = Math.Max(baseProb, epsilon);
             currProb = Math.Max(currProb, epsilon);
-            
+
             psi += (currProb - baseProb) * Math.Log(currProb / baseProb);
         }
-        
+
         return Math.Abs(psi);
     }
 
     private CategoricalChanges CompareCategoricalDistribution(List<ValueCount> baseline, List<ValueCount> current)
     {
         var changes = new CategoricalChanges();
-        
+
         var baselineDict = baseline.ToDictionary(v => v.Value, v => v);
         var currentDict = current.ToDictionary(v => v.Value, v => v);
-        
+
         var allKeys = baselineDict.Keys.Union(currentDict.Keys).ToList();
-        
+
         foreach (var key in allKeys)
         {
             var basePercent = baselineDict.TryGetValue(key, out var bv) ? bv.Percent : 0;
             var currPercent = currentDict.TryGetValue(key, out var cv) ? cv.Percent : 0;
             var change = currPercent - basePercent;
-            
+
             if (Math.Abs(change) >= 5) // At least 5 percentage points change
-            {
                 changes.ValueChanges.Add(new CategoryValueChange
                 {
                     Value = key,
@@ -318,12 +298,11 @@ public class ProfileComparator
                     IsNew = !baselineDict.ContainsKey(key),
                     IsRemoved = !currentDict.ContainsKey(key)
                 });
-            }
         }
-        
+
         // Sort by absolute change magnitude
         changes.ValueChanges = changes.ValueChanges.OrderByDescending(c => Math.Abs(c.Change)).ToList();
-        
+
         return changes;
     }
 
@@ -331,9 +310,7 @@ public class ProfileComparator
     {
         if (!baseline.MinDate.HasValue || !baseline.MaxDate.HasValue ||
             !current.MinDate.HasValue || !current.MaxDate.HasValue)
-        {
             return null;
-        }
 
         return new DateRangeChanges
         {
@@ -351,49 +328,42 @@ public class ProfileComparator
     private double CalculateOverallDriftScore(ProfileDiffResult result, ProfileDiffOptions options)
     {
         var scores = new List<double>();
-        
+
         // Schema changes weight heavily
         if (result.SchemaChanges.HasChanges)
-        {
             scores.Add(0.5 * (result.SchemaChanges.RemovedColumns.Count > 0 ? 1.0 : 0.3));
-        }
-        
+
         // Row count change
         if (result.RowCountChange.IsSignificant)
-        {
             scores.Add(Math.Min(1.0, Math.Abs(result.RowCountChange.PercentChange) / 100.0) * 0.3);
-        }
-        
+
         // Column-level PSI scores
         foreach (var colDiff in result.ColumnDiffs)
-        {
             if (colDiff.Psi.HasValue)
-            {
                 scores.Add(colDiff.Psi.Value);
-            }
-        }
-        
+
         if (scores.Count == 0) return 0;
-        
+
         // Return weighted average, capped at 1.0
-        return Math.Min(1.0, scores.Average() + (result.SchemaChanges.RemovedColumns.Count * 0.1));
+        return Math.Min(1.0, scores.Average() + result.SchemaChanges.RemovedColumns.Count * 0.1);
     }
 
     private string GenerateSummary(ProfileDiffResult result)
     {
         var parts = new List<string>();
-        
+
         // Row count
         if (result.RowCountChange.AbsoluteChange != 0)
         {
             var direction = result.RowCountChange.AbsoluteChange > 0 ? "increased" : "decreased";
-            parts.Add($"Row count {direction} by {Math.Abs(result.RowCountChange.PercentChange):F1}% ({result.BaselineRowCount:N0} → {result.CurrentRowCount:N0})");
+            parts.Add(
+                $"Row count {direction} by {Math.Abs(result.RowCountChange.PercentChange):F1}% ({result.BaselineRowCount:N0} → {result.CurrentRowCount:N0})");
         }
         else
         {
             parts.Add($"Row count unchanged at {result.CurrentRowCount:N0}");
         }
-        
+
         // Schema changes
         if (result.SchemaChanges.HasChanges)
         {
@@ -404,55 +374,41 @@ public class ProfileComparator
             if (result.SchemaChanges.TypeChanges.Count > 0)
                 parts.Add($"{result.SchemaChanges.TypeChanges.Count} column type(s) changed");
         }
-        
+
         // Statistical drift
         var highPsiCols = result.ColumnDiffs.Where(c => c.Psi >= 0.2).ToList();
-        if (highPsiCols.Count > 0)
-        {
-            parts.Add($"{highPsiCols.Count} column(s) with significant distribution drift");
-        }
-        
+        if (highPsiCols.Count > 0) parts.Add($"{highPsiCols.Count} column(s) with significant distribution drift");
+
         return string.Join(". ", parts) + ".";
     }
 
     private List<string> GenerateRecommendations(ProfileDiffResult result)
     {
         var recs = new List<string>();
-        
+
         if (result.SchemaChanges.RemovedColumns.Count > 0)
-        {
-            recs.Add($"CRITICAL: {result.SchemaChanges.RemovedColumns.Count} column(s) removed - verify downstream dependencies");
-        }
-        
+            recs.Add(
+                $"CRITICAL: {result.SchemaChanges.RemovedColumns.Count} column(s) removed - verify downstream dependencies");
+
         if (result.SchemaChanges.TypeChanges.Count > 0)
-        {
-            recs.Add($"WARNING: Column type changes detected - review data pipeline transformations");
-        }
-        
+            recs.Add("WARNING: Column type changes detected - review data pipeline transformations");
+
         if (Math.Abs(result.RowCountChange.PercentChange) > 50)
-        {
             recs.Add($"Large row count change ({result.RowCountChange.PercentChange:F1}%) - investigate data source");
-        }
-        
+
         var driftedCols = result.ColumnDiffs.Where(c => c.Psi >= 0.25).ToList();
         foreach (var col in driftedCols.Take(5))
-        {
             recs.Add($"Column '{col.ColumnName}' has high drift (PSI={col.Psi:F3}) - investigate distribution change");
-        }
-        
+
         var nullIncreaseCols = result.ColumnDiffs
             .Where(c => c.NullPercentChange?.AbsoluteChange > 10)
             .ToList();
         foreach (var col in nullIncreaseCols.Take(3))
-        {
-            recs.Add($"Column '{col.ColumnName}' null rate increased by {col.NullPercentChange!.AbsoluteChange:F1}pp - check data quality");
-        }
-        
-        if (recs.Count == 0)
-        {
-            recs.Add("No significant drift detected - data appears stable");
-        }
-        
+            recs.Add(
+                $"Column '{col.ColumnName}' null rate increased by {col.NullPercentChange!.AbsoluteChange:F1}pp - check data quality");
+
+        if (recs.Count == 0) recs.Add("No significant drift detected - data appears stable");
+
         return recs;
     }
 }
@@ -460,33 +416,33 @@ public class ProfileComparator
 #region Models
 
 /// <summary>
-/// Options for profile comparison
+///     Options for profile comparison
 /// </summary>
 public class ProfileDiffOptions
 {
     /// <summary>
-    /// Threshold for considering a metric change significant (0-1)
+    ///     Threshold for considering a metric change significant (0-1)
     /// </summary>
     public double? SignificanceThreshold { get; set; }
-    
+
     /// <summary>
-    /// Overall drift score threshold for flagging significant drift
+    ///     Overall drift score threshold for flagging significant drift
     /// </summary>
     public double? DriftThreshold { get; set; }
-    
+
     /// <summary>
-    /// Include detailed numeric statistics comparison
+    ///     Include detailed numeric statistics comparison
     /// </summary>
     public bool IncludeDetailedStats { get; set; } = true;
-    
+
     /// <summary>
-    /// Columns to exclude from comparison
+    ///     Columns to exclude from comparison
     /// </summary>
     public List<string>? ExcludeColumns { get; set; }
 }
 
 /// <summary>
-/// Complete result of comparing two profiles
+///     Complete result of comparing two profiles
 /// </summary>
 public class ProfileDiffResult
 {
@@ -495,27 +451,27 @@ public class ProfileDiffResult
     public long BaselineRowCount { get; set; }
     public long CurrentRowCount { get; set; }
     public DateTime ComparedAt { get; set; }
-    
+
     /// <summary>
-    /// Overall drift score (0-1, higher = more drift)
+    ///     Overall drift score (0-1, higher = more drift)
     /// </summary>
     public double OverallDriftScore { get; set; }
-    
+
     /// <summary>
-    /// Whether drift exceeds threshold
+    ///     Whether drift exceeds threshold
     /// </summary>
     public bool HasSignificantDrift { get; set; }
-    
+
     public SchemaChanges SchemaChanges { get; set; } = new();
     public RowCountChange RowCountChange { get; set; } = new();
     public List<ColumnDiff> ColumnDiffs { get; set; } = [];
-    
+
     public string Summary { get; set; } = "";
     public List<string> Recommendations { get; set; } = [];
 }
 
 /// <summary>
-/// Schema-level changes between profiles
+///     Schema-level changes between profiles
 /// </summary>
 public class SchemaChanges
 {
@@ -526,7 +482,7 @@ public class SchemaChanges
 }
 
 /// <summary>
-/// Column type change
+///     Column type change
 /// </summary>
 public class TypeChange
 {
@@ -536,7 +492,7 @@ public class TypeChange
 }
 
 /// <summary>
-/// Row count comparison
+///     Row count comparison
 /// </summary>
 public class RowCountChange
 {
@@ -548,37 +504,37 @@ public class RowCountChange
 }
 
 /// <summary>
-/// Differences for a single column
+///     Differences for a single column
 /// </summary>
 public class ColumnDiff
 {
     public string ColumnName { get; set; } = "";
     public ColumnType ColumnType { get; set; }
-    
+
     /// <summary>
-    /// Population Stability Index (0-1, >0.1 moderate, >0.25 significant drift)
+    ///     Population Stability Index (0-1, >0.1 moderate, >0.25 significant drift)
     /// </summary>
     public double? Psi { get; set; }
-    
+
     /// <summary>
-    /// Kolmogorov-Smirnov distance (quantile-based approximation, 0-1)
-    /// For numeric columns, measures distributional shift
+    ///     Kolmogorov-Smirnov distance (quantile-based approximation, 0-1)
+    ///     For numeric columns, measures distributional shift
     /// </summary>
     public double? KsDistance { get; set; }
-    
+
     /// <summary>
-    /// Jensen-Shannon divergence (0-1, symmetric measure for categorical distributions)
+    ///     Jensen-Shannon divergence (0-1, symmetric measure for categorical distributions)
     /// </summary>
     public double? JsDivergence { get; set; }
-    
+
     public MetricChange? NullPercentChange { get; set; }
     public MetricChange? UniquePercentChange { get; set; }
     public NumericChanges? NumericChanges { get; set; }
     public CategoricalChanges? CategoricalChanges { get; set; }
     public DateRangeChanges? DateRangeChanges { get; set; }
-    
+
     /// <summary>
-    /// Check if column has any changes above threshold
+    ///     Check if column has any changes above threshold
     /// </summary>
     public bool HasSignificantChanges(double threshold)
     {
@@ -591,7 +547,7 @@ public class ColumnDiff
 }
 
 /// <summary>
-/// Change in a single metric
+///     Change in a single metric
 /// </summary>
 public class MetricChange
 {
@@ -603,7 +559,7 @@ public class MetricChange
 }
 
 /// <summary>
-/// Changes in numeric statistics
+///     Changes in numeric statistics
 /// </summary>
 public class NumericChanges
 {
@@ -613,7 +569,7 @@ public class NumericChanges
     public MetricChange? MinChange { get; set; }
     public MetricChange? MaxChange { get; set; }
     public MetricChange? SkewnessChange { get; set; }
-    
+
     public bool HasSignificantChanges(double threshold)
     {
         var percentThreshold = threshold * 100;
@@ -624,7 +580,7 @@ public class NumericChanges
 }
 
 /// <summary>
-/// Changes in categorical distribution
+///     Changes in categorical distribution
 /// </summary>
 public class CategoricalChanges
 {
@@ -632,7 +588,7 @@ public class CategoricalChanges
 }
 
 /// <summary>
-/// Change in a single category value
+///     Change in a single category value
 /// </summary>
 public class CategoryValueChange
 {
@@ -645,7 +601,7 @@ public class CategoryValueChange
 }
 
 /// <summary>
-/// Changes in date ranges
+///     Changes in date ranges
 /// </summary>
 public class DateRangeChanges
 {
@@ -666,16 +622,14 @@ public class DateRangeChanges
 public static class DistanceMetrics
 {
     /// <summary>
-    /// Approximate KS statistic using quantiles (cheap Wasserstein-ish)
-    /// This is much faster than full KS test and works with profile data (no raw samples needed)
+    ///     Approximate KS statistic using quantiles (cheap Wasserstein-ish)
+    ///     This is much faster than full KS test and works with profile data (no raw samples needed)
     /// </summary>
     public static double ApproximateKolmogorovSmirnov(ColumnProfile baseline, ColumnProfile current)
     {
         if (!baseline.Q25.HasValue || !baseline.Median.HasValue || !baseline.Q75.HasValue ||
             !current.Q25.HasValue || !current.Median.HasValue || !current.Q75.HasValue)
-        {
             return 0;
-        }
 
         // Compare CDF at quartile points (cheap approximation)
         var q25Diff = Math.Abs(current.Q25.Value - baseline.Q25.Value);
@@ -699,8 +653,8 @@ public static class DistanceMetrics
     }
 
     /// <summary>
-    /// Jensen-Shannon divergence for categorical distributions
-    /// Symmetric, bounded [0,1], and handles missing categories gracefully
+    ///     Jensen-Shannon divergence for categorical distributions
+    ///     Symmetric, bounded [0,1], and handles missing categories gracefully
     /// </summary>
     public static double JensenShannonDivergence(Dictionary<string, double> p, Dictionary<string, double> q)
     {
@@ -747,8 +701,8 @@ public static class DistanceMetrics
     }
 
     /// <summary>
-    /// Compute weighted drift score across all columns
-    /// Uses KS for numeric, JS for categorical, simple deltas for others
+    ///     Compute weighted drift score across all columns
+    ///     Uses KS for numeric, JS for categorical, simple deltas for others
     /// </summary>
     public static double ComputeWeightedDrift(
         Dictionary<string, ColumnProfile> baseline,
@@ -765,13 +719,10 @@ public static class DistanceMetrics
             if (!current.TryGetValue(colName, out var currCol)) continue;
 
             double distance = 0;
-            double weight = 1.0;
+            var weight = 1.0;
 
             // Higher weight for non-ID columns
-            if (baseCol.InferredType == ColumnType.Id)
-            {
-                weight = 0.1;
-            }
+            if (baseCol.InferredType == ColumnType.Id) weight = 0.1;
 
             switch (baseCol.InferredType)
             {
@@ -786,6 +737,7 @@ public static class DistanceMetrics
                         var qDist = currCol.TopValues.ToDictionary(v => v.Value, v => v.Percent / 100.0);
                         distance = JensenShannonDivergence(pDist, qDist);
                     }
+
                     break;
 
                 default:

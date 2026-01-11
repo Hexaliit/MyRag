@@ -1,8 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
+using LucidRAG.Entities;
 using LucidRAG.Filters;
 using LucidRAG.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LucidRAG.Controllers.Api;
 
@@ -15,7 +15,7 @@ public class FoldersController(
     ILogger<FoldersController> logger) : ControllerBase
 {
     /// <summary>
-    /// List folders in a collection, optionally filtered by parent folder
+    ///     List folders in a collection, optionally filtered by parent folder
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> List(
@@ -47,17 +47,14 @@ public class FoldersController(
     }
 
     /// <summary>
-    /// Get a single folder with details
+    ///     Get a single folder with details
     /// </summary>
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct = default)
     {
         var folder = await folderService.GetFolderAsync(id, ct);
 
-        if (folder is null)
-        {
-            return NotFound(new { error = "Folder not found" });
-        }
+        if (folder is null) return NotFound(new { error = "Folder not found" });
 
         var itemCount = await folderService.GetItemCountAsync(id, ct);
 
@@ -78,16 +75,13 @@ public class FoldersController(
     }
 
     /// <summary>
-    /// Get breadcrumb path to a folder
+    ///     Get breadcrumb path to a folder
     /// </summary>
     [HttpGet("{id:guid}/path")]
     public async Task<IActionResult> GetPath(Guid id, CancellationToken ct = default)
     {
         var folder = await folderService.GetFolderAsync(id, ct);
-        if (folder is null)
-        {
-            return NotFound(new { error = "Folder not found" });
-        }
+        if (folder is null) return NotFound(new { error = "Folder not found" });
 
         var path = await folderService.GetPathAsync(id, folder.CollectionId, ct);
 
@@ -103,19 +97,22 @@ public class FoldersController(
     }
 
     /// <summary>
-    /// Get folder tree for a collection
+    ///     Get folder tree for a collection
     /// </summary>
     [HttpGet("tree")]
     public async Task<IActionResult> GetTree([FromQuery] Guid collectionId, CancellationToken ct = default)
     {
         var tree = await folderService.GetFolderTreeAsync(collectionId, ct);
 
-        object MapFolder(LucidRAG.Entities.FolderEntity f) => new
+        object MapFolder(FolderEntity f)
         {
-            id = f.Id,
-            name = f.Name,
-            children = f.ChildFolders.Select(MapFolder).ToList()
-        };
+            return new
+            {
+                id = f.Id,
+                name = f.Name,
+                children = f.ChildFolders.Select(MapFolder).ToList()
+            };
+        }
 
         return Ok(new
         {
@@ -124,15 +121,12 @@ public class FoldersController(
     }
 
     /// <summary>
-    /// Create a new folder
+    ///     Create a new folder
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateFolderRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            return BadRequest(new { error = "Name is required" });
-        }
+        if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest(new { error = "Name is required" });
 
         try
         {
@@ -163,10 +157,11 @@ public class FoldersController(
     }
 
     /// <summary>
-    /// Update a folder (rename, description, sort order)
+    ///     Update a folder (rename, description, sort order)
     /// </summary>
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateFolderRequest request, CancellationToken ct = default)
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateFolderRequest request,
+        CancellationToken ct = default)
     {
         try
         {
@@ -193,16 +188,13 @@ public class FoldersController(
     }
 
     /// <summary>
-    /// Delete a folder (contents move to parent)
+    ///     Delete a folder (contents move to parent)
     /// </summary>
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct = default)
     {
         var folder = await folderService.GetFolderAsync(id, ct);
-        if (folder is null)
-        {
-            return NotFound(new { error = "Folder not found" });
-        }
+        if (folder is null) return NotFound(new { error = "Folder not found" });
 
         await folderService.DeleteFolderAsync(id, ct);
 
@@ -212,7 +204,7 @@ public class FoldersController(
     }
 
     /// <summary>
-    /// Move a folder to a new parent
+    ///     Move a folder to a new parent
     /// </summary>
     [HttpPost("{id:guid}/move")]
     public async Task<IActionResult> Move(Guid id, [FromBody] MoveFolderRequest request, CancellationToken ct = default)

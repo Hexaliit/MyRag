@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -6,24 +7,23 @@ using System.Text.RegularExpressions;
 namespace Mostlylucid.DocSummarizer.Services.Onnx;
 
 /// <summary>
-/// Unified tokenizer that supports WordPiece, BPE, and Unigram models
-/// by parsing HuggingFace's tokenizer.json format.
+///     Unified tokenizer that supports WordPiece, BPE, and Unigram models
+///     by parsing HuggingFace's tokenizer.json format.
 /// </summary>
 public class HuggingFaceTokenizer
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
+
     private readonly TokenizerConfig _config;
-    private readonly Dictionary<string, int> _vocab;
     private readonly ITokenizerModel _model;
-    private readonly PreTokenizer? _preTokenizer;
     private readonly Normalizer? _normalizer;
-    
-    // Special token IDs
-    public int ClsTokenId { get; }
-    public int SepTokenId { get; }
-    public int PadTokenId { get; }
-    public int UnkTokenId { get; }
-    
-    public TokenizerType Type => _model.Type;
+    private readonly PreTokenizer? _preTokenizer;
+    private readonly Dictionary<string, int> _vocab;
 
     private HuggingFaceTokenizer(
         TokenizerConfig config,
@@ -37,7 +37,7 @@ public class HuggingFaceTokenizer
         _model = model;
         _preTokenizer = preTokenizer;
         _normalizer = normalizer;
-        
+
         // Resolve special tokens
         ClsTokenId = ResolveSpecialToken("[CLS]", "cls_token", 101);
         SepTokenId = ResolveSpecialToken("[SEP]", "sep_token", 102);
@@ -45,8 +45,16 @@ public class HuggingFaceTokenizer
         UnkTokenId = ResolveSpecialToken("[UNK]", "unk_token", 100);
     }
 
+    // Special token IDs
+    public int ClsTokenId { get; }
+    public int SepTokenId { get; }
+    public int PadTokenId { get; }
+    public int UnkTokenId { get; }
+
+    public TokenizerType Type => _model.Type;
+
     /// <summary>
-    /// Load tokenizer from tokenizer.json file
+    ///     Load tokenizer from tokenizer.json file
     /// </summary>
     public static HuggingFaceTokenizer FromFile(string tokenizerJsonPath)
     {
@@ -55,22 +63,18 @@ public class HuggingFaceTokenizer
     }
 
     /// <summary>
-    /// Load tokenizer from JSON string
+    ///     Load tokenizer from JSON string
     /// </summary>
     public static HuggingFaceTokenizer FromJson(string json)
     {
         var config = JsonSerializer.Deserialize<TokenizerConfig>(json, JsonOptions)
-            ?? throw new InvalidOperationException("Failed to parse tokenizer.json");
+                     ?? throw new InvalidOperationException("Failed to parse tokenizer.json");
 
         // Build vocabulary
         var vocab = new Dictionary<string, int>(StringComparer.Ordinal);
         if (config.Model?.Vocab != null)
-        {
             foreach (var kvp in config.Model.Vocab)
-            {
                 vocab[kvp.Key] = kvp.Value;
-            }
-        }
 
         // Create the appropriate tokenizer model
         ITokenizerModel model = config.Model?.Type?.ToLowerInvariant() switch
@@ -82,7 +86,7 @@ public class HuggingFaceTokenizer
         };
 
         // Create pre-tokenizer if specified
-        PreTokenizer? preTokenizer = config.PreTokenizer?.Type?.ToLowerInvariant() switch
+        var preTokenizer = config.PreTokenizer?.Type?.ToLowerInvariant() switch
         {
             "whitespace" => new WhitespacePreTokenizer(),
             "berttokenizer" or "bert" => new BertPreTokenizer(),
@@ -93,7 +97,7 @@ public class HuggingFaceTokenizer
         };
 
         // Create normalizer if specified
-        Normalizer? normalizer = config.Normalizer?.Type?.ToLowerInvariant() switch
+        var normalizer = config.Normalizer?.Type?.ToLowerInvariant() switch
         {
             "bertnormalizer" or "bert" => new BertNormalizer(config.Normalizer),
             "lowercase" => new LowercaseNormalizer(),
@@ -107,7 +111,7 @@ public class HuggingFaceTokenizer
     }
 
     /// <summary>
-    /// Create a fallback tokenizer from vocab.txt (legacy WordPiece format)
+    ///     Create a fallback tokenizer from vocab.txt (legacy WordPiece format)
     /// </summary>
     public static HuggingFaceTokenizer FromVocabFile(string vocabPath)
     {
@@ -122,7 +126,7 @@ public class HuggingFaceTokenizer
     }
 
     /// <summary>
-    /// Decode token IDs back to tokens (for NER span extraction).
+    ///     Decode token IDs back to tokens (for NER span extraction).
     /// </summary>
     public string[] Decode(long[] inputIds)
     {
@@ -134,7 +138,7 @@ public class HuggingFaceTokenizer
     }
 
     /// <summary>
-    /// Encode text to token IDs with attention mask
+    ///     Encode text to token IDs with attention mask
     /// </summary>
     public (long[] InputIds, long[] AttentionMask, long[] TokenTypeIds) Encode(string text, int maxLength)
     {
@@ -146,10 +150,7 @@ public class HuggingFaceTokenizer
 
         // Tokenize each pre-token
         var tokens = new List<string>();
-        foreach (var preToken in preTokens)
-        {
-            tokens.AddRange(_model.Tokenize(preToken));
-        }
+        foreach (var preToken in preTokens) tokens.AddRange(_model.Tokenize(preToken));
 
         // Truncate to fit special tokens
         if (tokens.Count > maxLength - 2)
@@ -170,16 +171,18 @@ public class HuggingFaceTokenizer
         return (inputIds.ToArray(), attentionMask, tokenTypeIds);
     }
 
-    private int GetTokenId(string token) =>
-        _vocab.GetValueOrDefault(token, UnkTokenId);
+    private int GetTokenId(string token)
+    {
+        return _vocab.GetValueOrDefault(token, UnkTokenId);
+    }
 
     private int ResolveSpecialToken(string defaultToken, string configKey, int defaultId)
     {
         // Try to find in added_tokens
-        var addedToken = _config.AddedTokens?.FirstOrDefault(t => 
-            t.Content == defaultToken || 
+        var addedToken = _config.AddedTokens?.FirstOrDefault(t =>
+            t.Content == defaultToken ||
             t.Content?.Contains(configKey, StringComparison.OrdinalIgnoreCase) == true);
-        
+
         if (addedToken != null && addedToken.Id.HasValue)
             return addedToken.Id.Value;
 
@@ -206,6 +209,7 @@ public class HuggingFaceTokenizer
             };
             if (sub != null) tokenizers.Add(sub);
         }
+
         return tokenizers.Count > 0 ? new SequencePreTokenizer(tokenizers) : null;
     }
 
@@ -225,15 +229,9 @@ public class HuggingFaceTokenizer
             };
             if (sub != null) normalizers.Add(sub);
         }
+
         return normalizers.Count > 0 ? new SequenceNormalizer(normalizers) : null;
     }
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true
-    };
 }
 
 #region Tokenizer Type
@@ -256,16 +254,14 @@ public interface ITokenizerModel
 }
 
 /// <summary>
-/// WordPiece tokenizer (BERT-style)
+///     WordPiece tokenizer (BERT-style)
 /// </summary>
 public class WordPieceModel : ITokenizerModel
 {
-    private readonly Dictionary<string, int> _vocab;
     private readonly string _continuingSubwordPrefix;
-    private readonly string _unkToken;
     private readonly int _maxInputCharsPerWord;
-
-    public TokenizerType Type => TokenizerType.WordPiece;
+    private readonly string _unkToken;
+    private readonly Dictionary<string, int> _vocab;
 
     public WordPieceModel(Dictionary<string, int> vocab, ModelConfig? config)
     {
@@ -274,6 +270,8 @@ public class WordPieceModel : ITokenizerModel
         _unkToken = config?.UnkToken ?? "[UNK]";
         _maxInputCharsPerWord = config?.MaxInputCharsPerWord ?? 100;
     }
+
+    public TokenizerType Type => TokenizerType.WordPiece;
 
     public IEnumerable<string> Tokenize(string text)
     {
@@ -295,10 +293,10 @@ public class WordPieceModel : ITokenizerModel
         }
 
         // WordPiece greedy longest-match-first
-        int start = 0;
+        var start = 0;
         while (start < text.Length)
         {
-            int end = text.Length;
+            var end = text.Length;
             string? curSubstr = null;
 
             while (start < end)
@@ -312,6 +310,7 @@ public class WordPieceModel : ITokenizerModel
                     curSubstr = substr;
                     break;
                 }
+
                 end--;
             }
 
@@ -328,37 +327,32 @@ public class WordPieceModel : ITokenizerModel
 }
 
 /// <summary>
-/// BPE tokenizer (GPT-style, RoBERTa, etc.)
+///     BPE tokenizer (GPT-style, RoBERTa, etc.)
 /// </summary>
 public class BpeModel : ITokenizerModel
 {
-    private readonly Dictionary<string, int> _vocab;
+    private readonly string? _endOfWordSuffix;
     private readonly Dictionary<(string, string), int> _merges;
     private readonly string _unkToken;
-    private readonly string? _endOfWordSuffix;
-
-    public TokenizerType Type => TokenizerType.Bpe;
+    private readonly Dictionary<string, int> _vocab;
 
     public BpeModel(Dictionary<string, int> vocab, ModelConfig? config)
     {
         _vocab = vocab;
         _unkToken = config?.UnkToken ?? "<unk>";
         _endOfWordSuffix = config?.EndOfWordSuffix;
-        
+
         // Parse merges
         _merges = new Dictionary<(string, string), int>();
         if (config?.Merges != null)
-        {
-            for (int i = 0; i < config.Merges.Count; i++)
+            for (var i = 0; i < config.Merges.Count; i++)
             {
                 var parts = config.Merges[i].Split(' ');
-                if (parts.Length == 2)
-                {
-                    _merges[(parts[0], parts[1])] = i;
-                }
+                if (parts.Length == 2) _merges[(parts[0], parts[1])] = i;
             }
-        }
     }
+
+    public TokenizerType Type => TokenizerType.Bpe;
 
     public IEnumerable<string> Tokenize(string text)
     {
@@ -367,21 +361,18 @@ public class BpeModel : ITokenizerModel
 
         // Start with characters
         var word = text.ToList().Select(c => c.ToString()).ToList();
-        
+
         // Add end-of-word suffix if specified
-        if (!string.IsNullOrEmpty(_endOfWordSuffix) && word.Count > 0)
-        {
-            word[^1] = word[^1] + _endOfWordSuffix;
-        }
+        if (!string.IsNullOrEmpty(_endOfWordSuffix) && word.Count > 0) word[^1] = word[^1] + _endOfWordSuffix;
 
         // Apply BPE merges
         while (word.Count > 1)
         {
             // Find the highest priority merge
-            int bestIdx = -1;
-            int bestRank = int.MaxValue;
+            var bestIdx = -1;
+            var bestRank = int.MaxValue;
 
-            for (int i = 0; i < word.Count - 1; i++)
+            for (var i = 0; i < word.Count - 1; i++)
             {
                 var pair = (word[i], word[i + 1]);
                 if (_merges.TryGetValue(pair, out var rank) && rank < bestRank)
@@ -401,39 +392,33 @@ public class BpeModel : ITokenizerModel
         }
 
         // Return tokens, replacing unknown ones
-        foreach (var token in word)
-        {
-            yield return _vocab.ContainsKey(token) ? token : _unkToken;
-        }
+        foreach (var token in word) yield return _vocab.ContainsKey(token) ? token : _unkToken;
     }
 }
 
 /// <summary>
-/// Unigram tokenizer (SentencePiece-style, T5, XLNet, etc.)
+///     Unigram tokenizer (SentencePiece-style, T5, XLNet, etc.)
 /// </summary>
 public class UnigramModel : ITokenizerModel
 {
     private readonly Dictionary<string, (int Id, float Score)> _pieces;
-    private readonly string _unkToken;
     private readonly int _unkId;
-
-    public TokenizerType Type => TokenizerType.Unigram;
+    private readonly string _unkToken;
 
     public UnigramModel(Dictionary<string, int> vocab, ModelConfig? config)
     {
         _unkToken = config?.UnkToken ?? "<unk>";
         _unkId = config?.UnkId ?? 0;
-        
+
         // Build pieces with scores
         _pieces = new Dictionary<string, (int, float)>(StringComparer.Ordinal);
-        
+
         // If we have vocab from tokenizer.json, use it
         // Unigram models typically have scores in the vocab
-        foreach (var kvp in vocab)
-        {
-            _pieces[kvp.Key] = (kvp.Value, 0f); // Default score 0
-        }
+        foreach (var kvp in vocab) _pieces[kvp.Key] = (kvp.Value, 0f); // Default score 0
     }
+
+    public TokenizerType Type => TokenizerType.Unigram;
 
     public IEnumerable<string> Tokenize(string text)
     {
@@ -443,57 +428,49 @@ public class UnigramModel : ITokenizerModel
         // Viterbi-based tokenization (simplified)
         // For production, this would use dynamic programming with scores
         var result = TokenizeViterbi(text);
-        foreach (var token in result)
-        {
-            yield return token;
-        }
+        foreach (var token in result) yield return token;
     }
 
     private List<string> TokenizeViterbi(string text)
     {
-        int n = text.Length;
+        var n = text.Length;
         var best = new (float Score, int Prev, string Token)[n + 1];
         best[0] = (0f, -1, "");
 
-        for (int i = 1; i <= n; i++)
+        for (var i = 1; i <= n; i++)
         {
             best[i] = (float.NegativeInfinity, -1, _unkToken);
-            
+
             // Try all possible previous positions
-            for (int j = 0; j < i; j++)
+            for (var j = 0; j < i; j++)
             {
                 var substr = text[j..i];
-                
+
                 if (_pieces.TryGetValue(substr, out var piece))
                 {
-                    float score = best[j].Score + piece.Score;
-                    if (score > best[i].Score)
-                    {
-                        best[i] = (score, j, substr);
-                    }
+                    var score = best[j].Score + piece.Score;
+                    if (score > best[i].Score) best[i] = (score, j, substr);
                 }
                 else if (j == i - 1)
                 {
                     // Single character fallback
-                    float score = best[j].Score - 10f; // Penalty for unknown
-                    if (score > best[i].Score)
-                    {
-                        best[i] = (score, j, substr);
-                    }
+                    var score = best[j].Score - 10f; // Penalty for unknown
+                    if (score > best[i].Score) best[i] = (score, j, substr);
                 }
             }
         }
 
         // Backtrack to get tokens
         var tokens = new List<string>();
-        int pos = n;
+        var pos = n;
         while (pos > 0)
         {
             tokens.Add(best[pos].Token);
             pos = best[pos].Prev;
         }
+
         tokens.Reverse();
-        
+
         return tokens;
     }
 }
@@ -523,24 +500,22 @@ public class BertPreTokenizer : PreTokenizer
     {
         // Split on whitespace
         var words = text.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-        
+
         foreach (var word in words)
         {
             // Split on punctuation while keeping it
             var parts = PunctuationRegex.Split(word);
             foreach (var part in parts)
-            {
                 if (!string.IsNullOrWhiteSpace(part))
                     yield return part;
-            }
         }
     }
 }
 
 public class MetaspacePreTokenizer : PreTokenizer
 {
-    private readonly string _replacement;
     private readonly bool _addPrefixSpace;
+    private readonly string _replacement;
 
     public MetaspacePreTokenizer(PreTokenizerConfig? config)
     {
@@ -552,10 +527,10 @@ public class MetaspacePreTokenizer : PreTokenizer
     {
         if (_addPrefixSpace && !text.StartsWith(' '))
             text = " " + text;
-        
+
         // Replace spaces with special character
         text = text.Replace(" ", _replacement);
-        
+
         yield return text;
     }
 }
@@ -566,12 +541,10 @@ public class ByteLevelPreTokenizer : PreTokenizer
     {
         // GPT-2 style byte-level tokenization
         // Split on whitespace but keep track of leading spaces
-        var pattern = new Regex(@"'s|'t|'re|'ve|'m|'ll|'d| ?\w+| ?\d+| ?[^\s\w\d]+|\s+(?!\S)|\s+", RegexOptions.Compiled);
-        
-        foreach (Match match in pattern.Matches(text))
-        {
-            yield return match.Value;
-        }
+        var pattern = new Regex(@"'s|'t|'re|'ve|'m|'ll|'d| ?\w+| ?\d+| ?[^\s\w\d]+|\s+(?!\S)|\s+",
+            RegexOptions.Compiled);
+
+        foreach (Match match in pattern.Matches(text)) yield return match.Value;
     }
 }
 
@@ -587,12 +560,9 @@ public class SequencePreTokenizer : PreTokenizer
     public override IEnumerable<string> PreTokenize(string text)
     {
         IEnumerable<string> current = new[] { text };
-        
-        foreach (var tokenizer in _tokenizers)
-        {
-            current = current.SelectMany(t => tokenizer.PreTokenize(t));
-        }
-        
+
+        foreach (var tokenizer in _tokenizers) current = current.SelectMany(t => tokenizer.PreTokenize(t));
+
         return current;
     }
 }
@@ -621,28 +591,23 @@ public class BertNormalizer : Normalizer
     {
         // Clean whitespace
         text = Regex.Replace(text, @"\s+", " ").Trim();
-        
+
         // Handle Chinese characters (add spaces around them)
         var sb = new StringBuilder();
         foreach (var c in text)
-        {
             if (IsChineseChar(c))
-            {
                 sb.Append(' ').Append(c).Append(' ');
-            }
             else
-            {
                 sb.Append(c);
-            }
-        }
+
         text = sb.ToString();
-        
+
         if (_lowercase)
             text = text.ToLowerInvariant();
-        
+
         if (_stripAccents)
             text = RemoveAccents(text);
-        
+
         return text;
     }
 
@@ -664,30 +629,36 @@ public class BertNormalizer : Normalizer
         var normalized = text.Normalize(NormalizationForm.FormD);
         var sb = new StringBuilder();
         foreach (var c in normalized)
-        {
-            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != 
-                System.Globalization.UnicodeCategory.NonSpacingMark)
-            {
+            if (CharUnicodeInfo.GetUnicodeCategory(c) !=
+                UnicodeCategory.NonSpacingMark)
                 sb.Append(c);
-            }
-        }
+
         return sb.ToString().Normalize(NormalizationForm.FormC);
     }
 }
 
 public class LowercaseNormalizer : Normalizer
 {
-    public override string Normalize(string text) => text.ToLowerInvariant();
+    public override string Normalize(string text)
+    {
+        return text.ToLowerInvariant();
+    }
 }
 
 public class NfcNormalizer : Normalizer
 {
-    public override string Normalize(string text) => text.Normalize(NormalizationForm.FormC);
+    public override string Normalize(string text)
+    {
+        return text.Normalize(NormalizationForm.FormC);
+    }
 }
 
 public class NfkcNormalizer : Normalizer
 {
-    public override string Normalize(string text) => text.Normalize(NormalizationForm.FormKC);
+    public override string Normalize(string text)
+    {
+        return text.Normalize(NormalizationForm.FormKC);
+    }
 }
 
 public class SequenceNormalizer : Normalizer
@@ -701,10 +672,7 @@ public class SequenceNormalizer : Normalizer
 
     public override string Normalize(string text)
     {
-        foreach (var normalizer in _normalizers)
-        {
-            text = normalizer.Normalize(text);
-        }
+        foreach (var normalizer in _normalizers) text = normalizer.Normalize(text);
         return text;
     }
 }
@@ -715,86 +683,66 @@ public class SequenceNormalizer : Normalizer
 
 public class TokenizerConfig
 {
-    [JsonPropertyName("model")]
-    public ModelConfig? Model { get; set; }
-    
-    [JsonPropertyName("pre_tokenizer")]
-    public PreTokenizerConfig? PreTokenizer { get; set; }
-    
-    [JsonPropertyName("normalizer")]
-    public NormalizerConfig? Normalizer { get; set; }
-    
-    [JsonPropertyName("added_tokens")]
-    public List<AddedToken>? AddedTokens { get; set; }
+    [JsonPropertyName("model")] public ModelConfig? Model { get; set; }
+
+    [JsonPropertyName("pre_tokenizer")] public PreTokenizerConfig? PreTokenizer { get; set; }
+
+    [JsonPropertyName("normalizer")] public NormalizerConfig? Normalizer { get; set; }
+
+    [JsonPropertyName("added_tokens")] public List<AddedToken>? AddedTokens { get; set; }
 }
 
 public class ModelConfig
 {
-    [JsonPropertyName("type")]
-    public string? Type { get; set; }
-    
-    [JsonPropertyName("vocab")]
-    public Dictionary<string, int>? Vocab { get; set; }
-    
-    [JsonPropertyName("merges")]
-    public List<string>? Merges { get; set; }
-    
-    [JsonPropertyName("unk_token")]
-    public string? UnkToken { get; set; }
-    
-    [JsonPropertyName("unk_id")]
-    public int? UnkId { get; set; }
-    
+    [JsonPropertyName("type")] public string? Type { get; set; }
+
+    [JsonPropertyName("vocab")] public Dictionary<string, int>? Vocab { get; set; }
+
+    [JsonPropertyName("merges")] public List<string>? Merges { get; set; }
+
+    [JsonPropertyName("unk_token")] public string? UnkToken { get; set; }
+
+    [JsonPropertyName("unk_id")] public int? UnkId { get; set; }
+
     [JsonPropertyName("continuing_subword_prefix")]
     public string? ContinuingSubwordPrefix { get; set; }
-    
+
     [JsonPropertyName("end_of_word_suffix")]
     public string? EndOfWordSuffix { get; set; }
-    
+
     [JsonPropertyName("max_input_chars_per_word")]
     public int? MaxInputCharsPerWord { get; set; }
 }
 
 public class PreTokenizerConfig
 {
-    [JsonPropertyName("type")]
-    public string? Type { get; set; }
-    
-    [JsonPropertyName("replacement")]
-    public string? Replacement { get; set; }
-    
-    [JsonPropertyName("add_prefix_space")]
-    public bool? AddPrefixSpace { get; set; }
-    
-    [JsonPropertyName("pretokenizers")]
-    public List<PreTokenizerConfig>? PreTokenizers { get; set; }
+    [JsonPropertyName("type")] public string? Type { get; set; }
+
+    [JsonPropertyName("replacement")] public string? Replacement { get; set; }
+
+    [JsonPropertyName("add_prefix_space")] public bool? AddPrefixSpace { get; set; }
+
+    [JsonPropertyName("pretokenizers")] public List<PreTokenizerConfig>? PreTokenizers { get; set; }
 }
 
 public class NormalizerConfig
 {
-    [JsonPropertyName("type")]
-    public string? Type { get; set; }
-    
-    [JsonPropertyName("lowercase")]
-    public bool? Lowercase { get; set; }
-    
-    [JsonPropertyName("strip_accents")]
-    public bool? StripAccents { get; set; }
-    
-    [JsonPropertyName("normalizers")]
-    public List<NormalizerConfig>? Normalizers { get; set; }
+    [JsonPropertyName("type")] public string? Type { get; set; }
+
+    [JsonPropertyName("lowercase")] public bool? Lowercase { get; set; }
+
+    [JsonPropertyName("strip_accents")] public bool? StripAccents { get; set; }
+
+    [JsonPropertyName("normalizers")] public List<NormalizerConfig>? Normalizers { get; set; }
 }
 
 public class AddedToken
 {
-    [JsonPropertyName("id")]
-    public int? Id { get; set; }
-    
-    [JsonPropertyName("content")]
-    public string? Content { get; set; }
-    
-    [JsonPropertyName("special")]
-    public bool? Special { get; set; }
+    [JsonPropertyName("id")] public int? Id { get; set; }
+
+    [JsonPropertyName("content")] public string? Content { get; set; }
+
+    [JsonPropertyName("special")] public bool? Special { get; set; }
 }
 
 #endregion

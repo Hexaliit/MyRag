@@ -238,7 +238,7 @@ policies:
   require_citations_for_claims: false
   family_friendly: false
   max_response_length: null
-  custom_rules: []
+  custom_rules: [ ]
 
 # ============================================
 # DEFAULT CONFIGURATION - NO MAGIC NUMBERS

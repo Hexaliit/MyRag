@@ -1,36 +1,35 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Storage;
-using Mostlylucid.DocSummarizer.Images.Services.Vision;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Auto-routing wave that uses fast signals to determine optimal processing path.
-/// Runs early (after Identity/Color) to route images through fast/balanced/quality paths.
-///
-/// Routes:
-/// - fast: Simple static images → Florence2 + OpenCV only, skip Tesseract OCR
-/// - balanced: Standard images → Florence2 + Tesseract OCR, escalate to VisionLLM if needed
-/// - quality: Complex images (animation, heavy text, documents) → Full pipeline
-///
-/// Uses fast OpenCV MSER detection (~5-20ms) to assess text quantity for routing:
-/// - Low text coverage (&lt;10%): FAST route (Florence-2 captions sufficient)
-/// - Medium coverage (10-40%): BALANCED route (need Tesseract for accuracy)
-/// - High coverage (&gt;40%): QUALITY route (document scan needs full pipeline)
-///
-/// This implements "probability proposes, determinism persists" at the routing level:
-/// fast deterministic signals (identity, color, text detection) gate expensive operations.
+///     Auto-routing wave that uses fast signals to determine optimal processing path.
+///     Runs early (after Identity/Color) to route images through fast/balanced/quality paths.
+///     Routes:
+///     - fast: Simple static images → Florence2 + OpenCV only, skip Tesseract OCR
+///     - balanced: Standard images → Florence2 + Tesseract OCR, escalate to VisionLLM if needed
+///     - quality: Complex images (animation, heavy text, documents) → Full pipeline
+///     Uses fast OpenCV MSER detection (~5-20ms) to assess text quantity for routing:
+///     - Low text coverage (&lt;10%): FAST route (Florence-2 captions sufficient)
+///     - Medium coverage (10-40%): BALANCED route (need Tesseract for accuracy)
+///     - High coverage (&gt;40%): QUALITY route (document scan needs full pipeline)
+///     This implements "probability proposes, determinism persists" at the routing level:
+///     fast deterministic signals (identity, color, text detection) gate expensive operations.
 /// </summary>
 public class AutoRoutingWave : IAnalysisWave
 {
+    public enum Route
+    {
+        Fast,
+        Balanced,
+        Quality
+    }
+
+    private readonly ILogger<AutoRoutingWave>? _logger;
     private readonly ISignalDatabase? _signalDb;
     private readonly OpenCvTextDetector? _textDetector;
-    private readonly ILogger<AutoRoutingWave>? _logger;
-
-    public string Name => "AutoRoutingWave";
-    public int Priority => 98; // After Color (100), before ExifForensics (90)
-    public IReadOnlyList<string> Tags => new[] { "routing", "auto", "optimization" };
 
     public AutoRoutingWave(
         ISignalDatabase? signalDb = null,
@@ -40,6 +39,10 @@ public class AutoRoutingWave : IAnalysisWave
         _textDetector = new OpenCvTextDetector(logger as ILogger<OpenCvTextDetector>);
         _logger = logger;
     }
+
+    public string Name => "AutoRoutingWave";
+    public int Priority => 98; // After Color (100), before ExifForensics (90)
+    public IReadOnlyList<string> Tags => new[] { "routing", "auto", "optimization" };
 
     public Task<IEnumerable<Signal>> AnalyzeAsync(
         string imagePath,
@@ -73,11 +76,10 @@ public class AutoRoutingWave : IAnalysisWave
         // FAST text detection with OpenCV MSER (~5-20ms)
         // This gives us accurate text quantity info for routing decisions
         double textCoverage = 0;
-        int textRegionCount = 0;
-        bool hasSubtitles = false;
+        var textRegionCount = 0;
+        var hasSubtitles = false;
 
         if (_textDetector != null)
-        {
             try
             {
                 var detection = _textDetector.DetectTextRegions(imagePath);
@@ -98,20 +100,23 @@ public class AutoRoutingWave : IAnalysisWave
                 signals.Add(new Signal
                 {
                     Key = "route.text_detection",
-                    Value = new { regions = textRegionCount, coverage = textCoverage, hasSubtitles, ms = detection.DetectionTimeMs },
+                    Value = new
+                    {
+                        regions = textRegionCount, coverage = textCoverage, hasSubtitles, ms = detection.DetectionTimeMs
+                    },
                     Confidence = detection.Confidence,
                     Source = Name,
                     Tags = new List<string> { "routing", "text", "opencv" }
                 });
 
-                _logger?.LogDebug("Fast text detection: {Regions} regions, {Coverage:P1} coverage, subtitles={Subtitles}",
+                _logger?.LogDebug(
+                    "Fast text detection: {Regions} regions, {Coverage:P1} coverage, subtitles={Subtitles}",
                     textRegionCount, textCoverage, hasSubtitles);
             }
             catch (Exception ex)
             {
                 _logger?.LogWarning(ex, "Fast text detection failed, using fallback signals");
             }
-        }
 
         // Detect scanned documents: grayscale/tinted + high text coverage
         var isScannedDocument = DetectScannedDocument(
@@ -149,20 +154,18 @@ public class AutoRoutingWave : IAnalysisWave
             route, string.Join(", ", reasons), Path.GetFileName(imagePath));
 
         // Cache the decision for future runs
-        if (!string.IsNullOrEmpty(imageHash))
-        {
-            CacheRoute(imageHash, route);
-        }
+        if (!string.IsNullOrEmpty(imageHash)) CacheRoute(imageHash, route);
 
-        return Task.FromResult(EmitRoutingSignals(signals, route, string.Join("; ", reasons), textCoverage, textRegionCount, context));
+        return Task.FromResult(EmitRoutingSignals(signals, route, string.Join("; ", reasons), textCoverage,
+            textRegionCount, context));
     }
 
     /// <summary>
-    /// Detect scanned documents by their characteristics:
-    /// - Grayscale or tinted (sepia, aged)
-    /// - High text coverage (lots of text blocks)
-    /// - Low color saturation
-    /// For scanned documents, Tesseract OCR is preferred over vision models.
+    ///     Detect scanned documents by their characteristics:
+    ///     - Grayscale or tinted (sepia, aged)
+    ///     - High text coverage (lots of text blocks)
+    ///     - Low color saturation
+    ///     For scanned documents, Tesseract OCR is preferred over vision models.
     /// </summary>
     private bool DetectScannedDocument(
         bool isGrayscale, double textCoverage, int textRegionCount, AnalysisContext context)
@@ -202,11 +205,11 @@ public class AutoRoutingWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Select optimal route based on fast signals + OpenCV text detection.
-    /// Uses text coverage to determine OCR complexity needs:
-    /// - Low coverage (&lt;10%): FAST - Florence-2 sufficient for captions
-    /// - Medium coverage (10-40%): BALANCED - need Tesseract for accuracy
-    /// - High coverage (&gt;40%): QUALITY - document scan, full pipeline
+    ///     Select optimal route based on fast signals + OpenCV text detection.
+    ///     Uses text coverage to determine OCR complexity needs:
+    ///     - Low coverage (&lt;10%): FAST - Florence-2 sufficient for captions
+    ///     - Medium coverage (10-40%): BALANCED - need Tesseract for accuracy
+    ///     - High coverage (&gt;40%): QUALITY - document scan, full pipeline
     /// </summary>
     private (Route route, List<string> reasons) SelectRoute(
         bool isAnimated, int frameCount, int pixelCount, string format,
@@ -335,22 +338,15 @@ public class AutoRoutingWave : IAnalysisWave
 
         // ========== ROUTE DECISION ==========
         // Priority: Quality if high text coverage, else Fast if low text coverage
-        if (qualityIndicators >= 3)
-        {
-            return (Route.Quality, reasons);
-        }
-        else if (fastIndicators >= 3 || (fastIndicators >= 2 && qualityIndicators == 0))
-        {
-            return (Route.Fast, reasons);
-        }
-        else
-        {
-            return (Route.Balanced, reasons);
-        }
+        if (qualityIndicators >= 3) return (Route.Quality, reasons);
+
+        if (fastIndicators >= 3 || (fastIndicators >= 2 && qualityIndicators == 0)) return (Route.Fast, reasons);
+
+        return (Route.Balanced, reasons);
     }
 
     /// <summary>
-    /// Emit routing signals that downstream waves can check.
+    ///     Emit routing signals that downstream waves can check.
     /// </summary>
     private IEnumerable<Signal> EmitRoutingSignals(
         List<Signal> signals, Route route, string reason,
@@ -383,10 +379,10 @@ public class AutoRoutingWave : IAnalysisWave
         // FAST: Florence-2 only, BALANCED: + Tesseract, QUALITY: + Advanced pipeline
         var textTier = textCoverage switch
         {
-            < 0.10 => "caption",     // Minimal text - Florence-2 sufficient
-            < 0.25 => "moderate",    // Some text - need Tesseract
+            < 0.10 => "caption", // Minimal text - Florence-2 sufficient
+            < 0.25 => "moderate", // Some text - need Tesseract
             < 0.40 => "substantial", // Lots of text - full OCR
-            _ => "document"          // Document scan - quality pipeline
+            _ => "document" // Document scan - quality pipeline
         };
 
         signals.Add(new Signal
@@ -408,23 +404,21 @@ public class AutoRoutingWave : IAnalysisWave
         // and return the best version (Tesseract for scanned, Florence-2 for others)
         var isScannedDocument = reason.Contains("scanned_document");
         if (textTier == "document" || textTier == "substantial" || isScannedDocument)
-        {
             signals.Add(new Signal
             {
                 Key = "route.ocr_config",
                 Value = new Dictionary<string, object>
                 {
-                    ["keep_all_text"] = true,                    // Don't truncate OCR output
-                    ["return_best_version"] = true,              // Return highest quality OCR
-                    ["tesseract_priority"] = isScannedDocument,  // Prefer Tesseract for scanned
-                    ["spellcheck_quality"] = true,               // Use spellcheck to pick best
-                    ["min_word_count_threshold"] = 5             // Minimum words to consider valid
+                    ["keep_all_text"] = true, // Don't truncate OCR output
+                    ["return_best_version"] = true, // Return highest quality OCR
+                    ["tesseract_priority"] = isScannedDocument, // Prefer Tesseract for scanned
+                    ["spellcheck_quality"] = true, // Use spellcheck to pick best
+                    ["min_word_count_threshold"] = 5 // Minimum words to consider valid
                 },
                 Confidence = 1.0,
                 Source = Name,
                 Tags = new List<string> { "routing", "ocr", "config" }
             });
-        }
 
         // Check if this is an animated GIF - for animated GIFs we run multi-frame OCR
         // Florence-2 now processes all frames in parallel, but Tesseract voting adds accuracy
@@ -451,7 +445,6 @@ public class AutoRoutingWave : IAnalysisWave
 
         // Emit individual skip flags for easy checking
         foreach (var wave in skipWaves)
-        {
             signals.Add(new Signal
             {
                 Key = $"route.skip.{wave}",
@@ -460,7 +453,6 @@ public class AutoRoutingWave : IAnalysisWave
                 Source = Name,
                 Tags = new List<string> { "routing", "skip" }
             });
-        }
 
         // Emit quality tier for output display
         signals.Add(new Signal
@@ -482,20 +474,18 @@ public class AutoRoutingWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Get list of waves to skip based on route and text complexity.
-    ///
-    /// For STATIC images:
-    /// - FAST + caption tier: Florence-2 only, skip Tesseract/CLIP
-    /// - FAST + other tiers: Florence-2 + Tesseract, skip CLIP
-    /// - BALANCED: Standard OCR pipeline
-    /// - QUALITY: Run everything
-    ///
-    /// For ANIMATED GIFs (filmstrip optimization):
-    /// - ALL routes: Use filmstrip mode for OCR (~10-15x faster)
-    /// - MlOcrWave: Fast OpenCV detection + cache frames (~100-200ms)
-    /// - VisionLlmWave: Create text-only strip + read with single LLM call (~1-2s)
-    /// - Skip per-frame OCR waves (OcrWave, AdvancedOcrWave) since filmstrip handles it
-    /// - NEVER skip VisionLlmWave - it's essential for filmstrip OCR
+    ///     Get list of waves to skip based on route and text complexity.
+    ///     For STATIC images:
+    ///     - FAST + caption tier: Florence-2 only, skip Tesseract/CLIP
+    ///     - FAST + other tiers: Florence-2 + Tesseract, skip CLIP
+    ///     - BALANCED: Standard OCR pipeline
+    ///     - QUALITY: Run everything
+    ///     For ANIMATED GIFs (filmstrip optimization):
+    ///     - ALL routes: Use filmstrip mode for OCR (~10-15x faster)
+    ///     - MlOcrWave: Fast OpenCV detection + cache frames (~100-200ms)
+    ///     - VisionLlmWave: Create text-only strip + read with single LLM call (~1-2s)
+    ///     - Skip per-frame OCR waves (OcrWave, AdvancedOcrWave) since filmstrip handles it
+    ///     - NEVER skip VisionLlmWave - it's essential for filmstrip OCR
     /// </summary>
     private static List<string> GetSkipWaves(Route route, string textTier, bool isAnimatedGif = false)
     {
@@ -507,7 +497,6 @@ public class AutoRoutingWave : IAnalysisWave
         //
         // NEVER skip VisionLlmWave for animated GIFs - it handles the filmstrip OCR!
         if (isAnimatedGif)
-        {
             return route switch
             {
                 Route.Fast => new List<string>
@@ -516,23 +505,22 @@ public class AutoRoutingWave : IAnalysisWave
                     // - Keep MlOcrWave (does fast OpenCV detection + caches frames)
                     // - Keep VisionLlmWave (reads the filmstrip - this is where OCR happens!)
                     // - Skip heavy per-frame OCR waves (filmstrip replaces them)
-                    "OcrWave",              // Skip per-frame Tesseract (filmstrip replaces it)
-                    "AdvancedOcrWave",      // Skip advanced OCR (filmstrip handles subtitles)
-                    "OcrVerificationWave",  // Skip verification
-                    "ClipEmbeddingWave",    // Skip CLIP
-                    "FaceDetectionWave"     // Skip face detection
+                    "OcrWave", // Skip per-frame Tesseract (filmstrip replaces it)
+                    "AdvancedOcrWave", // Skip advanced OCR (filmstrip handles subtitles)
+                    "OcrVerificationWave", // Skip verification
+                    "ClipEmbeddingWave", // Skip CLIP
+                    "FaceDetectionWave" // Skip face detection
                 },
                 Route.Balanced => new List<string>
                 {
                     // Balanced still uses filmstrip but may run some Tesseract
-                    "AdvancedOcrWave",      // Skip advanced OCR
+                    "AdvancedOcrWave", // Skip advanced OCR
                     "OcrVerificationWave",
                     "ClipEmbeddingWave"
                 },
                 Route.Quality => new List<string>(),
                 _ => new List<string>()
             };
-        }
 
         // Static images: use original logic
         return route switch
@@ -540,31 +528,31 @@ public class AutoRoutingWave : IAnalysisWave
             Route.Fast when textTier == "caption" => new List<string>
             {
                 // Caption-only: Florence-2 is sufficient, skip ALL heavy processing
-                "OcrWave",              // Skip Tesseract - Florence-2 handles captions
-                "AdvancedOcrWave",      // Skip multi-frame OCR
-                "OcrVerificationWave",  // Skip OCR verification
-                "TextDetectionWave",    // Already did fast detection in routing
-                "ClipEmbeddingWave",    // Skip CLIP (expensive)
-                "FaceDetectionWave"     // Skip face detection
+                "OcrWave", // Skip Tesseract - Florence-2 handles captions
+                "AdvancedOcrWave", // Skip multi-frame OCR
+                "OcrVerificationWave", // Skip OCR verification
+                "TextDetectionWave", // Already did fast detection in routing
+                "ClipEmbeddingWave", // Skip CLIP (expensive)
+                "FaceDetectionWave" // Skip face detection
             },
             Route.Fast => new List<string>
             {
                 // FAST with more text: Use Florence-2 but keep Tesseract available
-                "AdvancedOcrWave",      // Skip multi-frame OCR
-                "OcrVerificationWave",  // Skip OCR verification
-                "ClipEmbeddingWave",    // Skip CLIP (expensive)
-                "FaceDetectionWave"     // Skip face detection
+                "AdvancedOcrWave", // Skip multi-frame OCR
+                "OcrVerificationWave", // Skip OCR verification
+                "ClipEmbeddingWave", // Skip CLIP (expensive)
+                "FaceDetectionWave" // Skip face detection
             },
             Route.Balanced when textTier is "caption" or "moderate" => new List<string>
             {
-                "AdvancedOcrWave",      // Skip advanced OCR for light text
-                "OcrVerificationWave",  // Skip verification unless needed
-                "ClipEmbeddingWave"     // Skip CLIP
+                "AdvancedOcrWave", // Skip advanced OCR for light text
+                "OcrVerificationWave", // Skip verification unless needed
+                "ClipEmbeddingWave" // Skip CLIP
             },
             Route.Balanced => new List<string>
             {
                 // Balanced with substantial text: enable most OCR
-                "ClipEmbeddingWave"     // Still skip CLIP
+                "ClipEmbeddingWave" // Still skip CLIP
             },
             Route.Quality => new List<string>(), // Run everything
             _ => new List<string>()
@@ -586,17 +574,13 @@ public class AutoRoutingWave : IAnalysisWave
         {
             if (_routeCache.TryGetValue(imageHash, out var cached))
             {
-                if (DateTime.UtcNow - cached.cachedAt < CacheExpiry)
-                {
-                    return cached.route;
-                }
+                if (DateTime.UtcNow - cached.cachedAt < CacheExpiry) return cached.route;
                 _routeCache.Remove(imageHash);
             }
         }
 
         // Check SignalDatabase for persistent routing history
         if (_signalDb != null)
-        {
             try
             {
                 var profile = _signalDb.LoadProfileAsync(imageHash).GetAwaiter().GetResult();
@@ -604,7 +588,7 @@ public class AutoRoutingWave : IAnalysisWave
                 {
                     var routeValue = profile.GetValue<string>("route.selected");
                     if (!string.IsNullOrEmpty(routeValue) &&
-                        Enum.TryParse<Route>(routeValue, ignoreCase: true, out var persistedRoute))
+                        Enum.TryParse<Route>(routeValue, true, out var persistedRoute))
                     {
                         _logger?.LogDebug("Found persisted route '{Route}' in SignalDatabase for {Hash}",
                             persistedRoute, imageHash.Substring(0, 8));
@@ -614,15 +598,16 @@ public class AutoRoutingWave : IAnalysisWave
                         {
                             _routeCache[imageHash] = (persistedRoute, DateTime.UtcNow);
                         }
+
                         return persistedRoute;
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "Failed to load route from SignalDatabase for {Hash}", imageHash.Substring(0, 8));
+                _logger?.LogWarning(ex, "Failed to load route from SignalDatabase for {Hash}",
+                    imageHash.Substring(0, 8));
             }
-        }
 
         return null;
     }
@@ -653,11 +638,4 @@ public class AutoRoutingWave : IAnalysisWave
     }
 
     #endregion
-
-    public enum Route
-    {
-        Fast,
-        Balanced,
-        Quality
-    }
 }

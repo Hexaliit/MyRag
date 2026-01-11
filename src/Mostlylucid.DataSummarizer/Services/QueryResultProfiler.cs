@@ -5,9 +5,9 @@ using Mostlylucid.DataSummarizer.Models;
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Profiles query results to extract statistics that enrich the data profile.
-/// When the LLM executes SQL, this service analyzes the result set and stores
-/// derived statistics for future queries.
+///     Profiles query results to extract statistics that enrich the data profile.
+///     When the LLM executes SQL, this service analyzes the result set and stores
+///     derived statistics for future queries.
 /// </summary>
 public class QueryResultProfiler
 {
@@ -19,7 +19,7 @@ public class QueryResultProfiler
     }
 
     /// <summary>
-    /// Profile a query result and create a cached entry with derived statistics.
+    ///     Profile a query result and create a cached entry with derived statistics.
     /// </summary>
     public CachedQueryResult ProfileQueryResult(
         string question,
@@ -50,49 +50,46 @@ public class QueryResultProfiler
     }
 
     /// <summary>
-    /// Extract filter context from SQL WHERE clause.
-    /// E.g., "WHERE Category = 'Electronics'" → "Category='Electronics'"
+    ///     Extract filter context from SQL WHERE clause.
+    ///     E.g., "WHERE Category = 'Electronics'" → "Category='Electronics'"
     /// </summary>
     private string? ExtractFilterContext(string sql)
     {
-        var match = Regex.Match(sql, @"WHERE\s+(.+?)(?:\s+GROUP|\s+ORDER|\s+LIMIT|$)", 
+        var match = Regex.Match(sql, @"WHERE\s+(.+?)(?:\s+GROUP|\s+ORDER|\s+LIMIT|$)",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
-        
+
         if (!match.Success) return null;
-        
+
         var whereClause = match.Groups[1].Value.Trim();
-        
+
         // Normalize: remove extra whitespace, standardize quotes
         whereClause = Regex.Replace(whereClause, @"\s+", " ");
-        
+
         return string.IsNullOrWhiteSpace(whereClause) ? null : whereClause;
     }
 
     /// <summary>
-    /// Normalize question for matching similar queries.
+    ///     Normalize question for matching similar queries.
     /// </summary>
     private string NormalizeQuestion(string question)
     {
         var normalized = question.ToLowerInvariant();
-        
+
         // Remove punctuation
         normalized = Regex.Replace(normalized, @"[^\w\s]", " ");
-        
+
         // Normalize whitespace
         normalized = Regex.Replace(normalized, @"\s+", " ").Trim();
-        
+
         // Remove common filler words
         var fillers = new[] { "the", "a", "an", "is", "are", "what", "show", "me", "please", "can", "you" };
-        foreach (var filler in fillers)
-        {
-            normalized = Regex.Replace(normalized, $@"\b{filler}\b", " ");
-        }
-        
+        foreach (var filler in fillers) normalized = Regex.Replace(normalized, $@"\b{filler}\b", " ");
+
         return Regex.Replace(normalized, @"\s+", " ").Trim();
     }
 
     /// <summary>
-    /// Compute derived statistics from query result.
+    ///     Compute derived statistics from query result.
     /// </summary>
     private QueryResultStats? ComputeDerivedStats(object data)
     {
@@ -100,7 +97,7 @@ public class QueryResultProfiler
         var dataType = data.GetType();
         var columnsProperty = dataType.GetProperty("columns");
         var rowsProperty = dataType.GetProperty("rows");
-        
+
         if (columnsProperty == null || rowsProperty == null)
             return null;
 
@@ -130,7 +127,6 @@ public class QueryResultProfiler
             var stringValues = new List<string>();
 
             foreach (var val in values)
-            {
                 if (val is double d)
                     numericValues.Add(d);
                 else if (val is int i)
@@ -145,7 +141,6 @@ public class QueryResultProfiler
                     numericValues.Add(parsed);
                 else
                     stringValues.Add(val?.ToString() ?? "");
-            }
 
             // If mostly numeric, compute numeric stats
             if (numericValues.Count > values.Count / 2 && numericValues.Count >= 2)
@@ -158,20 +153,14 @@ public class QueryResultProfiler
                 var distribution = stringValues
                     .GroupBy(s => s)
                     .ToDictionary(g => g.Key, g => g.Count());
-                
+
                 // Only store if reasonable cardinality
-                if (distribution.Count <= 50)
-                {
-                    stats.CategoryDistributions[column] = distribution;
-                }
+                if (distribution.Count <= 50) stats.CategoryDistributions[column] = distribution;
             }
         }
 
         // Detect patterns in numeric data
-        if (stats.NumericStats.Count > 0)
-        {
-            stats.DetectedPatterns = DetectPatterns(stats);
-        }
+        if (stats.NumericStats.Count > 0) stats.DetectedPatterns = DetectPatterns(stats);
 
         return stats;
     }
@@ -180,13 +169,13 @@ public class QueryResultProfiler
     {
         var sorted = values.OrderBy(v => v).ToArray();
         var mean = values.Average();
-        var stdDev = values.Count > 1 ? Statistics.StandardDeviation(values) : 0;
-        
+        var stdDev = values.Count > 1 ? values.StandardDeviation() : 0;
+
         // Quartiles
-        var q25 = Statistics.Percentile(sorted, 25);
-        var q75 = Statistics.Percentile(sorted, 75);
+        var q25 = sorted.Percentile(25);
+        var q75 = sorted.Percentile(75);
         var iqr = q75 - q25;
-        
+
         // Count outliers using IQR method
         var lowerBound = q25 - 1.5 * iqr;
         var upperBound = q75 + 1.5 * iqr;
@@ -197,7 +186,7 @@ public class QueryResultProfiler
             Min = sorted[0],
             Max = sorted[^1],
             Mean = Math.Round(mean, 4),
-            Median = Statistics.Median(sorted),
+            Median = sorted.Median(),
             StdDev = Math.Round(stdDev, 4),
             Q25 = q25,
             Q75 = q75,
@@ -213,9 +202,8 @@ public class QueryResultProfiler
         {
             // High outlier percentage
             if (stats.RowCount > 0 && numStats.OutlierCount > stats.RowCount * 0.1)
-            {
-                patterns.Add($"{column}: {numStats.OutlierCount} outliers ({numStats.OutlierCount * 100.0 / stats.RowCount:F1}%)");
-            }
+                patterns.Add(
+                    $"{column}: {numStats.OutlierCount} outliers ({numStats.OutlierCount * 100.0 / stats.RowCount:F1}%)");
 
             // Skewness indication (mean far from median)
             if (numStats.StdDev > 0)
@@ -230,9 +218,7 @@ public class QueryResultProfiler
 
             // Low variance (nearly constant)
             if (numStats.Max - numStats.Min < numStats.Mean * 0.01 && numStats.Mean != 0)
-            {
                 patterns.Add($"{column}: nearly constant (range={numStats.Max - numStats.Min:F4})");
-            }
         }
 
         return patterns.Count > 0 ? patterns : null;
@@ -241,28 +227,25 @@ public class QueryResultProfiler
     private Dictionary<string, object> ConvertToDict(object data)
     {
         var result = new Dictionary<string, object>();
-        
+
         var dataType = data.GetType();
         foreach (var prop in dataType.GetProperties())
         {
             var value = prop.GetValue(data);
-            if (value != null)
-            {
-                result[prop.Name] = value;
-            }
+            if (value != null) result[prop.Name] = value;
         }
-        
+
         return result;
     }
 
     /// <summary>
-    /// Check if a cached query can answer a new question.
-    /// Uses normalized question similarity and filter context matching.
+    ///     Check if a cached query can answer a new question.
+    ///     Uses normalized question similarity and filter context matching.
     /// </summary>
     public bool CanReuseCache(CachedQueryResult cached, string newQuestion, DataProfile profile)
     {
         var normalizedNew = NormalizeQuestion(newQuestion);
-        
+
         // Exact match
         if (cached.NormalizedQuestion == normalizedNew)
             return true;
@@ -273,18 +256,12 @@ public class QueryResultProfiler
         {
             var filterValues = ExtractFilterValues(cached.FilterContext);
             foreach (var (col, val) in filterValues)
-            {
                 if (newQuestion.Contains(val, StringComparison.OrdinalIgnoreCase))
-                {
                     // Question mentions the same filter value
                     // Check if it's asking for something we have stats for
                     if (cached.DerivedStats?.NumericStats.Count > 0)
-                    {
                         // Could potentially answer from cached stats
                         return true;
-                    }
-                }
-            }
         }
 
         return false;
@@ -293,22 +270,19 @@ public class QueryResultProfiler
     private List<(string Column, string Value)> ExtractFilterValues(string filterContext)
     {
         var results = new List<(string, string)>();
-        
+
         // Match patterns like "Column" = 'Value' or Column = 'Value'
-        var matches = Regex.Matches(filterContext, 
+        var matches = Regex.Matches(filterContext,
             @"""?(\w+)""?\s*=\s*'([^']+)'",
             RegexOptions.IgnoreCase);
 
-        foreach (Match match in matches)
-        {
-            results.Add((match.Groups[1].Value, match.Groups[2].Value));
-        }
+        foreach (Match match in matches) results.Add((match.Groups[1].Value, match.Groups[2].Value));
 
         return results;
     }
 
     /// <summary>
-    /// Generate aggregate statistics from cached query for profile enrichment.
+    ///     Generate aggregate statistics from cached query for profile enrichment.
     /// </summary>
     public List<AggregateStatistic> ExtractAggregatesFromCache(CachedQueryResult cached)
     {

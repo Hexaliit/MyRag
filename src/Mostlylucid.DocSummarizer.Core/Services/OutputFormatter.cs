@@ -75,23 +75,23 @@ public static class OutputFormatter
             sb.AppendLine();
             sb.AppendLine("### Extracted Entities");
             sb.AppendLine();
-            
+
             if (summary.Entities.Characters.Count > 0)
             {
                 sb.AppendLine($"**Characters**: {string.Join(", ", summary.Entities.Characters.Take(15))}");
                 if (summary.Entities.Characters.Count > 15)
                     sb.AppendLine($"  ...and {summary.Entities.Characters.Count - 15} more");
             }
-            
+
             if (summary.Entities.Locations.Count > 0)
                 sb.AppendLine($"**Locations**: {string.Join(", ", summary.Entities.Locations.Take(10))}");
-            
+
             if (summary.Entities.Events.Count > 0)
                 sb.AppendLine($"**Key Events**: {string.Join(", ", summary.Entities.Events.Take(8))}");
-            
+
             if (summary.Entities.Organizations.Count > 0)
                 sb.AppendLine($"**Organizations**: {string.Join(", ", summary.Entities.Organizations.Take(8))}");
-            
+
             if (summary.Entities.Dates.Count > 0)
                 sb.AppendLine($"**Dates**: {string.Join(", ", summary.Entities.Dates.Take(8))}");
         }
@@ -218,13 +218,13 @@ public static class OutputFormatter
         sb.AppendLine();
         sb.AppendLine(summary.ExecutiveSummary);
         sb.AppendLine();
-        
+
         // Extracted entities section
         if (summary.Entities != null && summary.Entities.HasAny)
         {
             sb.AppendLine("## Extracted Entities");
             sb.AppendLine();
-            
+
             if (summary.Entities.Characters.Count > 0)
             {
                 sb.AppendLine("### Characters/People");
@@ -235,7 +235,7 @@ public static class OutputFormatter
                     sb.AppendLine($"- *...and {summary.Entities.Characters.Count - 30} more*");
                 sb.AppendLine();
             }
-            
+
             if (summary.Entities.Locations.Count > 0)
             {
                 sb.AppendLine("### Locations");
@@ -246,7 +246,7 @@ public static class OutputFormatter
                     sb.AppendLine($"- *...and {summary.Entities.Locations.Count - 20} more*");
                 sb.AppendLine();
             }
-            
+
             if (summary.Entities.Dates.Count > 0)
             {
                 sb.AppendLine("### Dates/Time Periods");
@@ -257,7 +257,7 @@ public static class OutputFormatter
                     sb.AppendLine($"- *...and {summary.Entities.Dates.Count - 15} more*");
                 sb.AppendLine();
             }
-            
+
             if (summary.Entities.Events.Count > 0)
             {
                 sb.AppendLine("### Key Events");
@@ -268,7 +268,7 @@ public static class OutputFormatter
                     sb.AppendLine($"- *...and {summary.Entities.Events.Count - 20} more*");
                 sb.AppendLine();
             }
-            
+
             if (summary.Entities.Organizations.Count > 0)
             {
                 sb.AppendLine("### Organizations/Groups");
@@ -478,10 +478,8 @@ public static class OutputFormatter
         // Create output file path - avoid double _summary suffix
         var baseFileName = Path.GetFileNameWithoutExtension(fileName);
         if (baseFileName.EndsWith("_summary", StringComparison.OrdinalIgnoreCase))
-        {
             // Already has _summary suffix, don't add another
             baseFileName = baseFileName[..^8]; // Remove existing _summary
-        }
         var outputPath = Path.Combine(directory, $"{baseFileName}_summary{extension}");
 
         // Write file

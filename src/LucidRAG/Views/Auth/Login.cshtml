@@ -15,8 +15,10 @@
                 @if (!ViewData.ModelState.IsValid)
                 {
                     <div class="alert alert-error mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                         <span>@Html.ValidationSummary(true)</span>
                     </div>
@@ -30,7 +32,7 @@
                            asp-for="Email"
                            placeholder="you@example.com"
                            class="input input-bordered w-full"
-                           required />
+                           required/>
                     <span asp-validation-for="Email" class="text-error text-sm mt-1"></span>
                 </div>
 
@@ -42,21 +44,23 @@
                            asp-for="Password"
                            placeholder="********"
                            class="input input-bordered w-full"
-                           required />
+                           required/>
                     <span asp-validation-for="Password" class="text-error text-sm mt-1"></span>
                 </div>
 
                 <div class="form-control mt-4">
                     <label class="label cursor-pointer justify-start gap-3">
-                        <input type="checkbox" asp-for="RememberMe" class="checkbox checkbox-primary" />
+                        <input type="checkbox" asp-for="RememberMe" class="checkbox checkbox-primary"/>
                         <span class="label-text">Remember me</span>
                     </label>
                 </div>
 
                 <div class="form-control mt-6">
                     <button type="submit" class="btn btn-primary w-full">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
                         </svg>
                         Login
                     </button>

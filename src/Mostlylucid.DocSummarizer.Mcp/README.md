@@ -10,15 +10,15 @@ MCP (Model Context Protocol) server that exposes local Ollama LLM capabilities a
 
 ## Tools Available
 
-| Tool | Description |
-|------|-------------|
-| `check_ollama` | Check if Ollama is available and list installed models |
-| `generate_text` | Generate text using a local Ollama LLM |
-| `generate_embedding` | Generate vector embeddings for semantic search |
-| `calculate_similarity` | Calculate cosine similarity between two texts |
-| `summarize_text` | Summarize provided text |
-| `summarize_file` | Read and summarize a text file |
-| `ask_about_text` | Answer questions about provided text |
+| Tool                   | Description                                            |
+|------------------------|--------------------------------------------------------|
+| `check_ollama`         | Check if Ollama is available and list installed models |
+| `generate_text`        | Generate text using a local Ollama LLM                 |
+| `generate_embedding`   | Generate vector embeddings for semantic search         |
+| `calculate_similarity` | Calculate cosine similarity between two texts          |
+| `summarize_text`       | Summarize provided text                                |
+| `summarize_file`       | Read and summarize a text file                         |
+| `ask_about_text`       | Answer questions about provided text                   |
 
 ## Prerequisites
 
@@ -35,6 +35,7 @@ dotnet run --project Mostlylucid.DocSummarizer.Mcp/Mostlylucid.DocSummarizer.Mcp
 ## Configuration
 
 Environment variables:
+
 - `OLLAMA_MODEL` - Default LLM model (default: `llama3.2:3b`)
 - `OLLAMA_EMBED_MODEL` - Default embedding model (default: `nomic-embed-text`)
 - `OLLAMA_BASE_URL` - Ollama API URL (default: `http://localhost:11434`)

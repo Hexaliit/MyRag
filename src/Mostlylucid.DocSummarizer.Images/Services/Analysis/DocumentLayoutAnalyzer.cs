@@ -9,7 +9,7 @@ using Size = OpenCvSharp.Size;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzes document layout and detects segments (text blocks, images, charts, tables)
+///     Analyzes document layout and detects segments (text blocks, images, charts, tables)
 /// </summary>
 public class DocumentLayoutAnalyzer
 {
@@ -21,7 +21,7 @@ public class DocumentLayoutAnalyzer
     }
 
     /// <summary>
-    /// Analyze document layout and detect segments
+    ///     Analyze document layout and detect segments
     /// </summary>
     public async Task<DocumentLayout> AnalyzeAsync(
         string imagePath,
@@ -34,7 +34,7 @@ public class DocumentLayoutAnalyzer
     private DocumentLayout AnalyzeLayout(string imagePath, Image<Rgb24> image)
     {
         // Load image with OpenCV for analysis
-        using var mat = Cv2.ImRead(imagePath, ImreadModes.Color);
+        using var mat = Cv2.ImRead(imagePath);
         using var gray = new Mat();
         Cv2.CvtColor(mat, gray, ColorConversionCodes.BGR2GRAY);
 
@@ -84,7 +84,7 @@ public class DocumentLayoutAnalyzer
     }
 
     /// <summary>
-    /// Detect text blocks using MSER and connected components
+    ///     Detect text blocks using MSER and connected components
     /// </summary>
     private List<DocumentSegment> DetectTextBlocks(Mat color, Mat gray)
     {
@@ -103,14 +103,12 @@ public class DocumentLayoutAnalyzer
             var textBlocks = GroupTextRegions(bboxes);
 
             foreach (var block in textBlocks)
-            {
                 segments.Add(new DocumentSegment
                 {
                     Type = SegmentType.TextBlock,
                     BoundingBox = new Rectangle(block.X, block.Y, block.Width, block.Height),
                     Confidence = 0.85
                 });
-            }
         }
         catch (Exception ex)
         {
@@ -121,7 +119,7 @@ public class DocumentLayoutAnalyzer
     }
 
     /// <summary>
-    /// Group nearby text regions into blocks
+    ///     Group nearby text regions into blocks
     /// </summary>
     private List<Rect> GroupTextRegions(Rect[] regions)
     {
@@ -134,7 +132,7 @@ public class DocumentLayoutAnalyzer
 
         var currentBlock = sorted[0];
 
-        for (int i = 1; i < sorted.Count; i++)
+        for (var i = 1; i < sorted.Count; i++)
         {
             var region = sorted[i];
 
@@ -167,7 +165,7 @@ public class DocumentLayoutAnalyzer
     }
 
     /// <summary>
-    /// Detect image/chart regions (high variance, no text)
+    ///     Detect image/chart regions (high variance, no text)
     /// </summary>
     private List<DocumentSegment> DetectImageRegions(Mat color, Mat gray, List<DocumentSegment> textBlocks)
     {
@@ -182,7 +180,8 @@ public class DocumentLayoutAnalyzer
             using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(5, 5));
             Cv2.Dilate(edges, edges, kernel);
 
-            Cv2.FindContours(edges, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+            Cv2.FindContours(edges, out var contours, out _, RetrievalModes.External,
+                ContourApproximationModes.ApproxSimple);
 
             foreach (var contour in contours)
             {
@@ -195,7 +194,8 @@ public class DocumentLayoutAnalyzer
                 // Skip if overlaps with text blocks
                 var overlapsText = textBlocks.Any(tb =>
                 {
-                    var tbRect = new Rect(tb.BoundingBox.X, tb.BoundingBox.Y, tb.BoundingBox.Width, tb.BoundingBox.Height);
+                    var tbRect = new Rect(tb.BoundingBox.X, tb.BoundingBox.Y, tb.BoundingBox.Width,
+                        tb.BoundingBox.Height);
                     return CalculateIoU(rect, tbRect) > 0.3;
                 });
 
@@ -222,7 +222,7 @@ public class DocumentLayoutAnalyzer
     }
 
     /// <summary>
-    /// Detect tables using horizontal/vertical lines
+    ///     Detect tables using horizontal/vertical lines
     /// </summary>
     private List<DocumentSegment> DetectTables(Mat color, Mat gray)
     {
@@ -231,14 +231,15 @@ public class DocumentLayoutAnalyzer
         try
         {
             // Detect horizontal and vertical lines
-            using var horizontal = DetectLines(gray, isHorizontal: true);
-            using var vertical = DetectLines(gray, isHorizontal: false);
+            using var horizontal = DetectLines(gray, true);
+            using var vertical = DetectLines(gray, false);
 
             // Find intersections (table cells)
             using var tableMask = new Mat();
             Cv2.BitwiseAnd(horizontal, vertical, tableMask);
 
-            Cv2.FindContours(tableMask, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+            Cv2.FindContours(tableMask, out var contours, out _, RetrievalModes.External,
+                ContourApproximationModes.ApproxSimple);
 
             foreach (var contour in contours)
             {
@@ -265,7 +266,7 @@ public class DocumentLayoutAnalyzer
     }
 
     /// <summary>
-    /// Detect horizontal or vertical lines
+    ///     Detect horizontal or vertical lines
     /// </summary>
     private Mat DetectLines(Mat gray, bool isHorizontal)
     {
@@ -285,12 +286,11 @@ public class DocumentLayoutAnalyzer
     }
 
     /// <summary>
-    /// Analyze color for each segment
+    ///     Analyze color for each segment
     /// </summary>
     private void AnalyzeSegmentColors(Mat mat, Image<Rgb24> image, List<DocumentSegment> segments)
     {
         foreach (var segment in segments)
-        {
             try
             {
                 // Crop segment region
@@ -332,12 +332,11 @@ public class DocumentLayoutAnalyzer
             {
                 _logger?.LogWarning(ex, "Color analysis failed for segment {Id}", segment.Id);
             }
-        }
     }
 
     /// <summary>
-    /// Assign reading order (z-order) to segments
-    /// Top-to-bottom, left-to-right, respecting columns
+    ///     Assign reading order (z-order) to segments
+    ///     Top-to-bottom, left-to-right, respecting columns
     /// </summary>
     private void AssignReadingOrder(List<DocumentSegment> segments, int imageWidth)
     {
@@ -347,14 +346,11 @@ public class DocumentLayoutAnalyzer
             .ThenBy(s => s.BoundingBox.X)
             .ToList();
 
-        for (int i = 0; i < sorted.Count; i++)
-        {
-            sorted[i].ZOrder = i;
-        }
+        for (var i = 0; i < sorted.Count; i++) sorted[i].ZOrder = i;
     }
 
     /// <summary>
-    /// Classify overall layout type
+    ///     Classify overall layout type
     /// </summary>
     private LayoutType ClassifyLayout(List<DocumentSegment> segments, int width, int height)
     {
@@ -384,7 +380,7 @@ public class DocumentLayoutAnalyzer
     }
 
     /// <summary>
-    /// Detect number of columns
+    ///     Detect number of columns
     /// </summary>
     private int DetectColumns(List<DocumentSegment> segments, int imageWidth)
     {
@@ -405,17 +401,14 @@ public class DocumentLayoutAnalyzer
         {
             var centerX = block.BoundingBox.X + block.BoundingBox.Width / 2;
 
-            if (!columns.Any(c => Math.Abs(c - centerX) < columnThreshold))
-            {
-                columns.Add(centerX);
-            }
+            if (!columns.Any(c => Math.Abs(c - centerX) < columnThreshold)) columns.Add(centerX);
         }
 
         return Math.Max(1, columns.Count);
     }
 
     /// <summary>
-    /// Calculate IoU (Intersection over Union) for two rectangles
+    ///     Calculate IoU (Intersection over Union) for two rectangles
     /// </summary>
     private double CalculateIoU(Rect a, Rect b)
     {
@@ -434,7 +427,7 @@ public class DocumentLayoutAnalyzer
     }
 
     /// <summary>
-    /// Check if region is likely a chart
+    ///     Check if region is likely a chart
     /// </summary>
     private bool IsChart(Mat color, Rect rect)
     {
@@ -460,7 +453,7 @@ public class DocumentLayoutAnalyzer
     }
 
     /// <summary>
-    /// Calculate overall layout confidence
+    ///     Calculate overall layout confidence
     /// </summary>
     private double CalculateLayoutConfidence(List<DocumentSegment> segments)
     {

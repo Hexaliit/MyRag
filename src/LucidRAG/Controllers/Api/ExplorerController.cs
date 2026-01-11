@@ -1,16 +1,16 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Filters;
 using LucidRAG.Services;
 using LucidRAG.Web.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace LucidRAG.Controllers.Api;
 
 /// <summary>
-/// File Explorer API - intelligent document browser with selection, filtering, and search.
-/// Supports scoping chat/search to selected documents.
+///     File Explorer API - intelligent document browser with selection, filtering, and search.
+///     Supports scoping chat/search to selected documents.
 /// </summary>
 [ApiController]
 [Route("api/explorer")]
@@ -21,7 +21,7 @@ public class ExplorerController(
     ILogger<ExplorerController> logger) : ControllerBase
 {
     /// <summary>
-    /// Get explorer contents (folders and documents) with filtering
+    ///     Get explorer contents (folders and documents) with filtering
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetContents(
@@ -30,14 +30,14 @@ public class ExplorerController(
         [FromQuery] Guid? communityId = null,
         [FromQuery] string? sort = "name",
         [FromQuery] string? order = "asc",
-        [FromQuery] string? filterType = null,      // pdf,docx,image,audio
-        [FromQuery] string? filterStatus = null,    // completed,processing,failed,pending
-        [FromQuery] string? glob = null,            // *.pdf, docs/*.md
-        [FromQuery] bool? hasImages = null,         // Signal: has images
-        [FromQuery] bool? hasTables = null,         // Signal: has tables
-        [FromQuery] bool? hasCode = null,           // Signal: has code (reserved)
-        [FromQuery] string? dateRange = null,       // 7d, 30d, 90d, 1y
-        [FromQuery] string? entityIds = null,       // Comma-separated entity GUIDs
+        [FromQuery] string? filterType = null, // pdf,docx,image,audio
+        [FromQuery] string? filterStatus = null, // completed,processing,failed,pending
+        [FromQuery] string? glob = null, // *.pdf, docs/*.md
+        [FromQuery] bool? hasImages = null, // Signal: has images
+        [FromQuery] bool? hasTables = null, // Signal: has tables
+        [FromQuery] bool? hasCode = null, // Signal: has code (reserved)
+        [FromQuery] string? dateRange = null, // 7d, 30d, 90d, 1y
+        [FromQuery] string? entityIds = null, // Comma-separated entity GUIDs
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
@@ -110,23 +110,20 @@ public class ExplorerController(
         {
             var pattern = GlobToLikePattern(glob);
             docQuery = docQuery.Where(d => EF.Functions.ILike(d.Name, pattern) ||
-                                           (d.OriginalFilename != null && EF.Functions.ILike(d.OriginalFilename, pattern)));
+                                           (d.OriginalFilename != null &&
+                                            EF.Functions.ILike(d.OriginalFilename, pattern)));
         }
 
         // Apply signal filters
         if (hasImages == true)
-        {
             // Filter documents that are images or have embedded images
             // Check MIME type for images, or has image-related records
             docQuery = docQuery.Where(d =>
                 d.MimeType != null && d.MimeType.StartsWith("image/"));
-        }
 
         if (hasTables == true)
-        {
             // Filter documents that have tables
             docQuery = docQuery.Where(d => d.TableCount > 0);
-        }
 
         // Apply date range filter
         if (!string.IsNullOrEmpty(dateRange))
@@ -244,15 +241,12 @@ public class ExplorerController(
     }
 
     /// <summary>
-    /// Semantic search within the explorer (no chat synthesis)
+    ///     Semantic search within the explorer (no chat synthesis)
     /// </summary>
     [HttpPost("search")]
     public async Task<IActionResult> Search([FromBody] ExplorerSearchRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Query))
-        {
-            return BadRequest(new { error = "Query is required" });
-        }
+        if (string.IsNullOrWhiteSpace(request.Query)) return BadRequest(new { error = "Query is required" });
 
         var result = await searchService.SearchAsync(request, ct);
 
@@ -279,7 +273,7 @@ public class ExplorerController(
     }
 
     /// <summary>
-    /// Get document details with segments, entities, and evidence
+    ///     Get document details with segments, entities, and evidence
     /// </summary>
     [HttpGet("documents/{id:guid}")]
     public async Task<IActionResult> GetDocumentDetails(Guid id, CancellationToken ct = default)
@@ -289,10 +283,7 @@ public class ExplorerController(
             .Include(d => d.Folder)
             .FirstOrDefaultAsync(d => d.Id == id, ct);
 
-        if (document is null)
-        {
-            return NotFound(new { error = "Document not found" });
-        }
+        if (document is null) return NotFound(new { error = "Document not found" });
 
         // Get entities linked to this document
         var entities = await db.DocumentEntityLinks
@@ -375,26 +366,21 @@ public class ExplorerController(
     }
 
     /// <summary>
-    /// Move documents to a folder
+    ///     Move documents to a folder
     /// </summary>
     [HttpPost("documents/move")]
     [DemoModeWriteBlock]
-    public async Task<IActionResult> MoveDocuments([FromBody] MoveDocumentsRequest request, CancellationToken ct = default)
+    public async Task<IActionResult> MoveDocuments([FromBody] MoveDocumentsRequest request,
+        CancellationToken ct = default)
     {
-        if (request.DocumentIds.Length == 0)
-        {
-            return BadRequest(new { error = "No documents specified" });
-        }
+        if (request.DocumentIds.Length == 0) return BadRequest(new { error = "No documents specified" });
 
         // Validate target folder exists and get its collection
         Guid? targetCollectionId = null;
         if (request.FolderId.HasValue)
         {
             var folder = await folderService.GetFolderAsync(request.FolderId.Value, ct);
-            if (folder is null)
-            {
-                return NotFound(new { error = "Target folder not found" });
-            }
+            if (folder is null) return NotFound(new { error = "Target folder not found" });
             targetCollectionId = folder.CollectionId;
         }
 
@@ -402,10 +388,7 @@ public class ExplorerController(
             .Where(d => request.DocumentIds.Contains(d.Id))
             .ToListAsync(ct);
 
-        if (documents.Count == 0)
-        {
-            return BadRequest(new { error = "No valid documents found" });
-        }
+        if (documents.Count == 0) return BadRequest(new { error = "No valid documents found" });
 
         // Move documents to target folder
         foreach (var doc in documents)
@@ -413,9 +396,7 @@ public class ExplorerController(
             doc.FolderId = request.FolderId;
             // Optionally update collection if moving to folder in different collection
             if (targetCollectionId.HasValue && doc.CollectionId != targetCollectionId)
-            {
                 doc.CollectionId = targetCollectionId;
-            }
         }
 
         await db.SaveChangesAsync(ct);
@@ -430,7 +411,7 @@ public class ExplorerController(
     }
 
     /// <summary>
-    /// Get entities grouped by type for sidebar filtering
+    ///     Get entities grouped by type for sidebar filtering
     /// </summary>
     [HttpGet("entities")]
     public async Task<IActionResult> GetEntities(
@@ -486,7 +467,7 @@ public class ExplorerController(
                 description = e.Description,
                 mentionCount = db.DocumentEntityLinks
                     .Where(del => del.EntityId == e.Id &&
-                           (!collectionId.HasValue || del.Document.CollectionId == collectionId))
+                                  (!collectionId.HasValue || del.Document.CollectionId == collectionId))
                     .Sum(del => del.MentionCount)
             })
             .OrderByDescending(e => e.mentionCount)
@@ -515,7 +496,7 @@ public class ExplorerController(
     }
 
     /// <summary>
-    /// Get available filter options (file types, date ranges, etc.)
+    ///     Get available filter options (file types, date ranges, etc.)
     /// </summary>
     [HttpGet("filters")]
     public async Task<IActionResult> GetFilters(
@@ -578,15 +559,14 @@ public class ExplorerController(
             statuses = statusCounts,
             dateRange = new
             {
-                oldest = dateRange?.oldest,
-                newest = dateRange?.newest
+                dateRange?.oldest, dateRange?.newest
             },
             communities
         });
     }
 
     /// <summary>
-    /// Get stats for the current view (for status bar)
+    ///     Get stats for the current view (for status bar)
     /// </summary>
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats(
@@ -655,38 +635,45 @@ public class ExplorerController(
         return docIds;
     }
 
-    private static List<string> GetMimeTypesForFilter(string filter) => filter.ToLowerInvariant() switch
+    private static List<string> GetMimeTypesForFilter(string filter)
     {
-        "pdf" => ["application/pdf"],
-        "docx" => ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
-        "doc" => ["application/msword"],
-        "md" or "markdown" => ["text/markdown", "text/x-markdown"],
-        "txt" or "text" => ["text/plain"],
-        "html" => ["text/html"],
-        "image" => ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"],
-        "audio" => ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4"],
-        "video" => ["video/mp4", "video/webm", "video/ogg"],
-        "csv" => ["text/csv"],
-        "json" => ["application/json"],
-        "excel" => ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel"],
-        _ => []
-    };
+        return filter.ToLowerInvariant() switch
+        {
+            "pdf" => ["application/pdf"],
+            "docx" => ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+            "doc" => ["application/msword"],
+            "md" or "markdown" => ["text/markdown", "text/x-markdown"],
+            "txt" or "text" => ["text/plain"],
+            "html" => ["text/html"],
+            "image" => ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"],
+            "audio" => ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4"],
+            "video" => ["video/mp4", "video/webm", "video/ogg"],
+            "csv" => ["text/csv"],
+            "json" => ["application/json"],
+            "excel" =>
+                ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel"],
+            _ => []
+        };
+    }
 
-    private static string GetContentType(string? mimeType) => mimeType?.ToLowerInvariant() switch
+    private static string GetContentType(string? mimeType)
     {
-        "application/pdf" => "pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "docx",
-        "application/msword" => "doc",
-        "text/markdown" or "text/x-markdown" => "markdown",
-        "text/plain" => "text",
-        "text/html" => "html",
-        "text/csv" => "csv",
-        "application/json" => "json",
-        var m when m?.StartsWith("image/") == true => "image",
-        var m when m?.StartsWith("audio/") == true => "audio",
-        var m when m?.StartsWith("video/") == true => "video",
-        _ => "document"
-    };
+        return mimeType?.ToLowerInvariant() switch
+        {
+            "application/pdf" => "pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "docx",
+            "application/msword" => "doc",
+            "text/markdown" or "text/x-markdown" => "markdown",
+            "text/plain" => "text",
+            "text/html" => "html",
+            "text/csv" => "csv",
+            "application/json" => "json",
+            var m when m?.StartsWith("image/") == true => "image",
+            var m when m?.StartsWith("audio/") == true => "audio",
+            var m when m?.StartsWith("video/") == true => "video",
+            _ => "document"
+        };
+    }
 
     private static string GlobToLikePattern(string glob)
     {

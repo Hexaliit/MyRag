@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using PuppeteerSharp;
@@ -5,24 +7,22 @@ using PuppeteerSharp;
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Comprehensive browser functional tests for the LucidRAG UI.
-/// Tests core user flows: navigation, search, chat, collections, document management.
-///
-/// Requires the LucidRAG app to be running on localhost:5080.
-/// Start with: dotnet run --project src/LucidRAG/LucidRAG.csproj --standalone
-///
-/// These tests are skipped in CI (no running server available).
-/// Run locally only with: dotnet test --filter "Category=Browser"
+///     Comprehensive browser functional tests for the LucidRAG UI.
+///     Tests core user flows: navigation, search, chat, collections, document management.
+///     Requires the LucidRAG app to be running on localhost:5080.
+///     Start with: dotnet run --project src/LucidRAG/LucidRAG.csproj --standalone
+///     These tests are skipped in CI (no running server available).
+///     Run locally only with: dotnet test --filter "Category=Browser"
 /// </summary>
 [Collection("Browser")]
 [Trait("Category", "Browser")]
 public class BrowserFunctionalTests : IAsyncLifetime
 {
-    private IBrowser? _browser;
-    private IPage? _page;
     private const string BaseUrl = "http://127.0.0.1:5080";
     private readonly List<string> _consoleMessages = [];
     private readonly List<string> _pageErrors = [];
+    private IBrowser? _browser;
+    private IPage? _page;
 
     public async Task InitializeAsync()
     {
@@ -49,6 +49,118 @@ public class BrowserFunctionalTests : IAsyncLifetime
         if (_browser != null) await _browser.CloseAsync();
     }
 
+    #region Search Functionality Tests
+
+    [Fact]
+    public async Task Search_BasicQuery_ReturnsResults()
+    {
+        // Arrange
+        await _page!.GoToAsync(BaseUrl);
+        await Task.Delay(2000);
+
+        // Act - Verify search capabilities exist (search is done via submitQuestion in this UI)
+        var searchResult = await _page.EvaluateFunctionAsync<JsonElement>(@"
+            () => {
+                const appEl = document.querySelector('[x-data*=""ragApp""]');
+                const data = appEl?._x_dataStack?.[0];
+                if (!data) return { error: 'No Alpine data' };
+
+                return {
+                    hasSubmitQuestion: typeof data.submitQuestion === 'function',
+                    hasSearchMode: typeof data.searchMode === 'string',
+                    searchMode: data.searchMode,
+                    hasCollections: Array.isArray(data.collections)
+                };
+            }
+        ");
+
+        // Assert - Search capability should exist
+        searchResult.TryGetProperty("error", out _).Should().BeFalse();
+        searchResult.GetProperty("hasSubmitQuestion").GetBoolean().Should().BeTrue();
+    }
+
+    #endregion
+
+    #region Graph Visualization Tests
+
+    [Fact]
+    public async Task GraphTab_CanBeSelected()
+    {
+        // Arrange
+        await _page!.GoToAsync(BaseUrl);
+        await Task.Delay(2000);
+
+        // Act - Check graph view support
+        // The UI uses viewMode ('answer', 'evidence', 'graph') for tab selection
+        var result = await _page.EvaluateFunctionAsync<JsonElement>(@"
+            () => {
+                const appEl = document.querySelector('[x-data*=""ragApp""]');
+                const data = appEl?._x_dataStack?.[0];
+                if (!data) return { error: 'No Alpine data' };
+
+                return {
+                    hasViewMode: typeof data.viewMode === 'string',
+                    viewMode: data.viewMode,
+                    hasGraphData: 'graphData' in data,
+                    hasGraphSettings: 'graphSettings' in data,
+                    hasLoadGraphStats: typeof data.loadGraphStats === 'function'
+                };
+            }
+        ");
+
+        // Assert
+        result.TryGetProperty("error", out _).Should().BeFalse();
+        result.GetProperty("hasViewMode").GetBoolean().Should().BeTrue();
+    }
+
+    #endregion
+
+    #region Error Handling Tests
+
+    [Fact]
+    public async Task Page_NoJavaScriptErrors()
+    {
+        // Arrange
+        _consoleMessages.Clear();
+
+        // Act
+        await _page!.GoToAsync(BaseUrl);
+        await Task.Delay(3000);
+
+        // Assert - Check for critical JS errors
+        var criticalErrors = _consoleMessages
+            .Where(m => m.Contains("[Error]") && !m.Contains("favicon"))
+            .ToList();
+
+        // Log errors for debugging
+        if (criticalErrors.Any())
+        {
+            Console.WriteLine("JavaScript errors found:");
+            foreach (var error in criticalErrors) Console.WriteLine($"  {error}");
+        }
+
+        // Soft assertion - warn but don't fail on minor errors
+        _pageErrors.Should().BeEmpty("No page-level errors should occur");
+    }
+
+    #endregion
+
+    #region Performance Tests
+
+    [Fact]
+    public async Task Page_LoadsWithinTimeout()
+    {
+        // Act
+        var stopwatch = Stopwatch.StartNew();
+        await _page!.GoToAsync(BaseUrl, new NavigationOptions { WaitUntil = [WaitUntilNavigation.DOMContentLoaded] });
+        stopwatch.Stop();
+
+        // Assert - Page should load within 10 seconds
+        stopwatch.ElapsedMilliseconds.Should().BeLessThan(10000);
+    }
+
+    #endregion
+
     #region Navigation Tests
 
     [Fact]
@@ -58,7 +170,7 @@ public class BrowserFunctionalTests : IAsyncLifetime
         var response = await _page!.GoToAsync(BaseUrl);
 
         // Assert
-        response!.Status.Should().Be(System.Net.HttpStatusCode.OK);
+        response!.Status.Should().Be(HttpStatusCode.OK);
         var title = await _page.GetTitleAsync();
         title.Should().NotBeNullOrEmpty();
     }
@@ -210,38 +322,6 @@ public class BrowserFunctionalTests : IAsyncLifetime
 
     #endregion
 
-    #region Search Functionality Tests
-
-    [Fact]
-    public async Task Search_BasicQuery_ReturnsResults()
-    {
-        // Arrange
-        await _page!.GoToAsync(BaseUrl);
-        await Task.Delay(2000);
-
-        // Act - Verify search capabilities exist (search is done via submitQuestion in this UI)
-        var searchResult = await _page.EvaluateFunctionAsync<JsonElement>(@"
-            () => {
-                const appEl = document.querySelector('[x-data*=""ragApp""]');
-                const data = appEl?._x_dataStack?.[0];
-                if (!data) return { error: 'No Alpine data' };
-
-                return {
-                    hasSubmitQuestion: typeof data.submitQuestion === 'function',
-                    hasSearchMode: typeof data.searchMode === 'string',
-                    searchMode: data.searchMode,
-                    hasCollections: Array.isArray(data.collections)
-                };
-            }
-        ");
-
-        // Assert - Search capability should exist
-        searchResult.TryGetProperty("error", out _).Should().BeFalse();
-        searchResult.GetProperty("hasSubmitQuestion").GetBoolean().Should().BeTrue();
-    }
-
-    #endregion
-
     #region Collections Tests
 
     [Fact]
@@ -301,10 +381,8 @@ public class BrowserFunctionalTests : IAsyncLifetime
 
         // Assert - Either selected or no collections available
         if (result.TryGetProperty("noCollections", out _))
-        {
             // No collections is acceptable
             return;
-        }
         result.TryGetProperty("error", out _).Should().BeFalse();
     }
 
@@ -535,40 +613,6 @@ public class BrowserFunctionalTests : IAsyncLifetime
 
     #endregion
 
-    #region Graph Visualization Tests
-
-    [Fact]
-    public async Task GraphTab_CanBeSelected()
-    {
-        // Arrange
-        await _page!.GoToAsync(BaseUrl);
-        await Task.Delay(2000);
-
-        // Act - Check graph view support
-        // The UI uses viewMode ('answer', 'evidence', 'graph') for tab selection
-        var result = await _page.EvaluateFunctionAsync<JsonElement>(@"
-            () => {
-                const appEl = document.querySelector('[x-data*=""ragApp""]');
-                const data = appEl?._x_dataStack?.[0];
-                if (!data) return { error: 'No Alpine data' };
-
-                return {
-                    hasViewMode: typeof data.viewMode === 'string',
-                    viewMode: data.viewMode,
-                    hasGraphData: 'graphData' in data,
-                    hasGraphSettings: 'graphSettings' in data,
-                    hasLoadGraphStats: typeof data.loadGraphStats === 'function'
-                };
-            }
-        ");
-
-        // Assert
-        result.TryGetProperty("error", out _).Should().BeFalse();
-        result.GetProperty("hasViewMode").GetBoolean().Should().BeTrue();
-    }
-
-    #endregion
-
     #region Responsive Design Tests
 
     [Fact]
@@ -606,56 +650,7 @@ public class BrowserFunctionalTests : IAsyncLifetime
         var response = await _page.ReloadAsync();
 
         // Assert
-        response!.Status.Should().Be(System.Net.HttpStatusCode.OK);
-    }
-
-    #endregion
-
-    #region Error Handling Tests
-
-    [Fact]
-    public async Task Page_NoJavaScriptErrors()
-    {
-        // Arrange
-        _consoleMessages.Clear();
-
-        // Act
-        await _page!.GoToAsync(BaseUrl);
-        await Task.Delay(3000);
-
-        // Assert - Check for critical JS errors
-        var criticalErrors = _consoleMessages
-            .Where(m => m.Contains("[Error]") && !m.Contains("favicon"))
-            .ToList();
-
-        // Log errors for debugging
-        if (criticalErrors.Any())
-        {
-            Console.WriteLine("JavaScript errors found:");
-            foreach (var error in criticalErrors)
-            {
-                Console.WriteLine($"  {error}");
-            }
-        }
-
-        // Soft assertion - warn but don't fail on minor errors
-        _pageErrors.Should().BeEmpty("No page-level errors should occur");
-    }
-
-    #endregion
-
-    #region Performance Tests
-
-    [Fact]
-    public async Task Page_LoadsWithinTimeout()
-    {
-        // Act
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        await _page!.GoToAsync(BaseUrl, new NavigationOptions { WaitUntil = [WaitUntilNavigation.DOMContentLoaded] });
-        stopwatch.Stop();
-
-        // Assert - Page should load within 10 seconds
-        stopwatch.ElapsedMilliseconds.Should().BeLessThan(10000);
+        response!.Status.Should().Be(HttpStatusCode.OK);
     }
 
     #endregion

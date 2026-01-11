@@ -6,14 +6,14 @@ using Microsoft.Extensions.Logging;
 namespace LucidRAG.ImageCli.Services;
 
 /// <summary>
-/// Parses natural language queries into structured filter criteria using a small LLM.
-/// Enables queries like "show me sunset images with the sea" or "green abstract images".
+///     Parses natural language queries into structured filter criteria using a small LLM.
+///     Enables queries like "show me sunset images with the sea" or "green abstract images".
 /// </summary>
 public class NaturalLanguageQueryParser
 {
     private readonly HttpClient _httpClient;
-    private readonly string _model;
     private readonly ILogger<NaturalLanguageQueryParser>? _logger;
+    private readonly string _model;
 
     public NaturalLanguageQueryParser(
         HttpClient httpClient,
@@ -26,37 +26,37 @@ public class NaturalLanguageQueryParser
     }
 
     /// <summary>
-    /// Parse a natural language query into structured filter criteria.
+    ///     Parse a natural language query into structured filter criteria.
     /// </summary>
     public async Task<ImageQueryCriteria> ParseQueryAsync(string query, CancellationToken ct = default)
     {
         var prompt = $$"""
-            Parse this image search query into structured criteria. Extract:
-            - Keywords: Important visual elements (sunset, sea, mountains, person, etc.)
-            - Colors: Dominant colors mentioned (red, blue, green, etc.)
-            - Image type: Photo, Screenshot, Diagram, Chart, Abstract, Icon, Logo
-            - Quality filters: High resolution, blurry, sharp, etc.
-            - Content type: Has text, no text, etc.
+                       Parse this image search query into structured criteria. Extract:
+                       - Keywords: Important visual elements (sunset, sea, mountains, person, etc.)
+                       - Colors: Dominant colors mentioned (red, blue, green, etc.)
+                       - Image type: Photo, Screenshot, Diagram, Chart, Abstract, Icon, Logo
+                       - Quality filters: High resolution, blurry, sharp, etc.
+                       - Content type: Has text, no text, etc.
 
-            Query: "{{query}}"
+                       Query: "{{query}}"
 
-            Respond with JSON only, no explanation:
-            {
-              "keywords": ["keyword1", "keyword2"],
-              "colors": ["color1", "color2"],
-              "imageType": "Photo|Screenshot|Diagram|Chart|Abstract|Icon|Logo|null",
-              "hasText": true|false|null,
-              "minSharpness": 0.0-1.0|null,
-              "minResolution": "low|medium|high|null"
-            }
-            """;
+                       Respond with JSON only, no explanation:
+                       {
+                         "keywords": ["keyword1", "keyword2"],
+                         "colors": ["color1", "color2"],
+                         "imageType": "Photo|Screenshot|Diagram|Chart|Abstract|Icon|Logo|null",
+                         "hasText": true|false|null,
+                         "minSharpness": 0.0-1.0|null,
+                         "minResolution": "low|medium|high|null"
+                       }
+                       """;
 
         try
         {
             var request = new
             {
                 model = _model,
-                prompt = prompt,
+                prompt,
                 stream = false,
                 format = "json"
             };
@@ -70,10 +70,7 @@ public class NaturalLanguageQueryParser
             }
 
             var result = await response.Content.ReadFromJsonAsync<OllamaGenerateResponse>(ct);
-            if (result?.Response == null)
-            {
-                return ImageQueryCriteria.FromKeywords(ExtractKeywordsSimple(query));
-            }
+            if (result?.Response == null) return ImageQueryCriteria.FromKeywords(ExtractKeywordsSimple(query));
 
             var criteria = JsonSerializer.Deserialize<ImageQueryCriteria>(result.Response);
             return criteria ?? ImageQueryCriteria.FromKeywords(ExtractKeywordsSimple(query));
@@ -86,12 +83,13 @@ public class NaturalLanguageQueryParser
     }
 
     /// <summary>
-    /// Simple fallback keyword extraction when LLM is unavailable.
+    ///     Simple fallback keyword extraction when LLM is unavailable.
     /// </summary>
     private static List<string> ExtractKeywordsSimple(string query)
     {
         // Remove common words and split
-        var stopWords = new HashSet<string> { "show", "me", "all", "images", "with", "a", "an", "the", "that", "are", "is" };
+        var stopWords = new HashSet<string>
+            { "show", "me", "all", "images", "with", "a", "an", "the", "that", "are", "is" };
 
         return query.ToLowerInvariant()
             .Split(new[] { ' ', ',', '.', ';' }, StringSplitOptions.RemoveEmptyEntries)
@@ -100,32 +98,27 @@ public class NaturalLanguageQueryParser
     }
 
     private record OllamaGenerateResponse(
-        [property: JsonPropertyName("response")] string Response,
+        [property: JsonPropertyName("response")]
+        string Response,
         [property: JsonPropertyName("done")] bool Done);
 }
 
 /// <summary>
-/// Structured image query criteria parsed from natural language.
+///     Structured image query criteria parsed from natural language.
 /// </summary>
 public class ImageQueryCriteria
 {
-    [JsonPropertyName("keywords")]
-    public List<string> Keywords { get; set; } = new();
+    [JsonPropertyName("keywords")] public List<string> Keywords { get; set; } = new();
 
-    [JsonPropertyName("colors")]
-    public List<string> Colors { get; set; } = new();
+    [JsonPropertyName("colors")] public List<string> Colors { get; set; } = new();
 
-    [JsonPropertyName("imageType")]
-    public string? ImageType { get; set; }
+    [JsonPropertyName("imageType")] public string? ImageType { get; set; }
 
-    [JsonPropertyName("hasText")]
-    public bool? HasText { get; set; }
+    [JsonPropertyName("hasText")] public bool? HasText { get; set; }
 
-    [JsonPropertyName("minSharpness")]
-    public double? MinSharpness { get; set; }
+    [JsonPropertyName("minSharpness")] public double? MinSharpness { get; set; }
 
-    [JsonPropertyName("minResolution")]
-    public string? MinResolution { get; set; }
+    [JsonPropertyName("minResolution")] public string? MinResolution { get; set; }
 
     public static ImageQueryCriteria FromKeywords(List<string> keywords)
     {
@@ -133,13 +126,13 @@ public class ImageQueryCriteria
     }
 
     /// <summary>
-    /// Check if an image profile matches these criteria.
-    /// Uses weighted scoring with multiple signals.
+    ///     Check if an image profile matches these criteria.
+    ///     Uses weighted scoring with multiple signals.
     /// </summary>
     public double CalculateMatchScore(dynamic profile)
     {
-        double score = 0.0;
-        int criteriaCount = 0;
+        var score = 0.0;
+        var criteriaCount = 0;
 
         // Check keywords (if we have OCR or vision LLM description)
         if (Keywords.Any())
@@ -165,7 +158,7 @@ public class ImageQueryCriteria
                     .ToList();
 
                 var matchedColors = Colors.Count(c =>
-                    ((IEnumerable<string>)colorNames).Any(cn => cn.Contains(c.ToLowerInvariant())));
+                    colorNames.Any(cn => cn.Contains(c.ToLowerInvariant())));
 
                 score += (double)matchedColors / Colors.Count;
             }
@@ -176,10 +169,7 @@ public class ImageQueryCriteria
         {
             criteriaCount++;
             var detectedType = profile.GetValue<string>("content.type");
-            if (detectedType?.Equals(ImageType, StringComparison.OrdinalIgnoreCase) == true)
-            {
-                score += 1.0;
-            }
+            if (detectedType?.Equals(ImageType, StringComparison.OrdinalIgnoreCase) == true) score += 1.0;
         }
 
         // Check text presence
@@ -189,10 +179,7 @@ public class ImageQueryCriteria
             var textLikeliness = profile.GetValue<double>("content.text_likeliness");
             var hasTextDetected = textLikeliness > 0.4;
 
-            if (hasTextDetected == HasText.Value)
-            {
-                score += 1.0;
-            }
+            if (hasTextDetected == HasText.Value) score += 1.0;
         }
 
         // Check sharpness
@@ -200,10 +187,7 @@ public class ImageQueryCriteria
         {
             criteriaCount++;
             var sharpness = profile.GetValue<double>("quality.sharpness");
-            if (sharpness >= MinSharpness.Value)
-            {
-                score += 1.0;
-            }
+            if (sharpness >= MinSharpness.Value) score += 1.0;
         }
 
         // Check resolution
@@ -222,10 +206,7 @@ public class ImageQueryCriteria
                 _ => true
             };
 
-            if (meetsResolution)
-            {
-                score += 1.0;
-            }
+            if (meetsResolution) score += 1.0;
         }
 
         // Return normalized score (0.0 - 1.0)

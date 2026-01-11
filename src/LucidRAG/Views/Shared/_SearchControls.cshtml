@@ -5,19 +5,25 @@
     <!-- Search Mode Selector -->
     <div class="dropdown dropdown-end">
         <label tabindex="0" class="btn btn-ghost btn-sm gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                 stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
             <span x-text="searchMode === 'full' ? 'Full' : searchMode === 'simple' ? 'Simple' : 'Vector'"></span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                 stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
         </label>
-        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 border border-base-300 rounded-box w-52 mt-2">
+        <ul tabindex="0"
+            class="dropdown-content z-[1] menu p-2 shadow bg-base-100 border border-base-300 rounded-box w-52 mt-2">
             <li>
                 <button @@click="setSearchMode('full')" :class="searchMode === 'full' ? 'active' : ''">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M13 10V3L4 14h7v7l9-11h-7z"/>
                     </svg>
                     <div class="flex-1">
                         <div class="font-medium">Full Search</div>
@@ -27,8 +33,10 @@
             </li>
             <li>
                 <button @@click="setSearchMode('simple')" :class="searchMode === 'simple' ? 'active' : ''">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
                     <div class="flex-1">
                         <div class="font-medium">Simple Search</div>
@@ -38,8 +46,10 @@
             </li>
             <li>
                 <button @@click="setSearchMode('vector')" :class="searchMode === 'vector' ? 'active' : ''">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
                     </svg>
                     <div class="flex-1">
                         <div class="font-medium">Vector Search</div>
@@ -56,7 +66,8 @@
             class="btn btn-ghost btn-sm btn-square"
             title="Advanced search filters">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
         </svg>
     </button>
 </div>
@@ -85,8 +96,9 @@
         <div class="sticky top-0 bg-base-100 border-b border-base-300 px-6 py-4 flex items-center justify-between">
             <h3 class="text-lg font-semibold">Advanced Search</h3>
             <button @@click="advancedSearchOpen = false" class="btn btn-ghost btn-sm btn-square">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
@@ -102,12 +114,12 @@
                     <input type="date"
                            x-model="advancedFilters.dateFrom"
                            class="input input-bordered input-sm flex-1"
-                           placeholder="From date" />
+                           placeholder="From date"/>
                     <span class="text-base-content/50">to</span>
                     <input type="date"
                            x-model="advancedFilters.dateTo"
                            class="input input-bordered input-sm flex-1"
-                           placeholder="To date" />
+                           placeholder="To date"/>
                 </div>
             </div>
 
@@ -124,7 +136,7 @@
                         <input type="checkbox"
                                x-model="advancedFilters.signals"
                                value="has_images"
-                               class="checkbox checkbox-sm checkbox-primary" />
+                               class="checkbox checkbox-sm checkbox-primary"/>
                         <span class="label-text">Contains images</span>
                     </label>
                 </div>
@@ -134,7 +146,7 @@
                         <input type="checkbox"
                                x-model="advancedFilters.signals"
                                value="has_tables"
-                               class="checkbox checkbox-sm checkbox-primary" />
+                               class="checkbox checkbox-sm checkbox-primary"/>
                         <span class="label-text">Contains tables</span>
                     </label>
                 </div>
@@ -144,7 +156,7 @@
                         <input type="checkbox"
                                x-model="advancedFilters.signals"
                                value="has_code"
-                               class="checkbox checkbox-sm checkbox-primary" />
+                               class="checkbox checkbox-sm checkbox-primary"/>
                         <span class="label-text">Contains code blocks</span>
                     </label>
                 </div>
@@ -159,7 +171,8 @@
                 </label>
                 <div class="flex flex-wrap gap-2">
                     <button class="badge badge-lg badge-outline hover:badge-primary cursor-pointer">Person</button>
-                    <button class="badge badge-lg badge-outline hover:badge-primary cursor-pointer">Organization</button>
+                    <button class="badge badge-lg badge-outline hover:badge-primary cursor-pointer">Organization
+                    </button>
                     <button class="badge badge-lg badge-outline hover:badge-primary cursor-pointer">Concept</button>
                     <button class="badge badge-lg badge-outline hover:badge-primary cursor-pointer">Technology</button>
                 </div>

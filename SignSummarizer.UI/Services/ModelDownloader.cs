@@ -8,9 +8,9 @@ public interface IModelDownloader
         WhisperModel model,
         string outputDirectory,
         CancellationToken cancellationToken = default);
-    
+
     Task<bool> ModelExistsAsync(WhisperModel model, CancellationToken cancellationToken = default);
-    
+
     Task<string> DownloadModelAsync(
         string url,
         string fileName,
@@ -20,10 +20,6 @@ public interface IModelDownloader
 
 public sealed class ModelDownloader : IModelDownloader
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<ModelDownloader> _logger;
-    private readonly SemaphoreSlim _downloadLock = new(1, 1);
-    
     private static readonly Dictionary<WhisperModel, string> ModelUrls = new()
     {
         { WhisperModel.Tiny, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin" },
@@ -37,7 +33,7 @@ public sealed class ModelDownloader : IModelDownloader
         { WhisperModel.LargeV2, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v2.bin" },
         { WhisperModel.LargeV3, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin" }
     };
-    
+
     private static readonly Dictionary<WhisperModel, (int SizeMB, string Description)> ModelInfo = new()
     {
         { WhisperModel.Tiny, (39, "Tiny - Fastest, ~32x faster than large") },
@@ -51,77 +47,78 @@ public sealed class ModelDownloader : IModelDownloader
         { WhisperModel.LargeV2, (1550, "Large v2 - Best accuracy, slowest") },
         { WhisperModel.LargeV3, (1550, "Large v3 - Best accuracy, slowest") }
     };
-    
+
+    private readonly SemaphoreSlim _downloadLock = new(1, 1);
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<ModelDownloader> _logger;
+
     public ModelDownloader(HttpClient httpClient, ILogger<ModelDownloader> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
     }
-    
+
     public async Task<bool> ModelExistsAsync(WhisperModel model, CancellationToken cancellationToken = default)
     {
         var modelPath = GetModelPath(model);
         return File.Exists(modelPath);
     }
-    
+
     public async Task<string> DownloadWhisperModelAsync(
         WhisperModel model,
         string outputDirectory,
         CancellationToken cancellationToken = default)
     {
-        if (!ModelUrls.TryGetValue(model, out var url))
-        {
-            throw new ArgumentException($"Unknown Whisper model: {model}");
-        }
-        
+        if (!ModelUrls.TryGetValue(model, out var url)) throw new ArgumentException($"Unknown Whisper model: {model}");
+
         var fileName = Path.GetFileName(url);
         var outputPath = Path.Combine(outputDirectory, fileName);
-        
+
         Directory.CreateDirectory(outputDirectory);
-        
+
         if (File.Exists(outputPath))
         {
             _logger.LogInformation("Whisper model already exists: {FileName}", fileName);
             return outputPath;
         }
-        
+
         var (size, description) = ModelInfo[model];
-        _logger.LogInformation("Downloading Whisper {Model}: {Description} ({Size}MB) from {Url}", 
+        _logger.LogInformation("Downloading Whisper {Model}: {Description} ({Size}MB) from {Url}",
             model, description, size, url);
-        
+
         await _downloadLock.WaitAsync(cancellationToken);
-        
+
         try
         {
             var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             response.EnsureSuccessStatusCode();
-            
+
             var totalBytes = response.Content.Headers.ContentLength ?? size * 1024 * 1024;
-            
+
             using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            
+
             var buffer = new byte[8192];
             var totalRead = 0L;
             var lastProgress = 0;
-            
+
             int read;
             while ((read = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
             {
                 await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                 totalRead += read;
-                
-                var progress = (int)((totalRead * 100) / totalBytes);
+
+                var progress = (int)(totalRead * 100 / totalBytes);
                 if (progress > lastProgress)
                 {
-                    _logger.LogInformation("Download progress: {Progress}% ({DownloadedMB:F1}MB / {TotalMB:F1}MB)", 
+                    _logger.LogInformation("Download progress: {Progress}% ({DownloadedMB:F1}MB / {TotalMB:F1}MB)",
                         progress, totalRead / 1024.0 / 1024.0, totalBytes / 1024.0 / 1024.0);
                     lastProgress = progress;
                 }
             }
-            
+
             _logger.LogInformation("Whisper model downloaded successfully: {FileName}", fileName);
-            
+
             return outputPath;
         }
         finally
@@ -129,7 +126,7 @@ public sealed class ModelDownloader : IModelDownloader
             _downloadLock.Release();
         }
     }
-    
+
     public async Task<string> DownloadModelAsync(
         string url,
         string fileName,
@@ -138,28 +135,28 @@ public sealed class ModelDownloader : IModelDownloader
     {
         Directory.CreateDirectory(outputDirectory);
         var outputPath = Path.Combine(outputDirectory, fileName);
-        
+
         if (File.Exists(outputPath))
         {
             _logger.LogInformation("Model already exists: {FileName}", fileName);
             return outputPath;
         }
-        
+
         _logger.LogInformation("Downloading model from {Url}", url);
-        
+
         var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
-        
+
         using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        
+
         await contentStream.CopyToAsync(fileStream, cancellationToken);
-        
+
         _logger.LogInformation("Model downloaded to: {OutputPath}", outputPath);
-        
+
         return outputPath;
     }
-    
+
     private static string GetModelPath(WhisperModel model)
     {
         return model switch

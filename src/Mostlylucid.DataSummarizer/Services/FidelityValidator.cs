@@ -1,25 +1,29 @@
 using DuckDB.NET.Data;
-using MathNet.Numerics.Statistics;
 using Mostlylucid.DataSummarizer.Models;
 
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Validates fidelity of synthetic data against the original profile.
-/// Provides measurable metrics to validate "statistically identical" claims.
+///     Validates fidelity of synthetic data against the original profile.
+///     Provides measurable metrics to validate "statistically identical" claims.
 /// </summary>
 public class FidelityValidator : IDisposable
 {
-    private DuckDBConnection? _connection;
     private readonly bool _verbose;
+    private DuckDBConnection? _connection;
 
     public FidelityValidator(bool verbose = false)
     {
         _verbose = verbose;
     }
 
+    public void Dispose()
+    {
+        _connection?.Dispose();
+    }
+
     /// <summary>
-    /// Validate synthetic data against the original profile.
+    ///     Validate synthetic data against the original profile.
     /// </summary>
     public async Task<SynthesisFidelityReport> ValidateAsync(
         DataProfile originalProfile,
@@ -40,7 +44,7 @@ public class FidelityValidator : IDisposable
         // Compare each column
         foreach (var origCol in originalProfile.Columns)
         {
-            var synthCol = syntheticProfile.Columns.FirstOrDefault(c => 
+            var synthCol = syntheticProfile.Columns.FirstOrDefault(c =>
                 c.Name.Equals(origCol.Name, StringComparison.OrdinalIgnoreCase));
 
             if (synthCol == null)
@@ -123,38 +127,26 @@ public class FidelityValidator : IDisposable
     {
         // Mean delta (normalized by std)
         if (orig.Mean.HasValue && synth.Mean.HasValue && orig.StdDev.HasValue && orig.StdDev.Value > 0)
-        {
             fidelity.MeanDelta = Math.Abs(orig.Mean.Value - synth.Mean.Value) / orig.StdDev.Value;
-        }
 
         // Std dev delta (relative)
         if (orig.StdDev.HasValue && synth.StdDev.HasValue && orig.StdDev.Value > 0)
-        {
             fidelity.StdDevDelta = Math.Abs(orig.StdDev.Value - synth.StdDev.Value) / orig.StdDev.Value;
-        }
 
         // Quantile deltas
         if (orig.Q25.HasValue && synth.Q25.HasValue && orig.Iqr.HasValue && orig.Iqr.Value > 0)
-        {
             fidelity.Q25Delta = Math.Abs(orig.Q25.Value - synth.Q25.Value) / orig.Iqr.Value;
-        }
 
         if (orig.Median.HasValue && synth.Median.HasValue && orig.Iqr.HasValue && orig.Iqr.Value > 0)
-        {
             fidelity.MedianDelta = Math.Abs(orig.Median.Value - synth.Median.Value) / orig.Iqr.Value;
-        }
 
         if (orig.Q75.HasValue && synth.Q75.HasValue && orig.Iqr.HasValue && orig.Iqr.Value > 0)
-        {
             fidelity.Q75Delta = Math.Abs(orig.Q75.Value - synth.Q75.Value) / orig.Iqr.Value;
-        }
 
         // Kolmogorov-Smirnov statistic would require the actual data
         // For now, approximate from quantile differences
         if (fidelity.Q25Delta.HasValue && fidelity.MedianDelta.HasValue && fidelity.Q75Delta.HasValue)
-        {
             fidelity.KsStatistic = (fidelity.Q25Delta + fidelity.MedianDelta + fidelity.Q75Delta) / 3.0;
-        }
     }
 
     private void ComputeCategoricalFidelity(ColumnProfile orig, ColumnProfile synth, ColumnFidelity fidelity)
@@ -184,11 +176,13 @@ public class FidelityValidator : IDisposable
     }
 
     /// <summary>
-    /// Calculate Population Stability Index (PSI).
-    /// Used for drift detection. Lower is better.
-    /// PSI < 0.1: No significant change
-    /// PSI 0.1-0.25: Moderate change
-    /// PSI > 0.25: Significant change
+    ///     Calculate Population Stability Index (PSI).
+    ///     Used for drift detection. Lower is better.
+    ///     PSI
+    ///     < 0.1: No significant change
+    ///         PSI 0.1-0.25 : Moderate change
+    ///         PSI>
+    ///         0.25: Significant change
     /// </summary>
     private double CalculatePsi(List<ValueCount> original, List<ValueCount> synthetic)
     {
@@ -210,7 +204,7 @@ public class FidelityValidator : IDisposable
     }
 
     /// <summary>
-    /// Calculate Jensen-Shannon divergence (0-1, symmetric measure of distribution difference).
+    ///     Calculate Jensen-Shannon divergence (0-1, symmetric measure of distribution difference).
     /// </summary>
     private double CalculateJsDivergence(List<ValueCount> original, List<ValueCount> synthetic)
     {
@@ -292,22 +286,15 @@ public class FidelityValidator : IDisposable
             }
 
             // Track redacted columns
-            if (col.SynthesisPolicy?.SuppressTopValues == true)
-            {
-                compliance.RedactedColumns.Add(col.Name);
-            }
+            if (col.SynthesisPolicy?.SuppressTopValues == true) compliance.RedactedColumns.Add(col.Name);
         }
 
         // Check for potential re-identification
         // Warning if synthetic data has high-cardinality categorical columns
         foreach (var synthCol in synthetic.Columns)
-        {
             if (synthCol.InferredType == ColumnType.Categorical && synthCol.CardinalityRatio > 0.5)
-            {
                 compliance.Warnings.Add(
                     $"Column '{synthCol.Name}' has high cardinality ({synthCol.UniqueCount} unique values) - potential re-identification risk");
-            }
-        }
 
         compliance.PassesUniquenessCheck = compliance.Warnings.Count == 0;
 
@@ -319,16 +306,10 @@ public class FidelityValidator : IDisposable
         var scores = new List<double>();
 
         // Column-level scores (weighted by importance)
-        foreach (var col in report.ColumnMetrics)
-        {
-            scores.Add(col.Score);
-        }
+        foreach (var col in report.ColumnMetrics) scores.Add(col.Score);
 
         // Relationship scores
-        foreach (var rel in report.RelationshipMetrics)
-        {
-            scores.Add(rel.Score);
-        }
+        foreach (var rel in report.RelationshipMetrics) scores.Add(rel.Score);
 
         // Privacy compliance bonus/penalty
         var privacyScore = report.Privacy.PassesUniquenessCheck ? 1.0 : 0.8;
@@ -337,10 +318,5 @@ public class FidelityValidator : IDisposable
         if (scores.Count == 0) return 100;
 
         return Math.Round(scores.Average() * 100, 1);
-    }
-
-    public void Dispose()
-    {
-        _connection?.Dispose();
     }
 }

@@ -4,7 +4,7 @@ using Xunit;
 namespace Mostlylucid.DocSummarizer.Tests.Config;
 
 /// <summary>
-/// Tests for WebFetchConfig and WebFetchMode
+///     Tests for WebFetchConfig and WebFetchMode
 /// </summary>
 public class WebFetchConfigTests
 {

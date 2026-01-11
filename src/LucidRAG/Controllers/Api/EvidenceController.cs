@@ -1,11 +1,10 @@
-using Microsoft.AspNetCore.Mvc;
-using LucidRAG.Entities;
 using LucidRAG.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LucidRAG.Controllers.Api;
 
 /// <summary>
-/// API for accessing evidence artifacts associated with retrieval entities.
+///     API for accessing evidence artifacts associated with retrieval entities.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -14,7 +13,7 @@ public class EvidenceController(
     ILogger<EvidenceController> logger) : ControllerBase
 {
     /// <summary>
-    /// List all evidence artifacts for an entity.
+    ///     List all evidence artifacts for an entity.
     /// </summary>
     [HttpGet("{entityId:guid}")]
     public async Task<ActionResult<IEnumerable<EvidenceArtifactDto>>> GetByEntity(
@@ -39,7 +38,7 @@ public class EvidenceController(
     }
 
     /// <summary>
-    /// List available evidence types for an entity.
+    ///     List available evidence types for an entity.
     /// </summary>
     [HttpGet("{entityId:guid}/types")]
     public async Task<ActionResult<IEnumerable<string>>> GetAvailableTypes(
@@ -51,7 +50,7 @@ public class EvidenceController(
     }
 
     /// <summary>
-    /// Get artifact metadata.
+    ///     Get artifact metadata.
     /// </summary>
     [HttpGet("artifact/{artifactId:guid}")]
     public async Task<ActionResult<EvidenceArtifactDto>> GetArtifact(
@@ -59,10 +58,7 @@ public class EvidenceController(
         CancellationToken ct = default)
     {
         var artifact = await evidenceRepository.GetByIdAsync(artifactId, ct);
-        if (artifact == null)
-        {
-            return NotFound();
-        }
+        if (artifact == null) return NotFound();
 
         return Ok(new EvidenceArtifactDto
         {
@@ -81,7 +77,7 @@ public class EvidenceController(
     }
 
     /// <summary>
-    /// Download artifact content.
+    ///     Download artifact content.
     /// </summary>
     [HttpGet("artifact/{artifactId:guid}/download")]
     public async Task<IActionResult> DownloadArtifact(
@@ -89,10 +85,7 @@ public class EvidenceController(
         CancellationToken ct = default)
     {
         var artifact = await evidenceRepository.GetByIdAsync(artifactId, ct);
-        if (artifact == null)
-        {
-            return NotFound();
-        }
+        if (artifact == null) return NotFound();
 
         var stream = await evidenceRepository.GetStreamAsync(artifactId, ct);
         if (stream == null)
@@ -109,7 +102,7 @@ public class EvidenceController(
     }
 
     /// <summary>
-    /// Delete an artifact.
+    ///     Delete an artifact.
     /// </summary>
     [HttpDelete("artifact/{artifactId:guid}")]
     public async Task<IActionResult> DeleteArtifact(
@@ -117,16 +110,13 @@ public class EvidenceController(
         CancellationToken ct = default)
     {
         var deleted = await evidenceRepository.DeleteAsync(artifactId, ct);
-        if (!deleted)
-        {
-            return NotFound();
-        }
+        if (!deleted) return NotFound();
 
         return NoContent();
     }
 
     /// <summary>
-    /// Upload new evidence for an entity.
+    ///     Upload new evidence for an entity.
     /// </summary>
     [HttpPost("{entityId:guid}")]
     public async Task<ActionResult<EvidenceArtifactDto>> UploadEvidence(
@@ -138,10 +128,7 @@ public class EvidenceController(
         [FromForm] double? confidence = null,
         CancellationToken ct = default)
     {
-        if (file == null || file.Length == 0)
-        {
-            return BadRequest("No file provided");
-        }
+        if (file == null || file.Length == 0) return BadRequest("No file provided");
 
         await using var stream = file.OpenReadStream();
 
@@ -153,15 +140,12 @@ public class EvidenceController(
             producerSource,
             producerVersion,
             confidence,
-            null,     // metadata
-            null,     // segmentHash
+            null, // metadata
+            null, // segmentHash
             ct);
 
         var artifact = await evidenceRepository.GetByIdAsync(artifactId, ct);
-        if (artifact == null)
-        {
-            return StatusCode(500, "Failed to retrieve stored artifact");
-        }
+        if (artifact == null) return StatusCode(500, "Failed to retrieve stored artifact");
 
         return CreatedAtAction(
             nameof(GetArtifact),
@@ -201,7 +185,7 @@ public class EvidenceController(
 }
 
 /// <summary>
-/// DTO for evidence artifact responses.
+///     DTO for evidence artifact responses.
 /// </summary>
 public record EvidenceArtifactDto
 {

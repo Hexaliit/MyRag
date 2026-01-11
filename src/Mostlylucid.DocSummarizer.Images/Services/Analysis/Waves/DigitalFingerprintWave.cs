@@ -1,36 +1,33 @@
+using System.Security.Cryptography;
+using System.Text;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Digital fingerprinting wave using robust perceptual hashing.
-/// Inspired by Meta's PDQ algorithm and PhotoDNA approach.
-///
-/// Generates multiple fingerprints:
-/// - PDQ-style robust hash (resistant to rotation, scaling, compression)
-/// - Color histogram hash
-/// - DCT-based hash
-/// - Block mean hash
-///
-/// References:
-/// - PDQ (Meta): https://github.com/facebook/ThreatExchange/tree/main/pdq
-/// - PhotoDNA: Robust hash for content matching
-/// - Trufo (2025): Next-gen perceptual hashing
+///     Digital fingerprinting wave using robust perceptual hashing.
+///     Inspired by Meta's PDQ algorithm and PhotoDNA approach.
+///     Generates multiple fingerprints:
+///     - PDQ-style robust hash (resistant to rotation, scaling, compression)
+///     - Color histogram hash
+///     - DCT-based hash
+///     - Block mean hash
+///     References:
+///     - PDQ (Meta): https://github.com/facebook/ThreatExchange/tree/main/pdq
+///     - PhotoDNA: Robust hash for content matching
+///     - Trufo (2025): Next-gen perceptual hashing
 /// </summary>
 public class DigitalFingerprintWave : IAnalysisWave
 {
+    private const int PdqHashSize = 16; // 16x16 DCT, 256-bit hash
+    private const int BlockHashSize = 8; // 8x8 blocks for block mean hash
     public string Name => "DigitalFingerprintWave";
     public int Priority => 85; // High priority - provides identity signals
     public IReadOnlyList<string> Tags => new[] { SignalTags.Identity, SignalTags.Forensic };
-
-    private const int PdqHashSize = 16; // 16x16 DCT, 256-bit hash
-    private const int BlockHashSize = 8; // 8x8 blocks for block mean hash
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
         string imagePath,
@@ -120,7 +117,7 @@ public class DigitalFingerprintWave : IAnalysisWave
             Metadata = new Dictionary<string, object>
             {
                 ["interpretation"] = qualityScore > 0.8 ? "High distinctiveness" :
-                                    qualityScore > 0.5 ? "Medium distinctiveness" : "Low distinctiveness"
+                    qualityScore > 0.5 ? "Medium distinctiveness" : "Low distinctiveness"
             }
         });
 
@@ -128,8 +125,8 @@ public class DigitalFingerprintWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Compute PDQ-style hash using DCT (Discrete Cosine Transform).
-    /// Resistant to rotation, scaling, compression, and color adjustments.
+    ///     Compute PDQ-style hash using DCT (Discrete Cosine Transform).
+    ///     Resistant to rotation, scaling, compression, and color adjustments.
     /// </summary>
     private static string ComputePdqStyleHash(Image<Rgba32> image)
     {
@@ -139,10 +136,10 @@ public class DigitalFingerprintWave : IAnalysisWave
         // Convert to grayscale for luminance-based hashing
         var luminance = new double[PdqHashSize, PdqHashSize];
 
-        for (int y = 0; y < PdqHashSize; y++)
+        for (var y = 0; y < PdqHashSize; y++)
         {
             var row = resized.DangerousGetPixelRowMemory(y).Span;
-            for (int x = 0; x < PdqHashSize; x++)
+            for (var x = 0; x < PdqHashSize; x++)
             {
                 var pixel = row[x];
                 // ITU-R BT.709 luma coefficients
@@ -157,22 +154,20 @@ public class DigitalFingerprintWave : IAnalysisWave
         var hash = new StringBuilder();
         var median = ComputeMedian(dct);
 
-        for (int y = 0; y < PdqHashSize; y++)
+        for (var y = 0; y < PdqHashSize; y++)
+        for (var x = 0; x < PdqHashSize; x++)
         {
-            for (int x = 0; x < PdqHashSize; x++)
-            {
-                if (x == 0 && y == 0) continue; // Skip DC component
+            if (x == 0 && y == 0) continue; // Skip DC component
 
-                hash.Append(dct[x, y] > median ? '1' : '0');
-            }
+            hash.Append(dct[x, y] > median ? '1' : '0');
         }
 
         return ConvertBinaryToHex(hash.ToString());
     }
 
     /// <summary>
-    /// Compute color histogram hash.
-    /// Resistant to geometric transformations.
+    ///     Compute color histogram hash.
+    ///     Resistant to geometric transformations.
     /// </summary>
     private static string ComputeColorHistogramHash(Image<Rgba32> image)
     {
@@ -182,10 +177,10 @@ public class DigitalFingerprintWave : IAnalysisWave
         var gHist = new int[bins];
         var bHist = new int[bins];
 
-        for (int y = 0; y < image.Height; y++)
+        for (var y = 0; y < image.Height; y++)
         {
             var row = image.DangerousGetPixelRowMemory(y).Span;
-            for (int x = 0; x < image.Width; x++)
+            for (var x = 0; x < image.Width; x++)
             {
                 var pixel = row[x];
                 rHist[pixel.R * bins / 256]++;
@@ -198,11 +193,11 @@ public class DigitalFingerprintWave : IAnalysisWave
         var totalPixels = image.Width * image.Height;
         var hash = new StringBuilder();
 
-        for (int i = 0; i < bins; i++)
+        for (var i = 0; i < bins; i++)
         {
-            var rVal = (byte)((rHist[i] * 255) / totalPixels);
-            var gVal = (byte)((gHist[i] * 255) / totalPixels);
-            var bVal = (byte)((bHist[i] * 255) / totalPixels);
+            var rVal = (byte)(rHist[i] * 255 / totalPixels);
+            var gVal = (byte)(gHist[i] * 255 / totalPixels);
+            var bVal = (byte)(bHist[i] * 255 / totalPixels);
 
             hash.Append($"{rVal:X2}{gVal:X2}{bVal:X2}");
         }
@@ -214,8 +209,8 @@ public class DigitalFingerprintWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Compute block mean hash.
-    /// Divides image into blocks and compares to median.
+    ///     Compute block mean hash.
+    ///     Divides image into blocks and compares to median.
     /// </summary>
     private static string ComputeBlockMeanHash(Image<Rgba32> image)
     {
@@ -223,10 +218,10 @@ public class DigitalFingerprintWave : IAnalysisWave
 
         var blockMeans = new double[BlockHashSize, BlockHashSize];
 
-        for (int y = 0; y < BlockHashSize; y++)
+        for (var y = 0; y < BlockHashSize; y++)
         {
             var row = resized.DangerousGetPixelRowMemory(y).Span;
-            for (int x = 0; x < BlockHashSize; x++)
+            for (var x = 0; x < BlockHashSize; x++)
             {
                 var pixel = row[x];
                 blockMeans[x, y] = (pixel.R + pixel.G + pixel.B) / 3.0;
@@ -236,19 +231,15 @@ public class DigitalFingerprintWave : IAnalysisWave
         var median = ComputeMedian(blockMeans);
         var hash = new StringBuilder();
 
-        for (int y = 0; y < BlockHashSize; y++)
-        {
-            for (int x = 0; x < BlockHashSize; x++)
-            {
-                hash.Append(blockMeans[x, y] > median ? '1' : '0');
-            }
-        }
+        for (var y = 0; y < BlockHashSize; y++)
+        for (var x = 0; x < BlockHashSize; x++)
+            hash.Append(blockMeans[x, y] > median ? '1' : '0');
 
         return ConvertBinaryToHex(hash.ToString());
     }
 
     /// <summary>
-    /// Compute composite fingerprint from multiple hashes.
+    ///     Compute composite fingerprint from multiple hashes.
     /// </summary>
     private static string ComputeCompositeFingerprint(params string[] hashes)
     {
@@ -259,8 +250,8 @@ public class DigitalFingerprintWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Assess fingerprint quality/distinctiveness.
-    /// Higher quality = more unique/distinctive image.
+    ///     Assess fingerprint quality/distinctiveness.
+    ///     Higher quality = more unique/distinctive image.
     /// </summary>
     private static double AssessFingerprintQuality(Image<Rgba32> image)
     {
@@ -273,16 +264,16 @@ public class DigitalFingerprintWave : IAnalysisWave
         var height = image.Height;
 
         // Resolution score
-        var resolutionScore = Math.Min(1.0, (width * height) / (1920.0 * 1080.0));
+        var resolutionScore = Math.Min(1.0, width * height / (1920.0 * 1080.0));
 
         // Color diversity score (sample pixels)
         var colorSet = new HashSet<uint>();
         var sampleStep = Math.Max(1, width / 32);
 
-        for (int y = 0; y < height; y += sampleStep)
+        for (var y = 0; y < height; y += sampleStep)
         {
             var row = image.DangerousGetPixelRowMemory(y).Span;
-            for (int x = 0; x < width; x += sampleStep)
+            for (var x = 0; x < width; x += sampleStep)
             {
                 var pixel = row[x];
                 var colorKey = ((uint)pixel.R << 16) | ((uint)pixel.G << 8) | pixel.B;
@@ -290,42 +281,36 @@ public class DigitalFingerprintWave : IAnalysisWave
             }
         }
 
-        var maxColors = Math.Min(4096, (width / sampleStep) * (height / sampleStep));
+        var maxColors = Math.Min(4096, width / sampleStep * (height / sampleStep));
         var colorDiversityScore = (double)colorSet.Count / maxColors;
 
         // Combined quality score
-        return (resolutionScore * 0.3 + colorDiversityScore * 0.7);
+        return resolutionScore * 0.3 + colorDiversityScore * 0.7;
     }
 
     /// <summary>
-    /// Simplified 2D DCT implementation.
+    ///     Simplified 2D DCT implementation.
     /// </summary>
     private static double[,] ComputeDCT2D(double[,] input)
     {
         var size = input.GetLength(0);
         var output = new double[size, size];
 
-        for (int v = 0; v < size; v++)
+        for (var v = 0; v < size; v++)
+        for (var u = 0; u < size; u++)
         {
-            for (int u = 0; u < size; u++)
-            {
-                double sum = 0;
+            double sum = 0;
 
-                for (int y = 0; y < size; y++)
-                {
-                    for (int x = 0; x < size; x++)
-                    {
-                        sum += input[x, y] *
-                               Math.Cos((2 * x + 1) * u * Math.PI / (2.0 * size)) *
-                               Math.Cos((2 * y + 1) * v * Math.PI / (2.0 * size));
-                    }
-                }
+            for (var y = 0; y < size; y++)
+            for (var x = 0; x < size; x++)
+                sum += input[x, y] *
+                       Math.Cos((2 * x + 1) * u * Math.PI / (2.0 * size)) *
+                       Math.Cos((2 * y + 1) * v * Math.PI / (2.0 * size));
 
-                var cu = u == 0 ? 1 / Math.Sqrt(2) : 1;
-                var cv = v == 0 ? 1 / Math.Sqrt(2) : 1;
+            var cu = u == 0 ? 1 / Math.Sqrt(2) : 1;
+            var cv = v == 0 ? 1 / Math.Sqrt(2) : 1;
 
-                output[u, v] = 0.25 * cu * cv * sum;
-            }
+            output[u, v] = 0.25 * cu * cv * sum;
         }
 
         return output;
@@ -335,13 +320,9 @@ public class DigitalFingerprintWave : IAnalysisWave
     {
         var flat = new List<double>();
 
-        for (int x = 0; x < values.GetLength(0); x++)
-        {
-            for (int y = 0; y < values.GetLength(1); y++)
-            {
-                flat.Add(values[x, y]);
-            }
-        }
+        for (var x = 0; x < values.GetLength(0); x++)
+        for (var y = 0; y < values.GetLength(1); y++)
+            flat.Add(values[x, y]);
 
         flat.Sort();
         return flat[flat.Count / 2];
@@ -351,7 +332,7 @@ public class DigitalFingerprintWave : IAnalysisWave
     {
         var hex = new StringBuilder();
 
-        for (int i = 0; i < binary.Length; i += 4)
+        for (var i = 0; i < binary.Length; i += 4)
         {
             var chunk = binary.Substring(i, Math.Min(4, binary.Length - i)).PadRight(4, '0');
             var value = Convert.ToInt32(chunk, 2);

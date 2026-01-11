@@ -6,8 +6,8 @@ using Mostlylucid.DocSummarizer.Models;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// MapReduce summarizer that produces structured JSON outputs for better merging.
-/// Uses StructuredMapOutput schema for map phase and LossAwareReduceOutput for reduce.
+///     MapReduce summarizer that produces structured JSON outputs for better merging.
+///     Uses StructuredMapOutput schema for map phase and LossAwareReduceOutput for reduce.
 /// </summary>
 public class StructuredMapReduceSummarizer
 {
@@ -15,17 +15,17 @@ public class StructuredMapReduceSummarizer
     private const double ContextWindowTargetPercent = 0.6;
     private const double CharsPerToken = 4.0;
 
-    private readonly int _contextWindow;
-    private readonly int _maxParallelism;
-    private readonly OllamaService _ollama;
-    private readonly bool _verbose;
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false
     };
+
+    private readonly int _contextWindow;
+    private readonly int _maxParallelism;
+    private readonly OllamaService _ollama;
+    private readonly bool _verbose;
 
     public StructuredMapReduceSummarizer(
         OllamaService ollama,
@@ -40,7 +40,7 @@ public class StructuredMapReduceSummarizer
     }
 
     /// <summary>
-    /// Create with auto-detected context window from model
+    ///     Create with auto-detected context window from model
     /// </summary>
     public static async Task<StructuredMapReduceSummarizer> CreateAsync(
         OllamaService ollama,
@@ -52,7 +52,7 @@ public class StructuredMapReduceSummarizer
     }
 
     /// <summary>
-    /// Summarize document chunks using structured JSON output
+    ///     Summarize document chunks using structured JSON output
     /// </summary>
     public async Task<StructuredSummaryResult> SummarizeAsync(string docId, List<DocumentChunk> chunks)
     {
@@ -63,12 +63,12 @@ public class StructuredMapReduceSummarizer
         // Map phase: extract structured data from each chunk
         var mapOutputs = await ProcessMapPhaseAsync(chunks);
 
-        Console.WriteLine($"Stitcher Phase: Deduplicating entities...");
+        Console.WriteLine("Stitcher Phase: Deduplicating entities...");
 
         // Stitcher phase: deduplicate and resolve entities
         var stitcherOutput = RunStitcher(mapOutputs);
 
-        Console.WriteLine($"Reduce Phase: Synthesizing final summary...");
+        Console.WriteLine("Reduce Phase: Synthesizing final summary...");
 
         // Reduce phase: merge into final loss-aware output
         var reduceOutput = await RunReduceAsync(mapOutputs, stitcherOutput);
@@ -120,41 +120,41 @@ public class StructuredMapReduceSummarizer
             : chunk.Content;
 
         var jsonTemplate = """
-            {
-              "entities": [
-                {"name": "string", "type": "Class|Function|Person|Organization|Technology|Concept|Location|Event", "description": "brief description"}
-              ],
-              "functions": [
-                {"name": "string", "purpose": "what it does", "inputs": ["param1"], "outputs": ["return"], "sideEffects": ["effect"]}
-              ],
-              "keyFlows": [
-                {"steps": ["A", "B", "C"], "type": "DataFlow|ControlFlow|Workflow|Dependency", "description": "brief"}
-              ],
-              "facts": [
-                {"statement": "claim from text", "confidence": "High|Medium|Low", "evidence": "quote or reference"}
-              ],
-              "uncertainties": [
-                {"description": "what's unclear", "type": "MissingContext|Ambiguous|IncompleteData"}
-              ],
-              "quotables": ["short memorable quote from text"]
-            }
-            """;
+                           {
+                             "entities": [
+                               {"name": "string", "type": "Class|Function|Person|Organization|Technology|Concept|Location|Event", "description": "brief description"}
+                             ],
+                             "functions": [
+                               {"name": "string", "purpose": "what it does", "inputs": ["param1"], "outputs": ["return"], "sideEffects": ["effect"]}
+                             ],
+                             "keyFlows": [
+                               {"steps": ["A", "B", "C"], "type": "DataFlow|ControlFlow|Workflow|Dependency", "description": "brief"}
+                             ],
+                             "facts": [
+                               {"statement": "claim from text", "confidence": "High|Medium|Low", "evidence": "quote or reference"}
+                             ],
+                             "uncertainties": [
+                               {"description": "what's unclear", "type": "MissingContext|Ambiguous|IncompleteData"}
+                             ],
+                             "quotables": ["short memorable quote from text"]
+                           }
+                           """;
 
         var prompt = $"""
-            Analyze this text and extract structured information as JSON.
+                      Analyze this text and extract structured information as JSON.
 
-            TEXT:
-            {content}
+                      TEXT:
+                      {content}
 
-            OUTPUT FORMAT (respond with ONLY valid JSON, no markdown):
-            {jsonTemplate}
+                      OUTPUT FORMAT (respond with ONLY valid JSON, no markdown):
+                      {jsonTemplate}
 
-            Rules:
-            - Only include entities/facts actually present in the text
-            - confidence: High = directly stated, Medium = strongly implied, Low = inferred
-            - If a category has no items, use empty array []
-            - Keep descriptions concise (under 20 words)
-            """;
+                      Rules:
+                      - Only include entities/facts actually present in the text
+                      - confidence: High = directly stated, Medium = strongly implied, Low = inferred
+                      - If a category has no items, use empty array []
+                      - Keep descriptions concise (under 20 words)
+                      """;
 
         var response = await _ollama.GenerateAsync(prompt);
         return ParseMapOutput(response, chunk);
@@ -166,7 +166,7 @@ public class StructuredMapReduceSummarizer
         {
             // Extract JSON from response (handle markdown code blocks)
             var json = ExtractJson(response);
-            
+
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
@@ -202,7 +202,7 @@ public class StructuredMapReduceSummarizer
                 [],
                 [],
                 [new FactClaim($"Content from: {chunk.Heading}", ConfidenceLevel.Medium, null, chunk.Id)],
-                [new UncertaintyFlag("JSON parsing failed", UncertaintyType.IncompleteData, null)],
+                [new UncertaintyFlag("JSON parsing failed", UncertaintyType.IncompleteData)],
                 []);
         }
     }
@@ -211,19 +211,19 @@ public class StructuredMapReduceSummarizer
     {
         // Remove markdown code blocks
         var json = response.Trim();
-        
+
         if (json.StartsWith("```json"))
             json = json[7..];
         else if (json.StartsWith("```"))
             json = json[3..];
-            
+
         if (json.EndsWith("```"))
             json = json[..^3];
 
         // Find JSON object boundaries
         var start = json.IndexOf('{');
         var end = json.LastIndexOf('}');
-        
+
         if (start >= 0 && end > start)
             json = json[start..(end + 1)];
 
@@ -233,7 +233,7 @@ public class StructuredMapReduceSummarizer
     private static List<EntityReference> ParseEntities(JsonElement root)
     {
         var entities = new List<EntityReference>();
-        
+
         if (!root.TryGetProperty("entities", out var entitiesElement))
             return entities;
 
@@ -262,7 +262,7 @@ public class StructuredMapReduceSummarizer
                 _ => EntityType.Unknown
             };
 
-            entities.Add(new EntityReference(name, entityType, desc, null));
+            entities.Add(new EntityReference(name, entityType, desc));
         }
 
         return entities;
@@ -271,7 +271,7 @@ public class StructuredMapReduceSummarizer
     private static List<FunctionReference> ParseFunctions(JsonElement root, string chunkId)
     {
         var functions = new List<FunctionReference>();
-        
+
         if (!root.TryGetProperty("functions", out var funcsElement))
             return functions;
 
@@ -281,14 +281,14 @@ public class StructuredMapReduceSummarizer
             if (string.IsNullOrWhiteSpace(name)) continue;
 
             var purpose = f.TryGetProperty("purpose", out var p) ? p.GetString() : null;
-            var inputs = f.TryGetProperty("inputs", out var i) 
-                ? i.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList() 
+            var inputs = f.TryGetProperty("inputs", out var i)
+                ? i.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList()
                 : null;
-            var outputs = f.TryGetProperty("outputs", out var o) 
-                ? o.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList() 
+            var outputs = f.TryGetProperty("outputs", out var o)
+                ? o.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList()
                 : null;
-            var sideEffects = f.TryGetProperty("sideEffects", out var s) 
-                ? s.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList() 
+            var sideEffects = f.TryGetProperty("sideEffects", out var s)
+                ? s.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList()
                 : null;
 
             functions.Add(new FunctionReference(name, purpose, inputs, outputs, sideEffects, chunkId));
@@ -300,7 +300,7 @@ public class StructuredMapReduceSummarizer
     private static List<FlowReference> ParseFlows(JsonElement root)
     {
         var flows = new List<FlowReference>();
-        
+
         if (!root.TryGetProperty("keyFlows", out var flowsElement))
             return flows;
 
@@ -309,7 +309,7 @@ public class StructuredMapReduceSummarizer
             var steps = f.TryGetProperty("steps", out var s)
                 ? s.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList()
                 : [];
-                
+
             if (steps.Count < 2) continue;
 
             var typeStr = f.TryGetProperty("type", out var t) ? t.GetString() ?? "Workflow" : "Workflow";
@@ -335,7 +335,7 @@ public class StructuredMapReduceSummarizer
     private static List<FactClaim> ParseFacts(JsonElement root, string chunkId)
     {
         var facts = new List<FactClaim>();
-        
+
         if (!root.TryGetProperty("facts", out var factsElement))
             return facts;
 
@@ -364,7 +364,7 @@ public class StructuredMapReduceSummarizer
     private static List<UncertaintyFlag> ParseUncertainties(JsonElement root)
     {
         var uncertainties = new List<UncertaintyFlag>();
-        
+
         if (!root.TryGetProperty("uncertainties", out var uncElement))
             return uncertainties;
 
@@ -385,7 +385,7 @@ public class StructuredMapReduceSummarizer
                 _ => UncertaintyType.MissingContext
             };
 
-            uncertainties.Add(new UncertaintyFlag(desc, uncType, null));
+            uncertainties.Add(new UncertaintyFlag(desc, uncType));
         }
 
         return uncertainties;
@@ -410,7 +410,7 @@ public class StructuredMapReduceSummarizer
     {
         // Collect all entities across chunks
         var allEntities = mapOutputs
-            .SelectMany(m => m.Entities.Select(e => (Entity: e, ChunkId: m.ChunkId)))
+            .SelectMany(m => m.Entities.Select(e => (Entity: e, m.ChunkId)))
             .ToList();
 
         // Build merged entities with deduplication
@@ -436,7 +436,7 @@ public class StructuredMapReduceSummarizer
         foreach (var (entity, chunkId) in allEntities)
         {
             var key = NormalizeEntityName(entity.Name);
-            
+
             if (merged.TryGetValue(key, out var existing))
             {
                 // Merge: add source chunk if not already present
@@ -444,13 +444,11 @@ public class StructuredMapReduceSummarizer
                 {
                     var updatedChunks = existing.SourceChunks.Append(chunkId).ToList();
                     var updatedAliases = existing.Aliases;
-                    
+
                     // Add as alias if name differs
                     if (!existing.CanonicalName.Equals(entity.Name, StringComparison.OrdinalIgnoreCase) &&
                         !updatedAliases.Contains(entity.Name, StringComparer.OrdinalIgnoreCase))
-                    {
                         updatedAliases = updatedAliases.Append(entity.Name).ToList();
-                    }
 
                     // Keep longer description
                     var desc = (entity.Description?.Length ?? 0) > (existing.Description?.Length ?? 0)
@@ -488,7 +486,7 @@ public class StructuredMapReduceSummarizer
         var normalized = name.Trim()
             .TrimStart('_')
             .TrimEnd('(', ')');
-            
+
         // Remove method signatures
         var parenIndex = normalized.IndexOf('(');
         if (parenIndex > 0)
@@ -517,19 +515,17 @@ public class StructuredMapReduceSummarizer
 
             // Flows define relationships
             foreach (var flow in output.KeyFlows)
-            {
-                for (int i = 0; i < flow.Steps.Count - 1; i++)
+                for (var i = 0; i < flow.Steps.Count - 1; i++)
                 {
                     var from = flow.Steps[i];
                     var to = flow.Steps[i + 1];
-                    
+
                     if (!graph.ContainsKey(from))
                         graph[from] = [];
-                    
+
                     if (!graph[from].Contains(to, StringComparer.OrdinalIgnoreCase))
                         graph[from].Add(to);
                 }
-            }
         }
 
         return graph;
@@ -550,12 +546,10 @@ public class StructuredMapReduceSummarizer
             // Check if types differ (indicates collision, not duplicate)
             var types = group.Select(e => e.Entity.Type).Distinct().ToList();
             if (types.Count > 1)
-            {
                 collisions.Add(new NameCollision(
                     group.First().Entity.Name,
                     group.Select(e => e.ChunkId).Distinct().ToList(),
                     $"Conflicting types: {string.Join(", ", types)}"));
-            }
         }
 
         return collisions;
@@ -569,10 +563,10 @@ public class StructuredMapReduceSummarizer
         {
             // Use heading as topic
             var topic = string.IsNullOrWhiteSpace(output.Heading) ? "General" : output.Heading;
-            
+
             if (!coverage.ContainsKey(topic))
                 coverage[topic] = [];
-            
+
             coverage[topic].Add(output.ChunkId);
         }
 
@@ -622,25 +616,21 @@ public class StructuredMapReduceSummarizer
         var contradictions = new List<Contradiction>();
 
         // Simple contradiction detection: look for negation patterns
-        for (int i = 0; i < allFacts.Count; i++)
+        for (var i = 0; i < allFacts.Count; i++)
+        for (var j = i + 1; j < allFacts.Count; j++)
         {
-            for (int j = i + 1; j < allFacts.Count; j++)
-            {
-                var fact1 = allFacts[i];
-                var fact2 = allFacts[j];
+            var fact1 = allFacts[i];
+            var fact2 = allFacts[j];
 
-                if (fact1.SourceChunk == fact2.SourceChunk)
-                    continue;
+            if (fact1.SourceChunk == fact2.SourceChunk)
+                continue;
 
-                // Check for potential contradiction patterns
-                if (MightContradict(fact1.Statement, fact2.Statement))
-                {
-                    contradictions.Add(new Contradiction(
-                        $"'{fact1.Statement}' vs '{fact2.Statement}'",
-                        [fact1.SourceChunk ?? "unknown", fact2.SourceChunk ?? "unknown"],
-                        "Different source chunks make conflicting claims"));
-                }
-            }
+            // Check for potential contradiction patterns
+            if (MightContradict(fact1.Statement, fact2.Statement))
+                contradictions.Add(new Contradiction(
+                    $"'{fact1.Statement}' vs '{fact2.Statement}'",
+                    [fact1.SourceChunk ?? "unknown", fact2.SourceChunk ?? "unknown"],
+                    "Different source chunks make conflicting claims"));
         }
 
         return contradictions;
@@ -653,9 +643,8 @@ public class StructuredMapReduceSummarizer
 
         // Check for explicit negation
         var negationPatterns = new[] { "not ", "never ", "cannot ", "doesn't ", "isn't ", "won't ", "shouldn't " };
-        
+
         foreach (var pattern in negationPatterns)
-        {
             if ((s1Lower.Contains(pattern) && !s2Lower.Contains(pattern)) ||
                 (!s1Lower.Contains(pattern) && s2Lower.Contains(pattern)))
             {
@@ -663,11 +652,10 @@ public class StructuredMapReduceSummarizer
                 var words1 = Regex.Split(s1Lower, @"\W+").Where(w => w.Length > 4).ToHashSet();
                 var words2 = Regex.Split(s2Lower, @"\W+").Where(w => w.Length > 4).ToHashSet();
                 var overlap = words1.Intersect(words2).Count();
-                
+
                 if (overlap >= 2)
                     return true;
             }
-        }
 
         return false;
     }
@@ -698,7 +686,7 @@ public class StructuredMapReduceSummarizer
             .ToList();
 
         var total = directlyCovered.Count + inferred.Count + notCovered.Count;
-        var coverageRatio = total > 0 ? (double)(directlyCovered.Count + inferred.Count * 0.5) / total : 0;
+        var coverageRatio = total > 0 ? (directlyCovered.Count + inferred.Count * 0.5) / total : 0;
 
         return new CoverageReport(directlyCovered, inferred, notCovered, coverageRatio);
     }
@@ -732,25 +720,25 @@ public class StructuredMapReduceSummarizer
             : "";
 
         var prompt = $"""
-            Create an executive summary from this structured analysis.
+                      Create an executive summary from this structured analysis.
 
-            KEY FACTS (with source citations):
-            {string.Join("\n", topFacts)}
+                      KEY FACTS (with source citations):
+                      {string.Join("\n", topFacts)}
 
-            KEY ENTITIES:
-            {string.Join("\n", keyEntities)}
+                      KEY ENTITIES:
+                      {string.Join("\n", keyEntities)}
 
-            KEY FLOWS/PROCESSES:
-            {string.Join("\n", keyFlows)}
-            {contradictionText}
+                      KEY FLOWS/PROCESSES:
+                      {string.Join("\n", keyFlows)}
+                      {contradictionText}
 
-            RULES:
-            1. Write 3-5 paragraphs covering the main points
-            2. Include [chunk-N] citations after each major claim
-            3. If contradictions exist, present BOTH views without resolving them
-            4. Focus on facts with High/Medium confidence
-            5. Be concise but comprehensive
-            """;
+                      RULES:
+                      1. Write 3-5 paragraphs covering the main points
+                      2. Include [chunk-N] citations after each major claim
+                      3. If contradictions exist, present BOTH views without resolving them
+                      4. Focus on facts with High/Medium confidence
+                      5. Be concise but comprehensive
+                      """;
 
         return await _ollama.GenerateAsync(prompt);
     }
@@ -761,16 +749,10 @@ public class StructuredMapReduceSummarizer
 
         // Generate questions from uncertainties
         foreach (var output in mapOutputs)
-        {
-            foreach (var uncertainty in output.Uncertainties)
-            {
-                if (uncertainty.Type == UncertaintyType.MissingContext ||
-                    uncertainty.Type == UncertaintyType.IncompleteData)
-                {
-                    questions.Add($"What is {uncertainty.Description}?");
-                }
-            }
-        }
+        foreach (var uncertainty in output.Uncertainties)
+            if (uncertainty.Type == UncertaintyType.MissingContext ||
+                uncertainty.Type == UncertaintyType.IncompleteData)
+                questions.Add($"What is {uncertainty.Description}?");
 
         // Limit to top 5
         return questions.Distinct().Take(5).ToList();
@@ -803,7 +785,7 @@ public class StructuredMapReduceSummarizer
 }
 
 /// <summary>
-/// Complete result from structured summarization
+///     Complete result from structured summarization
 /// </summary>
 public record StructuredSummaryResult(
     string DocumentId,
@@ -813,7 +795,7 @@ public record StructuredSummaryResult(
     TimeSpan ProcessingTime)
 {
     /// <summary>
-    /// Convert to standard DocumentSummary for compatibility
+    ///     Convert to standard DocumentSummary for compatibility
     /// </summary>
     public DocumentSummary ToDocumentSummary()
     {
@@ -831,7 +813,8 @@ public record StructuredSummaryResult(
             StitcherOutput.Entities.Where(e => e.Type == EntityType.Location).Select(e => e.CanonicalName).ToList(),
             [], // dates
             StitcherOutput.Entities.Where(e => e.Type == EntityType.Event).Select(e => e.CanonicalName).ToList(),
-            StitcherOutput.Entities.Where(e => e.Type == EntityType.Organization).Select(e => e.CanonicalName).ToList());
+            StitcherOutput.Entities.Where(e => e.Type == EntityType.Organization).Select(e => e.CanonicalName)
+                .ToList());
 
         var trace = new SummarizationTrace(
             DocumentId,

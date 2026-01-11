@@ -1,5 +1,5 @@
-using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using System.Text.Json;
+using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 
 namespace LucidRAG.ImageCli.Tests;
 

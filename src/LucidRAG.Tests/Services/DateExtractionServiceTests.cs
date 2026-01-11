@@ -4,8 +4,8 @@ using LucidRAG.Services;
 namespace LucidRAG.Tests.Services;
 
 /// <summary>
-/// Unit tests for DateExtractionService.
-/// Tests various date formats, locale detection, and international date parsing.
+///     Unit tests for DateExtractionService.
+///     Tests various date formats, locale detection, and international date parsing.
 /// </summary>
 public class DateExtractionServiceTests
 {
@@ -17,7 +17,8 @@ public class DateExtractionServiceTests
     [InlineData("2024-01-15", 2024, 1, 15)]
     [InlineData("2024-12-31", 2024, 12, 31)]
     [InlineData("2023-06-01", 2023, 6, 1)]
-    public void ExtractDates_Iso8601Format_ParsesCorrectly(string input, int expectedYear, int expectedMonth, int expectedDay)
+    public void ExtractDates_Iso8601Format_ParsesCorrectly(string input, int expectedYear, int expectedMonth,
+        int expectedDay)
     {
         // Act
         var result = _service.ExtractDates(input);
@@ -57,7 +58,8 @@ public class DateExtractionServiceTests
     [InlineData("December 31, 2023", 2023, 12, 31)]
     [InlineData("Feb 28, 2024", 2024, 2, 28)]
     [InlineData("Mar. 1, 2024", 2024, 3, 1)]
-    public void ExtractDates_MonthFirstFormat_ParsesCorrectly(string input, int expectedYear, int expectedMonth, int expectedDay)
+    public void ExtractDates_MonthFirstFormat_ParsesCorrectly(string input, int expectedYear, int expectedMonth,
+        int expectedDay)
     {
         // Act
         var result = _service.ExtractDates(input);
@@ -76,7 +78,8 @@ public class DateExtractionServiceTests
     [InlineData("31 December 2023", 2023, 12, 31)]
     [InlineData("1st March 2024", 2024, 3, 1)]
     [InlineData("22nd February 2024", 2024, 2, 22)]
-    public void ExtractDates_DayFirstFormat_ParsesCorrectly(string input, int expectedYear, int expectedMonth, int expectedDay)
+    public void ExtractDates_DayFirstFormat_ParsesCorrectly(string input, int expectedYear, int expectedMonth,
+        int expectedDay)
     {
         // Act
         var result = _service.ExtractDates(input);
@@ -94,9 +97,10 @@ public class DateExtractionServiceTests
     #region Ambiguous Format Tests
 
     [Theory]
-    [InlineData("25/01/2024", LocaleHint.European, 2024, 1, 25)]  // Day > 12, must be DMY
-    [InlineData("01/25/2024", LocaleHint.American, 2024, 1, 25)]  // Day > 12, must be MDY
-    public void ExtractDates_UnambiguousSlashFormat_ParsesCorrectly(string input, LocaleHint locale, int expectedYear, int expectedMonth, int expectedDay)
+    [InlineData("25/01/2024", LocaleHint.European, 2024, 1, 25)] // Day > 12, must be DMY
+    [InlineData("01/25/2024", LocaleHint.American, 2024, 1, 25)] // Day > 12, must be MDY
+    public void ExtractDates_UnambiguousSlashFormat_ParsesCorrectly(string input, LocaleHint locale, int expectedYear,
+        int expectedMonth, int expectedDay)
     {
         // Act
         var result = _service.ExtractDates(input, locale);
@@ -110,9 +114,10 @@ public class DateExtractionServiceTests
     }
 
     [Theory]
-    [InlineData("01/02/2024", LocaleHint.American, 2024, 1, 2)]  // MM/DD
-    [InlineData("01/02/2024", LocaleHint.European, 2024, 2, 1)]  // DD/MM
-    public void ExtractDates_AmbiguousSlashFormat_UsesLocaleHint(string input, LocaleHint locale, int expectedYear, int expectedMonth, int expectedDay)
+    [InlineData("01/02/2024", LocaleHint.American, 2024, 1, 2)] // MM/DD
+    [InlineData("01/02/2024", LocaleHint.European, 2024, 2, 1)] // DD/MM
+    public void ExtractDates_AmbiguousSlashFormat_UsesLocaleHint(string input, LocaleHint locale, int expectedYear,
+        int expectedMonth, int expectedDay)
     {
         // Act
         var result = _service.ExtractDates(input, locale);
@@ -326,7 +331,7 @@ public class DateExtractionServiceTests
     }
 
     [Theory]
-    [InlineData("2024-13-01")]  // Invalid month 13
+    [InlineData("2024-13-01")] // Invalid month 13
     public void ExtractDates_InvalidDates_ReturnsEmpty(string input)
     {
         // Act
@@ -429,8 +434,8 @@ public class DateExtractionServiceTests
 
         // Assert
         result.Should().HaveCount(2);
-        result[0].StartIndex.Should().Be(7);  // "Start: " = 7 chars
-        result[0].EndIndex.Should().Be(17);   // "2024-01-01" = 10 chars
+        result[0].StartIndex.Should().Be(7); // "Start: " = 7 chars
+        result[0].EndIndex.Should().Be(17); // "2024-01-01" = 10 chars
         // "Start: 2024-01-01 End: " = 23 chars
         result[1].StartIndex.Should().Be(23);
         result[1].EndIndex.Should().Be(33);

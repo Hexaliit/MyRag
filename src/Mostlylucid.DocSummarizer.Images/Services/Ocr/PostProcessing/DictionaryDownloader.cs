@@ -1,34 +1,33 @@
 using Microsoft.Extensions.Logging;
-using System.IO.Compression;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
 
 /// <summary>
-/// Auto-downloads Hunspell dictionaries from LibreOffice repository
-/// Zero-friction setup - downloads on first use
+///     Auto-downloads Hunspell dictionaries from LibreOffice repository
+///     Zero-friction setup - downloads on first use
 /// </summary>
 public class DictionaryDownloader
 {
-    private readonly string _dictionaryDirectory;
-    private readonly ILogger<DictionaryDownloader>? _logger;
-    private readonly HttpClient _httpClient;
+    private const string LibreOfficeBaseUrl = "https://raw.githubusercontent.com/LibreOffice/dictionaries/master";
 
     // Dictionary sources from LibreOffice GitHub
     private static readonly Dictionary<string, DictionarySource> KnownDictionaries = new()
     {
-        ["en_US"] = new("en", "American English"),
-        ["en_GB"] = new("en", "British English"),
-        ["es_ES"] = new("es_ES", "Spanish"),
-        ["fr_FR"] = new("fr_FR", "French"),
-        ["de_DE"] = new("de_DE", "German"),
-        ["it_IT"] = new("it_IT", "Italian"),
-        ["pt_BR"] = new("pt_BR", "Portuguese (Brazil)"),
-        ["ru_RU"] = new("ru_RU", "Russian"),
-        ["zh_CN"] = new("zh_CN", "Chinese (Simplified)"),
-        ["ja_JP"] = new("ja_JP", "Japanese"),
+        ["en_US"] = new DictionarySource("en", "American English"),
+        ["en_GB"] = new DictionarySource("en", "British English"),
+        ["es_ES"] = new DictionarySource("es_ES", "Spanish"),
+        ["fr_FR"] = new DictionarySource("fr_FR", "French"),
+        ["de_DE"] = new DictionarySource("de_DE", "German"),
+        ["it_IT"] = new DictionarySource("it_IT", "Italian"),
+        ["pt_BR"] = new DictionarySource("pt_BR", "Portuguese (Brazil)"),
+        ["ru_RU"] = new DictionarySource("ru_RU", "Russian"),
+        ["zh_CN"] = new DictionarySource("zh_CN", "Chinese (Simplified)"),
+        ["ja_JP"] = new DictionarySource("ja_JP", "Japanese")
     };
 
-    private const string LibreOfficeBaseUrl = "https://raw.githubusercontent.com/LibreOffice/dictionaries/master";
+    private readonly string _dictionaryDirectory;
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<DictionaryDownloader>? _logger;
 
     public DictionaryDownloader(string dictionaryDirectory, ILogger<DictionaryDownloader>? logger = null)
     {
@@ -41,7 +40,7 @@ public class DictionaryDownloader
     }
 
     /// <summary>
-    /// Check if dictionary is available locally
+    ///     Check if dictionary is available locally
     /// </summary>
     public bool IsDictionaryAvailable(string language)
     {
@@ -51,8 +50,8 @@ public class DictionaryDownloader
     }
 
     /// <summary>
-    /// Auto-download dictionary if not available
-    /// Returns true if dictionary is ready (already exists or successfully downloaded)
+    ///     Auto-download dictionary if not available
+    ///     Returns true if dictionary is ready (already exists or successfully downloaded)
     /// </summary>
     public async Task<bool> EnsureDictionaryAsync(string language, CancellationToken ct = default)
     {
@@ -70,7 +69,8 @@ public class DictionaryDownloader
             return false;
         }
 
-        _logger?.LogInformation("Downloading dictionary for {Language} ({Description})...", language, source.Description);
+        _logger?.LogInformation("Downloading dictionary for {Language} ({Description})...", language,
+            source.Description);
 
         try
         {
@@ -110,12 +110,12 @@ public class DictionaryDownloader
     }
 
     /// <summary>
-    /// Download a file with retry logic
+    ///     Download a file with retry logic
     /// </summary>
-    private async Task<bool> DownloadFileAsync(string url, string destinationPath, CancellationToken ct, int maxRetries = 3)
+    private async Task<bool> DownloadFileAsync(string url, string destinationPath, CancellationToken ct,
+        int maxRetries = 3)
     {
-        for (int attempt = 1; attempt <= maxRetries; attempt++)
-        {
+        for (var attempt = 1; attempt <= maxRetries; attempt++)
             try
             {
                 _logger?.LogDebug("Downloading {Url} (attempt {Attempt}/{MaxRetries})...", url, attempt, maxRetries);
@@ -130,6 +130,7 @@ public class DictionaryDownloader
                         await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), ct); // Exponential backoff
                         continue;
                     }
+
                     return false;
                 }
 
@@ -137,10 +138,12 @@ public class DictionaryDownloader
                 _logger?.LogDebug("Downloading {Bytes} bytes to {Path}", contentLength, destinationPath);
 
                 await using var stream = await response.Content.ReadAsStreamAsync(ct);
-                await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await using var fileStream =
+                    new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
                 await stream.CopyToAsync(fileStream, ct);
 
-                _logger?.LogDebug("Downloaded {Path} ({Bytes} bytes)", destinationPath, new FileInfo(destinationPath).Length);
+                _logger?.LogDebug("Downloaded {Path} ({Bytes} bytes)", destinationPath,
+                    new FileInfo(destinationPath).Length);
                 return true;
             }
             catch (Exception ex) when (attempt < maxRetries)
@@ -153,13 +156,12 @@ public class DictionaryDownloader
                 _logger?.LogError(ex, "Failed to download {Url} after {MaxRetries} attempts", url, maxRetries);
                 return false;
             }
-        }
 
         return false;
     }
 
     /// <summary>
-    /// Get list of available languages for download
+    ///     Get list of available languages for download
     /// </summary>
     public IReadOnlyList<string> GetAvailableLanguages()
     {
@@ -167,7 +169,7 @@ public class DictionaryDownloader
     }
 
     /// <summary>
-    /// Get description for a language code
+    ///     Get description for a language code
     /// </summary>
     public string? GetLanguageDescription(string language)
     {
@@ -176,6 +178,6 @@ public class DictionaryDownloader
 }
 
 /// <summary>
-/// Dictionary source information
+///     Dictionary source information
 /// </summary>
 internal record DictionarySource(string Directory, string Description);

@@ -1,15 +1,15 @@
 using System.CommandLine;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using LucidRAG.Cli.Services;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// Manage document collections
+///     Manage document collections
 /// </summary>
 public static class CollectionsCommand
 {
@@ -36,7 +36,7 @@ public static class CollectionsCommand
             var dataDir = parseResult.GetValue(dataDirOpt);
             var config = new CliConfig { DataDirectory = Program.EnsureDataDirectory(dataDir) };
 
-            await using var services = CliServiceRegistration.BuildServiceProvider(config, false);
+            await using var services = CliServiceRegistration.BuildServiceProvider(config);
             await CliServiceRegistration.EnsureDatabaseAsync(services);
 
             using var scope = services.CreateScope();
@@ -49,7 +49,8 @@ public static class CollectionsCommand
 
             if (collections.Count == 0)
             {
-                AnsiConsole.MarkupLine("[dim]No collections found. Use 'lucidrag collections create <name>' to create one.[/]");
+                AnsiConsole.MarkupLine(
+                    "[dim]No collections found. Use 'lucidrag collections create <name>' to create one.[/]");
                 return 0;
             }
 
@@ -66,7 +67,8 @@ public static class CollectionsCommand
             foreach (var c in collections)
             {
                 var docCount = c.Documents.Count;
-                var segmentCount = c.Documents.Where(d => d.Status == DocumentStatus.Completed).Sum(d => d.SegmentCount);
+                var segmentCount = c.Documents.Where(d => d.Status == DocumentStatus.Completed)
+                    .Sum(d => d.SegmentCount);
                 table.AddRow(
                     Markup.Escape(c.Name),
                     $"{docCount}",
@@ -100,7 +102,7 @@ public static class CollectionsCommand
 
             var config = new CliConfig { DataDirectory = Program.EnsureDataDirectory(dataDir) };
 
-            await using var services = CliServiceRegistration.BuildServiceProvider(config, false);
+            await using var services = CliServiceRegistration.BuildServiceProvider(config);
             await CliServiceRegistration.EnsureDatabaseAsync(services);
 
             using var scope = services.CreateScope();
@@ -149,7 +151,7 @@ public static class CollectionsCommand
 
             var config = new CliConfig { DataDirectory = Program.EnsureDataDirectory(dataDir) };
 
-            await using var services = CliServiceRegistration.BuildServiceProvider(config, false);
+            await using var services = CliServiceRegistration.BuildServiceProvider(config);
             await CliServiceRegistration.EnsureDatabaseAsync(services);
 
             using var scope = services.CreateScope();
@@ -171,7 +173,7 @@ public static class CollectionsCommand
             {
                 var confirm = AnsiConsole.Confirm(
                     $"Delete collection '{name}' and {docCount} documents?",
-                    defaultValue: false);
+                    false);
                 if (!confirm)
                 {
                     AnsiConsole.MarkupLine("[dim]Cancelled[/]");
@@ -181,20 +183,18 @@ public static class CollectionsCommand
 
             // Delete document files
             foreach (var doc in collection.Documents)
-            {
                 if (!string.IsNullOrEmpty(doc.FilePath))
                 {
                     var dir = Path.GetDirectoryName(doc.FilePath);
                     if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
-                    {
                         try
                         {
-                            Directory.Delete(dir, recursive: true);
+                            Directory.Delete(dir, true);
                         }
-                        catch { }
-                    }
+                        catch
+                        {
+                        }
                 }
-            }
 
             db.Collections.Remove(collection);
             await db.SaveChangesAsync(ct);
@@ -208,7 +208,8 @@ public static class CollectionsCommand
 
     private static Command CreateStatsCommand()
     {
-        var nameArg = new Argument<string?>("name") { Description = "Collection name (optional)", Arity = ArgumentArity.ZeroOrOne };
+        var nameArg = new Argument<string?>("name")
+            { Description = "Collection name (optional)", Arity = ArgumentArity.ZeroOrOne };
         var dataDirOpt = new Option<string?>("--data-dir") { Description = "Data directory" };
 
         var command = new Command("stats", "Show collection statistics");
@@ -222,7 +223,7 @@ public static class CollectionsCommand
 
             var config = new CliConfig { DataDirectory = Program.EnsureDataDirectory(dataDir) };
 
-            await using var services = CliServiceRegistration.BuildServiceProvider(config, false);
+            await using var services = CliServiceRegistration.BuildServiceProvider(config);
             await CliServiceRegistration.EnsureDatabaseAsync(services);
 
             using var scope = services.CreateScope();
@@ -239,6 +240,7 @@ public static class CollectionsCommand
                     AnsiConsole.MarkupLine($"[red]Collection '{Markup.Escape(name)}' not found[/]");
                     return 1;
                 }
+
                 docsQuery = docsQuery.Where(d => d.CollectionId == collection.Id);
                 title = $"Collection: {name}";
             }

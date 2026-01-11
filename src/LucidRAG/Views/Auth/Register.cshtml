@@ -15,8 +15,10 @@
                 @if (!ViewData.ModelState.IsValid)
                 {
                     <div class="alert alert-error mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                         <div>
                             @Html.ValidationSummary(true)
@@ -32,7 +34,7 @@
                     <input type="text"
                            asp-for="DisplayName"
                            placeholder="Your name"
-                           class="input input-bordered w-full" />
+                           class="input input-bordered w-full"/>
                 </div>
 
                 <div class="form-control w-full mt-4">
@@ -43,7 +45,7 @@
                            asp-for="Email"
                            placeholder="you@example.com"
                            class="input input-bordered w-full"
-                           required />
+                           required/>
                     <span asp-validation-for="Email" class="text-error text-sm mt-1"></span>
                 </div>
 
@@ -56,10 +58,11 @@
                            placeholder="At least 8 characters"
                            class="input input-bordered w-full"
                            minlength="8"
-                           required />
+                           required/>
                     <span asp-validation-for="Password" class="text-error text-sm mt-1"></span>
                     <label class="label">
-                        <span class="label-text-alt text-base-content/60">Minimum 8 characters with at least one number</span>
+                        <span
+                            class="label-text-alt text-base-content/60">Minimum 8 characters with at least one number</span>
                     </label>
                 </div>
 
@@ -71,14 +74,16 @@
                            asp-for="ConfirmPassword"
                            placeholder="Repeat your password"
                            class="input input-bordered w-full"
-                           required />
+                           required/>
                     <span asp-validation-for="ConfirmPassword" class="text-error text-sm mt-1"></span>
                 </div>
 
                 <div class="form-control mt-6">
                     <button type="submit" class="btn btn-primary w-full">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
                         </svg>
                         Create Account
                     </button>

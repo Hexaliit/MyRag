@@ -1,21 +1,20 @@
-using Microsoft.Extensions.Logging;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
 
 /// <summary>
-/// Post-processes OCR text to fix common errors using:
-/// 1. Context-aware character substitutions (O→0 in numbers, 0→O in words)
-/// 2. Multi-character pattern corrections (rn→m, vv→w)
-/// 3. Dictionary-based word validation
-/// 4. Common word corrections
-///
-/// Improves OCR accuracy by 5-10% through intelligent error correction.
+///     Post-processes OCR text to fix common errors using:
+///     1. Context-aware character substitutions (O→0 in numbers, 0→O in words)
+///     2. Multi-character pattern corrections (rn→m, vv→w)
+///     3. Dictionary-based word validation
+///     4. Common word corrections
+///     Improves OCR accuracy by 5-10% through intelligent error correction.
 /// </summary>
 public class OcrPostProcessor
 {
-    private readonly ILogger<OcrPostProcessor>? _logger;
     private readonly HashSet<string> _dictionary;
+    private readonly ILogger<OcrPostProcessor>? _logger;
     private readonly bool _useDictionary;
     private readonly bool _usePatterns;
     private readonly bool _verbose;
@@ -34,21 +33,16 @@ public class OcrPostProcessor
         _logger = logger;
 
         if (_useDictionary)
-        {
             _logger?.LogInformation("Post-processor initialized with {Words} dictionary words", _dictionary.Count);
-        }
     }
 
     /// <summary>
-    /// Correct OCR errors in text.
-    /// Returns corrected text and number of corrections applied.
+    ///     Correct OCR errors in text.
+    ///     Returns corrected text and number of corrections applied.
     /// </summary>
     public (string CorrectedText, int CorrectionsApplied) CorrectText(string text)
     {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return (text, 0);
-        }
+        if (string.IsNullOrWhiteSpace(text)) return (text, 0);
 
         var corrected = text;
         var totalCorrections = 0;
@@ -61,9 +55,7 @@ public class OcrPostProcessor
             totalCorrections += phase1Corrections;
 
             if (_verbose && phase1Corrections > 0)
-            {
                 _logger?.LogDebug("Phase 1: Applied {Count} character substitutions", phase1Corrections);
-            }
         }
 
         // Phase 2: Multi-character pattern corrections
@@ -74,9 +66,7 @@ public class OcrPostProcessor
             totalCorrections += phase2Corrections;
 
             if (_verbose && phase2Corrections > 0)
-            {
                 _logger?.LogDebug("Phase 2: Applied {Count} multi-character corrections", phase2Corrections);
-            }
         }
 
         // Phase 3: Common word corrections
@@ -87,9 +77,7 @@ public class OcrPostProcessor
             totalCorrections += phase3Corrections;
 
             if (_verbose && phase3Corrections > 0)
-            {
                 _logger?.LogDebug("Phase 3: Applied {Count} common word corrections", phase3Corrections);
-            }
         }
 
         // Phase 4: Dictionary-based corrections (only if dictionary available)
@@ -100,55 +88,47 @@ public class OcrPostProcessor
             totalCorrections += phase4Corrections;
 
             if (_verbose && phase4Corrections > 0)
-            {
                 _logger?.LogDebug("Phase 4: Applied {Count} dictionary corrections", phase4Corrections);
-            }
         }
 
         if (totalCorrections > 0)
-        {
             _logger?.LogInformation(
                 "Post-processing complete: {Corrections} corrections applied",
                 totalCorrections);
-        }
 
         return (corrected, totalCorrections);
     }
 
     /// <summary>
-    /// Apply context-aware character substitutions (O→0, l→1, etc.).
+    ///     Apply context-aware character substitutions (O→0, l→1, etc.).
     /// </summary>
     private (string Text, int Corrections) ApplyCharacterSubstitutions(string text)
     {
         var result = new StringBuilder(text.Length);
         var corrections = 0;
 
-        for (int i = 0; i < text.Length; i++)
+        for (var i = 0; i < text.Length; i++)
         {
             var ch = text[i];
             var (prev, next) = OcrErrorPatterns.GetContext(text, i);
 
             // Check for letter→number substitutions (e.g., O→0 in numeric context)
             if (OcrErrorPatterns.LetterToNumber.TryGetValue(ch, out var numberSubstitution))
-            {
                 if (OcrErrorPatterns.IsNumericContext(prev, next))
                 {
                     result.Append(numberSubstitution);
                     corrections++;
                     continue;
                 }
-            }
 
             // Check for number→letter substitutions (e.g., 0→O in alphabetic context)
             if (OcrErrorPatterns.NumberToLetter.TryGetValue(ch, out var letterSubstitution))
-            {
                 if (OcrErrorPatterns.IsAlphaContext(prev, next))
                 {
                     result.Append(letterSubstitution);
                     corrections++;
                     continue;
                 }
-            }
 
             // No substitution - keep original character
             result.Append(ch);
@@ -158,7 +138,7 @@ public class OcrPostProcessor
     }
 
     /// <summary>
-    /// Apply multi-character pattern corrections (rn→m, vv→w, etc.).
+    ///     Apply multi-character pattern corrections (rn→m, vv→w, etc.).
     /// </summary>
     private (string Text, int Corrections) ApplyMultiCharacterPatterns(string text)
     {
@@ -191,14 +171,14 @@ public class OcrPostProcessor
     }
 
     /// <summary>
-    /// Apply common whole-word corrections.
+    ///     Apply common whole-word corrections.
     /// </summary>
     private (string Text, int Corrections) ApplyCommonWordCorrections(string text)
     {
-        var words = text.Split(' ', StringSplitOptions.None);
+        var words = text.Split(' ');
         var corrections = 0;
 
-        for (int i = 0; i < words.Length; i++)
+        for (var i = 0; i < words.Length; i++)
         {
             var word = words[i].Trim();
             var lowerWord = word.ToLowerInvariant();
@@ -211,9 +191,7 @@ public class OcrPostProcessor
 
                 // Preserve original casing if correction is all lowercase
                 if (correction.All(char.IsLower) && word.Length > 0 && char.IsUpper(word[0]))
-                {
                     correction = char.ToUpper(correction[0]) + correction.Substring(1);
-                }
 
                 words[i] = prefix + correction + suffix;
                 corrections++;
@@ -224,29 +202,23 @@ public class OcrPostProcessor
     }
 
     /// <summary>
-    /// Apply dictionary-based corrections for misspelled words.
-    /// Uses simple Levenshtein distance to find closest dictionary match.
+    ///     Apply dictionary-based corrections for misspelled words.
+    ///     Uses simple Levenshtein distance to find closest dictionary match.
     /// </summary>
     private (string Text, int Corrections) ApplyDictionaryCorrections(string text)
     {
-        var words = text.Split(' ', StringSplitOptions.None);
+        var words = text.Split(' ');
         var corrections = 0;
 
-        for (int i = 0; i < words.Length; i++)
+        for (var i = 0; i < words.Length; i++)
         {
             var word = words[i].Trim().Trim('.', ',', '!', '?', ';', ':');
 
             // Skip if word is already in dictionary
-            if (string.IsNullOrWhiteSpace(word) || _dictionary.Contains(word))
-            {
-                continue;
-            }
+            if (string.IsNullOrWhiteSpace(word) || _dictionary.Contains(word)) continue;
 
             // Skip very short words (likely correct or acronyms)
-            if (word.Length < 3)
-            {
-                continue;
-            }
+            if (word.Length < 3) continue;
 
             // Find closest dictionary match (if distance <= 2)
             var (closestWord, distance) = FindClosestDictionaryWord(word);
@@ -258,11 +230,9 @@ public class OcrPostProcessor
                 corrections++;
 
                 if (_verbose)
-                {
                     _logger?.LogDebug(
                         "Dictionary correction: '{Original}' → '{Corrected}' (distance={Distance})",
                         word, closestWord, distance);
-                }
             }
         }
 
@@ -270,13 +240,13 @@ public class OcrPostProcessor
     }
 
     /// <summary>
-    /// Find closest word in dictionary using Levenshtein distance.
-    /// Returns (word, distance) or (null, int.MaxValue) if no close match.
+    ///     Find closest word in dictionary using Levenshtein distance.
+    ///     Returns (word, distance) or (null, int.MaxValue) if no close match.
     /// </summary>
     private (string? Word, int Distance) FindClosestDictionaryWord(string target)
     {
         string? closestWord = null;
-        int minDistance = int.MaxValue;
+        var minDistance = int.MaxValue;
 
         // Only check words of similar length (±2 characters)
         var targetLength = target.Length;
@@ -302,7 +272,7 @@ public class OcrPostProcessor
     }
 
     /// <summary>
-    /// Calculate Levenshtein distance between two strings.
+    ///     Calculate Levenshtein distance between two strings.
     /// </summary>
     private int LevenshteinDistance(string source, string target)
     {
@@ -314,33 +284,31 @@ public class OcrPostProcessor
 
         var distance = new int[sourceLength + 1, targetLength + 1];
 
-        for (int i = 0; i <= sourceLength; i++) distance[i, 0] = i;
-        for (int j = 0; j <= targetLength; j++) distance[0, j] = j;
+        for (var i = 0; i <= sourceLength; i++) distance[i, 0] = i;
+        for (var j = 0; j <= targetLength; j++) distance[0, j] = j;
 
-        for (int i = 1; i <= sourceLength; i++)
+        for (var i = 1; i <= sourceLength; i++)
+        for (var j = 1; j <= targetLength; j++)
         {
-            for (int j = 1; j <= targetLength; j++)
-            {
-                var cost = target[j - 1] == source[i - 1] ? 0 : 1;
+            var cost = target[j - 1] == source[i - 1] ? 0 : 1;
 
-                distance[i, j] = Math.Min(
-                    Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
-                    distance[i - 1, j - 1] + cost);
-            }
+            distance[i, j] = Math.Min(
+                Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
+                distance[i - 1, j - 1] + cost);
         }
 
         return distance[sourceLength, targetLength];
     }
 
     /// <summary>
-    /// Count occurrences of a substring in text.
+    ///     Count occurrences of a substring in text.
     /// </summary>
     private int CountOccurrences(string text, string substring)
     {
         if (string.IsNullOrEmpty(substring)) return 0;
 
-        int count = 0;
-        int index = 0;
+        var count = 0;
+        var index = 0;
 
         while ((index = text.IndexOf(substring, index, StringComparison.Ordinal)) != -1)
         {
@@ -352,14 +320,11 @@ public class OcrPostProcessor
     }
 
     /// <summary>
-    /// Load dictionary from file (one word per line).
+    ///     Load dictionary from file (one word per line).
     /// </summary>
     public static async Task<HashSet<string>> LoadDictionaryAsync(string filePath)
     {
-        if (!File.Exists(filePath))
-        {
-            throw new FileNotFoundException($"Dictionary file not found: {filePath}");
-        }
+        if (!File.Exists(filePath)) throw new FileNotFoundException($"Dictionary file not found: {filePath}");
 
         var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var lines = await File.ReadAllLinesAsync(filePath);
@@ -367,10 +332,7 @@ public class OcrPostProcessor
         foreach (var line in lines)
         {
             var word = line.Trim();
-            if (!string.IsNullOrWhiteSpace(word) && !word.StartsWith('#'))
-            {
-                words.Add(word);
-            }
+            if (!string.IsNullOrWhiteSpace(word) && !word.StartsWith('#')) words.Add(word);
         }
 
         return words;

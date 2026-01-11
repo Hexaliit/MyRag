@@ -32,8 +32,8 @@ public sealed class NonManualModifiers
     public float TorsoShift { get; init; }
     public float Confidence { get; init; }
     public TimeSpan Timestamp { get; init; }
-    
-    public bool HasModifiers => 
+
+    public bool HasModifiers =>
         BrowPosition != BrowPosition.Neutral ||
         HeadMotion != HeadMotion.None ||
         MathF.Abs(TorsoShift) > 0.01f;

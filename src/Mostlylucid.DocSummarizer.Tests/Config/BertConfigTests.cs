@@ -1,10 +1,10 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Services;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Config;
 
 /// <summary>
-/// Tests for BertConfig defaults and validation
+///     Tests for BertConfig defaults and validation
 /// </summary>
 public class BertConfigTests
 {
@@ -98,7 +98,8 @@ public class BertConfigTests
 
         // Assert - all defaults are safe and reasonable
         Assert.True(config.Lambda >= 0 && config.Lambda <= 1, "Lambda should be between 0 and 1");
-        Assert.True(config.ExtractionRatio > 0 && config.ExtractionRatio <= 1, "ExtractionRatio should be between 0 and 1");
+        Assert.True(config.ExtractionRatio > 0 && config.ExtractionRatio <= 1,
+            "ExtractionRatio should be between 0 and 1");
         Assert.True(config.MinSentences > 0, "MinSentences should be positive");
         Assert.True(config.MaxSentences >= config.MinSentences, "MaxSentences should be >= MinSentences");
     }

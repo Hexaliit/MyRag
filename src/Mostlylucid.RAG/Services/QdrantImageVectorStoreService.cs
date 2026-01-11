@@ -1,3 +1,5 @@
+using System.IO.Hashing;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.RAG.Config;
 using Mostlylucid.RAG.Models;
@@ -7,16 +9,11 @@ using Qdrant.Client.Grpc;
 namespace Mostlylucid.RAG.Services;
 
 /// <summary>
-/// Qdrant implementation of multi-vector image search using named vectors.
-/// Supports text, visual, color, and motion embeddings for comprehensive image retrieval.
+///     Qdrant implementation of multi-vector image search using named vectors.
+///     Supports text, visual, color, and motion embeddings for comprehensive image retrieval.
 /// </summary>
 public class QdrantImageVectorStoreService : IImageVectorStoreService
 {
-    private readonly ILogger<QdrantImageVectorStoreService> _logger;
-    private readonly SemanticSearchConfig _config;
-    private readonly QdrantClient? _client;
-    private bool _collectionInitialized;
-
     // Named vector configuration
     private const string TextVectorName = "text";
     private const string VisualVectorName = "visual";
@@ -24,10 +21,14 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
     private const string MotionVectorName = "motion";
 
     // Vector dimensions (configurable, but these are typical defaults)
-    private const ulong TextVectorSize = 768;    // CLIP ViT-B/32 text embedding
-    private const ulong VisualVectorSize = 768;  // CLIP ViT-B/32 image embedding
-    private const ulong ColorVectorSize = 64;    // Compact color histogram/palette
-    private const ulong MotionVectorSize = 16;   // Motion signature (direction + magnitude + complexity)
+    private const ulong TextVectorSize = 768; // CLIP ViT-B/32 text embedding
+    private const ulong VisualVectorSize = 768; // CLIP ViT-B/32 image embedding
+    private const ulong ColorVectorSize = 64; // Compact color histogram/palette
+    private const ulong MotionVectorSize = 16; // Motion signature (direction + magnitude + complexity)
+    private readonly QdrantClient? _client;
+    private readonly SemanticSearchConfig _config;
+    private readonly ILogger<QdrantImageVectorStoreService> _logger;
+    private bool _collectionInitialized;
 
     public QdrantImageVectorStoreService(
         ILogger<QdrantImageVectorStoreService> logger,
@@ -55,7 +56,7 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
                 ? _config.WriteApiKey
                 : _config.ReadApiKey;
 
-            _client = new QdrantClient(host, port, https: uri.Scheme == "https", apiKey: apiKey);
+            _client = new QdrantClient(host, port, uri.Scheme == "https", apiKey);
 
             _logger.LogInformation("Connected to Qdrant for image vectors at {Host}:{Port}", host, port);
         }
@@ -115,8 +116,8 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
                 };
 
                 await _client.CreateCollectionAsync(
-                    collectionName: collectionName,
-                    vectorsConfig: vectorsConfig,
+                    collectionName,
+                    vectorsConfig,
                     cancellationToken: cancellationToken
                 );
 
@@ -179,23 +180,15 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
                 payload["has_text"] = false;
             }
 
-            if (!string.IsNullOrEmpty(document.LlmCaption))
-            {
-                payload["llm_caption"] = document.LlmCaption;
-            }
+            if (!string.IsNullOrEmpty(document.LlmCaption)) payload["llm_caption"] = document.LlmCaption;
 
             // Salience summary (confidence-weighted RRF fusion)
-            if (!string.IsNullOrEmpty(document.SalienceSummary))
-            {
-                payload["salience_summary"] = document.SalienceSummary;
-            }
+            if (!string.IsNullOrEmpty(document.SalienceSummary)) payload["salience_summary"] = document.SalienceSummary;
 
             // Structured salient signals for filtering
             if (document.SalientSignals?.Any() == true)
-            {
                 // Flatten signals for Qdrant payload (nested objects need special handling)
                 foreach (var (key, value) in document.SalientSignals)
-                {
                     if (value != null)
                     {
                         var payloadKey = $"signal_{key.Replace(".", "_")}";
@@ -208,20 +201,18 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
                         else if (value is bool boolVal)
                             payload[payloadKey] = boolVal;
                         else if (value is IEnumerable<string> strList)
-                            payload[payloadKey] = new Value { ListValue = new ListValue { Values = { strList.Select(s => new Value { StringValue = s }) } } };
+                            payload[payloadKey] = new Value
+                            {
+                                ListValue = new ListValue
+                                    { Values = { strList.Select(s => new Value { StringValue = s }) } }
+                            };
                         else
                             payload[payloadKey] = value.ToString();
                     }
-                }
-            }
 
-            if (!string.IsNullOrEmpty(document.SourceUrl))
-            {
-                payload["source_url"] = document.SourceUrl;
-            }
+            if (!string.IsNullOrEmpty(document.SourceUrl)) payload["source_url"] = document.SourceUrl;
 
             if (document.DominantColors?.Any() == true)
-            {
                 payload["dominant_colors"] = new Value
                 {
                     ListValue = new ListValue
@@ -229,20 +220,12 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
                         Values = { document.DominantColors.Select(c => new Value { StringValue = c }) }
                     }
                 };
-            }
 
-            if (!string.IsNullOrEmpty(document.MotionDirection))
-            {
-                payload["motion_direction"] = document.MotionDirection;
-            }
+            if (!string.IsNullOrEmpty(document.MotionDirection)) payload["motion_direction"] = document.MotionDirection;
 
-            if (!string.IsNullOrEmpty(document.AnimationType))
-            {
-                payload["animation_type"] = document.AnimationType;
-            }
+            if (!string.IsNullOrEmpty(document.AnimationType)) payload["animation_type"] = document.AnimationType;
 
             if (document.Tags?.Any() == true)
-            {
                 payload["tags"] = new Value
                 {
                     ListValue = new ListValue
@@ -250,13 +233,9 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
                         Values = { document.Tags.Select(t => new Value { StringValue = t }) }
                     }
                 };
-            }
 
             // Add custom metadata
-            foreach (var (key, value) in document.Metadata)
-            {
-                payload[$"meta_{key}"] = value;
-            }
+            foreach (var (key, value) in document.Metadata) payload[$"meta_{key}"] = value;
 
             // Build named vectors dictionary
             var namedVectors = new Dictionary<string, float[]>();
@@ -293,8 +272,8 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
             };
 
             await _client.UpsertAsync(
-                collectionName: collectionName,
-                points: new[] { point },
+                collectionName,
+                new[] { point },
                 cancellationToken: cancellationToken
             );
 
@@ -380,8 +359,8 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
             }
 
             await _client.UpsertAsync(
-                collectionName: collectionName,
-                points: points,
+                collectionName,
+                points,
                 cancellationToken: cancellationToken
             );
 
@@ -438,9 +417,9 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
             var collectionName = $"{_config.CollectionName}_images";
 
             var searchResults = await _client.SearchAsync(
-                collectionName: collectionName,
-                vector: visualEmbedding,
-                vectorName: VisualVectorName,  // Search in visual vector space
+                collectionName,
+                visualEmbedding,
+                vectorName: VisualVectorName, // Search in visual vector space
                 limit: (ulong)limit,
                 scoreThreshold: scoreThreshold,
                 cancellationToken: cancellationToken
@@ -479,9 +458,9 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
             var collectionName = $"{_config.CollectionName}_images";
 
             var searchResults = await _client.SearchAsync(
-                collectionName: collectionName,
-                vector: colorEmbedding,
-                vectorName: ColorVectorName,  // Search in color vector space
+                collectionName,
+                colorEmbedding,
+                vectorName: ColorVectorName, // Search in color vector space
                 limit: (ulong)limit,
                 scoreThreshold: scoreThreshold,
                 cancellationToken: cancellationToken
@@ -516,9 +495,9 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
             var collectionName = $"{_config.CollectionName}_images";
 
             var searchResults = await _client.SearchAsync(
-                collectionName: collectionName,
-                vector: motionEmbedding,
-                vectorName: MotionVectorName,  // Search in motion vector space
+                collectionName,
+                motionEmbedding,
+                vectorName: MotionVectorName, // Search in motion vector space
                 limit: (ulong)limit,
                 scoreThreshold: scoreThreshold,
                 cancellationToken: cancellationToken
@@ -550,8 +529,8 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
             var pointId = GenerateDeterministicId(imageId);
 
             await _client.DeleteAsync(
-                collectionName: collectionName,
-                ids: new[] { new PointId { Num = pointId } },
+                collectionName,
+                new[] { new PointId { Num = pointId } },
                 cancellationToken: cancellationToken
             );
 
@@ -574,9 +553,9 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
             var pointId = GenerateDeterministicId(imageId);
 
             var points = await _client.RetrieveAsync(
-                collectionName: collectionName,
-                ids: new[] { new PointId { Num = pointId } },
-                withPayload: true,
+                collectionName,
+                new[] { new PointId { Num = pointId } },
+                true,
                 cancellationToken: cancellationToken
             );
 
@@ -590,7 +569,6 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
             // Extract salient signals from flattened payload
             var salientSignals = new Dictionary<string, object?>();
             foreach (var (key, value) in payload)
-            {
                 if (key.StartsWith("signal_"))
                 {
                     var signalKey = key.Substring(7).Replace("_", ".");
@@ -604,7 +582,6 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
                         _ => value.ToString()
                     };
                 }
-            }
 
             return new ImageDocument
             {
@@ -650,9 +627,9 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
             );
 
             await _client.SetPayloadAsync(
-                collectionName: collectionName,
-                payload: payload,
-                filter: new Filter
+                collectionName,
+                payload,
+                new Filter
                 {
                     Must =
                     {
@@ -734,10 +711,10 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
     }
 
     /// <summary>
-    /// Generate a deterministic ulong from a string ID using xxHash64.
+    ///     Generate a deterministic ulong from a string ID using xxHash64.
     /// </summary>
     private static ulong GenerateDeterministicId(string id)
     {
-        return System.IO.Hashing.XxHash64.HashToUInt64(System.Text.Encoding.UTF8.GetBytes(id));
+        return XxHash64.HashToUInt64(Encoding.UTF8.GetBytes(id));
     }
 }

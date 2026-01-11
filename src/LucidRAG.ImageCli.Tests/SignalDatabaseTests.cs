@@ -15,6 +15,30 @@ public class SignalDatabaseTests : IDisposable
         _database = new SignalDatabase(_testDbPath, NullLogger<SignalDatabase>.Instance);
     }
 
+    public void Dispose()
+    {
+        _database.Dispose();
+
+        // Force garbage collection to release SQLite file handles
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+
+        try
+        {
+            if (File.Exists(_testDbPath)) File.Delete(_testDbPath);
+
+            // Also clean up WAL and SHM files
+            var walPath = _testDbPath + "-wal";
+            var shmPath = _testDbPath + "-shm";
+            if (File.Exists(walPath)) File.Delete(walPath);
+            if (File.Exists(shmPath)) File.Delete(shmPath);
+        }
+        catch (IOException)
+        {
+            // Ignore cleanup errors in tests
+        }
+    }
+
     [Fact]
     public async Task StoreProfile_ShouldPersistSignals()
     {
@@ -111,32 +135,5 @@ public class SignalDatabaseTests : IDisposable
         // Act & Assert
         var act = async () => await Task.WhenAll(tasks);
         await act.Should().NotThrowAsync();
-    }
-
-    public void Dispose()
-    {
-        _database.Dispose();
-
-        // Force garbage collection to release SQLite file handles
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-
-        try
-        {
-            if (File.Exists(_testDbPath))
-            {
-                File.Delete(_testDbPath);
-            }
-
-            // Also clean up WAL and SHM files
-            var walPath = _testDbPath + "-wal";
-            var shmPath = _testDbPath + "-shm";
-            if (File.Exists(walPath)) File.Delete(walPath);
-            if (File.Exists(shmPath)) File.Delete(shmPath);
-        }
-        catch (IOException)
-        {
-            // Ignore cleanup errors in tests
-        }
     }
 }

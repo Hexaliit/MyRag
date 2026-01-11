@@ -1,6 +1,7 @@
 # DocSummarizer v3.1.0 - Documentation Improvements & Template Expansion
 
-> **Turn documents or URLs into evidence-grounded summaries — for humans or AI agents — without sending anything to the cloud.**
+> **Turn documents or URLs into evidence-grounded summaries — for humans or AI agents — without sending anything to the
+cloud.**
 
 ## 🎉 What's New
 
@@ -8,31 +9,38 @@
 
 Three detailed blog articles now cover every aspect of DocSummarizer:
 
-- **[Part 1: Architecture & Patterns](/blog/building-a-document-summarizer-with-rag)** - Why pipeline beats naive LLM, mode selection, design principles
+- **[Part 1: Architecture & Patterns](/blog/building-a-document-summarizer-with-rag)** - Why pipeline beats naive LLM,
+  mode selection, design principles
 - **[Part 2: Quick-Start Guide](/blog/docsummarizer-tool)** - Installation, templates, common workflows
-- **[Part 3: Technical Deep Dive](/blog/docsummarizer-advanced-concepts)** - BERT, ONNX, embeddings, hybrid search internals
+- **[Part 3: Technical Deep Dive](/blog/docsummarizer-advanced-concepts)** - BERT, ONNX, embeddings, hybrid search
+  internals
 
 ### ✨ Two New Templates (Total: 13)
 
 **`prose`** - Clean multi-paragraph summary without metadata:
+
 ```bash
 docsummarizer -f doc.pdf -t prose
 ```
+
 - 400 words across 4 paragraphs
 - No citations, no metadata, just flowing prose
 - Perfect for embedding in reports or presentations
 
 **`strict`** - Token-efficient with hard constraints:
+
 ```bash
 docsummarizer -f doc.pdf -t strict
 ```
+
 - Exactly 3 bullets, ≤60 words total
 - No hedging ("appears to", "seems", "possibly")
 - Highest-confidence facts only
 - Optimized for token-constrained contexts
 
 **All 13 Templates:**
-default, **prose**, brief, oneliner, bullets, executive, detailed, technical, academic, citations, bookreport, meeting, **strict**
+default, **prose**, brief, oneliner, bullets, executive, detailed, technical, academic, citations, bookreport, meeting,
+**strict**
 
 ### 🔧 Documentation Improvements
 
@@ -48,14 +56,14 @@ default, **prose**, brief, oneliner, bullets, executive, detailed, technical, ac
 
 Download from [GitHub Releases](https://github.com/scottgal/mostlylucidweb/releases/tag/docsummarizer-v3.1.0):
 
-| Platform | Architecture | Download |
-|----------|--------------|----------|
-| Windows | x64 | `docsummarizer-win-x64.zip` |
-| Windows | ARM64 | `docsummarizer-win-arm64.zip` |
-| Linux | x64 | `docsummarizer-linux-x64.tar.gz` |
-| Linux | ARM64 | `docsummarizer-linux-arm64.tar.gz` |
-| macOS | Intel | `docsummarizer-osx-x64.tar.gz` |
-| macOS | Apple Silicon | `docsummarizer-osx-arm64.tar.gz` |
+| Platform | Architecture  | Download                           |
+|----------|---------------|------------------------------------|
+| Windows  | x64           | `docsummarizer-win-x64.zip`        |
+| Windows  | ARM64         | `docsummarizer-win-arm64.zip`      |
+| Linux    | x64           | `docsummarizer-linux-x64.tar.gz`   |
+| Linux    | ARM64         | `docsummarizer-linux-arm64.tar.gz` |
+| macOS    | Intel         | `docsummarizer-osx-x64.tar.gz`     |
+| macOS    | Apple Silicon | `docsummarizer-osx-arm64.tar.gz`   |
 
 ### Quick Start
 
@@ -133,12 +141,14 @@ docsummarizer -f doc.pdf -t strict
 
 ## 📚 Documentation
 
-- **README**: [Mostlylucid.DocSummarizer/README.md](https://github.com/scottgal/mostlylucidweb/blob/main/Mostlylucid.DocSummarizer/README.md)
+- **README
+  **: [Mostlylucid.DocSummarizer/README.md](https://github.com/scottgal/mostlylucidweb/blob/main/Mostlylucid.DocSummarizer/README.md)
 - **Blog Series**:
-  - [Part 1: Architecture](/blog/building-a-document-summarizer-with-rag)
-  - [Part 2: Quick-Start](/blog/docsummarizer-tool)
-  - [Part 3: Advanced Concepts](/blog/docsummarizer-advanced-concepts)
-- **CHANGELOG**: [CHANGELOG.md](https://github.com/scottgal/mostlylucidweb/blob/main/Mostlylucid.DocSummarizer/CHANGELOG.md)
+    - [Part 1: Architecture](/blog/building-a-document-summarizer-with-rag)
+    - [Part 2: Quick-Start](/blog/docsummarizer-tool)
+    - [Part 3: Advanced Concepts](/blog/docsummarizer-advanced-concepts)
+- **CHANGELOG
+  **: [CHANGELOG.md](https://github.com/scottgal/mostlylucidweb/blob/main/Mostlylucid.DocSummarizer/CHANGELOG.md)
 
 ## 🤝 Contributing
 
@@ -150,4 +160,5 @@ MIT License - See project repository for details
 
 ---
 
-**Full Changelog**: [v3.0.0...v3.1.0](https://github.com/scottgal/mostlylucidweb/compare/docsummarizer-v3.0.0...docsummarizer-v3.1.0)
+**Full Changelog
+**: [v3.0.0...v3.1.0](https://github.com/scottgal/mostlylucidweb/compare/docsummarizer-v3.0.0...docsummarizer-v3.1.0)

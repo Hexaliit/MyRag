@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Microsoft.Extensions.FileSystemGlobbing;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 using Spectre.Console;
@@ -7,29 +6,29 @@ using Spectre.Console;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Tracks whether we're inside a batch processing context to prevent nested Spectre progress bars.
+///     Tracks whether we're inside a batch processing context to prevent nested Spectre progress bars.
 /// </summary>
 internal static class BatchContextTracker
 {
-    [ThreadStatic]
-    private static bool _isInContext;
-    
-    public static bool IsInContext => _isInContext;
-    
+    [field: ThreadStatic] public static bool IsInContext { get; private set; }
+
     public static IDisposable Enter()
     {
-        _isInContext = true;
+        IsInContext = true;
         return new BatchContextGuard();
     }
-    
+
     private class BatchContextGuard : IDisposable
     {
-        public void Dispose() => _isInContext = false;
+        public void Dispose()
+        {
+            IsInContext = false;
+        }
     }
 }
 
 /// <summary>
-/// Handles batch processing of multiple documents
+///     Handles batch processing of multiple documents
 /// </summary>
 public class BatchProcessor
 {
@@ -48,7 +47,7 @@ public class BatchProcessor
     }
 
     /// <summary>
-    /// Process all documents in a directory, saving each immediately
+    ///     Process all documents in a directory, saving each immediately
     /// </summary>
     public async Task<BatchSummary> ProcessDirectoryAsync(
         string directoryPath,
@@ -93,7 +92,7 @@ public class BatchProcessor
             .StartAsync(async ctx =>
             {
                 var overallTask = ctx.AddTask("[cyan]Batch Processing[/]", maxValue: totalFiles);
-                
+
                 for (var i = 0; i < files.Count; i++)
                 {
                     var file = files[i];
@@ -105,7 +104,6 @@ public class BatchProcessor
                     var result = await ProcessFileAsync(file, mode, focus, cancellationToken);
 
                     if (onFileCompleted != null)
-                    {
                         try
                         {
                             await onFileCompleted(result);
@@ -114,13 +112,12 @@ public class BatchProcessor
                         {
                             await LogErrorAsync(file, $"Failed to save output: {ex.Message}", ex.StackTrace);
                         }
-                    }
 
                     if (result.Success)
                     {
                         successCount++;
                         SpectreProgressService.WriteBatchProgress(i + 1, totalFiles, fileName, true);
-                        if (_verbose) 
+                        if (_verbose)
                             AnsiConsole.MarkupLine($"  [dim]Completed in {result.ProcessingTime.TotalSeconds:F1}s[/]");
                     }
                     else
@@ -140,7 +137,7 @@ public class BatchProcessor
 
                     if (failureCount > 0 && !_config.ContinueOnError) break;
                 }
-                
+
                 overallTask.Description = "[green]Batch processing complete[/]";
                 overallTask.StopTask();
             });
@@ -166,34 +163,34 @@ public class BatchProcessor
             .Border(TableBorder.Double)
             .BorderColor(Color.Blue)
             .Title("[cyan]Batch Processing Summary[/]");
-        
+
         summaryTable.AddColumn(new TableColumn("[blue]Metric[/]").Centered());
         summaryTable.AddColumn(new TableColumn("[blue]Value[/]").RightAligned());
-        
+
         summaryTable.AddRow("[cyan]Total Files[/]", $"[white]{total}[/]");
         summaryTable.AddRow("[green]Successful[/]", $"[green]{success}[/]");
-        summaryTable.AddRow(failed > 0 ? "[red]Failed[/]" : "[dim]Failed[/]", 
+        summaryTable.AddRow(failed > 0 ? "[red]Failed[/]" : "[dim]Failed[/]",
             failed > 0 ? $"[red]{failed}[/]" : $"[dim]{failed}[/]");
-        
+
         var successRate = total > 0 ? (double)success / total * 100 : 0;
         var rateColor = successRate >= 90 ? "green" : successRate >= 70 ? "yellow" : "red";
         summaryTable.AddRow("[cyan]Success Rate[/]", $"[{rateColor}]{successRate:F1}%[/]");
         summaryTable.AddRow("[cyan]Duration[/]", $"[white]{elapsed.TotalMinutes:F1} minutes[/]");
-        
+
         AnsiConsole.Write(summaryTable);
 
         if (failedFiles.Count > 0)
         {
             AnsiConsole.WriteLine();
-            
+
             var failedTable = new Table()
                 .Border(TableBorder.Rounded)
                 .BorderColor(Color.Red)
                 .Title("[red]Failed Files[/]");
-            
+
             failedTable.AddColumn(new TableColumn("[red]File[/]"));
             failedTable.AddColumn(new TableColumn("[red]Error[/]"));
-            
+
             foreach (var (path, error, _) in failedFiles.Take(20))
             {
                 var fileName = Path.GetFileName(path);
@@ -203,11 +200,8 @@ public class BatchProcessor
                     Markup.Escape(shortError));
             }
 
-            if (failedFiles.Count > 20)
-            {
-                failedTable.AddRow($"[dim]... and {failedFiles.Count - 20} more[/]", "");
-            }
-            
+            if (failedFiles.Count > 20) failedTable.AddRow($"[dim]... and {failedFiles.Count - 20} more[/]", "");
+
             AnsiConsole.Write(failedTable);
         }
     }
@@ -215,7 +209,6 @@ public class BatchProcessor
     private async Task LogErrorAsync(string filePath, string error, string? stackTrace)
     {
         if (!string.IsNullOrEmpty(_errorLogPath))
-        {
             try
             {
                 var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -229,7 +222,6 @@ public class BatchProcessor
             {
                 // Ignore logging errors
             }
-        }
     }
 
     private static string TruncateFileName(string fileName, int maxLength)
@@ -269,7 +261,6 @@ public class BatchProcessor
 
         var matchedFiles = new List<string>();
         foreach (var file in Directory.EnumerateFiles(directoryPath, "*.*", searchOption))
-        {
             if (_config.FileExtensions.Count == 0 ||
                 _config.FileExtensions.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase)))
             {
@@ -285,14 +276,13 @@ public class BatchProcessor
                         fileName.EndsWith(".summary", StringComparison.OrdinalIgnoreCase))
                     {
                         if (_verbose)
-                            Spectre.Console.AnsiConsole.MarkupLine($"[dim]Skipping summary file: {Path.GetFileName(file)}[/]");
+                            AnsiConsole.MarkupLine($"[dim]Skipping summary file: {Path.GetFileName(file)}[/]");
                         continue;
                     }
-                    
+
                     matchedFiles.Add(file);
                 }
             }
-        }
 
         return matchedFiles;
     }

@@ -1,11 +1,11 @@
-using Microsoft.AspNetCore.Mvc;
 using LucidRAG.Services;
+using Microsoft.AspNetCore.Mvc;
 using StyloFlow.Retrieval.Entities;
 
 namespace LucidRAG.Controllers.Api;
 
 /// <summary>
-/// API for managing cross-modal retrieval entities.
+///     API for managing cross-modal retrieval entities.
 /// </summary>
 [ApiController]
 [Route("api/retrieval-entities")]
@@ -14,7 +14,7 @@ public class RetrievalEntitiesController(
     ILogger<RetrievalEntitiesController> logger) : ControllerBase
 {
     /// <summary>
-    /// Create a new retrieval entity.
+    ///     Create a new retrieval entity.
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<RetrievalEntityDto>> Create(
@@ -39,10 +39,7 @@ public class RetrievalEntitiesController(
             entityId, entity.ContentType);
 
         var stored = await entityService.GetByIdAsync(entityId, ct);
-        if (stored == null)
-        {
-            return StatusCode(500, "Failed to retrieve stored entity");
-        }
+        if (stored == null) return StatusCode(500, "Failed to retrieve stored entity");
 
         return CreatedAtAction(
             nameof(GetById),
@@ -51,7 +48,7 @@ public class RetrievalEntitiesController(
     }
 
     /// <summary>
-    /// Get entity by ID.
+    ///     Get entity by ID.
     /// </summary>
     [HttpGet("{entityId}")]
     public async Task<ActionResult<RetrievalEntityDto>> GetById(
@@ -59,16 +56,13 @@ public class RetrievalEntitiesController(
         CancellationToken ct = default)
     {
         var entity = await entityService.GetByIdAsync(entityId, ct);
-        if (entity == null)
-        {
-            return NotFound();
-        }
+        if (entity == null) return NotFound();
 
         return Ok(MapToDto(entity));
     }
 
     /// <summary>
-    /// List entities, optionally filtered by collection and content type.
+    ///     List entities, optionally filtered by collection and content type.
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<RetrievalEntityDto>>> List(
@@ -78,11 +72,9 @@ public class RetrievalEntitiesController(
     {
         ContentType[]? types = null;
         if (contentTypes is { Length: > 0 })
-        {
             types = contentTypes
                 .Select(t => Enum.Parse<ContentType>(t, ignoreCase: true))
                 .ToArray();
-        }
 
         var entities = await entityService.GetByCollectionAsync(
             collectionId ?? Guid.Empty,
@@ -93,7 +85,7 @@ public class RetrievalEntitiesController(
     }
 
     /// <summary>
-    /// Delete an entity.
+    ///     Delete an entity.
     /// </summary>
     [HttpDelete("{entityId}")]
     public async Task<IActionResult> Delete(
@@ -101,16 +93,13 @@ public class RetrievalEntitiesController(
         CancellationToken ct = default)
     {
         var deleted = await entityService.DeleteAsync(entityId, ct);
-        if (!deleted)
-        {
-            return NotFound();
-        }
+        if (!deleted) return NotFound();
 
         return NoContent();
     }
 
     /// <summary>
-    /// Get entity counts by content type.
+    ///     Get entity counts by content type.
     /// </summary>
     [HttpGet("counts")]
     public async Task<ActionResult<Dictionary<string, int>>> GetCounts(
@@ -121,26 +110,29 @@ public class RetrievalEntitiesController(
         return Ok(counts.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value));
     }
 
-    private static RetrievalEntityDto MapToDto(RetrievalEntity entity) => new()
+    private static RetrievalEntityDto MapToDto(RetrievalEntity entity)
     {
-        Id = entity.Id,
-        ContentType = entity.ContentType.ToString(),
-        Source = entity.Source,
-        Title = entity.Title,
-        Summary = entity.Summary,
-        TextContent = entity.TextContent,
-        Tags = entity.Tags?.ToArray(),
-        CollectionId = entity.Collection != null && Guid.TryParse(entity.Collection, out var cid) ? cid : null,
-        QualityScore = entity.QualityScore,
-        ContentConfidence = entity.ContentConfidence,
-        NeedsReview = entity.NeedsReview,
-        CreatedAt = new DateTimeOffset(entity.CreatedAt, TimeSpan.Zero),
-        UpdatedAt = new DateTimeOffset(entity.UpdatedAt, TimeSpan.Zero)
-    };
+        return new RetrievalEntityDto
+        {
+            Id = entity.Id,
+            ContentType = entity.ContentType.ToString(),
+            Source = entity.Source,
+            Title = entity.Title,
+            Summary = entity.Summary,
+            TextContent = entity.TextContent,
+            Tags = entity.Tags?.ToArray(),
+            CollectionId = entity.Collection != null && Guid.TryParse(entity.Collection, out var cid) ? cid : null,
+            QualityScore = entity.QualityScore,
+            ContentConfidence = entity.ContentConfidence,
+            NeedsReview = entity.NeedsReview,
+            CreatedAt = new DateTimeOffset(entity.CreatedAt, TimeSpan.Zero),
+            UpdatedAt = new DateTimeOffset(entity.UpdatedAt, TimeSpan.Zero)
+        };
+    }
 }
 
 /// <summary>
-/// Request to create a retrieval entity.
+///     Request to create a retrieval entity.
 /// </summary>
 public record CreateRetrievalEntityRequest
 {
@@ -154,7 +146,7 @@ public record CreateRetrievalEntityRequest
 }
 
 /// <summary>
-/// DTO for retrieval entity responses.
+///     DTO for retrieval entity responses.
 /// </summary>
 public record RetrievalEntityDto
 {

@@ -1,10 +1,10 @@
-using Microsoft.AspNetCore.Mvc;
 using LucidRAG.Multitenancy;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LucidRAG.Controllers.Api;
 
 /// <summary>
-/// API for managing tenants in multi-tenant mode.
+///     API for managing tenants in multi-tenant mode.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -14,7 +14,7 @@ public class TenantsController(
     ILogger<TenantsController> logger) : ControllerBase
 {
     /// <summary>
-    /// List all tenants.
+    ///     List all tenants.
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<TenantDto>>> List(
@@ -26,31 +26,25 @@ public class TenantsController(
     }
 
     /// <summary>
-    /// Get a tenant by ID.
+    ///     Get a tenant by ID.
     /// </summary>
     [HttpGet("{tenantId}")]
     public async Task<ActionResult<TenantDto>> Get(string tenantId, CancellationToken ct = default)
     {
         var tenant = await provisioningService.GetTenantAsync(tenantId, ct);
-        if (tenant == null)
-        {
-            return NotFound();
-        }
+        if (tenant == null) return NotFound();
 
         return Ok(MapToDto(tenant));
     }
 
     /// <summary>
-    /// Get the current tenant context.
+    ///     Get the current tenant context.
     /// </summary>
     [HttpGet("current")]
     public ActionResult<TenantContextDto> GetCurrent()
     {
         var current = tenantAccessor.Current;
-        if (current == null)
-        {
-            return NotFound(new { message = "No tenant context available" });
-        }
+        if (current == null) return NotFound(new { message = "No tenant context available" });
 
         return Ok(new TenantContextDto
         {
@@ -63,8 +57,8 @@ public class TenantsController(
     }
 
     /// <summary>
-    /// Provision a new tenant.
-    /// Creates database schema and vector collection.
+    ///     Provision a new tenant.
+    ///     Creates database schema and vector collection.
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<TenantDto>> Create(
@@ -73,9 +67,7 @@ public class TenantsController(
     {
         // Check if tenant already exists
         if (await provisioningService.ExistsAsync(request.TenantId, ct))
-        {
             return Conflict(new { message = $"Tenant '{request.TenantId}' already exists" });
-        }
 
         logger.LogInformation("Creating tenant: {TenantId}", request.TenantId);
 
@@ -95,7 +87,7 @@ public class TenantsController(
     }
 
     /// <summary>
-    /// Update tenant status (activate/deactivate).
+    ///     Update tenant status (activate/deactivate).
     /// </summary>
     [HttpPatch("{tenantId}/status")]
     public async Task<IActionResult> UpdateStatus(
@@ -103,33 +95,27 @@ public class TenantsController(
         [FromBody] UpdateTenantStatusRequest request,
         CancellationToken ct = default)
     {
-        if (!await provisioningService.ExistsAsync(tenantId, ct))
-        {
-            return NotFound();
-        }
+        if (!await provisioningService.ExistsAsync(tenantId, ct)) return NotFound();
 
         await provisioningService.UpdateStatusAsync(tenantId, request.IsActive, ct);
         return NoContent();
     }
 
     /// <summary>
-    /// Run migrations for a tenant.
+    ///     Run migrations for a tenant.
     /// </summary>
     [HttpPost("{tenantId}/migrate")]
     public async Task<IActionResult> Migrate(string tenantId, CancellationToken ct = default)
     {
-        if (!await provisioningService.ExistsAsync(tenantId, ct))
-        {
-            return NotFound();
-        }
+        if (!await provisioningService.ExistsAsync(tenantId, ct)) return NotFound();
 
         await provisioningService.MigrateTenantAsync(tenantId, ct);
         return NoContent();
     }
 
     /// <summary>
-    /// Deprovision a tenant.
-    /// WARNING: This deletes all tenant data permanently.
+    ///     Deprovision a tenant.
+    ///     WARNING: This deletes all tenant data permanently.
     /// </summary>
     [HttpDelete("{tenantId}")]
     public async Task<IActionResult> Delete(
@@ -138,18 +124,13 @@ public class TenantsController(
         CancellationToken ct = default)
     {
         if (!confirm)
-        {
             return BadRequest(new
             {
                 message = "Tenant deletion requires confirmation",
                 hint = "Add ?confirm=true to permanently delete the tenant and all its data"
             });
-        }
 
-        if (!await provisioningService.ExistsAsync(tenantId, ct))
-        {
-            return NotFound();
-        }
+        if (!await provisioningService.ExistsAsync(tenantId, ct)) return NotFound();
 
         logger.LogWarning("Deprovisioning tenant: {TenantId}", tenantId);
         await provisioningService.DeprovisionAsync(tenantId, ct);
@@ -157,51 +138,54 @@ public class TenantsController(
         return NoContent();
     }
 
-    private static TenantDto MapToDto(TenantEntity entity) => new()
+    private static TenantDto MapToDto(TenantEntity entity)
     {
-        Id = entity.Id,
-        TenantId = entity.TenantId,
-        SchemaName = entity.SchemaName,
-        QdrantCollection = entity.QdrantCollection,
-        DisplayName = entity.DisplayName,
-        ContactEmail = entity.ContactEmail,
-        Plan = entity.Plan,
-        IsActive = entity.IsActive,
-        IsProvisioned = entity.IsProvisioned,
-        CreatedAt = entity.CreatedAt,
-        ProvisionedAt = entity.ProvisionedAt
-    };
+        return new TenantDto
+        {
+            Id = entity.Id,
+            TenantId = entity.TenantId,
+            SchemaName = entity.SchemaName,
+            QdrantCollection = entity.QdrantCollection,
+            DisplayName = entity.DisplayName,
+            ContactEmail = entity.ContactEmail,
+            Plan = entity.Plan,
+            IsActive = entity.IsActive,
+            IsProvisioned = entity.IsProvisioned,
+            CreatedAt = entity.CreatedAt,
+            ProvisionedAt = entity.ProvisionedAt
+        };
+    }
 }
 
 /// <summary>
-/// Request to create a new tenant.
+///     Request to create a new tenant.
 /// </summary>
 public record CreateTenantRequest
 {
     /// <summary>
-    /// Unique tenant identifier (alphanumeric, lowercase).
-    /// Will be used in subdomain: {tenantId}.lucidrag.com
+    ///     Unique tenant identifier (alphanumeric, lowercase).
+    ///     Will be used in subdomain: {tenantId}.lucidrag.com
     /// </summary>
     public required string TenantId { get; init; }
 
     /// <summary>
-    /// Display name for the tenant.
+    ///     Display name for the tenant.
     /// </summary>
     public string? DisplayName { get; init; }
 
     /// <summary>
-    /// Contact email for the tenant.
+    ///     Contact email for the tenant.
     /// </summary>
     public string? ContactEmail { get; init; }
 
     /// <summary>
-    /// Subscription plan: free, starter, pro, enterprise.
+    ///     Subscription plan: free, starter, pro, enterprise.
     /// </summary>
     public string? Plan { get; init; }
 }
 
 /// <summary>
-/// Request to update tenant status.
+///     Request to update tenant status.
 /// </summary>
 public record UpdateTenantStatusRequest
 {
@@ -209,7 +193,7 @@ public record UpdateTenantStatusRequest
 }
 
 /// <summary>
-/// DTO for tenant responses.
+///     DTO for tenant responses.
 /// </summary>
 public record TenantDto
 {
@@ -227,7 +211,7 @@ public record TenantDto
 }
 
 /// <summary>
-/// DTO for current tenant context.
+///     DTO for current tenant context.
 /// </summary>
 public record TenantContextDto
 {

@@ -4,7 +4,6 @@ namespace Mostlylucid.Shared.Helpers;
 
 public static class ResourceHelper
 {
-    
     public static string GetMarkdownResource(string resourceName)
     {
         var assembly = Assembly.GetEntryAssembly();

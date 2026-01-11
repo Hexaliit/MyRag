@@ -3,9 +3,9 @@ using System.Text.RegularExpressions;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Lightweight extractive summarizer for short texts (OCR output, captions, etc.)
-/// Uses TF-IDF scoring without requiring BERT/ONNX models.
-/// Optimized for texts under 2000 chars where full BERT is overkill.
+///     Lightweight extractive summarizer for short texts (OCR output, captions, etc.)
+///     Uses TF-IDF scoring without requiring BERT/ONNX models.
+///     Optimized for texts under 2000 chars where full BERT is overkill.
 /// </summary>
 public static class ShortTextSummarizer
 {
@@ -18,8 +18,8 @@ public static class ShortTextSummarizer
     };
 
     /// <summary>
-    /// Summarize short text to a target length using extractive summarization.
-    /// Selects the most important sentences based on TF-IDF scoring.
+    ///     Summarize short text to a target length using extractive summarization.
+    ///     Selects the most important sentences based on TF-IDF scoring.
     /// </summary>
     /// <param name="text">Text to summarize</param>
     /// <param name="maxLength">Maximum output length in characters</param>
@@ -94,10 +94,7 @@ public static class ShortTextSummarizer
             }
 
             // Count document frequency (unique per sentence)
-            foreach (var term in termFreq.Keys)
-            {
-                documentTermFreq[term]++;
-            }
+            foreach (var term in termFreq.Keys) documentTermFreq[term]++;
 
             sentenceTermFreqs.Add(termFreq);
         }
@@ -134,7 +131,6 @@ public static class ShortTextSummarizer
     private static List<string> Tokenize(string text)
     {
         return Regex.Matches(text.ToLowerInvariant(), @"\b[a-z]{2,}\b")
-            .Cast<Match>()
             .Select(m => m.Value)
             .Where(w => !StopWords.Contains(w))
             .ToList();

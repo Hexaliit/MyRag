@@ -26,7 +26,6 @@ namespace Mostlylucid.DocSummarizer.Config;
 [JsonSerializable(typeof(ChunkCacheConfig))]
 // Document types
 [JsonSerializable(typeof(DocumentSummary))]
-
 [JsonSerializable(typeof(DocumentChunk))]
 [JsonSerializable(typeof(ChunkSummary))]
 [JsonSerializable(typeof(TopicSummary))]

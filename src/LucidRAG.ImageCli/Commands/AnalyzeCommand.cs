@@ -1,37 +1,52 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
-using Mostlylucid.DocSummarizer.Images.Services;
-using Mostlylucid.DocSummarizer.Images.Services.Vision;
 using LucidRAG.ImageCli.Services.OutputFormatters;
 using Microsoft.Extensions.Configuration;
+using Mostlylucid.DocSummarizer.Images.Services;
+using Mostlylucid.DocSummarizer.Images.Services.Analysis;
+using Mostlylucid.DocSummarizer.Images.Services.Vision;
 using Spectre.Console;
 
 namespace LucidRAG.ImageCli.Commands;
 
 /// <summary>
-/// Command for analyzing a single image file.
+///     Command for analyzing a single image file.
 /// </summary>
 public static class AnalyzeCommand
 {
-    private static readonly Argument<string> ImagePathArg = new("image-path") { Description = "Path to the image file to analyze" };
+    private static readonly Argument<string> ImagePathArg = new("image-path")
+        { Description = "Path to the image file to analyze" };
 
-    private static readonly Option<OutputFormat> FormatOpt = new("--format", "-f") { Description = "Output format", DefaultValueFactory = _ => OutputFormat.Table };
+    private static readonly Option<OutputFormat> FormatOpt = new("--format", "-f")
+        { Description = "Output format", DefaultValueFactory = _ => OutputFormat.Table };
 
     private static readonly Option<string?> OutputOpt = new("--output", "-o") { Description = "Save output to file" };
 
-    private static readonly Option<bool> IncludeOcrOpt = new("--include-ocr") { Description = "Extract text using OCR if text detected", DefaultValueFactory = _ => false };
+    private static readonly Option<bool> IncludeOcrOpt = new("--include-ocr")
+        { Description = "Extract text using OCR if text detected", DefaultValueFactory = _ => false };
 
-    private static readonly Option<bool> IncludeClipOpt = new("--include-clip") { Description = "Generate CLIP embeddings for similarity search", DefaultValueFactory = _ => false };
+    private static readonly Option<bool> IncludeClipOpt = new("--include-clip")
+        { Description = "Generate CLIP embeddings for similarity search", DefaultValueFactory = _ => false };
 
-    private static readonly Option<bool> UseLlmOpt = new("--use-llm", "--llm") { Description = "Use vision LLM for enhanced description (requires Ollama)", DefaultValueFactory = _ => false };
+    private static readonly Option<bool> UseLlmOpt = new("--use-llm", "--llm")
+        { Description = "Use vision LLM for enhanced description (requires Ollama)", DefaultValueFactory = _ => false };
 
-    private static readonly Option<string?> ModelOpt = new("--model", "-m") { Description = "Vision model to use. Format: 'model' or 'provider:model' (e.g., minicpm-v:8b, anthropic:claude-3-5-sonnet-20241022, openai:gpt-4o)" };
+    private static readonly Option<string?> ModelOpt = new("--model", "-m")
+    {
+        Description =
+            "Vision model to use. Format: 'model' or 'provider:model' (e.g., minicpm-v:8b, anthropic:claude-3-5-sonnet-20241022, openai:gpt-4o)"
+    };
 
-    private static readonly Option<string?> ThumbnailOpt = new("--thumbnail") { Description = "Generate and save thumbnail to specified path" };
+    private static readonly Option<string?> ThumbnailOpt = new("--thumbnail")
+        { Description = "Generate and save thumbnail to specified path" };
 
-    private static readonly Option<bool> VerboseOpt = new("--verbose", "-v") { Description = "Show detailed analysis information", DefaultValueFactory = _ => false };
+    private static readonly Option<bool> VerboseOpt = new("--verbose", "-v")
+        { Description = "Show detailed analysis information", DefaultValueFactory = _ => false };
 
-    private static readonly Option<bool> SkipCacheOpt = new("--skip-cache") { Description = "Skip cache and force fresh analysis (useful for model comparison)", DefaultValueFactory = _ => false };
+    private static readonly Option<bool> SkipCacheOpt = new("--skip-cache")
+    {
+        Description = "Skip cache and force fresh analysis (useful for model comparison)",
+        DefaultValueFactory = _ => false
+    };
 
     public static Command Create()
     {
@@ -70,8 +85,8 @@ public static class AnalyzeCommand
             // Build service provider with user secrets for API keys
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                .AddJsonFile("appsettings.json", optional: true)
-                .AddUserSecrets<Program>(optional: true) // Load API keys from user secrets
+                .AddJsonFile("appsettings.json", true)
+                .AddUserSecrets<Program>(true) // Load API keys from user secrets
                 .AddEnvironmentVariables("LUCIDRAG_")
                 .Build();
 
@@ -79,7 +94,7 @@ public static class AnalyzeCommand
 
             // Get services
             var escalationService = services.GetRequiredService<EscalationService>();
-            var imageAnalyzer = services.GetRequiredService<Mostlylucid.DocSummarizer.Images.Services.Analysis.IImageAnalyzer>();
+            var imageAnalyzer = services.GetRequiredService<IImageAnalyzer>();
 
             IOutputFormatter formatter = format switch
             {
@@ -104,7 +119,8 @@ public static class AnalyzeCommand
 
                             if (!available)
                             {
-                                AnsiConsole.MarkupLine($"[yellow]⚠ Warning:[/] {Markup.Escape(message ?? "Ollama not available")}");
+                                AnsiConsole.MarkupLine(
+                                    $"[yellow]⚠ Warning:[/] {Markup.Escape(message ?? "Ollama not available")}");
                                 AnsiConsole.MarkupLine("[dim]Continuing with deterministic analysis only...[/]");
                                 useLlm = false;
                             }
@@ -112,11 +128,11 @@ public static class AnalyzeCommand
 
                         return await escalationService.AnalyzeWithEscalationAsync(
                             imagePath,
-                            forceEscalate: useLlm,
-                            enableOcr: includeOcr,
-                            bypassCache: skipCache,
-                            visionModel: model,
-                            ct: ct);
+                            useLlm,
+                            includeOcr,
+                            skipCache,
+                            model,
+                            ct);
                     });
 
                 // Generate thumbnail if requested
@@ -129,9 +145,7 @@ public static class AnalyzeCommand
 
                 // Display results
                 if (result.WasEscalated && result.LlmCaption != null)
-                {
                     AnsiConsole.MarkupLine($"[yellow]↗[/] Analysis escalated to vision LLM: {result.EscalationReason}");
-                }
 
                 var formattedOutput = formatter.FormatSingle(
                     imagePath,
@@ -154,10 +168,7 @@ public static class AnalyzeCommand
             catch (Exception ex)
             {
                 AnsiConsole.MarkupLine($"[red]✗ Error:[/] {Markup.Escape(ex.Message)}");
-                if (verbose)
-                {
-                    AnsiConsole.WriteException(ex);
-                }
+                if (verbose) AnsiConsole.WriteException(ex);
                 return 1;
             }
         });
@@ -167,7 +178,7 @@ public static class AnalyzeCommand
 }
 
 /// <summary>
-/// Output format options.
+///     Output format options.
 /// </summary>
 public enum OutputFormat
 {
@@ -182,6 +193,6 @@ file static class ServiceProviderExtensions
     public static T GetRequiredService<T>(this IServiceProvider services) where T : notnull
     {
         return (T)(services.GetService(typeof(T)) ??
-            throw new InvalidOperationException($"Service of type {typeof(T)} not found"));
+                   throw new InvalidOperationException($"Service of type {typeof(T)} not found"));
     }
 }

@@ -3,25 +3,23 @@ using Mostlylucid.DocSummarizer.Images.Models;
 using OpenCvSharp;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzes motion in animated GIFs using OpenCV optical flow.
-///
-/// Uses Farneback dense optical flow to compute motion vectors for every pixel
-/// between consecutive frames, then aggregates to determine:
-/// - Dominant motion direction (left, right, up, down, radial, static)
-/// - Motion magnitude (pixels per frame)
-/// - Regions with significant motion
+///     Analyzes motion in animated GIFs using OpenCV optical flow.
+///     Uses Farneback dense optical flow to compute motion vectors for every pixel
+///     between consecutive frames, then aggregates to determine:
+///     - Dominant motion direction (left, right, up, down, radial, static)
+///     - Motion magnitude (pixels per frame)
+///     - Regions with significant motion
 /// </summary>
 public class GifMotionAnalyzer : IDisposable
 {
-    private readonly ILogger<GifMotionAnalyzer>? _logger;
-    private readonly double _motionThreshold;
-    private readonly int _maxFramesToAnalyze;
     private readonly bool _enableDetailedFrameData;
+    private readonly ILogger<GifMotionAnalyzer>? _logger;
+    private readonly int _maxFramesToAnalyze;
+    private readonly double _motionThreshold;
     private bool _disposed;
 
     public GifMotionAnalyzer(
@@ -36,8 +34,13 @@ public class GifMotionAnalyzer : IDisposable
         _enableDetailedFrameData = enableDetailedFrameData;
     }
 
+    public void Dispose()
+    {
+        if (!_disposed) _disposed = true;
+    }
+
     /// <summary>
-    /// Analyze motion in an animated GIF.
+    ///     Analyze motion in an animated GIF.
     /// </summary>
     public async Task<GifMotionProfile> AnalyzeAsync(
         string gifPath,
@@ -48,15 +51,15 @@ public class GifMotionAnalyzer : IDisposable
         try
         {
             // Load GIF and extract frames
-            using var gifImage = await SixLabors.ImageSharp.Image.LoadAsync<Rgba32>(gifPath, ct);
+            using var gifImage = await Image.LoadAsync<Rgba32>(gifPath, ct);
 
             var metadata = gifImage.Metadata;
             var gifMetadata = metadata.GetGifMetadata();
 
             var frameCount = gifImage.Frames.Count;
-            var frameDelay = gifMetadata.RepeatCount > 0 ?
-                (gifImage.Frames.RootFrame.Metadata.GetGifMetadata()?.FrameDelay ?? 10) * 10 :
-                100; // Default 100ms if not specified
+            var frameDelay = gifMetadata.RepeatCount > 0
+                ? (gifImage.Frames.RootFrame.Metadata.GetGifMetadata()?.FrameDelay ?? 10) * 10
+                : 100; // Default 100ms if not specified
 
             _logger?.LogDebug("GIF has {FrameCount} frames, delay: {Delay}ms", frameCount, frameDelay);
 
@@ -97,7 +100,7 @@ public class GifMotionAnalyzer : IDisposable
             var frames = new List<Mat>();
             try
             {
-                for (int i = 0; i < frameCount; i += frameStep)
+                for (var i = 0; i < frameCount; i += frameStep)
                 {
                     if (frames.Count >= framesToAnalyze) break;
 
@@ -137,10 +140,7 @@ public class GifMotionAnalyzer : IDisposable
             finally
             {
                 // Clean up OpenCV Mats
-                foreach (var frame in frames)
-                {
-                    frame?.Dispose();
-                }
+                foreach (var frame in frames) frame?.Dispose();
             }
         }
         catch (Exception ex)
@@ -151,7 +151,7 @@ public class GifMotionAnalyzer : IDisposable
     }
 
     /// <summary>
-    /// Convert ImageSharp frame to OpenCV grayscale Mat.
+    ///     Convert ImageSharp frame to OpenCV grayscale Mat.
     /// </summary>
     private Mat ConvertToGrayscaleMat(ImageFrame<Rgba32> frame)
     {
@@ -163,10 +163,10 @@ public class GifMotionAnalyzer : IDisposable
 
         frame.ProcessPixelRows(accessor =>
         {
-            for (int y = 0; y < height; y++)
+            for (var y = 0; y < height; y++)
             {
                 var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < width; x++)
+                for (var x = 0; x < width; x++)
                 {
                     var pixel = row[x];
                     // Convert to grayscale using luminance formula
@@ -182,13 +182,13 @@ public class GifMotionAnalyzer : IDisposable
     }
 
     /// <summary>
-    /// Compute optical flow between consecutive frames using Farneback algorithm.
+    ///     Compute optical flow between consecutive frames using Farneback algorithm.
     /// </summary>
     private List<FrameMotionData> ComputeOpticalFlow(List<Mat> frames, CancellationToken ct)
     {
         var motionData = new List<FrameMotionData>();
 
-        for (int i = 0; i < frames.Count - 1; i++)
+        for (var i = 0; i < frames.Count - 1; i++)
         {
             if (ct.IsCancellationRequested)
                 break;
@@ -202,13 +202,13 @@ public class GifMotionAnalyzer : IDisposable
                 prevFrame,
                 nextFrame,
                 flow,
-                pyrScale: 0.5,      // Pyramid scale (smaller = more levels)
-                levels: 3,          // Number of pyramid levels
-                winsize: 15,        // Window size for averaging
-                iterations: 3,      // Iterations at each pyramid level
-                polyN: 5,           // Polynomial expansion degree
-                polySigma: 1.2,     // Gaussian sigma for polynomial expansion
-                flags: 0
+                0.5, // Pyramid scale (smaller = more levels)
+                3, // Number of pyramid levels
+                15, // Window size for averaging
+                3, // Iterations at each pyramid level
+                5, // Polynomial expansion degree
+                1.2, // Gaussian sigma for polynomial expansion
+                0
             );
 
             // Analyze flow field
@@ -220,34 +220,32 @@ public class GifMotionAnalyzer : IDisposable
     }
 
     /// <summary>
-    /// Analyze optical flow field to extract motion statistics.
+    ///     Analyze optical flow field to extract motion statistics.
     /// </summary>
     private FrameMotionData AnalyzeFlowField(Mat flow, int frameIndex)
     {
         double totalHorizontal = 0;
         double totalVertical = 0;
         double totalMagnitude = 0;
-        int significantMotionPixels = 0;
-        int totalPixels = flow.Rows * flow.Cols;
+        var significantMotionPixels = 0;
+        var totalPixels = flow.Rows * flow.Cols;
 
         // Iterate through flow field
-        for (int y = 0; y < flow.Rows; y++)
+        for (var y = 0; y < flow.Rows; y++)
+        for (var x = 0; x < flow.Cols; x++)
         {
-            for (int x = 0; x < flow.Cols; x++)
+            var flowVec = flow.At<Vec2f>(y, x);
+            var dx = flowVec.Item0;
+            var dy = flowVec.Item1;
+
+            var magnitude = Math.Sqrt(dx * dx + dy * dy);
+
+            if (magnitude > _motionThreshold)
             {
-                var flowVec = flow.At<Vec2f>(y, x);
-                var dx = flowVec.Item0;
-                var dy = flowVec.Item1;
-
-                var magnitude = Math.Sqrt(dx * dx + dy * dy);
-
-                if (magnitude > _motionThreshold)
-                {
-                    totalHorizontal += dx;
-                    totalVertical += dy;
-                    totalMagnitude += magnitude;
-                    significantMotionPixels++;
-                }
+                totalHorizontal += dx;
+                totalVertical += dy;
+                totalMagnitude += magnitude;
+                significantMotionPixels++;
             }
         }
 
@@ -270,7 +268,7 @@ public class GifMotionAnalyzer : IDisposable
     }
 
     /// <summary>
-    /// Determine motion direction from horizontal and vertical components.
+    ///     Determine motion direction from horizontal and vertical components.
     /// </summary>
     private string DetermineDirection(double horizontal, double vertical)
     {
@@ -284,24 +282,24 @@ public class GifMotionAnalyzer : IDisposable
         // Classify into 8 directions
         if (angle >= -22.5 && angle < 22.5)
             return "right";
-        else if (angle >= 22.5 && angle < 67.5)
+        if (angle >= 22.5 && angle < 67.5)
             return "down-right";
-        else if (angle >= 67.5 && angle < 112.5)
+        if (angle >= 67.5 && angle < 112.5)
             return "down";
-        else if (angle >= 112.5 && angle < 157.5)
+        if (angle >= 112.5 && angle < 157.5)
             return "down-left";
-        else if (angle >= 157.5 || angle < -157.5)
+        if (angle >= 157.5 || angle < -157.5)
             return "left";
-        else if (angle >= -157.5 && angle < -112.5)
+        if (angle >= -157.5 && angle < -112.5)
             return "up-left";
-        else if (angle >= -112.5 && angle < -67.5)
+        if (angle >= -112.5 && angle < -67.5)
             return "up";
-        else // -67.5 to -22.5
-            return "up-right";
+        // -67.5 to -22.5
+        return "up-right";
     }
 
     /// <summary>
-    /// Analyze motion patterns across all frames.
+    ///     Analyze motion patterns across all frames.
     /// </summary>
     private GifMotionProfile AnalyzeMotionPatterns(
         List<FrameMotionData> frameData,
@@ -310,7 +308,6 @@ public class GifMotionAnalyzer : IDisposable
         bool loops)
     {
         if (frameData.Count == 0)
-        {
             return new GifMotionProfile
             {
                 FrameCount = totalFrameCount,
@@ -323,7 +320,6 @@ public class GifMotionAnalyzer : IDisposable
                 MotionPercentage = 0,
                 Confidence = 1.0
             };
-        }
 
         // Calculate statistics
         var avgMagnitude = frameData.Average(f => f.Magnitude);
@@ -359,13 +355,5 @@ public class GifMotionAnalyzer : IDisposable
             FrameMotionData = _enableDetailedFrameData ? frameData : null,
             Confidence = confidence
         };
-    }
-
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
-            _disposed = true;
-        }
     }
 }

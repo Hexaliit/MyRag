@@ -1,33 +1,30 @@
+using System.Diagnostics;
 using System.Text;
-using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services.Utilities;
-
 
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Hierarchical summarizer for document collections (anthologies, complete works, etc.)
-/// 
-/// Strategy (Map-Reduce with sampling):
-/// 1. DETECT: Identify collection structure using CollectionDetector
-/// 2. PARTITION: Split document into individual works using H1 boundaries
-/// 3. SAMPLE: For large collections, sample representative works from each category
-/// 4. MAP: Summarize each work independently (parallel)
-/// 5. REDUCE: Synthesize work summaries into collection overview
-/// 
-/// This avoids the "only saw one play" problem by ensuring coverage across all works.
+///     Hierarchical summarizer for document collections (anthologies, complete works, etc.)
+///     Strategy (Map-Reduce with sampling):
+///     1. DETECT: Identify collection structure using CollectionDetector
+///     2. PARTITION: Split document into individual works using H1 boundaries
+///     3. SAMPLE: For large collections, sample representative works from each category
+///     4. MAP: Summarize each work independently (parallel)
+///     5. REDUCE: Synthesize work summaries into collection overview
+///     This avoids the "only saw one play" problem by ensuring coverage across all works.
 /// </summary>
 public class HierarchicalCollectionSummarizer : IAsyncDisposable
 {
-    private readonly OllamaService _ollama;
     private readonly SegmentExtractor _extractor;
-    private readonly bool _verbose;
     private readonly int _maxWorksToSummarize;
-    private readonly int _targetWordsPerWork;
+    private readonly OllamaService _ollama;
     private readonly int _targetWordsFinal;
+    private readonly int _targetWordsPerWork;
+    private readonly bool _verbose;
 
     /// <summary>
-    /// Create a hierarchical collection summarizer.
+    ///     Create a hierarchical collection summarizer.
     /// </summary>
     /// <param name="ollama">Ollama service for LLM calls</param>
     /// <param name="extractor">Segment extractor for work-level summarization</param>
@@ -51,8 +48,14 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
         _targetWordsFinal = targetWordsFinal;
     }
 
+    public ValueTask DisposeAsync()
+    {
+        _extractor.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
     /// <summary>
-    /// Summarize a document collection hierarchically.
+    ///     Summarize a document collection hierarchically.
     /// </summary>
     /// <param name="markdown">Full markdown content</param>
     /// <param name="collectionInfo">Pre-analyzed collection info (optional)</param>
@@ -65,18 +68,15 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
         string? focusQuery = null,
         CancellationToken ct = default)
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         // 1. DETECT: Analyze collection structure if not provided
         collectionInfo ??= CollectionDetector.AnalyzeMarkdown(markdown);
-        
+
         if (_verbose)
-        {
             VerboseHelper.Log($"[cyan]Collection Analysis:[/] {VerboseHelper.Escape(collectionInfo.ToString())}");
-        }
 
         if (!collectionInfo.IsCollection)
-        {
             // Not a collection - fall back to single-document summarization
             return new CollectionSummaryResult
             {
@@ -87,33 +87,28 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
                 Strategy = CollectionStrategy.SingleDocument,
                 ProcessingTime = stopwatch.Elapsed
             };
-        }
 
         // 2. PARTITION: Split into individual works
         var works = PartitionIntoWorks(markdown, collectionInfo);
-        
-        if (_verbose)
-        {
-            VerboseHelper.Log(_verbose, $"[dim]Partitioned into {works.Count} works[/]");
-        }
+
+        if (_verbose) VerboseHelper.Log(_verbose, $"[dim]Partitioned into {works.Count} works[/]");
 
         // 3. SAMPLE: Select representative works if too many
         var selectedWorks = SelectRepresentativeWorks(works, collectionInfo);
-        
+
         if (_verbose && selectedWorks.Count < works.Count)
-        {
-            VerboseHelper.Log(_verbose, $"[dim]Sampled {selectedWorks.Count} representative works from {works.Count}[/]");
-        }
+            VerboseHelper.Log(_verbose,
+                $"[dim]Sampled {selectedWorks.Count} representative works from {works.Count}[/]");
 
         // 4. MAP: Summarize each work (with progress)
         var workSummaries = await SummarizeWorksAsync(selectedWorks, focusQuery, ct);
 
         // 5. REDUCE: Synthesize into collection overview
         var collectionSummary = await SynthesizeCollectionSummaryAsync(
-            collectionInfo, 
-            workSummaries, 
+            collectionInfo,
+            workSummaries,
             works.Count,
-            focusQuery, 
+            focusQuery,
             ct);
 
         stopwatch.Stop();
@@ -133,19 +128,18 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Partition markdown into individual works based on H1 headings.
+    ///     Partition markdown into individual works based on H1 headings.
     /// </summary>
     private List<WorkPartition> PartitionIntoWorks(string markdown, CollectionInfo collectionInfo)
     {
         var works = new List<WorkPartition>();
         var lines = markdown.Split('\n');
-        
+
         WorkPartition? currentWork = null;
         var contentBuilder = new StringBuilder();
         var workIndex = 0;
 
         foreach (var line in lines)
-        {
             // Check for H1 heading (work boundary)
             if (line.StartsWith("# ") && !line.StartsWith("## "))
             {
@@ -159,7 +153,7 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
 
                 // Start new work
                 var title = line.TrimStart('#', ' ').Trim();
-                
+
                 // Skip meta sections and chapters
                 if (CollectionDetector.QuickIsCollection(title) || IsMeta(title))
                 {
@@ -172,7 +166,7 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
                 {
                     Title = title,
                     Index = workIndex++,
-                    WorkInfo = collectionInfo.Works.FirstOrDefault(w => 
+                    WorkInfo = collectionInfo.Works.FirstOrDefault(w =>
                         w.Title.Equals(title, StringComparison.OrdinalIgnoreCase))
                 };
                 contentBuilder.Clear();
@@ -182,7 +176,6 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
             {
                 contentBuilder.AppendLine(line);
             }
-        }
 
         // Don't forget the last work
         if (currentWork != null && contentBuilder.Length > 100)
@@ -196,11 +189,11 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Select representative works for summarization.
-    /// Ensures diversity across categories (for Shakespeare: tragedies, comedies, histories, sonnets).
+    ///     Select representative works for summarization.
+    ///     Ensures diversity across categories (for Shakespeare: tragedies, comedies, histories, sonnets).
     /// </summary>
     private List<WorkPartition> SelectRepresentativeWorks(
-        List<WorkPartition> allWorks, 
+        List<WorkPartition> allWorks,
         CollectionInfo collectionInfo)
     {
         if (allWorks.Count <= _maxWorksToSummarize)
@@ -221,7 +214,7 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
         {
             // Sample from each type: first, last, and middle (representative coverage)
             var toSelect = Math.Min(quotaPerType, works.Count);
-            
+
             if (works.Count <= toSelect)
             {
                 selected.AddRange(works);
@@ -230,16 +223,16 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
             {
                 // Strategic sampling: first, last, and evenly distributed middle
                 selected.Add(works.First()); // First work of this type
-                
+
                 if (toSelect > 1)
                     selected.Add(works.Last()); // Last work of this type
-                
+
                 if (toSelect > 2)
                 {
                     // Sample from middle
                     var middleCount = toSelect - 2;
                     var step = (works.Count - 2) / (middleCount + 1);
-                    for (int i = 0; i < middleCount; i++)
+                    for (var i = 0; i < middleCount; i++)
                     {
                         var idx = 1 + (i + 1) * step;
                         if (idx < works.Count - 1 && !selected.Contains(works[idx]))
@@ -263,7 +256,7 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Summarize each selected work independently (MAP phase).
+    ///     Summarize each selected work independently (MAP phase).
     /// </summary>
     private async Task<List<WorkSummaryResult>> SummarizeWorksAsync(
         List<WorkPartition> works,
@@ -272,21 +265,15 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
     {
         var results = new List<WorkSummaryResult>();
 
-        if (_verbose)
-        {
-            VerboseHelper.Log($"Summarizing {works.Count} works...");
-        }
+        if (_verbose) VerboseHelper.Log($"Summarizing {works.Count} works...");
 
         var processed = 0;
         foreach (var work in works)
         {
             ct.ThrowIfCancellationRequested();
             processed++;
-            
-            if (_verbose)
-            {
-                VerboseHelper.Log($"[{processed}/{works.Count}] Summarizing: {Truncate(work.Title, 40)}");
-            }
+
+            if (_verbose) VerboseHelper.Log($"[{processed}/{works.Count}] Summarizing: {Truncate(work.Title, 40)}");
 
             try
             {
@@ -297,10 +284,9 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
             {
                 // Log but continue with other works
                 if (_verbose)
-                {
-                    VerboseHelper.Log($"Failed to summarize '{VerboseHelper.Escape(work.Title)}': {VerboseHelper.Escape(ex.Message)}");
-                }
-                
+                    VerboseHelper.Log(
+                        $"Failed to summarize '{VerboseHelper.Escape(work.Title)}': {VerboseHelper.Escape(ex.Message)}");
+
                 results.Add(new WorkSummaryResult
                 {
                     Title = work.Title,
@@ -315,7 +301,7 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Summarize a single work.
+    ///     Summarize a single work.
     /// </summary>
     private async Task<WorkSummaryResult> SummarizeSingleWorkAsync(
         WorkPartition work,
@@ -337,7 +323,7 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
 
         // For longer works, use extractive summarization first
         var extractedSummary = await SummarizeLongWorkAsync(work, focusQuery, ct);
-        
+
         return new WorkSummaryResult
         {
             Title = work.Title,
@@ -348,39 +334,39 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Summarize a short work directly with LLM.
+    ///     Summarize a short work directly with LLM.
     /// </summary>
     private async Task<string> SummarizeShortWorkAsync(
-        WorkPartition work, 
-        string? focusQuery, 
+        WorkPartition work,
+        string? focusQuery,
         CancellationToken ct)
     {
         var focusLine = string.IsNullOrEmpty(focusQuery) ? "" : $"\nFOCUS: {focusQuery}\n";
-        
-        var prompt = $"""
-            Summarize this work in approximately {_targetWordsPerWork} words.
-            
-            TITLE: {work.Title}
-            {focusLine}
-            REQUIREMENTS:
-            - Identify main characters and their relationships
-            - Describe the central conflict or theme
-            - Mention key plot points or arguments
-            - Use specific details from the text (names, places, events)
-            - Do NOT use vague academic language ("explores themes of...")
-            
-            CONTENT:
-            {work.Content[..Math.Min(work.Content.Length, 8000)]}
-            
-            SUMMARY:
-            """;
 
-        var response = await _ollama.GenerateAsync(prompt, temperature: 0.3);
+        var prompt = $"""
+                      Summarize this work in approximately {_targetWordsPerWork} words.
+
+                      TITLE: {work.Title}
+                      {focusLine}
+                      REQUIREMENTS:
+                      - Identify main characters and their relationships
+                      - Describe the central conflict or theme
+                      - Mention key plot points or arguments
+                      - Use specific details from the text (names, places, events)
+                      - Do NOT use vague academic language ("explores themes of...")
+
+                      CONTENT:
+                      {work.Content[..Math.Min(work.Content.Length, 8000)]}
+
+                      SUMMARY:
+                      """;
+
+        var response = await _ollama.GenerateAsync(prompt);
         return ResponseCleaner.CleanSynthesisResponse(response);
     }
 
     /// <summary>
-    /// Summarize a long work using extractive + abstractive approach.
+    ///     Summarize a long work using extractive + abstractive approach.
     /// </summary>
     private async Task<string> SummarizeLongWorkAsync(
         WorkPartition work,
@@ -390,18 +376,18 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
         // Extract key segments using the segment extractor
         var parser = new MarkdigDocumentParser();
         var parsed = parser.Parse(work.Content);
-        
+
         // Get first, middle, and last sections for coverage
         var sections = parsed.Sections;
         var keyText = new StringBuilder();
-        
+
         // First section (setup)
         if (sections.Count > 0)
         {
             keyText.AppendLine("=== BEGINNING ===");
             keyText.AppendLine(sections[0].GetFullText()[..Math.Min(sections[0].GetFullText().Length, 2000)]);
         }
-        
+
         // Middle section (development)
         if (sections.Count > 2)
         {
@@ -409,7 +395,7 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
             keyText.AppendLine("\n=== MIDDLE ===");
             keyText.AppendLine(sections[midIdx].GetFullText()[..Math.Min(sections[midIdx].GetFullText().Length, 2000)]);
         }
-        
+
         // End section (resolution)
         if (sections.Count > 1)
         {
@@ -421,29 +407,29 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
         var focusLine = string.IsNullOrEmpty(focusQuery) ? "" : $"\nFOCUS: {focusQuery}\n";
 
         var prompt = $"""
-            Summarize this work in approximately {_targetWordsPerWork} words.
-            
-            TITLE: {work.Title}
-            {focusLine}
-            REQUIREMENTS:
-            - Identify main characters and their relationships
-            - Describe the central conflict or theme  
-            - Cover beginning, middle, and end
-            - Use specific names, places, and events from the text
-            - Do NOT use vague language ("explores themes of...", "raises questions about...")
-            
-            KEY EXCERPTS:
-            {keyText}
-            
-            SUMMARY:
-            """;
+                      Summarize this work in approximately {_targetWordsPerWork} words.
 
-        var response = await _ollama.GenerateAsync(prompt, temperature: 0.3);
+                      TITLE: {work.Title}
+                      {focusLine}
+                      REQUIREMENTS:
+                      - Identify main characters and their relationships
+                      - Describe the central conflict or theme  
+                      - Cover beginning, middle, and end
+                      - Use specific names, places, and events from the text
+                      - Do NOT use vague language ("explores themes of...", "raises questions about...")
+
+                      KEY EXCERPTS:
+                      {keyText}
+
+                      SUMMARY:
+                      """;
+
+        var response = await _ollama.GenerateAsync(prompt);
         return ResponseCleaner.CleanSynthesisResponse(response);
     }
 
     /// <summary>
-    /// Synthesize work summaries into a collection overview (REDUCE phase).
+    ///     Synthesize work summaries into a collection overview (REDUCE phase).
     /// </summary>
     private async Task<string> SynthesizeCollectionSummaryAsync(
         CollectionInfo collectionInfo,
@@ -454,7 +440,7 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
     {
         // Build work summaries context
         var worksContext = new StringBuilder();
-        
+
         // Group by type for better organization
         var byType = workSummaries
             .GroupBy(w => w.WorkType)
@@ -464,7 +450,7 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
         {
             var typeName = group.Key == WorkType.Unknown ? "Other Works" : $"{group.Key}s";
             worksContext.AppendLine($"\n## {typeName}");
-            
+
             foreach (var work in group)
             {
                 worksContext.AppendLine($"\n### {work.Title}");
@@ -473,13 +459,13 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
         }
 
         var focusLine = string.IsNullOrEmpty(focusQuery) ? "" : $"\nFOCUS: {focusQuery}\n";
-        var coverageNote = workSummaries.Count < totalWorks 
+        var coverageNote = workSummaries.Count < totalWorks
             ? $"\nNote: This summary covers {workSummaries.Count} representative works from {totalWorks} total."
             : "";
 
         var shakespeareContext = collectionInfo.IsShakespeare
             ? """
-              
+
               This is Shakespeare's works. Include:
               - Major tragedies (Hamlet, Macbeth, King Lear, Othello)
               - Major comedies (A Midsummer Night's Dream, Much Ado About Nothing)
@@ -490,41 +476,40 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
             : "";
 
         var prompt = $"""
-            Create a comprehensive overview of this collection in approximately {_targetWordsFinal} words.
-            
-            COLLECTION: {collectionInfo.CollectionTitle ?? "Collected Works"}
-            TOTAL WORKS: {totalWorks}
-            WORKS SUMMARIZED: {workSummaries.Count}
-            {focusLine}
-            {shakespeareContext}
-            
-            REQUIREMENTS:
-            1. Start with a brief introduction to the collection and its significance
-            2. Organize by category/genre if applicable
-            3. For each major work, include:
-               - Main characters and their relationships
-               - Central conflict or theme
-               - Key plot points or notable features
-            4. Identify common themes across works
-            5. Use specific character names, not generic terms
-            6. Do NOT use vague academic language
-            
-            WORK SUMMARIES:
-            {worksContext}
-            
-            {coverageNote}
-            
-            COLLECTION OVERVIEW:
-            """;
+                      Create a comprehensive overview of this collection in approximately {_targetWordsFinal} words.
 
-        var response = await _ollama.GenerateAsync(prompt, temperature: 0.4);
+                      COLLECTION: {collectionInfo.CollectionTitle ?? "Collected Works"}
+                      TOTAL WORKS: {totalWorks}
+                      WORKS SUMMARIZED: {workSummaries.Count}
+                      {focusLine}
+                      {shakespeareContext}
+
+                      REQUIREMENTS:
+                      1. Start with a brief introduction to the collection and its significance
+                      2. Organize by category/genre if applicable
+                      3. For each major work, include:
+                         - Main characters and their relationships
+                         - Central conflict or theme
+                         - Key plot points or notable features
+                      4. Identify common themes across works
+                      5. Use specific character names, not generic terms
+                      6. Do NOT use vague academic language
+
+                      WORK SUMMARIES:
+                      {worksContext}
+
+                      {coverageNote}
+
+                      COLLECTION OVERVIEW:
+                      """;
+
+        var response = await _ollama.GenerateAsync(prompt, 0.4);
         var cleaned = ResponseCleaner.CleanSynthesisResponse(response);
-        
+
         // Add coverage footer
         if (workSummaries.Count < totalWorks)
-        {
-            cleaned += $"\n\n---\n*Coverage: {workSummaries.Count} of {totalWorks} works summarized ({(double)workSummaries.Count / totalWorks:P0})*";
-        }
+            cleaned +=
+                $"\n\n---\n*Coverage: {workSummaries.Count} of {totalWorks} works summarized ({(double)workSummaries.Count / totalWorks:P0})*";
 
         return cleaned;
     }
@@ -541,21 +526,19 @@ public class HierarchicalCollectionSummarizer : IAsyncDisposable
         return metaPatterns.Any(p => lower.Contains(p));
     }
 
-    private static int CountWords(string text) =>
-        text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
-
-    private static string Truncate(string text, int maxLength) =>
-        text.Length <= maxLength ? text : text[..(maxLength - 3)] + "...";
-
-    public ValueTask DisposeAsync()
+    private static int CountWords(string text)
     {
-        _extractor.Dispose();
-        return ValueTask.CompletedTask;
+        return text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    private static string Truncate(string text, int maxLength)
+    {
+        return text.Length <= maxLength ? text : text[..(maxLength - 3)] + "...";
     }
 }
 
 /// <summary>
-/// A partition representing a single work within a collection
+///     A partition representing a single work within a collection
 /// </summary>
 public class WorkPartition
 {
@@ -567,7 +550,7 @@ public class WorkPartition
 }
 
 /// <summary>
-/// Summary result for a single work
+///     Summary result for a single work
 /// </summary>
 public class WorkSummaryResult
 {
@@ -580,7 +563,7 @@ public class WorkSummaryResult
 }
 
 /// <summary>
-/// Complete result of hierarchical collection summarization
+///     Complete result of hierarchical collection summarization
 /// </summary>
 public class CollectionSummaryResult
 {
@@ -595,32 +578,32 @@ public class CollectionSummaryResult
     public bool IsShakespeare { get; set; }
 
     /// <summary>
-    /// Get a formatted markdown output
+    ///     Get a formatted markdown output
     /// </summary>
     public string ToMarkdown()
     {
         var sb = new StringBuilder();
-        
+
         sb.AppendLine($"# {CollectionTitle}");
         sb.AppendLine();
         sb.AppendLine("## Executive Summary");
         sb.AppendLine();
         sb.AppendLine(ExecutiveSummary);
         sb.AppendLine();
-        
+
         if (WorkSummaries.Count > 0)
         {
             sb.AppendLine("## Individual Works");
             sb.AppendLine();
-            
+
             var byType = WorkSummaries.GroupBy(w => w.WorkType).OrderByDescending(g => g.Count());
-            
+
             foreach (var group in byType)
             {
                 var typeName = group.Key == WorkType.Unknown ? "Other Works" : $"{group.Key}s";
                 sb.AppendLine($"### {typeName}");
                 sb.AppendLine();
-                
+
                 foreach (var work in group)
                 {
                     sb.AppendLine($"#### {work.Title}");
@@ -630,11 +613,11 @@ public class CollectionSummaryResult
                 }
             }
         }
-        
+
         sb.AppendLine("---");
         sb.AppendLine($"*Generated in {ProcessingTime.TotalSeconds:F1}s using {Strategy} strategy*");
         sb.AppendLine($"*Coverage: {WorksSummarized} of {TotalWorksInCollection} works*");
-        
+
         return sb.ToString();
     }
 }

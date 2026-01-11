@@ -1,29 +1,27 @@
 using Mostlylucid.DocSummarizer.Images.Models;
 using Mostlylucid.DocSummarizer.Images.Orchestration;
-using StyloFlow.Retrieval.Entities;
 // Use explicit namespace for Signal to avoid conflict with Orchestration.Signal
 using StyloSignal = StyloFlow.Retrieval.Analysis.Signal;
-using StyloSignalTags = StyloFlow.Retrieval.Analysis.SignalTags;
 
 namespace Mostlylucid.DocSummarizer.Images.Entities;
 
 /// <summary>
-/// Extracts RetrievalEntity from image analysis results.
-/// Bridges DocSummarizer.Images to the unified cross-modal entity model.
+///     Extracts RetrievalEntity from image analysis results.
+///     Bridges DocSummarizer.Images to the unified cross-modal entity model.
 /// </summary>
 public class ImageEntityExtractor : IEntityExtractor
 {
     private readonly ImageAnalysisOrchestrator _orchestrator;
-
-    public ContentType SupportedContentType => ContentType.Image;
 
     public ImageEntityExtractor(ImageAnalysisOrchestrator orchestrator)
     {
         _orchestrator = orchestrator;
     }
 
+    public ContentType SupportedContentType => ContentType.Image;
+
     /// <summary>
-    /// Extract a RetrievalEntity from an image.
+    ///     Extract a RetrievalEntity from an image.
     /// </summary>
     public async Task<RetrievalEntity> ExtractAsync(
         string contentPath,
@@ -39,7 +37,7 @@ public class ImageEntityExtractor : IEntityExtractor
     }
 
     /// <summary>
-    /// Build entity from ImageAnalysisResult (full signal-based analysis).
+    ///     Build entity from ImageAnalysisResult (full signal-based analysis).
     /// </summary>
     public RetrievalEntity BuildEntity(
         string imagePath,
@@ -78,7 +76,8 @@ public class ImageEntityExtractor : IEntityExtractor
             builder.WithSummary(caption.ToString()!);
 
         // Add CLIP embedding if available
-        if (analysisResult.Signals.TryGetValue("vision.clip.embedding", out var clipEmbedding) && clipEmbedding is float[] embedding)
+        if (analysisResult.Signals.TryGetValue("vision.clip.embedding", out var clipEmbedding) &&
+            clipEmbedding is float[] embedding)
             builder.WithAdditionalEmbedding("clip_visual", embedding);
 
         // Convert signals to StyloFlow.Retrieval format
@@ -109,7 +108,9 @@ public class ImageEntityExtractor : IEntityExtractor
         // Check if needs review (low quality, failed OCR, etc.)
         if (analysisResult.Signals.TryGetValue("route.needs_escalation", out var needsEsc) && needsEsc is true)
         {
-            var reason = analysisResult.Signals.TryGetValue("route.escalation_reason", out var r) ? r?.ToString() : "Auto-routing suggested review";
+            var reason = analysisResult.Signals.TryGetValue("route.escalation_reason", out var r)
+                ? r?.ToString()
+                : "Auto-routing suggested review";
             builder.NeedsReview(reason ?? "Unknown reason");
         }
 
@@ -123,7 +124,7 @@ public class ImageEntityExtractor : IEntityExtractor
     }
 
     /// <summary>
-    /// Build entity from ImageProfile (basic deterministic analysis only).
+    ///     Build entity from ImageProfile (basic deterministic analysis only).
     /// </summary>
     public RetrievalEntity BuildEntityFromProfile(
         string imagePath,
@@ -149,19 +150,49 @@ public class ImageEntityExtractor : IEntityExtractor
         builder.WithMetadata(metadata);
 
         // Add basic signals from profile
-        builder.WithSignal(new StyloSignal { Key = "identity.sha256", Value = profile.Sha256, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Identity] });
-        builder.WithSignal(new StyloSignal { Key = "identity.width", Value = profile.Width, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Identity] });
-        builder.WithSignal(new StyloSignal { Key = "identity.height", Value = profile.Height, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Identity] });
-        builder.WithSignal(new StyloSignal { Key = "identity.format", Value = profile.Format, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Identity] });
-        builder.WithSignal(new StyloSignal { Key = "quality.edge_density", Value = profile.EdgeDensity, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Quality] });
-        builder.WithSignal(new StyloSignal { Key = "quality.sharpness", Value = profile.LaplacianVariance, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Quality] });
-        builder.WithSignal(new StyloSignal { Key = "color.saturation", Value = profile.MeanSaturation, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Color] });
-        builder.WithSignal(new StyloSignal { Key = "color.is_grayscale", Value = profile.IsMostlyGrayscale, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Color] });
+        builder.WithSignal(new StyloSignal
+        {
+            Key = "identity.sha256", Value = profile.Sha256, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Identity]
+        });
+        builder.WithSignal(new StyloSignal
+        {
+            Key = "identity.width", Value = profile.Width, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Identity]
+        });
+        builder.WithSignal(new StyloSignal
+        {
+            Key = "identity.height", Value = profile.Height, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Identity]
+        });
+        builder.WithSignal(new StyloSignal
+        {
+            Key = "identity.format", Value = profile.Format, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Identity]
+        });
+        builder.WithSignal(new StyloSignal
+        {
+            Key = "quality.edge_density", Value = profile.EdgeDensity, Source = "ImageAnalyzer",
+            Tags = [StyloSignalTags.Quality]
+        });
+        builder.WithSignal(new StyloSignal
+        {
+            Key = "quality.sharpness", Value = profile.LaplacianVariance, Source = "ImageAnalyzer",
+            Tags = [StyloSignalTags.Quality]
+        });
+        builder.WithSignal(new StyloSignal
+        {
+            Key = "color.saturation", Value = profile.MeanSaturation, Source = "ImageAnalyzer",
+            Tags = [StyloSignalTags.Color]
+        });
+        builder.WithSignal(new StyloSignal
+        {
+            Key = "color.is_grayscale", Value = profile.IsMostlyGrayscale, Source = "ImageAnalyzer",
+            Tags = [StyloSignalTags.Color]
+        });
 
         if (profile.DominantColors.Count > 0)
-        {
-            builder.WithSignal(new StyloSignal { Key = "color.dominant_name", Value = profile.DominantColors[0].Name, Source = "ImageAnalyzer", Tags = [StyloSignalTags.Color] });
-        }
+            builder.WithSignal(new StyloSignal
+            {
+                Key = "color.dominant_name", Value = profile.DominantColors[0].Name, Source = "ImageAnalyzer",
+                Tags = [StyloSignalTags.Color]
+            });
 
         // Add detected type as tag
         builder.WithTag(profile.DetectedType.ToString().ToLowerInvariant());
@@ -207,9 +238,7 @@ public class ImageEntityExtractor : IEntityExtractor
     {
         // Extract objects from Florence2 detection
         if (result.Signals.TryGetValue("vision.objects", out var objects) && objects is IEnumerable<object> objList)
-        {
             foreach (var obj in objList)
-            {
                 builder.WithEntity(new ExtractedEntity
                 {
                     Id = Guid.NewGuid().ToString("N"),
@@ -218,12 +247,9 @@ public class ImageEntityExtractor : IEntityExtractor
                     Confidence = 0.8,
                     Source = "Florence2"
                 });
-            }
-        }
 
         // Extract text regions from OCR
         if (result.Signals.TryGetValue("ocr.text", out var ocrText) && ocrText != null)
-        {
             builder.WithEntity(new ExtractedEntity
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -233,11 +259,9 @@ public class ImageEntityExtractor : IEntityExtractor
                 Confidence = result.Signals.TryGetValue("ocr.confidence", out var conf) && conf is double c ? c : 0.7,
                 Source = "OCR"
             });
-        }
 
         // Extract scene from caption
         if (result.Signals.TryGetValue("vision.caption", out var caption) && caption != null)
-        {
             builder.WithEntity(new ExtractedEntity
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -247,13 +271,10 @@ public class ImageEntityExtractor : IEntityExtractor
                 Confidence = 0.9,
                 Source = "VisionLLM"
             });
-        }
 
         // Extract faces if detected
         if (result.Signals.TryGetValue("vision.face_count", out var faceCount) && faceCount is int fc && fc > 0)
-        {
-            for (int i = 0; i < fc; i++)
-            {
+            for (var i = 0; i < fc; i++)
                 builder.WithEntity(new ExtractedEntity
                 {
                     Id = Guid.NewGuid().ToString("N"),
@@ -262,8 +283,6 @@ public class ImageEntityExtractor : IEntityExtractor
                     Confidence = 0.85,
                     Source = "Florence2"
                 });
-            }
-        }
     }
 
     private static List<string> GetTagsForSignal(string key)
@@ -283,19 +302,18 @@ public class ImageEntityExtractor : IEntityExtractor
 }
 
 /// <summary>
-/// Extensions for converting between signal formats.
+///     Extensions for converting between signal formats.
 /// </summary>
 public static class SignalConversionExtensions
 {
     /// <summary>
-    /// Convert DocSummarizer signals to StyloFlow signals.
+    ///     Convert DocSummarizer signals to StyloFlow signals.
     /// </summary>
     public static IEnumerable<StyloSignal> ToStyloFlowSignals(
         this IReadOnlyDictionary<string, object?> signals,
         string source = "DocSummarizer")
     {
         foreach (var (key, value) in signals)
-        {
             yield return new StyloSignal
             {
                 Key = key,
@@ -304,7 +322,6 @@ public static class SignalConversionExtensions
                 Source = source,
                 Tags = GetTagsForKey(key)
             };
-        }
     }
 
     private static List<string> GetTagsForKey(string key)

@@ -5,20 +5,20 @@ using Mostlylucid.Summarizer.Core.Pipeline;
 namespace Mostlylucid.DocSummarizer.Pipeline;
 
 /// <summary>
-/// Pipeline implementation for document files (PDF, DOCX, MD, TXT, HTML).
-/// Extracts content and chunks it for embedding.
-/// Entity extraction is handled by the application layer (LucidRAG) which has access to GraphRag.
+///     Pipeline implementation for document files (PDF, DOCX, MD, TXT, HTML).
+///     Extracts content and chunks it for embedding.
+///     Entity extraction is handled by the application layer (LucidRAG) which has access to GraphRag.
 /// </summary>
 public class DocumentPipeline : PipelineBase
 {
-    private readonly IDocumentHandlerRegistry _handlerRegistry;
-    private readonly DocumentChunker _chunker;
-    private readonly ILogger<DocumentPipeline> _logger;
-
     private static readonly HashSet<string> DefaultExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".pdf", ".docx", ".doc", ".md", ".txt", ".html", ".htm", ".rtf"
     };
+
+    private readonly DocumentChunker _chunker;
+    private readonly IDocumentHandlerRegistry _handlerRegistry;
+    private readonly ILogger<DocumentPipeline> _logger;
 
     public DocumentPipeline(
         IDocumentHandlerRegistry handlerRegistry,
@@ -57,10 +57,7 @@ public class DocumentPipeline : PipelineBase
         _logger.LogInformation("Processing document: {FilePath}", filePath);
 
         var handler = _handlerRegistry.GetHandlerForFile(filePath);
-        if (handler == null)
-        {
-            throw new NotSupportedException($"No handler found for file: {filePath}");
-        }
+        if (handler == null) throw new NotSupportedException($"No handler found for file: {filePath}");
 
         progress?.Report(new PipelineProgress("Extracting", $"Using {handler.HandlerName}", 10));
 
@@ -76,7 +73,8 @@ public class DocumentPipeline : PipelineBase
         // Chunk the markdown content
         var docChunks = _chunker.ChunkByStructure(content.Markdown);
 
-        progress?.Report(new PipelineProgress("Converting", "Creating content chunks", 80, docChunks.Count, docChunks.Count));
+        progress?.Report(new PipelineProgress("Converting", "Creating content chunks", 80, docChunks.Count,
+            docChunks.Count));
 
         // Convert DocumentChunk to ContentChunk
         var chunks = docChunks.Select(chunk => new ContentChunk

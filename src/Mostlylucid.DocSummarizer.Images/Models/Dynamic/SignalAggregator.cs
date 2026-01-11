@@ -1,12 +1,12 @@
 namespace Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 
 /// <summary>
-/// Aggregates multiple signals for the same key using various strategies.
+///     Aggregates multiple signals for the same key using various strategies.
 /// </summary>
 public static class SignalAggregator
 {
     /// <summary>
-    /// Aggregate signals using the specified strategy.
+    ///     Aggregate signals using the specified strategy.
     /// </summary>
     public static object? Aggregate(IEnumerable<Signal> signals, AggregationStrategy strategy)
     {
@@ -26,7 +26,7 @@ public static class SignalAggregator
     }
 
     /// <summary>
-    /// Return value from signal with highest confidence.
+    ///     Return value from signal with highest confidence.
     /// </summary>
     private static object? AggregateByHighestConfidence(List<Signal> signals)
     {
@@ -34,7 +34,7 @@ public static class SignalAggregator
     }
 
     /// <summary>
-    /// Return value from most recent signal.
+    ///     Return value from most recent signal.
     /// </summary>
     private static object? AggregateByMostRecent(List<Signal> signals)
     {
@@ -42,8 +42,8 @@ public static class SignalAggregator
     }
 
     /// <summary>
-    /// Calculate weighted average of numeric values.
-    /// Returns null if values are not numeric.
+    ///     Calculate weighted average of numeric values.
+    ///     Returns null if values are not numeric.
     /// </summary>
     private static object? AggregateByWeightedAverage(List<Signal> signals)
     {
@@ -66,7 +66,7 @@ public static class SignalAggregator
     }
 
     /// <summary>
-    /// Return most common value, weighted by confidence.
+    ///     Return most common value, weighted by confidence.
     /// </summary>
     private static object? AggregateByMajorityVote(List<Signal> signals)
     {
@@ -74,7 +74,7 @@ public static class SignalAggregator
             .GroupBy(s => s.Value?.ToString() ?? "null")
             .Select(g => new
             {
-                Value = g.First().Value,
+                g.First().Value,
                 TotalConfidence = g.Sum(s => s.Confidence)
             })
             .OrderByDescending(x => x.TotalConfidence)
@@ -84,7 +84,7 @@ public static class SignalAggregator
     }
 
     /// <summary>
-    /// Collect all values into a list.
+    ///     Collect all values into a list.
     /// </summary>
     private static object AggregateByCollect(List<Signal> signals)
     {
@@ -92,7 +92,7 @@ public static class SignalAggregator
     }
 
     /// <summary>
-    /// Check if a value is numeric.
+    ///     Check if a value is numeric.
     /// </summary>
     private static bool IsNumeric(object? value)
     {
@@ -100,7 +100,7 @@ public static class SignalAggregator
     }
 
     /// <summary>
-    /// Custom aggregation with user-defined function.
+    ///     Custom aggregation with user-defined function.
     /// </summary>
     public static object? AggregateCustom(
         IEnumerable<Signal> signals,
@@ -110,7 +110,7 @@ public static class SignalAggregator
     }
 
     /// <summary>
-    /// Merge signals from multiple sources with conflict resolution.
+    ///     Merge signals from multiple sources with conflict resolution.
     /// </summary>
     public static Signal MergeSignals(
         IEnumerable<Signal> signals,
@@ -119,10 +119,7 @@ public static class SignalAggregator
         AggregationStrategy strategy = AggregationStrategy.HighestConfidence)
     {
         var signalsList = signals.ToList();
-        if (!signalsList.Any())
-        {
-            throw new ArgumentException("Cannot merge empty signal collection", nameof(signals));
-        }
+        if (!signalsList.Any()) throw new ArgumentException("Cannot merge empty signal collection", nameof(signals));
 
         var aggregatedValue = Aggregate(signalsList, strategy);
         var avgConfidence = signalsList.Average(s => s.Confidence);
@@ -144,7 +141,7 @@ public static class SignalAggregator
     }
 
     /// <summary>
-    /// Resolve conflicts between signals by applying domain-specific rules.
+    ///     Resolve conflicts between signals by applying domain-specific rules.
     /// </summary>
     public static Signal ResolveConflict(
         IEnumerable<Signal> conflictingSignals,
@@ -157,18 +154,17 @@ public static class SignalAggregator
             ConflictResolutionRule.TrustHigherPriority => signals.OrderByDescending(s =>
             {
                 // Assume metadata contains priority
-                if (s.Metadata?.TryGetValue("priority", out var priority) == true)
-                {
-                    return Convert.ToInt32(priority);
-                }
+                if (s.Metadata?.TryGetValue("priority", out var priority) == true) return Convert.ToInt32(priority);
                 return 0;
             }).First(),
 
             ConflictResolutionRule.TrustNewerData => signals.OrderByDescending(s => s.Timestamp).First(),
 
-            ConflictResolutionRule.AverageNumeric => MergeSignals(signals, signals.First().Key, "ConflictResolver", AggregationStrategy.WeightedAverage),
+            ConflictResolutionRule.AverageNumeric => MergeSignals(signals, signals.First().Key, "ConflictResolver",
+                AggregationStrategy.WeightedAverage),
 
-            ConflictResolutionRule.ConsensusVoting => MergeSignals(signals, signals.First().Key, "ConflictResolver", AggregationStrategy.MajorityVote),
+            ConflictResolutionRule.ConsensusVoting => MergeSignals(signals, signals.First().Key, "ConflictResolver",
+                AggregationStrategy.MajorityVote),
 
             _ => signals.OrderByDescending(s => s.Confidence).First()
         };
@@ -176,32 +172,32 @@ public static class SignalAggregator
 }
 
 /// <summary>
-/// Rules for resolving conflicts between signals.
+///     Rules for resolving conflicts between signals.
 /// </summary>
 public enum ConflictResolutionRule
 {
     /// <summary>
-    /// Trust signal from higher priority source.
+    ///     Trust signal from higher priority source.
     /// </summary>
     TrustHigherPriority,
 
     /// <summary>
-    /// Trust more recent signal.
+    ///     Trust more recent signal.
     /// </summary>
     TrustNewerData,
 
     /// <summary>
-    /// Average numeric values.
+    ///     Average numeric values.
     /// </summary>
     AverageNumeric,
 
     /// <summary>
-    /// Use consensus/voting.
+    ///     Use consensus/voting.
     /// </summary>
     ConsensusVoting,
 
     /// <summary>
-    /// Trust signal with highest confidence.
+    ///     Trust signal with highest confidence.
     /// </summary>
     TrustHighestConfidence
 }

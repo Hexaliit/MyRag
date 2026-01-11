@@ -1,114 +1,119 @@
+using System.Text;
+using System.Text.RegularExpressions;
 using Mostlylucid.DataSummarizer.Models;
 
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Registry of available analytics tools.
-/// Tools are capabilities beyond SQL that the LLM can invoke.
+///     Registry of available analytics tools.
+///     Tools are capabilities beyond SQL that the LLM can invoke.
 /// </summary>
 public class AnalyticsToolRegistry
 {
     private readonly Dictionary<string, AnalyticsTool> _tools = new(StringComparer.OrdinalIgnoreCase);
-    
+
     public AnalyticsToolRegistry()
     {
         RegisterBuiltInTools();
     }
-    
+
     /// <summary>
-    /// Get all registered tools
+    ///     Get all registered tools
     /// </summary>
-    public IReadOnlyList<AnalyticsTool> GetAllTools() => _tools.Values.ToList();
-    
+    public IReadOnlyList<AnalyticsTool> GetAllTools()
+    {
+        return _tools.Values.ToList();
+    }
+
     /// <summary>
-    /// Get a tool by ID
+    ///     Get a tool by ID
     /// </summary>
-    public AnalyticsTool? GetTool(string toolId) => 
-        _tools.TryGetValue(toolId, out var tool) ? tool : null;
-    
+    public AnalyticsTool? GetTool(string toolId)
+    {
+        return _tools.TryGetValue(toolId, out var tool) ? tool : null;
+    }
+
     /// <summary>
-    /// Get tools available for a given profile (based on data characteristics)
+    ///     Get tools available for a given profile (based on data characteristics)
     /// </summary>
     public List<AnalyticsTool> GetAvailableTools(DataProfile profile)
     {
         var available = new List<AnalyticsTool>();
-        
+
         var numericCount = profile.Columns.Count(c => c.InferredType == ColumnType.Numeric);
         var categoricalCount = profile.Columns.Count(c => c.InferredType == ColumnType.Categorical);
         var hasDateColumn = profile.Columns.Any(c => c.InferredType == ColumnType.DateTime);
         var hasTarget = profile.Target != null;
-        
+
         foreach (var tool in _tools.Values)
         {
             var req = tool.Requirements;
-            
+
             // Check requirements
             if (numericCount < req.MinNumericColumns) continue;
             if (categoricalCount < req.MinCategoricalColumns) continue;
             if (profile.RowCount < req.MinRows) continue;
             if (req.RequiresDateColumn && !hasDateColumn) continue;
             if (req.RequiresTarget && !hasTarget) continue;
-            
+
             available.Add(tool);
         }
-        
+
         return available;
     }
-    
+
     /// <summary>
-    /// Format tools for LLM prompt
+    ///     Format tools for LLM prompt
     /// </summary>
     public string FormatToolsForPrompt(DataProfile profile)
     {
         var tools = GetAvailableTools(profile);
         if (tools.Count == 0) return "";
-        
-        var sb = new System.Text.StringBuilder();
+
+        var sb = new StringBuilder();
         sb.AppendLine();
         sb.AppendLine("AVAILABLE TOOLS (use instead of SQL for these capabilities):");
         sb.AppendLine("To invoke a tool, respond with: TOOL:<tool_id> [parameters]");
         sb.AppendLine();
-        
+
         foreach (var tool in tools)
         {
             sb.AppendLine($"  {tool.Id}: {tool.Description}");
             if (tool.Parameters.Count > 0)
             {
-                var paramStr = string.Join(", ", tool.Parameters.Select(p => 
+                var paramStr = string.Join(", ", tool.Parameters.Select(p =>
                     p.Required ? p.Name : $"[{p.Name}]"));
                 sb.AppendLine($"    Parameters: {paramStr}");
             }
-            if (tool.ExampleQuestions.Count > 0)
-            {
-                sb.AppendLine($"    Examples: \"{tool.ExampleQuestions[0]}\"");
-            }
+
+            if (tool.ExampleQuestions.Count > 0) sb.AppendLine($"    Examples: \"{tool.ExampleQuestions[0]}\"");
         }
-        
+
         sb.AppendLine();
         return sb.ToString();
     }
-    
+
     /// <summary>
-    /// Parse LLM response to detect tool invocation
+    ///     Parse LLM response to detect tool invocation
     /// </summary>
     public ToolInvocation? ParseToolInvocation(string response, string originalQuestion)
     {
         // Look for TOOL:tool_id pattern
-        var toolMatch = System.Text.RegularExpressions.Regex.Match(
-            response, 
-            @"TOOL:(\w+)(?:\s+(.*))?", 
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        
+        var toolMatch = Regex.Match(
+            response,
+            @"TOOL:(\w+)(?:\s+(.*))?",
+            RegexOptions.IgnoreCase);
+
         if (!toolMatch.Success) return null;
-        
+
         var toolId = toolMatch.Groups[1].Value;
         var paramString = toolMatch.Groups[2].Value.Trim();
-        
+
         var tool = GetTool(toolId);
         if (tool == null) return null;
-        
+
         var parameters = ParseParameters(paramString, tool.Parameters);
-        
+
         return new ToolInvocation
         {
             ToolId = toolId,
@@ -116,27 +121,24 @@ public class AnalyticsToolRegistry
             OriginalQuestion = originalQuestion
         };
     }
-    
+
     private Dictionary<string, object> ParseParameters(string paramString, List<ToolParameter> paramDefs)
     {
         var result = new Dictionary<string, object>();
-        
+
         if (string.IsNullOrWhiteSpace(paramString))
         {
             // Apply defaults
             foreach (var param in paramDefs.Where(p => p.DefaultValue != null))
-            {
                 result[param.Name] = param.DefaultValue!;
-            }
             return result;
         }
-        
+
         // Parse key=value pairs or positional params
         var parts = paramString.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var positionalIndex = 0;
-        
+
         foreach (var part in parts)
-        {
             if (part.Contains('='))
             {
                 var kv = part.Split('=', 2);
@@ -147,17 +149,14 @@ public class AnalyticsToolRegistry
                 result[paramDefs[positionalIndex].Name] = part;
                 positionalIndex++;
             }
-        }
-        
+
         // Apply defaults for missing params
         foreach (var param in paramDefs.Where(p => p.DefaultValue != null && !result.ContainsKey(p.Name)))
-        {
             result[param.Name] = param.DefaultValue!;
-        }
-        
+
         return result;
     }
-    
+
     private void RegisterBuiltInTools()
     {
         // Audience Segmentation / Clustering
@@ -165,9 +164,11 @@ public class AnalyticsToolRegistry
         {
             Id = "segment_audience",
             Name = "Audience Segmentation",
-            Description = "Automatically segment data into distinct groups based on numeric features using k-means clustering",
+            Description =
+                "Automatically segment data into distinct groups based on numeric features using k-means clustering",
             Category = ToolCategory.Segmentation,
-            ExampleQuestions = [
+            ExampleQuestions =
+            [
                 "Show me the audience segments",
                 "What customer segments exist in this data?",
                 "Cluster the customers",
@@ -178,7 +179,8 @@ public class AnalyticsToolRegistry
                 MinNumericColumns = 2,
                 MinRows = 50
             },
-            Parameters = [
+            Parameters =
+            [
                 new ToolParameter
                 {
                     Name = "num_segments",
@@ -197,7 +199,7 @@ public class AnalyticsToolRegistry
                 }
             ]
         });
-        
+
         // Anomaly Detection
         Register(new AnalyticsTool
         {
@@ -205,7 +207,8 @@ public class AnalyticsToolRegistry
             Name = "Anomaly Detection",
             Description = "Find unusual records that deviate significantly from normal patterns",
             Category = ToolCategory.AnomalyDetection,
-            ExampleQuestions = [
+            ExampleQuestions =
+            [
                 "Find anomalies in the data",
                 "What records are unusual?",
                 "Detect outliers across all columns",
@@ -216,7 +219,8 @@ public class AnalyticsToolRegistry
                 MinNumericColumns = 1,
                 MinRows = 30
             },
-            Parameters = [
+            Parameters =
+            [
                 new ToolParameter
                 {
                     Name = "method",
@@ -234,7 +238,7 @@ public class AnalyticsToolRegistry
                 }
             ]
         });
-        
+
         // Time Series Decomposition
         Register(new AnalyticsTool
         {
@@ -242,7 +246,8 @@ public class AnalyticsToolRegistry
             Name = "Time Series Decomposition",
             Description = "Break down time series into trend, seasonality, and residual components",
             Category = ToolCategory.TimeSeries,
-            ExampleQuestions = [
+            ExampleQuestions =
+            [
                 "Show me the trend over time",
                 "Is there seasonality in the data?",
                 "Decompose the time series",
@@ -254,7 +259,8 @@ public class AnalyticsToolRegistry
                 MinNumericColumns = 1,
                 MinRows = 30
             },
-            Parameters = [
+            Parameters =
+            [
                 new ToolParameter
                 {
                     Name = "date_column",
@@ -273,7 +279,7 @@ public class AnalyticsToolRegistry
                 }
             ]
         });
-        
+
         // Feature Importance
         Register(new AnalyticsTool
         {
@@ -281,7 +287,8 @@ public class AnalyticsToolRegistry
             Name = "Feature Importance",
             Description = "Rank features by their importance in predicting the target variable",
             Category = ToolCategory.FeatureAnalysis,
-            ExampleQuestions = [
+            ExampleQuestions =
+            [
                 "What drives the target?",
                 "Which features are most important?",
                 "What predicts churn?",
@@ -293,7 +300,8 @@ public class AnalyticsToolRegistry
                 MinNumericColumns = 2,
                 MinRows = 100
             },
-            Parameters = [
+            Parameters =
+            [
                 new ToolParameter
                 {
                     Name = "method",
@@ -304,7 +312,7 @@ public class AnalyticsToolRegistry
                 }
             ]
         });
-        
+
         // Group Comparison
         Register(new AnalyticsTool
         {
@@ -312,7 +320,8 @@ public class AnalyticsToolRegistry
             Name = "Group Comparison",
             Description = "Compare statistics between different groups/segments",
             Category = ToolCategory.Comparison,
-            ExampleQuestions = [
+            ExampleQuestions =
+            [
                 "Compare churners vs non-churners",
                 "How do regions differ?",
                 "Compare male vs female customers",
@@ -324,7 +333,8 @@ public class AnalyticsToolRegistry
                 MinNumericColumns = 1,
                 MinRows = 50
             },
-            Parameters = [
+            Parameters =
+            [
                 new ToolParameter
                 {
                     Name = "group_by",
@@ -341,7 +351,7 @@ public class AnalyticsToolRegistry
                 }
             ]
         });
-        
+
         // Statistical Test
         Register(new AnalyticsTool
         {
@@ -349,7 +359,8 @@ public class AnalyticsToolRegistry
             Name = "Statistical Significance Test",
             Description = "Test if differences between groups are statistically significant",
             Category = ToolCategory.StatisticalTest,
-            ExampleQuestions = [
+            ExampleQuestions =
+            [
                 "Is the difference significant?",
                 "Run a statistical test",
                 "Is this correlation real?",
@@ -360,7 +371,8 @@ public class AnalyticsToolRegistry
                 MinNumericColumns = 1,
                 MinRows = 30
             },
-            Parameters = [
+            Parameters =
+            [
                 new ToolParameter
                 {
                     Name = "test_type",
@@ -385,7 +397,7 @@ public class AnalyticsToolRegistry
                 }
             ]
         });
-        
+
         // Data Quality Report
         Register(new AnalyticsTool
         {
@@ -393,7 +405,8 @@ public class AnalyticsToolRegistry
             Name = "Data Quality Report",
             Description = "Generate a comprehensive data quality assessment",
             Category = ToolCategory.DataQuality,
-            ExampleQuestions = [
+            ExampleQuestions =
+            [
                 "What's the data quality?",
                 "Are there data issues?",
                 "Check data quality",
@@ -405,7 +418,7 @@ public class AnalyticsToolRegistry
             },
             Parameters = []
         });
-        
+
         // Correlation Analysis
         Register(new AnalyticsTool
         {
@@ -413,7 +426,8 @@ public class AnalyticsToolRegistry
             Name = "Correlation Analysis",
             Description = "Analyze relationships between all numeric columns",
             Category = ToolCategory.FeatureAnalysis,
-            ExampleQuestions = [
+            ExampleQuestions =
+            [
                 "What columns are correlated?",
                 "Show me relationships between features",
                 "Find correlated columns",
@@ -424,7 +438,8 @@ public class AnalyticsToolRegistry
                 MinNumericColumns = 2,
                 MinRows = 30
             },
-            Parameters = [
+            Parameters =
+            [
                 new ToolParameter
                 {
                     Name = "min_correlation",
@@ -435,7 +450,7 @@ public class AnalyticsToolRegistry
             ]
         });
     }
-    
+
     private void Register(AnalyticsTool tool)
     {
         _tools[tool.Id] = tool;

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Mostlylucid.GraphRag.Services;
@@ -7,27 +8,26 @@ using Mostlylucid.GraphRag.Storage;
 namespace Mostlylucid.GraphRag.Extraction;
 
 /// <summary>
-/// Hybrid entity extraction: heuristic candidate detection + LLM enhancement per document.
-/// 
-/// Strategy:
-/// 1. Use IDF + structural signals to find entity candidates (deterministic, fast)
-/// 2. Group candidates by document
-/// 3. One LLM call per document to:
-///    - Validate/filter candidates
-///    - Add descriptions
-///    - Extract semantic relationships between candidates
-/// 
-/// This gives you:
-/// - Deterministic entity coverage (heuristics find what's there)
-/// - LLM-quality relationships (semantic, not just co-occurrence)
-/// - ~N LLM calls (documents) instead of 2N (chunks) for MSFT approach
+///     Hybrid entity extraction: heuristic candidate detection + LLM enhancement per document.
+///     Strategy:
+///     1. Use IDF + structural signals to find entity candidates (deterministic, fast)
+///     2. Group candidates by document
+///     3. One LLM call per document to:
+///     - Validate/filter candidates
+///     - Add descriptions
+///     - Extract semantic relationships between candidates
+///     This gives you:
+///     - Deterministic entity coverage (heuristics find what's there)
+///     - LLM-quality relationships (semantic, not just co-occurrence)
+///     - ~N LLM calls (documents) instead of 2N (chunks) for MSFT approach
 /// </summary>
 public sealed class HybridEntityExtractor : IEntityExtractor
 {
-    private readonly GraphRagDb _db;
-    private readonly EmbeddingService _embedder;
-    private readonly OllamaClient _llm;
-    private int _llmCallCount;
+    private const double MinIdfThreshold = 3.5;
+    private const int MinMentionCount = 2;
+    private const int MinTermLength = 3;
+    private const double MinEmbeddingSimilarity = 0.85;
+    private const int MaxCandidatesPerDocument = 30;
 
     // Reuse structural patterns from EntityExtractor
     private static readonly Regex HeadingRx = new(@"^#{1,3}\s+(.+)$", RegexOptions.Multiline | RegexOptions.Compiled);
@@ -35,12 +35,10 @@ public sealed class HybridEntityExtractor : IEntityExtractor
     private static readonly Regex InternalLinkRx = new(@"\[([^\]]+)\]\(/blog/([^)]+)\)", RegexOptions.Compiled);
     private static readonly Regex ExternalLinkRx = new(@"\[([^\]]+)\]\((https?://[^)]+)\)", RegexOptions.Compiled);
     private static readonly Regex TokenRx = new(@"\b[A-Za-z][A-Za-z0-9_\.#\+\-]*[A-Za-z0-9]\b", RegexOptions.Compiled);
-
-    private const double MinIdfThreshold = 3.5;
-    private const int MinMentionCount = 2;
-    private const int MinTermLength = 3;
-    private const double MinEmbeddingSimilarity = 0.85;
-    private const int MaxCandidatesPerDocument = 30;
+    private readonly GraphRagDb _db;
+    private readonly EmbeddingService _embedder;
+    private readonly OllamaClient _llm;
+    private int _llmCallCount;
 
     public HybridEntityExtractor(GraphRagDb db, EmbeddingService embedder, OllamaClient llm)
     {
@@ -74,8 +72,8 @@ public sealed class HybridEntityExtractor : IEntityExtractor
         var linkRelationships = new List<(string Source, string Target, string Type, string[] ChunkIds)>();
         var coOccurrences = new Dictionary<(string, string), int>();
 
-        int docIndex = 0;
-        int totalDocs = documentChunks.Count;
+        var docIndex = 0;
+        var totalDocs = documentChunks.Count;
 
         foreach (var (docId, docChunks) in documentChunks)
         {
@@ -86,15 +84,14 @@ public sealed class HybridEntityExtractor : IEntityExtractor
             // Phase 2a: Extract candidates from this document's chunks
             // ═══════════════════════════════════════════════════════════════
             var docCandidates = new Dictionary<string, EntityCandidate>(StringComparer.OrdinalIgnoreCase);
-            var docText = new System.Text.StringBuilder();
+            var docText = new StringBuilder();
 
             foreach (var chunk in docChunks)
             {
                 docText.AppendLine(chunk.Text);
-                
+
                 var chunkCandidates = ExtractFromChunk(chunk.Text, termIdf);
                 foreach (var c in chunkCandidates)
-                {
                     if (docCandidates.TryGetValue(c.Name, out var existing))
                     {
                         existing.ChunkIds.Add(chunk.Id);
@@ -107,29 +104,27 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                         c.ChunkIds.Add(chunk.Id);
                         docCandidates[c.Name] = c;
                     }
-                }
 
                 // Extract explicit link relationships
                 foreach (var link in ExtractLinks(chunk.Text, chunk.Id))
                     linkRelationships.Add(link);
-                    
+
                 // Track co-occurrences within chunks (fallback for relationship detection)
                 var chunkTerms = chunkCandidates.Select(c => c.Name).Distinct().ToList();
-                for (int j = 0; j < chunkTerms.Count; j++)
+                for (var j = 0; j < chunkTerms.Count; j++)
+                for (var k = j + 1; k < chunkTerms.Count; k++)
                 {
-                    for (int k = j + 1; k < chunkTerms.Count; k++)
-                    {
-                        var pair = string.Compare(chunkTerms[j], chunkTerms[k], StringComparison.OrdinalIgnoreCase) < 0
-                            ? (chunkTerms[j], chunkTerms[k]) : (chunkTerms[k], chunkTerms[j]);
-                        coOccurrences[pair] = coOccurrences.GetValueOrDefault(pair) + 1;
-                    }
+                    var pair = string.Compare(chunkTerms[j], chunkTerms[k], StringComparison.OrdinalIgnoreCase) < 0
+                        ? (chunkTerms[j], chunkTerms[k])
+                        : (chunkTerms[k], chunkTerms[j]);
+                    coOccurrences[pair] = coOccurrences.GetValueOrDefault(pair) + 1;
                 }
             }
 
             // Filter to significant candidates for this document
             var significantCandidates = docCandidates.Values
                 .Where(c => c.MentionCount >= MinMentionCount ||
-                           (c.Confidence >= 0.7 && c.Signals.Count >= 2))
+                            (c.Confidence >= 0.7 && c.Signals.Count >= 2))
                 .OrderByDescending(c => c.MentionCount * c.Confidence)
                 .Take(MaxCandidatesPerDocument)
                 .ToList();
@@ -144,7 +139,7 @@ public sealed class HybridEntityExtractor : IEntityExtractor
             // Phase 2b: LLM enhancement - one call per document
             // Validate entities and extract semantic relationships
             // ═══════════════════════════════════════════════════════════════
-            progress?.Report(new ProgressInfo(docIndex, totalDocs, 
+            progress?.Report(new ProgressInfo(docIndex, totalDocs,
                 $"Doc {docIndex}/{totalDocs}: enhancing {significantCandidates.Count} candidates with LLM..."));
 
             var (enhancedEntities, docRelationships) = await EnhanceWithLlmAsync(
@@ -152,7 +147,6 @@ public sealed class HybridEntityExtractor : IEntityExtractor
 
             // Merge into global collections
             foreach (var e in enhancedEntities)
-            {
                 if (allEntities.TryGetValue(e.Name, out var existing))
                 {
                     existing.ChunkIds.UnionWith(e.ChunkIds);
@@ -164,7 +158,6 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                 {
                     allEntities[e.Name] = e;
                 }
-            }
 
             allRelationships.AddRange(docRelationships);
         }
@@ -200,7 +193,7 @@ public sealed class HybridEntityExtractor : IEntityExtractor
     }
 
     /// <summary>
-    /// Single LLM call per document: validate entities and extract relationships.
+    ///     Single LLM call per document: validate entities and extract relationships.
     /// </summary>
     private async Task<(List<HybridEntity> Entities, List<HybridRelationship> Relationships)> EnhanceWithLlmAsync(
         List<EntityCandidate> candidates, string docText, string docId, CancellationToken ct)
@@ -208,30 +201,32 @@ public sealed class HybridEntityExtractor : IEntityExtractor
         var candidateList = string.Join("\n", candidates.Select(c => $"- {c.Name}"));
         var truncatedText = docText.Length > 3000 ? docText[..3000] + "..." : docText;
 
-        const string entitySchema = """{"name":"...","type":"technology|framework|library|language|tool|database|service|concept","desc":"brief description"}""";
-        const string relSchema = """{"src":"entity1","rel":"uses|implements|configures|extends|part_of|related_to","tgt":"entity2"}""";
-        
+        const string entitySchema =
+            """{"name":"...","type":"technology|framework|library|language|tool|database|service|concept","desc":"brief description"}""";
+        const string relSchema =
+            """{"src":"entity1","rel":"uses|implements|configures|extends|part_of|related_to","tgt":"entity2"}""";
+
         var prompt = $"""
-            Given this technical document and these entity candidates extracted from it:
+                      Given this technical document and these entity candidates extracted from it:
 
-            CANDIDATES:
-            {candidateList}
+                      CANDIDATES:
+                      {candidateList}
 
-            DOCUMENT TEXT:
-            {truncatedText}
+                      DOCUMENT TEXT:
+                      {truncatedText}
 
-            For each valid entity, output a JSON object on its own line:
-            {entitySchema}
+                      For each valid entity, output a JSON object on its own line:
+                      {entitySchema}
 
-            Then output relationships between entities (one per line):
-            {relSchema}
+                      Then output relationships between entities (one per line):
+                      {relSchema}
 
-            Rules:
-            - Only include entities that are genuinely technical concepts (not common words)
-            - Only include relationships that are clearly implied by the document
-            - Keep descriptions under 20 words
-            - Output JSONL only, no markdown or commentary
-            """;
+                      Rules:
+                      - Only include entities that are genuinely technical concepts (not common words)
+                      - Only include relationships that are clearly implied by the document
+                      - Keep descriptions under 20 words
+                      - Output JSONL only, no markdown or commentary
+                      """;
 
         var response = await _llm.GenerateAsync(prompt, 0.2, ct);
         _llmCallCount++;
@@ -256,7 +251,6 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                     // Entity
                     var name = nameProp.GetString();
                     if (name != null && candidateLookup.TryGetValue(name, out var original))
-                    {
                         entities.Add(new HybridEntity
                         {
                             Name = name,
@@ -265,7 +259,6 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                             MentionCount = original.MentionCount,
                             ChunkIds = original.ChunkIds
                         });
-                    }
                 }
                 else if (root.TryGetProperty("src", out var srcProp))
                 {
@@ -277,8 +270,12 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                     if (!string.IsNullOrEmpty(src) && !string.IsNullOrEmpty(tgt))
                     {
                         // Find chunk IDs where both entities appear
-                        var srcChunks = candidateLookup.TryGetValue(src, out var s) ? s.ChunkIds : new HashSet<string>();
-                        var tgtChunks = candidateLookup.TryGetValue(tgt, out var t) ? t.ChunkIds : new HashSet<string>();
+                        var srcChunks = candidateLookup.TryGetValue(src, out var s)
+                            ? s.ChunkIds
+                            : new HashSet<string>();
+                        var tgtChunks = candidateLookup.TryGetValue(tgt, out var t)
+                            ? t.ChunkIds
+                            : new HashSet<string>();
                         var sharedChunks = srcChunks.Intersect(tgtChunks).ToArray();
 
                         relationships.Add(new HybridRelationship
@@ -299,12 +296,9 @@ public sealed class HybridEntityExtractor : IEntityExtractor
 
         // If LLM didn't validate some candidates, include them with heuristic types
         foreach (var c in candidates)
-        {
             if (!entities.Any(e => e.Name.Equals(c.Name, StringComparison.OrdinalIgnoreCase)))
-            {
                 // Include high-confidence candidates that LLM missed
                 if (c.Confidence >= 0.8 || c.MentionCount >= 3)
-                {
                     entities.Add(new HybridEntity
                     {
                         Name = c.Name,
@@ -312,9 +306,6 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                         MentionCount = c.MentionCount,
                         ChunkIds = c.ChunkIds
                     });
-                }
-            }
-        }
 
         return (entities, relationships);
     }
@@ -400,10 +391,12 @@ public sealed class HybridEntityExtractor : IEntityExtractor
         return candidates.Values.ToList();
     }
 
-    private static bool IsIdentifier(string s) =>
-        s.Length >= 2 && s.Length <= 50 &&
-        !s.Contains('(') && !s.Contains('{') && !s.Contains('=') && !s.Contains(';') &&
-        Regex.IsMatch(s, @"^[A-Za-z_][A-Za-z0-9_\.\-\#\+]*$");
+    private static bool IsIdentifier(string s)
+    {
+        return s.Length >= 2 && s.Length <= 50 &&
+               !s.Contains('(') && !s.Contains('{') && !s.Contains('=') && !s.Contains(';') &&
+               Regex.IsMatch(s, @"^[A-Za-z_][A-Za-z0-9_\.\-\#\+]*$");
+    }
 
     private static void AddCandidate(Dictionary<string, EntityCandidate> dict, string name, string type,
         double confidence, string signal)
@@ -415,6 +408,7 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                 existing.Type = type;
                 existing.Confidence = confidence;
             }
+
             existing.Signals.Add(signal);
         }
         else
@@ -474,13 +468,13 @@ public sealed class HybridEntityExtractor : IEntityExtractor
         var merged = new List<HybridEntity>();
         var used = new HashSet<int>();
 
-        for (int i = 0; i < sorted.Count; i++)
+        for (var i = 0; i < sorted.Count; i++)
         {
             if (used.Contains(i)) continue;
             var canonical = sorted[i];
             used.Add(i);
 
-            for (int j = i + 1; j < sorted.Count; j++)
+            for (var j = i + 1; j < sorted.Count; j++)
             {
                 if (used.Contains(j)) continue;
                 var similarity = CosineSimilarity(embeddings[i], embeddings[j]);
@@ -493,6 +487,7 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                     used.Add(j);
                 }
             }
+
             merged.Add(canonical);
         }
 
@@ -525,9 +520,13 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                 await _db.UpsertEntityAsync(targetId, target, targetType, null, chunkIds);
             }
             else if (entityNames.Contains(target))
+            {
                 targetId = EntityId(target);
+            }
             else
+            {
                 continue;
+            }
 
             var sourceId = EntityId(source);
             if (!entityNames.Contains(source))
@@ -536,6 +535,7 @@ public sealed class HybridEntityExtractor : IEntityExtractor
             await _db.UpsertRelationshipAsync($"r_{sourceId}_{targetId}", sourceId, targetId, relType, null, chunkIds);
             count++;
         }
+
         return count;
     }
 
@@ -558,6 +558,7 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                 srcId, tgtId, g.Key.Type, null, chunkIds);
             count++;
         }
+
         return count;
     }
 
@@ -569,7 +570,8 @@ public sealed class HybridEntityExtractor : IEntityExtractor
         var count = 0;
 
         // Only significant co-occurrences (appear together 2+ times)
-        foreach (var ((a, b), occurrences) in coOccur.Where(kv => kv.Value >= 2).OrderByDescending(kv => kv.Value).Take(500))
+        foreach (var ((a, b), occurrences) in coOccur.Where(kv => kv.Value >= 2).OrderByDescending(kv => kv.Value)
+                     .Take(500))
         {
             if (!lookup.TryGetValue(a, out var ea) || !lookup.TryGetValue(b, out var eb))
                 continue;
@@ -581,16 +583,25 @@ public sealed class HybridEntityExtractor : IEntityExtractor
             await _db.UpsertRelationshipAsync($"r_{srcId}_{tgtId}", srcId, tgtId, "co_occurs_with", null, chunkIds);
             count++;
         }
+
         return count;
     }
 
-    private static string EntityId(string name) =>
-        $"e_{Regex.Replace(name.ToLowerInvariant(), @"[^a-z0-9]", "_")}";
+    private static string EntityId(string name)
+    {
+        return $"e_{Regex.Replace(name.ToLowerInvariant(), @"[^a-z0-9]", "_")}";
+    }
 
     private static float CosineSimilarity(float[] a, float[] b)
     {
         float dot = 0, na = 0, nb = 0;
-        for (int i = 0; i < a.Length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+        for (var i = 0; i < a.Length; i++)
+        {
+            dot += a[i] * b[i];
+            na += a[i] * a[i];
+            nb += b[i] * b[i];
+        }
+
         return dot / (MathF.Sqrt(na) * MathF.Sqrt(nb) + 1e-10f);
     }
 

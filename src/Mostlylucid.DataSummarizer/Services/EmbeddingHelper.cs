@@ -28,8 +28,10 @@ internal static class EmbeddingHelper
     {
         var sb = new StringBuilder();
         foreach (var ch in text)
-        {
-            if (char.IsLetterOrDigit(ch)) sb.Append(char.ToLowerInvariant(ch));
+            if (char.IsLetterOrDigit(ch))
+            {
+                sb.Append(char.ToLowerInvariant(ch));
+            }
             else
             {
                 if (sb.Length > 0)
@@ -38,7 +40,7 @@ internal static class EmbeddingHelper
                     sb.Clear();
                 }
             }
-        }
+
         if (sb.Length > 0) yield return sb.ToString();
     }
 
@@ -54,9 +56,6 @@ internal static class EmbeddingHelper
     {
         var norm = MathF.Sqrt(vector.Sum(v => v * v));
         if (norm <= 0) return;
-        for (var i = 0; i < vector.Length; i++)
-        {
-            vector[i] /= norm;
-        }
+        for (var i = 0; i < vector.Length; i++) vector[i] /= norm;
     }
 }

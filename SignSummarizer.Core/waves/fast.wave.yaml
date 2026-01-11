@@ -9,7 +9,7 @@ waves:
     parameters:
       target_fps: 15
       min_confidence: 0.5
-      
+
   - name: canonicalization
     type: analysis
     description: Normalize landmarks for scale/rotation/translation
@@ -18,7 +18,7 @@ waves:
     parameters:
       mirror_to_dominant: true
       dominant_hand: right
-      
+
   - name: segmentation
     type: analysis
     description: Segment frames into atomic sign units

@@ -7,8 +7,8 @@ using UglyToad.PdfPig.Content;
 namespace Mostlylucid.DocSummarizer.Core.Services;
 
 /// <summary>
-/// Extract tables from PDF documents using PdfPig (.NET native)
-/// Uses heuristic-based detection: looks for grid patterns in text positioning
+///     Extract tables from PDF documents using PdfPig (.NET native)
+///     Uses heuristic-based detection: looks for grid patterns in text positioning
 /// </summary>
 public class PdfTableExtractor : ITableExtractor
 {
@@ -50,10 +50,7 @@ public class PdfTableExtractor : ITableExtractor
 
                 foreach (var pageNum in pagesToProcess)
                 {
-                    if (pageNum < 1 || pageNum > document.NumberOfPages)
-                    {
-                        continue;
-                    }
+                    if (pageNum < 1 || pageNum > document.NumberOfPages) continue;
 
                     try
                     {
@@ -101,10 +98,7 @@ public class PdfTableExtractor : ITableExtractor
         // Simple heuristic: group words by Y-coordinate (rows) and X-coordinate (columns)
         var words = page.GetWords().OrderBy(w => w.BoundingBox.Bottom).ThenBy(w => w.BoundingBox.Left).ToList();
 
-        if (words.Count == 0)
-        {
-            return tables;
-        }
+        if (words.Count == 0) return tables;
 
         // Group words into rows based on Y-coordinate proximity
         var rows = GroupWordsIntoRows(words);
@@ -113,7 +107,6 @@ public class PdfTableExtractor : ITableExtractor
         var tableRegions = DetectTableRegions(rows);
 
         foreach (var region in tableRegions)
-        {
             try
             {
                 var table = BuildTableFromRegion(region, sourcePath, pageNumber, globalTableNumber, options);
@@ -130,7 +123,6 @@ public class PdfTableExtractor : ITableExtractor
             {
                 _logger.LogDebug(ex, "Failed to build table from region on page {Page}", pageNumber);
             }
-        }
 
         return tables;
     }
@@ -139,7 +131,7 @@ public class PdfTableExtractor : ITableExtractor
     {
         var rows = new List<List<Word>>();
         var currentRow = new List<Word>();
-        double lastY = double.MinValue;
+        var lastY = double.MinValue;
         const double rowTolerance = 5.0; // Points
 
         foreach (var word in words)
@@ -156,10 +148,7 @@ public class PdfTableExtractor : ITableExtractor
             lastY = wordY;
         }
 
-        if (currentRow.Count > 0)
-        {
-            rows.Add(currentRow.OrderBy(w => w.BoundingBox.Left).ToList());
-        }
+        if (currentRow.Count > 0) rows.Add(currentRow.OrderBy(w => w.BoundingBox.Left).ToList());
 
         return rows;
     }
@@ -170,7 +159,6 @@ public class PdfTableExtractor : ITableExtractor
         var currentRegion = new List<List<Word>>();
 
         foreach (var row in rows)
-        {
             // Heuristic: a table row has multiple "columns" (words separated by consistent gaps)
             if (row.Count >= 2 && LooksLikeTableRow(row))
             {
@@ -180,31 +168,22 @@ public class PdfTableExtractor : ITableExtractor
             {
                 // End of table region
                 if (currentRegion.Count >= 2) // Minimum 2 rows for a table
-                {
                     regions.Add(currentRegion);
-                }
                 currentRegion = new List<List<Word>>();
             }
-        }
 
-        if (currentRegion.Count >= 2)
-        {
-            regions.Add(currentRegion);
-        }
+        if (currentRegion.Count >= 2) regions.Add(currentRegion);
 
         return regions;
     }
 
     private static bool LooksLikeTableRow(List<Word> row)
     {
-        if (row.Count < 2)
-        {
-            return false;
-        }
+        if (row.Count < 2) return false;
 
         // Check if words are reasonably spaced (not continuous text)
         var gaps = new List<double>();
-        for (int i = 0; i < row.Count - 1; i++)
+        for (var i = 0; i < row.Count - 1; i++)
         {
             var gap = row[i + 1].BoundingBox.Left - row[i].BoundingBox.Right;
             gaps.Add(gap);
@@ -243,24 +222,15 @@ public class PdfTableExtractor : ITableExtractor
                 tableCells.Add(TableCell.FromText(cellText));
             }
 
-            if (tableCells.Any(c => !c.IsEmpty))
-            {
-                tableRows.Add(tableCells);
-            }
+            if (tableCells.Any(c => !c.IsEmpty)) tableRows.Add(tableCells);
         }
 
-        if (tableRows.Count == 0)
-        {
-            return null;
-        }
+        if (tableRows.Count == 0) return null;
 
         var hasHeader = DetectHeader(tableRows);
 
         List<string>? columnNames = null;
-        if (hasHeader && tableRows.Count > 0)
-        {
-            columnNames = tableRows[0].Select(c => c.Text ?? "").ToList();
-        }
+        if (hasHeader && tableRows.Count > 0) columnNames = tableRows[0].Select(c => c.Text ?? "").ToList();
 
         var tableId = $"{Path.GetFileNameWithoutExtension(sourcePath)}_table_{tableNumber}";
 
@@ -292,34 +262,25 @@ public class PdfTableExtractor : ITableExtractor
         var xCoords = new List<double>();
 
         foreach (var row in region)
-        {
-            foreach (var word in row)
-            {
-                xCoords.Add(word.BoundingBox.Left);
-            }
-        }
+        foreach (var word in row)
+            xCoords.Add(word.BoundingBox.Left);
 
-        if (xCoords.Count == 0)
-        {
-            return new List<(double, double)>();
-        }
+        if (xCoords.Count == 0) return new List<(double, double)>();
 
         // Cluster X-coordinates to find column starts
         xCoords.Sort();
 
         var columns = new List<(double Start, double End)>();
-        double currentStart = xCoords[0];
+        var currentStart = xCoords[0];
         const double columnTolerance = 20.0; // Points
 
-        for (int i = 1; i < xCoords.Count; i++)
-        {
+        for (var i = 1; i < xCoords.Count; i++)
             if (xCoords[i] - xCoords[i - 1] > columnTolerance)
             {
                 // New column
                 columns.Add((currentStart, xCoords[i - 1] + columnTolerance));
                 currentStart = xCoords[i];
             }
-        }
 
         columns.Add((currentStart, xCoords.Last() + columnTolerance));
 
@@ -328,10 +289,7 @@ public class PdfTableExtractor : ITableExtractor
 
     private static bool DetectHeader(List<List<TableCell>> rows)
     {
-        if (rows.Count < 2)
-        {
-            return false;
-        }
+        if (rows.Count < 2) return false;
 
         var firstRow = rows[0];
         var nonNumericCount = firstRow.Count(cell => !IsNumeric(cell.Text ?? ""));
@@ -341,10 +299,7 @@ public class PdfTableExtractor : ITableExtractor
 
     private static bool IsNumeric(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
+        if (string.IsNullOrWhiteSpace(value)) return false;
 
         var cleaned = value.Replace(",", "").Replace("$", "").Replace("%", "").Trim();
         return double.TryParse(cleaned, out _);

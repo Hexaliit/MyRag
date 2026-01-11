@@ -8,18 +8,18 @@ using Mostlylucid.GraphRag.Storage;
 namespace Mostlylucid.GraphRag.Indexing;
 
 /// <summary>
-/// Indexes markdown files into the GraphRAG database.
-/// Uses BERT embeddings from DocSummarizer.Core for vector search.
+///     Indexes markdown files into the GraphRAG database.
+///     Uses BERT embeddings from DocSummarizer.Core for vector search.
 /// </summary>
 public class MarkdownIndexer : IDisposable
 {
+    private readonly int _chunkOverlap;
+    private readonly int _chunkSize;
     private readonly GraphRagDb _db;
     private readonly EmbeddingService _embedder;
-    private readonly int _chunkSize;
-    private readonly int _chunkOverlap;
     private readonly MarkdownPipeline _mdPipeline;
 
-    public MarkdownIndexer(GraphRagDb db, EmbeddingService embedder, 
+    public MarkdownIndexer(GraphRagDb db, EmbeddingService embedder,
         int chunkSize = 512, int chunkOverlap = 50)
     {
         _db = db;
@@ -31,10 +31,15 @@ public class MarkdownIndexer : IDisposable
             .Build();
     }
 
+    public void Dispose()
+    {
+        if (_embedder is IDisposable disposable) disposable.Dispose();
+    }
+
     /// <summary>
-    /// Index all markdown files in a directory
+    ///     Index all markdown files in a directory
     /// </summary>
-    public async Task IndexDirectoryAsync(string path, IProgress<IndexProgress>? progress = null, 
+    public async Task IndexDirectoryAsync(string path, IProgress<IndexProgress>? progress = null,
         CancellationToken ct = default)
     {
         var files = Directory.GetFiles(path, "*.md", SearchOption.AllDirectories)
@@ -43,10 +48,10 @@ public class MarkdownIndexer : IDisposable
 
         progress?.Report(new IndexProgress(0, files.Count, "Starting indexing..."));
 
-        for (int i = 0; i < files.Count; i++)
+        for (var i = 0; i < files.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
-            
+
             var file = files[i];
             var fileName = Path.GetFileName(file);
             progress?.Report(new IndexProgress(i, files.Count, $"Indexing {fileName}"));
@@ -58,42 +63,42 @@ public class MarkdownIndexer : IDisposable
     }
 
     /// <summary>
-    /// Index a single markdown file
+    ///     Index a single markdown file
     /// </summary>
     public async Task IndexFileAsync(string filePath, CancellationToken ct = default)
     {
         var content = await File.ReadAllTextAsync(filePath, ct);
         var docId = ComputeDocumentId(filePath);
         var contentHash = ComputeContentHash(content);
-        
+
         // Skip if document already indexed with same content
         if (await _db.DocumentExistsWithHashAsync(docId, contentHash))
             return;
-        
+
         // Delete existing chunks (HNSW index doesn't support duplicate keys)
         await _db.DeleteDocumentChunksAsync(docId);
-        
+
         // Extract title from frontmatter or first heading
         var title = ExtractTitle(content, filePath);
-        
+
         // Store document
         await _db.UpsertDocumentAsync(docId, filePath, title, contentHash);
 
         // Chunk the content
         var chunks = ChunkMarkdown(content);
-        
+
         // Generate embeddings in batch
         var embeddings = await _embedder.EmbedBatchAsync(chunks.Select(c => c.Text), ct);
 
         // Store chunks with embeddings
-        for (int i = 0; i < chunks.Count; i++)
+        for (var i = 0; i < chunks.Count; i++)
         {
             var chunk = chunks[i];
             var chunkId = $"{docId}_{i}";
             await _db.InsertChunkAsync(chunkId, docId, i, chunk.Text, embeddings[i], chunk.TokenCount);
         }
     }
-    
+
     private static string ComputeContentHash(string content)
     {
         using var sha = SHA256.Create();
@@ -104,45 +109,42 @@ public class MarkdownIndexer : IDisposable
     private List<ChunkInfo> ChunkMarkdown(string content)
     {
         var chunks = new List<ChunkInfo>();
-        
+
         // Strip frontmatter
         content = StripFrontmatter(content);
-        
+
         // Convert to plain text for chunking
         var plainText = Markdown.ToPlainText(content, _mdPipeline);
-        
+
         // Split into sentences/paragraphs
         var paragraphs = SplitIntoParagraphs(plainText);
-        
+
         var currentChunk = new StringBuilder();
         var currentTokens = 0;
 
         foreach (var para in paragraphs)
         {
             var paraTokens = EstimateTokens(para);
-            
+
             if (currentTokens + paraTokens > _chunkSize && currentChunk.Length > 0)
             {
                 // Save current chunk
                 chunks.Add(new ChunkInfo(currentChunk.ToString().Trim(), currentTokens));
-                
+
                 // Start new chunk with overlap
                 currentChunk.Clear();
                 currentTokens = 0;
-                
+
                 // Add overlap from previous paragraphs if needed
                 // (simplified: just start fresh for now)
             }
-            
+
             currentChunk.AppendLine(para);
             currentTokens += paraTokens;
         }
 
         // Don't forget the last chunk
-        if (currentChunk.Length > 0)
-        {
-            chunks.Add(new ChunkInfo(currentChunk.ToString().Trim(), currentTokens));
-        }
+        if (currentChunk.Length > 0) chunks.Add(new ChunkInfo(currentChunk.ToString().Trim(), currentTokens));
 
         return chunks;
     }
@@ -161,18 +163,16 @@ public class MarkdownIndexer : IDisposable
         if (content.StartsWith("---"))
         {
             var endIndex = content.IndexOf("---", 3);
-            if (endIndex > 0)
-            {
-                content = content.Substring(endIndex + 3).TrimStart();
-            }
+            if (endIndex > 0) content = content.Substring(endIndex + 3).TrimStart();
         }
+
         return content;
     }
 
     private static string ExtractTitle(string content, string filePath)
     {
         // Try to get title from YAML frontmatter
-        var titleMatch = Regex.Match(content, @"^---\s*\n.*?title:\s*[""']?(.+?)[""']?\s*\n", 
+        var titleMatch = Regex.Match(content, @"^---\s*\n.*?title:\s*[""']?(.+?)[""']?\s*\n",
             RegexOptions.Singleline | RegexOptions.IgnoreCase);
         if (titleMatch.Success)
             return titleMatch.Groups[1].Value.Trim();
@@ -197,14 +197,6 @@ public class MarkdownIndexer : IDisposable
         using var sha = SHA256.Create();
         var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(filePath));
         return Convert.ToHexString(hash)[..16].ToLowerInvariant();
-    }
-
-    public void Dispose()
-    {
-        if (_embedder is IDisposable disposable)
-        {
-            disposable.Dispose();
-        }
     }
 }
 

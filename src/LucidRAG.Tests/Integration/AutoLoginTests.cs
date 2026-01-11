@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using PuppeteerSharp;
@@ -5,16 +6,16 @@ using PuppeteerSharp;
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Tests for the development mode auto-login feature.
-/// Requires the server to be running on localhost:5080.
+///     Tests for the development mode auto-login feature.
+///     Requires the server to be running on localhost:5080.
 /// </summary>
 [Collection("Browser")]
 [Trait("Category", "Browser")]
 public class AutoLoginTests : IAsyncLifetime
 {
+    private const string BaseUrl = "http://127.0.0.1:5080";
     private IBrowser? _browser;
     private IPage? _page;
-    private const string BaseUrl = "http://127.0.0.1:5080";
 
     public async Task InitializeAsync()
     {
@@ -47,7 +48,7 @@ public class AutoLoginTests : IAsyncLifetime
         });
 
         // Assert - Should get a 200 response
-        response!.Status.Should().Be(System.Net.HttpStatusCode.OK);
+        response!.Status.Should().Be(HttpStatusCode.OK);
 
         // Wait for page to render
         await Task.Delay(1000);
@@ -154,6 +155,6 @@ public class AutoLoginTests : IAsyncLifetime
         // Assert
         finalUrl.Should().NotContain("/auth/login",
             "With auto-login, home page should not redirect to login");
-        response!.Status.Should().Be(System.Net.HttpStatusCode.OK);
+        response!.Status.Should().Be(HttpStatusCode.OK);
     }
 }

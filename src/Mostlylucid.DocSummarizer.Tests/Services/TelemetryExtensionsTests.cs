@@ -5,7 +5,7 @@ using Xunit;
 namespace Mostlylucid.DocSummarizer.Tests.Services;
 
 /// <summary>
-/// Tests for TelemetryExtensions and TelemetryOptions
+///     Tests for TelemetryExtensions and TelemetryOptions
 /// </summary>
 public class TelemetryExtensionsTests
 {
@@ -55,9 +55,9 @@ public class TelemetryExtensionsTests
     {
         // Arrange & Act
         var options = TelemetryExtensions.ParseTelemetryOptions(
-            telemetryEnabled: false,
-            consoleExporter: false,
-            otlpEndpoint: null);
+            false,
+            false,
+            null);
 
         // Assert
         Assert.False(options.Enabled);
@@ -70,9 +70,9 @@ public class TelemetryExtensionsTests
     {
         // Arrange & Act
         var options = TelemetryExtensions.ParseTelemetryOptions(
-            telemetryEnabled: true,
-            consoleExporter: false,
-            otlpEndpoint: null);
+            true,
+            false,
+            null);
 
         // Assert
         Assert.True(options.Enabled);
@@ -85,9 +85,9 @@ public class TelemetryExtensionsTests
     {
         // Arrange & Act
         var options = TelemetryExtensions.ParseTelemetryOptions(
-            telemetryEnabled: false,
-            consoleExporter: true,
-            otlpEndpoint: null);
+            false,
+            true,
+            null);
 
         // Assert
         Assert.True(options.Enabled); // Auto-enabled when console exporter is set
@@ -100,9 +100,9 @@ public class TelemetryExtensionsTests
     {
         // Arrange & Act
         var options = TelemetryExtensions.ParseTelemetryOptions(
-            telemetryEnabled: false,
-            consoleExporter: false,
-            otlpEndpoint: "http://localhost:4317");
+            false,
+            false,
+            "http://localhost:4317");
 
         // Assert
         Assert.True(options.Enabled); // Auto-enabled when OTLP endpoint is set
@@ -115,9 +115,9 @@ public class TelemetryExtensionsTests
     {
         // Arrange & Act
         var options = TelemetryExtensions.ParseTelemetryOptions(
-            telemetryEnabled: false,
-            consoleExporter: false,
-            otlpEndpoint: "");
+            false,
+            false,
+            "");
 
         // Assert
         Assert.False(options.Enabled);
@@ -129,9 +129,9 @@ public class TelemetryExtensionsTests
     {
         // Arrange & Act
         var options = TelemetryExtensions.ParseTelemetryOptions(
-            telemetryEnabled: true,
-            consoleExporter: true,
-            otlpEndpoint: "http://jaeger:4317");
+            true,
+            true,
+            "http://jaeger:4317");
 
         // Assert
         Assert.True(options.Enabled);
@@ -148,9 +148,9 @@ public class TelemetryExtensionsTests
     {
         // Arrange & Act
         var options = TelemetryExtensions.ParseTelemetryOptions(
-            telemetryEnabled: false,
-            consoleExporter: false,
-            otlpEndpoint: endpoint);
+            false,
+            false,
+            endpoint);
 
         // Assert
         Assert.True(options.Enabled);
@@ -181,10 +181,10 @@ public class TelemetryExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        var options = new TelemetryOptions 
-        { 
+        var options = new TelemetryOptions
+        {
             Enabled = true,
-            ConsoleExporter = true 
+            ConsoleExporter = true
         };
 
         // Act
@@ -200,8 +200,8 @@ public class TelemetryExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        var options = new TelemetryOptions 
-        { 
+        var options = new TelemetryOptions
+        {
             Enabled = true,
             OtlpEndpoint = "http://localhost:4317"
         };
@@ -219,8 +219,8 @@ public class TelemetryExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        var options = new TelemetryOptions 
-        { 
+        var options = new TelemetryOptions
+        {
             Enabled = true,
             ConsoleExporter = true,
             OtlpEndpoint = "http://localhost:4317"
@@ -239,8 +239,8 @@ public class TelemetryExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        var options = new TelemetryOptions 
-        { 
+        var options = new TelemetryOptions
+        {
             Enabled = true,
             ConsoleExporter = false,
             OtlpEndpoint = null
@@ -260,8 +260,8 @@ public class TelemetryExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        var options = new TelemetryOptions 
-        { 
+        var options = new TelemetryOptions
+        {
             Enabled = true,
             ConsoleExporter = true,
             ServiceName = "my-custom-service",

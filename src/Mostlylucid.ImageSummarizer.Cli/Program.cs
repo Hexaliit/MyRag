@@ -1,13 +1,10 @@
 using System.CommandLine;
-using System.CommandLine.Invocation;
-using System.CommandLine.Parsing;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Extensions;
-using Mostlylucid.DocSummarizer.Images.Pipeline;
 using Mostlylucid.Summarizer.Core.Extensions;
 using Mostlylucid.Summarizer.Core.Pipeline;
 using Spectre.Console;
@@ -15,12 +12,12 @@ using Spectre.Console;
 namespace Mostlylucid.ImageSummarizer.Cli;
 
 /// <summary>
-/// Standalone image analysis and OCR CLI tool using the unified pipeline architecture.
-/// Part of the LucidRAG Summarizer family.
+///     Standalone image analysis and OCR CLI tool using the unified pipeline architecture.
+///     Part of the LucidRAG Summarizer family.
 /// </summary>
-class Program
+internal class Program
 {
-    static async Task<int> Main(string[] args)
+    private static async Task<int> Main(string[] args)
     {
         var rootCommand = new RootCommand("Image Intelligence - Heuristic analysis + Vision LLM escalation");
 
@@ -99,7 +96,8 @@ class Program
             var pipeline = registry.FindForFile(imagePath);
             if (pipeline == null)
             {
-                AnsiConsole.MarkupLine($"[red]Error: No pipeline found for file type: {Path.GetExtension(imagePath)}[/]");
+                AnsiConsole.MarkupLine(
+                    $"[red]Error: No pipeline found for file type: {Path.GetExtension(imagePath)}[/]");
                 return;
             }
 
@@ -173,10 +171,9 @@ class Program
         AnsiConsole.MarkupLine($"[cyan]Pipeline:[/] {pipeline.Name}");
         AnsiConsole.WriteLine();
 
-        var progress = verbose ? new Progress<PipelineProgress>(p =>
-        {
-            AnsiConsole.MarkupLine($"[dim]{p.Stage}: {p.Message}[/]");
-        }) : null;
+        var progress = verbose
+            ? new Progress<PipelineProgress>(p => { AnsiConsole.MarkupLine($"[dim]{p.Stage}: {p.Message}[/]"); })
+            : null;
 
         var result = await pipeline.ProcessAsync(imagePath, null, progress, ct);
 
@@ -261,13 +258,11 @@ class Program
             .AddColumn("[bold]Length[/]");
 
         foreach (var chunk in result.Chunks)
-        {
             table.AddRow(
                 chunk.Id,
                 chunk.ContentType.ToString(),
                 chunk.Confidence?.ToString("P1") ?? "-",
                 chunk.Text.Length.ToString());
-        }
 
         AnsiConsole.Write(table);
     }

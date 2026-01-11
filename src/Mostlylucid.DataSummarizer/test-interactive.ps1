@@ -10,58 +10,69 @@ $ErrorActionPreference = "Stop"
 $script:TestsPassed = 0
 $script:TestsFailed = 0
 
-function Write-TestHeader($name) {
-    Write-Host "`n$('=' * 60)" -ForegroundColor Cyan
+function Write-TestHeader($name)
+{
+    Write-Host "`n$( '=' * 60 )" -ForegroundColor Cyan
     Write-Host "TEST: $name" -ForegroundColor Cyan
-    Write-Host "$('=' * 60)" -ForegroundColor Cyan
+    Write-Host "$( '=' * 60 )" -ForegroundColor Cyan
 }
 
-function Write-Pass($msg) {
+function Write-Pass($msg)
+{
     Write-Host "[PASS] $msg" -ForegroundColor Green
     $script:TestsPassed++
 }
 
-function Write-Fail($msg) {
+function Write-Fail($msg)
+{
     Write-Host "[FAIL] $msg" -ForegroundColor Red
     $script:TestsFailed++
 }
 
-function Remove-AnsiCodes($text) {
+function Remove-AnsiCodes($text)
+{
     # Remove ANSI escape sequences
     $text -replace '\x1b\[[0-9;]*m', '' -replace '\[[\d;]*m', ''
 }
 
-function Test-Command($name, $commands, $expectedPatterns) {
+function Test-Command($name, $commands, $expectedPatterns)
+{
     Write-TestHeader $name
-    
+
     $input = ($commands + "/exit") -join "`n"
     $rawOutput = $input | dotnet run --project . -- -f $DataFile -i --no-llm 2>&1 | Out-String
     $output = Remove-AnsiCodes $rawOutput
-    
-    if ($Verbose) {
+
+    if ($Verbose)
+    {
         Write-Host $output -ForegroundColor Gray
     }
-    
+
     $allPassed = $true
-    foreach ($pattern in $expectedPatterns) {
-        if ($output -match $pattern) {
+    foreach ($pattern in $expectedPatterns)
+    {
+        if ($output -match $pattern)
+        {
             Write-Pass "Found: $pattern"
-        } else {
+        }
+        else
+        {
             Write-Fail "Missing: $pattern"
             $allPassed = $false
         }
     }
-    
+
     return $allPassed
 }
 
 # Change to script directory
 Push-Location $PSScriptRoot
 
-try {
+try
+{
     Write-Host "`nDataSummarizer Interactive Mode Test Suite" -ForegroundColor Yellow
     Write-Host "Data file: $DataFile" -ForegroundColor Yellow
-    Write-Host "Started: $(Get-Date)" -ForegroundColor Yellow
+    Write-Host "Started: $( Get-Date )" -ForegroundColor Yellow
 
     # Test 1: Show commands with /
     Test-Command "Show Commands (/)" @("/") @(
@@ -197,18 +208,27 @@ try {
     )
 
     # Summary
-    Write-Host "`n$('=' * 60)" -ForegroundColor Yellow
+    Write-Host "`n$( '=' * 60 )" -ForegroundColor Yellow
     Write-Host "TEST SUMMARY" -ForegroundColor Yellow
-    Write-Host "$('=' * 60)" -ForegroundColor Yellow
+    Write-Host "$( '=' * 60 )" -ForegroundColor Yellow
     Write-Host "Passed: $script:TestsPassed" -ForegroundColor Green
-    Write-Host "Failed: $script:TestsFailed" -ForegroundColor $(if ($script:TestsFailed -gt 0) { "Red" } else { "Green" })
-    Write-Host "Total:  $($script:TestsPassed + $script:TestsFailed)" -ForegroundColor Yellow
+    Write-Host "Failed: $script:TestsFailed" -ForegroundColor $( if ($script:TestsFailed -gt 0)
+    {
+        "Red"
+    }
+    else
+    {
+        "Green"
+    } )
+    Write-Host "Total:  $( $script:TestsPassed + $script:TestsFailed )" -ForegroundColor Yellow
 
-    if ($script:TestsFailed -gt 0) {
+    if ($script:TestsFailed -gt 0)
+    {
         exit 1
     }
     exit 0
 }
-finally {
+finally
+{
     Pop-Location
 }

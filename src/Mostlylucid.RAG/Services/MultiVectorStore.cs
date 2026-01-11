@@ -3,30 +3,27 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.RAG.Services;
 
 /// <summary>
-/// Multi-vector store that maintains multiple embedding types per document
-/// Supports self-specializing search by tracking which vector type works best
+///     Multi-vector store that maintains multiple embedding types per document
+///     Supports self-specializing search by tracking which vector type works best
 /// </summary>
 public class MultiVectorStore
 {
-    private readonly ILogger<MultiVectorStore>? _logger;
     private readonly Dictionary<string, DocumentVectors> _documents = new();
-    private readonly Dictionary<VectorType, List<VectorEntry>> _vectorIndices = new();
-    private readonly UsageTracker _usageTracker = new();
     private readonly object _lock = new();
+    private readonly ILogger<MultiVectorStore>? _logger;
+    private readonly UsageTracker _usageTracker = new();
+    private readonly Dictionary<VectorType, List<VectorEntry>> _vectorIndices = new();
 
     public MultiVectorStore(ILogger<MultiVectorStore>? logger = null)
     {
         _logger = logger;
 
         // Initialize indices for each vector type
-        foreach (VectorType type in Enum.GetValues<VectorType>())
-        {
-            _vectorIndices[type] = new List<VectorEntry>();
-        }
+        foreach (var type in Enum.GetValues<VectorType>()) _vectorIndices[type] = new List<VectorEntry>();
     }
 
     /// <summary>
-    /// Store document with all available vector types
+    ///     Store document with all available vector types
     /// </summary>
     public void StoreDocument(string documentId, MultiVectorDocument doc)
     {
@@ -37,10 +34,10 @@ public class MultiVectorStore
                 DocumentId = documentId,
                 TextEmbedding = doc.TextEmbedding,
                 ImageEmbedding = doc.ImageEmbedding,
-                FaceEmbeddings = doc.FaceEmbeddings ?? new(),
+                FaceEmbeddings = doc.FaceEmbeddings ?? new List<FaceEmbeddingEntry>(),
                 ColorHash = doc.ColorHash,
                 PerceptualHash = doc.PerceptualHash,
-                Metadata = doc.Metadata ?? new(),
+                Metadata = doc.Metadata ?? new Dictionary<string, object>(),
                 StoredAt = DateTime.UtcNow
             };
 
@@ -48,52 +45,40 @@ public class MultiVectorStore
 
             // Add to appropriate indices
             if (doc.TextEmbedding != null)
-            {
                 _vectorIndices[VectorType.Text].Add(new VectorEntry
                 {
                     DocumentId = documentId,
                     Vector = doc.TextEmbedding
                 });
-            }
 
             if (doc.ImageEmbedding != null)
-            {
                 _vectorIndices[VectorType.Image].Add(new VectorEntry
                 {
                     DocumentId = documentId,
                     Vector = doc.ImageEmbedding
                 });
-            }
 
             if (doc.FaceEmbeddings?.Any() == true)
-            {
                 foreach (var face in doc.FaceEmbeddings)
-                {
                     _vectorIndices[VectorType.Face].Add(new VectorEntry
                     {
                         DocumentId = documentId,
                         Vector = face.Embedding
                     });
-                }
-            }
 
             if (!string.IsNullOrEmpty(doc.ColorHash))
-            {
                 _vectorIndices[VectorType.ColorHash].Add(new VectorEntry
                 {
                     DocumentId = documentId,
                     Hash = doc.ColorHash
                 });
-            }
 
             if (!string.IsNullOrEmpty(doc.PerceptualHash))
-            {
                 _vectorIndices[VectorType.PerceptualHash].Add(new VectorEntry
                 {
                     DocumentId = documentId,
                     Hash = doc.PerceptualHash
                 });
-            }
 
             _logger?.LogInformation(
                 "Stored document {DocumentId} with {VectorTypes} vector types",
@@ -103,8 +88,8 @@ public class MultiVectorStore
     }
 
     /// <summary>
-    /// Search using self-specializing logic
-    /// Automatically selects best vector type based on query and past performance
+    ///     Search using self-specializing logic
+    ///     Automatically selects best vector type based on query and past performance
     /// </summary>
     public MultiVectorSearchResult SearchAdaptive(
         MultiVectorQuery query,
@@ -117,7 +102,7 @@ public class MultiVectorStore
         if (!availableTypes.Any())
         {
             _logger?.LogWarning("No vector types available for query");
-            return new MultiVectorSearchResult { Results = new(), VectorTypeUsed = VectorType.None };
+            return new MultiVectorSearchResult { Results = new List<ScoredResult>(), VectorTypeUsed = VectorType.None };
         }
 
         // Get recommended vector type based on past performance
@@ -155,7 +140,7 @@ public class MultiVectorStore
     }
 
     /// <summary>
-    /// Search using specific vector type
+    ///     Search using specific vector type
     /// </summary>
     public MultiVectorSearchResult SearchByVectorType(
         MultiVectorQuery query,
@@ -169,37 +154,27 @@ public class MultiVectorStore
         {
             case VectorType.Text:
                 if (query.TextEmbedding != null)
-                {
                     results = SearchVectorIndex(VectorType.Text, query.TextEmbedding, topK, threshold);
-                }
                 break;
 
             case VectorType.Image:
                 if (query.ImageEmbedding != null)
-                {
                     results = SearchVectorIndex(VectorType.Image, query.ImageEmbedding, topK, threshold);
-                }
                 break;
 
             case VectorType.Face:
                 if (query.FaceEmbedding != null)
-                {
                     results = SearchVectorIndex(VectorType.Face, query.FaceEmbedding, topK, threshold);
-                }
                 break;
 
             case VectorType.ColorHash:
                 if (!string.IsNullOrEmpty(query.ColorHash))
-                {
                     results = SearchHashIndex(VectorType.ColorHash, query.ColorHash, topK);
-                }
                 break;
 
             case VectorType.PerceptualHash:
                 if (!string.IsNullOrEmpty(query.PerceptualHash))
-                {
                     results = SearchHashIndex(VectorType.PerceptualHash, query.PerceptualHash, topK);
-                }
                 break;
         }
 
@@ -215,7 +190,7 @@ public class MultiVectorStore
     }
 
     /// <summary>
-    /// Search vector index using cosine similarity
+    ///     Search vector index using cosine similarity
     /// </summary>
     private List<ScoredResult> SearchVectorIndex(
         VectorType type,
@@ -225,10 +200,7 @@ public class MultiVectorStore
     {
         lock (_lock)
         {
-            if (!_vectorIndices.TryGetValue(type, out var index))
-            {
-                return new List<ScoredResult>();
-            }
+            if (!_vectorIndices.TryGetValue(type, out var index)) return new List<ScoredResult>();
 
             var scored = new List<(string DocumentId, double Score)>();
 
@@ -238,10 +210,7 @@ public class MultiVectorStore
 
                 var similarity = CosineSimilarity(queryVector, entry.Vector);
 
-                if (similarity >= threshold)
-                {
-                    scored.Add((entry.DocumentId, similarity));
-                }
+                if (similarity >= threshold) scored.Add((entry.DocumentId, similarity));
             }
 
             return scored
@@ -251,14 +220,16 @@ public class MultiVectorStore
                 {
                     DocumentId = x.DocumentId,
                     Score = x.Score,
-                    Metadata = _documents.TryGetValue(x.DocumentId, out var doc) ? doc.Metadata : new()
+                    Metadata = _documents.TryGetValue(x.DocumentId, out var doc)
+                        ? doc.Metadata
+                        : new Dictionary<string, object>()
                 })
                 .ToList();
         }
     }
 
     /// <summary>
-    /// Search hash index (exact or fuzzy match)
+    ///     Search hash index (exact or fuzzy match)
     /// </summary>
     private List<ScoredResult> SearchHashIndex(
         VectorType type,
@@ -267,10 +238,7 @@ public class MultiVectorStore
     {
         lock (_lock)
         {
-            if (!_vectorIndices.TryGetValue(type, out var index))
-            {
-                return new List<ScoredResult>();
-            }
+            if (!_vectorIndices.TryGetValue(type, out var index)) return new List<ScoredResult>();
 
             var scored = new List<(string DocumentId, double Score)>();
 
@@ -286,11 +254,10 @@ public class MultiVectorStore
                 // Fuzzy match (Hamming distance for perceptual hashes)
                 else if (type == VectorType.PerceptualHash)
                 {
-                    var similarity = 1.0 - (HammingDistance(queryHash, entry.Hash) / (double)Math.Min(queryHash.Length, entry.Hash.Length));
+                    var similarity = 1.0 - HammingDistance(queryHash, entry.Hash) /
+                        (double)Math.Min(queryHash.Length, entry.Hash.Length);
                     if (similarity >= 0.85) // 85% similarity threshold
-                    {
                         scored.Add((entry.DocumentId, similarity));
-                    }
                 }
             }
 
@@ -301,14 +268,16 @@ public class MultiVectorStore
                 {
                     DocumentId = x.DocumentId,
                     Score = x.Score,
-                    Metadata = _documents.TryGetValue(x.DocumentId, out var doc) ? doc.Metadata : new()
+                    Metadata = _documents.TryGetValue(x.DocumentId, out var doc)
+                        ? doc.Metadata
+                        : new Dictionary<string, object>()
                 })
                 .ToList();
         }
     }
 
     /// <summary>
-    /// Cosine similarity between two vectors
+    ///     Cosine similarity between two vectors
     /// </summary>
     private static double CosineSimilarity(float[] a, float[] b)
     {
@@ -316,7 +285,7 @@ public class MultiVectorStore
 
         double dot = 0, magA = 0, magB = 0;
 
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dot += a[i] * b[i];
             magA += a[i] * a[i];
@@ -328,17 +297,16 @@ public class MultiVectorStore
     }
 
     /// <summary>
-    /// Hamming distance between two hash strings
+    ///     Hamming distance between two hash strings
     /// </summary>
     private static int HammingDistance(string a, string b)
     {
-        int distance = 0;
-        int len = Math.Min(a.Length, b.Length);
+        var distance = 0;
+        var len = Math.Min(a.Length, b.Length);
 
-        for (int i = 0; i < len; i++)
-        {
-            if (a[i] != b[i]) distance++;
-        }
+        for (var i = 0; i < len; i++)
+            if (a[i] != b[i])
+                distance++;
 
         // Add difference in length
         distance += Math.Abs(a.Length - b.Length);
@@ -373,7 +341,7 @@ public class MultiVectorStore
     }
 
     /// <summary>
-    /// Get usage statistics for self-specializing analysis
+    ///     Get usage statistics for self-specializing analysis
     /// </summary>
     public UsageStatistics GetStatistics()
     {
@@ -382,20 +350,20 @@ public class MultiVectorStore
 }
 
 /// <summary>
-/// Vector type enumeration
+///     Vector type enumeration
 /// </summary>
 public enum VectorType
 {
     None,
-    Text,          // OCR text embeddings
-    Image,         // CLIP image embeddings
-    Face,          // Face embeddings (PII-respecting)
-    ColorHash,     // Color signature hashes
+    Text, // OCR text embeddings
+    Image, // CLIP image embeddings
+    Face, // Face embeddings (PII-respecting)
+    ColorHash, // Color signature hashes
     PerceptualHash // Perceptual image hashes
 }
 
 /// <summary>
-/// Document with multiple vector representations
+///     Document with multiple vector representations
 /// </summary>
 public class MultiVectorDocument
 {
@@ -408,7 +376,7 @@ public class MultiVectorDocument
 }
 
 /// <summary>
-/// Query with multiple vector types
+///     Query with multiple vector types
 /// </summary>
 public class MultiVectorQuery
 {
@@ -421,7 +389,7 @@ public class MultiVectorQuery
 }
 
 /// <summary>
-/// Search result with vector type used
+///     Search result with vector type used
 /// </summary>
 public class MultiVectorSearchResult
 {
@@ -464,13 +432,13 @@ internal class VectorEntry
 }
 
 /// <summary>
-/// Tracks usage patterns for self-specializing RAG
+///     Tracks usage patterns for self-specializing RAG
 /// </summary>
 internal class UsageTracker
 {
-    private readonly Dictionary<string, List<UsageEntry>> _usageByIntent = new();
-    private readonly Dictionary<VectorType, PerformanceMetrics> _performanceByType = new();
     private readonly object _lock = new();
+    private readonly Dictionary<VectorType, PerformanceMetrics> _performanceByType = new();
+    private readonly Dictionary<string, List<UsageEntry>> _usageByIntent = new();
 
     public void RecordSearch(MultiVectorQuery query, VectorType typeUsed, double avgScore, int resultCount)
     {
@@ -478,10 +446,7 @@ internal class UsageTracker
         {
             var intent = query.QueryIntent ?? "unknown";
 
-            if (!_usageByIntent.ContainsKey(intent))
-            {
-                _usageByIntent[intent] = new List<UsageEntry>();
-            }
+            if (!_usageByIntent.ContainsKey(intent)) _usageByIntent[intent] = new List<UsageEntry>();
 
             _usageByIntent[intent].Add(new UsageEntry
             {
@@ -492,20 +457,14 @@ internal class UsageTracker
             });
 
             // Update performance metrics
-            if (!_performanceByType.ContainsKey(typeUsed))
-            {
-                _performanceByType[typeUsed] = new PerformanceMetrics();
-            }
+            if (!_performanceByType.ContainsKey(typeUsed)) _performanceByType[typeUsed] = new PerformanceMetrics();
 
             var metrics = _performanceByType[typeUsed];
             metrics.TotalSearches++;
             metrics.TotalScore += avgScore;
             metrics.AverageScore = metrics.TotalScore / metrics.TotalSearches;
 
-            if (resultCount > 0)
-            {
-                metrics.SuccessfulSearches++;
-            }
+            if (resultCount > 0) metrics.SuccessfulSearches++;
 
             metrics.SuccessRate = metrics.SuccessfulSearches / (double)metrics.TotalSearches;
         }
@@ -533,10 +492,7 @@ internal class UsageTracker
                     .OrderByDescending(x => x.AvgScore * x.SuccessRate)
                     .FirstOrDefault();
 
-                if (bestForIntent != null)
-                {
-                    return bestForIntent.Type;
-                }
+                if (bestForIntent != null) return bestForIntent.Type;
             }
 
             // Fall back to global best performer
@@ -545,13 +501,11 @@ internal class UsageTracker
                 .OrderByDescending(kvp => kvp.Value.AverageScore * kvp.Value.SuccessRate)
                 .FirstOrDefault();
 
-            if (globalBest.Key != VectorType.None)
-            {
-                return globalBest.Key;
-            }
+            if (globalBest.Key != VectorType.None) return globalBest.Key;
 
             // Default fallback priority: Image > Text > Face > ColorHash > PerceptualHash
-            var fallbackPriority = new[] {
+            var fallbackPriority = new[]
+            {
                 VectorType.Image,
                 VectorType.Text,
                 VectorType.Face,

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.ML.OnnxRuntime;
@@ -8,31 +9,45 @@ using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using System.Security.Cryptography;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// CLIP Embedding Wave - Generates semantic image embeddings for similarity search
-/// Uses ONNX CLIP model for fast, local embedding generation (no API calls)
-/// Auto-downloads CLIP model on first use (~350MB)
-/// Priority: 45 (runs after vision LLM, provides embeddings for RAG)
+///     CLIP Embedding Wave - Generates semantic image embeddings for similarity search
+///     Uses ONNX CLIP model for fast, local embedding generation (no API calls)
+///     Auto-downloads CLIP model on first use (~350MB)
+///     Priority: 45 (runs after vision LLM, provides embeddings for RAG)
 /// </summary>
 public class ClipEmbeddingWave : IAnalysisWave
 {
-    private readonly ImageConfig _config;
-    private readonly ModelDownloader? _modelDownloader;
-    private readonly OnnxSessionFactory? _sessionFactory;
-    private readonly ILogger<ClipEmbeddingWave>? _logger;
+    // CLIP ViT-B/32 input dimensions
+    private const int ClipImageSize = 224;
+    private const int ClipEmbeddingSize = 512;
     private static InferenceSession? _clipSession;
     private static readonly object _modelLock = new();
+    private readonly ImageConfig _config;
+    private readonly ILogger<ClipEmbeddingWave>? _logger;
+    private readonly ModelDownloader? _modelDownloader;
+    private readonly OnnxSessionFactory? _sessionFactory;
+
+    public ClipEmbeddingWave(
+        IOptions<ImageConfig> config,
+        ModelDownloader? modelDownloader = null,
+        OnnxSessionFactory? sessionFactory = null,
+        ILogger<ClipEmbeddingWave>? logger = null)
+    {
+        _config = config.Value;
+        _modelDownloader = modelDownloader;
+        _sessionFactory = sessionFactory;
+        _logger = logger;
+    }
 
     public string Name => "ClipEmbeddingWave";
     public int Priority => 45; // After vision LLM, before synthesis
     public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "embedding", "clip", "ml" };
 
     /// <summary>
-    /// Check if CLIP should run. Respects auto-routing (fast route skips CLIP).
+    ///     Check if CLIP should run. Respects auto-routing (fast route skips CLIP).
     /// </summary>
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -45,22 +60,6 @@ public class ClipEmbeddingWave : IAnalysisWave
             return false;
 
         return true;
-    }
-
-    // CLIP ViT-B/32 input dimensions
-    private const int ClipImageSize = 224;
-    private const int ClipEmbeddingSize = 512;
-
-    public ClipEmbeddingWave(
-        IOptions<ImageConfig> config,
-        ModelDownloader? modelDownloader = null,
-        OnnxSessionFactory? sessionFactory = null,
-        ILogger<ClipEmbeddingWave>? logger = null)
-    {
-        _config = config.Value;
-        _modelDownloader = modelDownloader;
-        _sessionFactory = sessionFactory;
-        _logger = logger;
     }
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
@@ -212,13 +211,10 @@ public class ClipEmbeddingWave : IAnalysisWave
     {
         // Check explicit config path first
         if (!string.IsNullOrEmpty(_config.ClipModelPath) && File.Exists(_config.ClipModelPath))
-        {
             return _config.ClipModelPath;
-        }
 
         // Try to get from ModelDownloader (auto-downloads if needed)
         if (_modelDownloader != null)
-        {
             try
             {
                 _logger?.LogInformation("Checking/downloading CLIP model (~350MB on first run)...");
@@ -233,7 +229,6 @@ public class ClipEmbeddingWave : IAnalysisWave
             {
                 _logger?.LogWarning(ex, "Failed to auto-download CLIP model");
             }
-        }
 
         // Fallback to checking default paths
         return GetClipModelPathFallback();
@@ -250,9 +245,8 @@ public class ClipEmbeddingWave : IAnalysisWave
         };
 
         foreach (var path in paths)
-        {
-            if (File.Exists(path)) return path;
-        }
+            if (File.Exists(path))
+                return path;
 
         _logger?.LogDebug("CLIP model not found in any default location");
         return null;
@@ -278,19 +272,17 @@ public class ClipEmbeddingWave : IAnalysisWave
         var mean = new[] { 0.48145466f, 0.4578275f, 0.40821073f };
         var std = new[] { 0.26862954f, 0.26130258f, 0.27577711f };
 
-        for (int y = 0; y < ClipImageSize; y++)
+        for (var y = 0; y < ClipImageSize; y++)
+        for (var x = 0; x < ClipImageSize; x++)
         {
-            for (int x = 0; x < ClipImageSize; x++)
-            {
-                var pixel = image[x, y];
+            var pixel = image[x, y];
 
-                // R channel
-                tensor[0, 0, y, x] = (pixel.R / 255f - mean[0]) / std[0];
-                // G channel
-                tensor[0, 1, y, x] = (pixel.G / 255f - mean[1]) / std[1];
-                // B channel
-                tensor[0, 2, y, x] = (pixel.B / 255f - mean[2]) / std[2];
-            }
+            // R channel
+            tensor[0, 0, y, x] = (pixel.R / 255f - mean[0]) / std[0];
+            // G channel
+            tensor[0, 1, y, x] = (pixel.G / 255f - mean[1]) / std[1];
+            // B channel
+            tensor[0, 2, y, x] = (pixel.B / 255f - mean[2]) / std[2];
         }
 
         // Run inference - get input name from model metadata (varies by CLIP export)
@@ -315,10 +307,7 @@ public class ClipEmbeddingWave : IAnalysisWave
         if (norm < 1e-10) return embedding;
 
         var normalized = new float[embedding.Length];
-        for (int i = 0; i < embedding.Length; i++)
-        {
-            normalized[i] = embedding[i] / (float)norm;
-        }
+        for (var i = 0; i < embedding.Length; i++) normalized[i] = embedding[i] / (float)norm;
 
         return normalized;
     }

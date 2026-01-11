@@ -5,7 +5,7 @@ using Spectre.Console;
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// Configuration management
+///     Configuration management
 /// </summary>
 public static class ConfigCommand
 {
@@ -51,12 +51,8 @@ public static class ConfigCommand
                 table.AddColumn(new TableColumn("[cyan]Value[/]").LeftAligned());
 
                 if (config != null)
-                {
                     foreach (var (key, value) in config)
-                    {
                         table.AddRow(Markup.Escape(key), Markup.Escape(value?.ToString() ?? "null"));
-                    }
-                }
 
                 AnsiConsole.Write(table);
             }
@@ -138,7 +134,8 @@ public static class ConfigCommand
             if (File.Exists(configPath))
             {
                 var json = await File.ReadAllTextAsync(configPath, ct);
-                config = JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new();
+                config = JsonSerializer.Deserialize<Dictionary<string, object>>(json) ??
+                         new Dictionary<string, object>();
             }
             else
             {

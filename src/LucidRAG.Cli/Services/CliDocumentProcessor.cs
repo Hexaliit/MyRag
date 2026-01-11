@@ -1,16 +1,16 @@
 using System.Security.Cryptography;
 using System.Threading.Channels;
+using LucidRAG.Data;
+using LucidRAG.Entities;
 using Microsoft.EntityFrameworkCore;
 using Mostlylucid.DocSummarizer;
 using Mostlylucid.DocSummarizer.Services;
-using LucidRAG.Data;
-using LucidRAG.Entities;
 using Spectre.Console;
 
 namespace LucidRAG.Cli.Services;
 
 /// <summary>
-/// Synchronous document processor for CLI usage with Spectre progress bars
+///     Synchronous document processor for CLI usage with Spectre progress bars
 /// </summary>
 public class CliDocumentProcessor(
     RagDocumentsDbContext db,
@@ -29,14 +29,9 @@ public class CliDocumentProcessor(
         var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
         if (!AllowedExtensions.Contains(extension))
-        {
             return new IndexResult(false, $"Unsupported file type: {extension}");
-        }
 
-        if (!File.Exists(filePath))
-        {
-            return new IndexResult(false, "File not found");
-        }
+        if (!File.Exists(filePath)) return new IndexResult(false, "File not found");
 
         // Compute hash
         await using var fileStream = File.OpenRead(filePath);
@@ -48,17 +43,14 @@ public class CliDocumentProcessor(
         // Check for duplicate
         var existing = await db.Documents
             .FirstOrDefaultAsync(d => d.ContentHash == contentHash && d.CollectionId == collectionId, ct);
-        if (existing != null)
-        {
-            return new IndexResult(true, "Already indexed", existing.Id, existing.SegmentCount);
-        }
+        if (existing != null) return new IndexResult(true, "Already indexed", existing.Id, existing.SegmentCount);
 
         // Create document entity
         var documentId = Guid.NewGuid();
         var uploadDir = Path.Combine(config.DataDirectory, "uploads", documentId.ToString());
         Directory.CreateDirectory(uploadDir);
         var savedPath = Path.Combine(uploadDir, filename);
-        File.Copy(filePath, savedPath, overwrite: true);
+        File.Copy(filePath, savedPath, true);
 
         var document = new DocumentEntity
         {
@@ -165,15 +157,18 @@ public class CliDocumentProcessor(
         return results;
     }
 
-    private static string GetMimeType(string extension) => extension switch
+    private static string GetMimeType(string extension)
     {
-        ".pdf" => "application/pdf",
-        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".md" => "text/markdown",
-        ".txt" => "text/plain",
-        ".html" => "text/html",
-        _ => "application/octet-stream"
-    };
+        return extension switch
+        {
+            ".pdf" => "application/pdf",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".md" => "text/markdown",
+            ".txt" => "text/plain",
+            ".html" => "text/html",
+            _ => "application/octet-stream"
+        };
+    }
 }
 
 public record IndexResult(

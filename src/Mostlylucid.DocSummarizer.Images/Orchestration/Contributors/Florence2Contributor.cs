@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Services.Vision;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
@@ -84,10 +85,7 @@ public sealed class Florence2Contributor : ConfiguredWaveBase
             signals["florence2.duration_ms"] = result.DurationMs;
 
             // Copy to standard signal keys
-            if (!string.IsNullOrWhiteSpace(result.Caption))
-            {
-                signals[ImageSignalKeys.Caption] = result.Caption;
-            }
+            if (!string.IsNullOrWhiteSpace(result.Caption)) signals[ImageSignalKeys.Caption] = result.Caption;
 
             if (!string.IsNullOrWhiteSpace(result.OcrText))
             {
@@ -135,10 +133,7 @@ public sealed class Florence2Contributor : ConfiguredWaveBase
             contributions.Add(contributionType);
 
             // If we should escalate, add a signal so VisionLLM knows to run
-            if (shouldEscalate)
-            {
-                _logger.LogDebug("Florence-2 recommending escalation to VisionLLM: {Reason}", reason);
-            }
+            if (shouldEscalate) _logger.LogDebug("Florence-2 recommending escalation to VisionLLM: {Reason}", reason);
 
             return contributions;
         }
@@ -165,42 +160,30 @@ public sealed class Florence2Contributor : ConfiguredWaveBase
         {
             // For text images, OCR quality determines everything
             if (ocrWordCount >= EarlyExitOcrWordCount)
-            {
                 // Good OCR result - early exit, don't need VisionLLM
                 return (0.9, true, false, $"High-quality OCR: {ocrWordCount} words extracted");
-            }
 
             if (ocrWordCount > 0 && ocrWordCount < 3)
-            {
                 // Sparse OCR - might need VisionLLM for interpretation
                 return (0.5, false, true, "Sparse OCR, escalating for interpretation");
-            }
 
             if (ocrWordCount == 0)
-            {
                 // No OCR on text image - definitely escalate
                 return (0.3, false, true, "No OCR text extracted from text image");
-            }
         }
 
         // For non-text images, caption quality matters more
         if (captionLength >= EarlyExitCaptionLength && hasCaption)
-        {
             // Detailed caption - early exit
             return (0.85, true, false, $"Detailed caption: {captionLength} chars");
-        }
 
         if (hasCaption && !hasOcr)
-        {
             // Decent caption, no text - good enough
             return (0.75, false, false, "Caption adequate, no text in image");
-        }
 
         if (!hasCaption)
-        {
             // No usable caption - escalate
             return (0.4, false, true, "Caption too short or missing");
-        }
 
         // Default - moderate quality, no early exit
         return (0.65, false, false, "Moderate quality results");
@@ -226,9 +209,9 @@ internal static class DictionaryExtensions
         return dict.ToImmutableDictionary();
     }
 
-    private static System.Collections.Immutable.ImmutableDictionary<TKey, TValue> ToImmutableDictionary<TKey, TValue>(
+    private static ImmutableDictionary<TKey, TValue> ToImmutableDictionary<TKey, TValue>(
         this Dictionary<TKey, TValue> dict) where TKey : notnull
     {
-        return System.Collections.Immutable.ImmutableDictionary.CreateRange(dict);
+        return ImmutableDictionary.CreateRange(dict);
     }
 }

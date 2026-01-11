@@ -8,12 +8,11 @@ namespace LucidRAG.Controllers.Api;
 [Route("api/[controller]")]
 public class ArticlesController : ControllerBase
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<ArticlesController> _logger;
-
     // Cache the articles for 1 hour
     private static List<ArticleDto>? _cachedArticles;
     private static DateTime _cacheExpiry = DateTime.MinValue;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<ArticlesController> _logger;
 
     public ArticlesController(IHttpClientFactory httpClientFactory, ILogger<ArticlesController> logger)
     {
@@ -22,16 +21,13 @@ public class ArticlesController : ControllerBase
     }
 
     /// <summary>
-    /// Gets RAG-related articles from the mostlylucid blog
+    ///     Gets RAG-related articles from the mostlylucid blog
     /// </summary>
     [HttpGet("rag")]
     public async Task<IActionResult> GetRagArticles()
     {
         // Return cached articles if still valid
-        if (_cachedArticles != null && DateTime.UtcNow < _cacheExpiry)
-        {
-            return Ok(_cachedArticles);
-        }
+        if (_cachedArticles != null && DateTime.UtcNow < _cacheExpiry) return Ok(_cachedArticles);
 
         try
         {
@@ -67,9 +63,21 @@ public class ArticlesController : ControllerBase
             // Return fallback articles
             return Ok(new List<ArticleDto>
             {
-                new() { Title = "Building an Agentic RAG Pipeline", Link = "https://www.mostlylucid.net/blog/agentic-rag-pipeline", Date = "2024" },
-                new() { Title = "GraphRAG Entity Extraction", Link = "https://www.mostlylucid.net/blog/graphrag-entity-extraction", Date = "2024" },
-                new() { Title = "Multi-Document RAG with ONNX", Link = "https://www.mostlylucid.net/blog/multi-document-rag", Date = "2024" }
+                new()
+                {
+                    Title = "Building an Agentic RAG Pipeline",
+                    Link = "https://www.mostlylucid.net/blog/agentic-rag-pipeline", Date = "2024"
+                },
+                new()
+                {
+                    Title = "GraphRAG Entity Extraction",
+                    Link = "https://www.mostlylucid.net/blog/graphrag-entity-extraction", Date = "2024"
+                },
+                new()
+                {
+                    Title = "Multi-Document RAG with ONNX",
+                    Link = "https://www.mostlylucid.net/blog/multi-document-rag", Date = "2024"
+                }
             });
         }
     }

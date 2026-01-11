@@ -2,17 +2,18 @@
 
 ## When to Use What
 
-| Approach | When to Use |
-|----------|-------------|
-| `--pipeline caption` | **Primary** - Standard workflows, most users |
-| `--signals "motion.*"` | Filter output to specific signals |
+| Approach                      | When to Use                                          |
+|-------------------------------|------------------------------------------------------|
+| `--pipeline caption`          | **Primary** - Standard workflows, most users         |
+| `--signals "motion.*"`        | Filter output to specific signals                    |
 | `--pipeline-file custom.yaml` | **Advanced** - Custom signal selection, team configs |
 
 **Start with `--pipeline`** - it covers most use cases. Use `--pipeline-file` only for advanced customization.
 
 ---
 
-Dynamic pipelines allow you to define custom image analysis workflows using YAML. Instead of using preset pipelines, you can specify exactly which signals you need - and only those analyzers will run.
+Dynamic pipelines allow you to define custom image analysis workflows using YAML. Instead of using preset pipelines, you
+can specify exactly which signals you need - and only those analyzers will run.
 
 ## The Ephemeral Pattern
 
@@ -20,10 +21,13 @@ The key insight behind dynamic pipelines is the **ephemeral pattern**:
 
 1. **Waves emit signals** - Each analyzer (wave) declares what signals it produces
 2. **Waves listen for signals** - Waves can depend on signals from other waves
-3. **Signal request drives execution** - When you request specific signals, only the waves that emit (or are needed for) those signals run
-4. **Early exit / escalation** - Fast local analyzers run first; if they fail, escalate to more powerful (but slower) LLM analyzers
+3. **Signal request drives execution** - When you request specific signals, only the waves that emit (or are needed for)
+   those signals run
+4. **Early exit / escalation** - Fast local analyzers run first; if they fail, escalate to more powerful (but slower)
+   LLM analyzers
 
-This means requesting `identity.sha256` runs only the IdentityWave (~5ms), while requesting `vision.llm.caption` runs the full cascade through to VisionLlmWave.
+This means requesting `identity.sha256` runs only the IdentityWave (~5ms), while requesting `vision.llm.caption` runs
+the full cascade through to VisionLlmWave.
 
 ## Quick Start
 
@@ -110,27 +114,27 @@ escalation:
 
 ## Glob Patterns
 
-| Pattern | Matches | Example |
-|---------|---------|---------|
-| `identity.*` | All signals in identity namespace | identity.sha256, identity.format |
-| `color.dominant*` | Prefix match | color.dominant_rgb, color.dominant_name |
-| `vision.llm.caption` | Exact match | Only that specific signal |
-| `@motion` | Collection expansion | motion.*, complexity.* |
-| `*` | Everything | Full pipeline |
+| Pattern              | Matches                           | Example                                 |
+|----------------------|-----------------------------------|-----------------------------------------|
+| `identity.*`         | All signals in identity namespace | identity.sha256, identity.format        |
+| `color.dominant*`    | Prefix match                      | color.dominant_rgb, color.dominant_name |
+| `vision.llm.caption` | Exact match                       | Only that specific signal               |
+| `@motion`            | Collection expansion              | motion.*, complexity.*                  |
+| `*`                  | Everything                        | Full pipeline                           |
 
 ## Predefined Collections
 
-| Collection | Signals | Use Case |
-|------------|---------|----------|
-| `@identity` | identity.* | File metadata, hashing |
-| `@motion` | motion.*, complexity.* | Animation analysis |
-| `@color` | color.* | Color extraction |
-| `@quality` | quality.* | Image quality metrics |
-| `@text` | content.text*, ocr.*, vision.llm.text | Text extraction |
-| `@vision` | vision.* | Vision LLM outputs |
-| `@alttext` | vision.llm.caption, content.text*, motion.summary | Alt text generation |
-| `@tool` | identity.*, color.dominant*, motion.*, vision.llm.*, ocr.voting.* | MCP/automation |
-| `@all` | * | Full pipeline |
+| Collection  | Signals                                                           | Use Case               |
+|-------------|-------------------------------------------------------------------|------------------------|
+| `@identity` | identity.*                                                        | File metadata, hashing |
+| `@motion`   | motion.*, complexity.*                                            | Animation analysis     |
+| `@color`    | color.*                                                           | Color extraction       |
+| `@quality`  | quality.*                                                         | Image quality metrics  |
+| `@text`     | content.text*, ocr.*, vision.llm.text                             | Text extraction        |
+| `@vision`   | vision.*                                                          | Vision LLM outputs     |
+| `@alttext`  | vision.llm.caption, content.text*, motion.summary                 | Alt text generation    |
+| `@tool`     | identity.*, color.dominant*, motion.*, vision.llm.*, ocr.voting.* | MCP/automation         |
+| `@all`      | *                                                                 | Full pipeline          |
 
 ## Wave Dependency Chain
 
@@ -148,6 +152,7 @@ Priority  Wave              Emits                    Depends On
 ```
 
 When you request `vision.llm.caption`, the orchestrator traces the dependency chain:
+
 1. VisionLlmWave emits it → needs color, motion, ocr
 2. ColorWave, MotionWave, OcrWave run first
 3. MotionWave needs identity.is_animated → IdentityWave runs first
@@ -271,17 +276,19 @@ imagesummarizer list-signals
 The signal-driven architecture enables future enhancements:
 
 ### Runtime Optimizations
+
 - **Wave timeouts** - Kill slow waves and use fallback signals
 - **Early exit** - Return as soon as requested signals are available
 - **Parallel execution** - Independent waves can run concurrently
 - **Streaming signals** - Emit signals as they're computed
 
 ### Build-Time Optimizations (Planned)
+
 - **Source Generation** - Compile YAML pipelines to optimized C# at build time
-  - Zero runtime YAML parsing overhead
-  - Static dependency resolution
-  - AOT-friendly code generation
-  - Pipeline validation at compile time
+    - Zero runtime YAML parsing overhead
+    - Static dependency resolution
+    - AOT-friendly code generation
+    - Pipeline validation at compile time
 
 ```csharp
 // Future: Generated from caption.yaml
@@ -297,4 +304,5 @@ This keeps YAML as the source of truth (easy to edit, share, version) while deli
 
 ---
 
-These patterns are fundamental to the ephemeral/reactive architecture where analyzers listen for signals they need and emit signals for downstream consumers.
+These patterns are fundamental to the ephemeral/reactive architecture where analyzers listen for signals they need and
+emit signals for downstream consumers.

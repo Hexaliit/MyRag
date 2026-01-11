@@ -5,11 +5,12 @@ using Mostlylucid.DocSummarizer.Images.Services.Vision.Clients;
 namespace LucidRAG.ImageCli.Services.OutputFormatters;
 
 /// <summary>
-/// Formats image analysis results as detailed Markdown reports.
+///     Formats image analysis results as detailed Markdown reports.
 /// </summary>
 public class MarkdownFormatter : IOutputFormatter
 {
-    public string FormatSingle(string filePath, ImageProfile profile, string? llmCaption = null, string? extractedText = null, GifMotionProfile? gifMotion = null, List<EvidenceClaim>? evidenceClaims = null)
+    public string FormatSingle(string filePath, ImageProfile profile, string? llmCaption = null,
+        string? extractedText = null, GifMotionProfile? gifMotion = null, List<EvidenceClaim>? evidenceClaims = null)
     {
         var sb = new StringBuilder();
 
@@ -24,7 +25,7 @@ public class MarkdownFormatter : IOutputFormatter
         sb.AppendLine($"- **Type:** {profile.DetectedType} ({profile.TypeConfidence:P0} confidence)");
         sb.AppendLine($"- **Format:** {profile.Format}");
         sb.AppendLine($"- **Dimensions:** {profile.Width}x{profile.Height} " +
-                     $"({profile.AspectRatio:F2}:1 aspect ratio)");
+                      $"({profile.AspectRatio:F2}:1 aspect ratio)");
         sb.AppendLine();
 
         // LLM Caption
@@ -45,26 +46,24 @@ public class MarkdownFormatter : IOutputFormatter
                 var sources = string.Join(", ", claim.Sources);
                 sb.AppendLine($"- **[{sources}]** {claim.Text}");
                 if (claim.Evidence != null && claim.Evidence.Count > 0)
-                {
                     foreach (var evidence in claim.Evidence)
-                    {
                         sb.AppendLine($"  - _{evidence}_");
-                    }
-                }
             }
+
             sb.AppendLine();
         }
 
         // Visual Characteristics
         sb.AppendLine("## Visual Characteristics");
-        sb.AppendLine($"- **Brightness:** {CategorizeValue(profile.MeanLuminance, 85, 170, "Dark", "Normal", "Bright")} " +
-                     $"(mean luminance: {profile.MeanLuminance:F1})");
+        sb.AppendLine(
+            $"- **Brightness:** {CategorizeValue(profile.MeanLuminance, 85, 170, "Dark", "Normal", "Bright")} " +
+            $"(mean luminance: {profile.MeanLuminance:F1})");
         sb.AppendLine($"- **Contrast:** {CategorizeValue(profile.LuminanceStdDev, 30, 60, "Low", "Medium", "High")} " +
-                     $"(std dev: {profile.LuminanceStdDev:F1})");
+                      $"(std dev: {profile.LuminanceStdDev:F1})");
         sb.AppendLine($"- **Sharpness:** {CategorizeSharpness(profile.LaplacianVariance)} " +
-                     $"(Laplacian variance: {profile.LaplacianVariance:F1})");
+                      $"(Laplacian variance: {profile.LaplacianVariance:F1})");
         sb.AppendLine($"- **Edge Density:** {profile.EdgeDensity:F3} " +
-                     $"({CategorizeValue(profile.EdgeDensity, 0.2, 0.5, "Low detail", "Moderate detail", "High detail")})");
+                      $"({CategorizeValue(profile.EdgeDensity, 0.2, 0.5, "Low detail", "Moderate detail", "High detail")})");
         sb.AppendLine($"- **Luminance Entropy:** {profile.LuminanceEntropy:F2}");
         sb.AppendLine($"- **Clipped Blacks:** {profile.ClippedBlacksPercent:F2}%");
         sb.AppendLine($"- **Clipped Whites:** {profile.ClippedWhitesPercent:F2}%");
@@ -73,17 +72,17 @@ public class MarkdownFormatter : IOutputFormatter
         // Text Detection
         sb.AppendLine("## Text Detection");
         var textCategory = profile.TextLikeliness > 0.4 ? "High" :
-                          profile.TextLikeliness > 0.2 ? "Medium" : "Low";
+            profile.TextLikeliness > 0.2 ? "Medium" : "Low";
         sb.AppendLine($"- **Text Likeliness:** {profile.TextLikeliness:F3} ({textCategory})");
 
         if (!string.IsNullOrEmpty(extractedText))
         {
             sb.AppendLine($"- **Extracted Text ({extractedText.Length} characters):**");
             sb.AppendLine("```");
-            sb.AppendLine(extractedText.Length > 500 ?
-                extractedText[..500] + "\n... (truncated)" : extractedText);
+            sb.AppendLine(extractedText.Length > 500 ? extractedText[..500] + "\n... (truncated)" : extractedText);
             sb.AppendLine("```");
         }
+
         sb.AppendLine();
 
         // Color Analysis
@@ -91,11 +90,12 @@ public class MarkdownFormatter : IOutputFormatter
         if (profile.DominantColors?.Any() == true)
         {
             sb.AppendLine("**Dominant Colors:**");
-            for (int i = 0; i < Math.Min(5, profile.DominantColors.Count); i++)
+            for (var i = 0; i < Math.Min(5, profile.DominantColors.Count); i++)
             {
                 var color = profile.DominantColors[i];
                 sb.AppendLine($"{i + 1}. {color.Name} (`{color.Hex}`) - {color.Percentage:F1}%");
             }
+
             sb.AppendLine();
         }
 
@@ -112,10 +112,10 @@ public class MarkdownFormatter : IOutputFormatter
             sb.AppendLine("|----------|-------|-----|----------|");
 
             foreach (var cell in profile.ColorGrid.Cells.Take(9))
-            {
-                sb.AppendLine($"| ({cell.Row},{cell.Col}) | {FindColorName(cell.Hex)} | `{cell.Hex}` | {cell.Coverage:F1}% |");
-            }
+                sb.AppendLine(
+                    $"| ({cell.Row},{cell.Col}) | {FindColorName(cell.Hex)} | `{cell.Hex}` | {cell.Coverage:F1}% |");
         }
+
         sb.AppendLine();
 
         // GIF/WebP Motion Analysis
@@ -126,7 +126,8 @@ public class MarkdownFormatter : IOutputFormatter
             sb.AppendLine($"- **Frame Rate:** {gifMotion.Fps:F1} fps ({gifMotion.FrameDelayMs}ms delay)");
             sb.AppendLine($"- **Duration:** {gifMotion.TotalDurationMs}ms{(gifMotion.Loops ? " (loops)" : "")}");
             sb.AppendLine($"- **Motion Direction:** {gifMotion.MotionDirection}");
-            sb.AppendLine($"- **Motion Magnitude:** {gifMotion.MotionMagnitude:F2} px/frame (max: {gifMotion.MaxMotionMagnitude:F2})");
+            sb.AppendLine(
+                $"- **Motion Magnitude:** {gifMotion.MotionMagnitude:F2} px/frame (max: {gifMotion.MaxMotionMagnitude:F2})");
             sb.AppendLine($"- **Motion Coverage:** {gifMotion.MotionPercentage:F1}% of frames");
             sb.AppendLine($"- **Confidence:** {gifMotion.Confidence:P0}");
 
@@ -159,10 +160,8 @@ public class MarkdownFormatter : IOutputFormatter
         {
             sb.AppendLine("## Salient Regions");
             foreach (var region in profile.SalientRegions.Take(5))
-            {
                 sb.AppendLine($"- Region at ({region.X}, {region.Y}), " +
-                             $"size {region.Width}x{region.Height}, score: {region.Score:F3}");
-            }
+                              $"size {region.Width}x{region.Height}, score: {region.Score:F3}");
             sb.AppendLine();
         }
 
@@ -205,9 +204,10 @@ public class MarkdownFormatter : IOutputFormatter
 
             foreach (var group in typeGroups)
             {
-                var percentage = (group.Count() * 100.0 / successCount);
+                var percentage = group.Count() * 100.0 / successCount;
                 sb.AppendLine($"- **{group.Key}:** {group.Count()} ({percentage:F1}%)");
             }
+
             sb.AppendLine();
 
             // GIF/WebP Motion Statistics
@@ -216,7 +216,8 @@ public class MarkdownFormatter : IOutputFormatter
             {
                 sb.AppendLine("## Animated Images (GIF/WebP)");
                 sb.AppendLine($"- **Count:** {animatedImages.Count}");
-                sb.AppendLine($"- **Avg Motion Magnitude:** {animatedImages.Average(r => r.GifMotion!.MotionMagnitude):F2} px/frame");
+                sb.AppendLine(
+                    $"- **Avg Motion Magnitude:** {animatedImages.Average(r => r.GifMotion!.MotionMagnitude):F2} px/frame");
                 sb.AppendLine($"- **Avg Frame Count:** {animatedImages.Average(r => r.GifMotion!.FrameCount):F0}");
                 sb.AppendLine($"- **Avg FPS:** {animatedImages.Average(r => r.GifMotion!.Fps):F1}");
 
@@ -226,10 +227,7 @@ public class MarkdownFormatter : IOutputFormatter
                     .Take(3);
 
                 sb.AppendLine("- **Motion Directions:**");
-                foreach (var dir in motionDirs)
-                {
-                    sb.AppendLine($"  - {dir.Key}: {dir.Count()}");
-                }
+                foreach (var dir in motionDirs) sb.AppendLine($"  - {dir.Key}: {dir.Count()}");
                 sb.AppendLine();
             }
 
@@ -240,7 +238,7 @@ public class MarkdownFormatter : IOutputFormatter
             sb.AppendLine($"- **Text Likeliness:** {successful.Average(r => r.Profile!.TextLikeliness):F3}");
             sb.AppendLine($"- **Mean Saturation:** {successful.Average(r => r.Profile!.MeanSaturation):F3}");
             sb.AppendLine($"- **Grayscale Images:** {successful.Count(r => r.Profile!.IsMostlyGrayscale)} " +
-                         $"({successful.Count(r => r.Profile!.IsMostlyGrayscale) * 100.0 / successCount:F1}%)");
+                          $"({successful.Count(r => r.Profile!.IsMostlyGrayscale) * 100.0 / successCount:F1}%)");
             sb.AppendLine();
         }
 
@@ -251,7 +249,6 @@ public class MarkdownFormatter : IOutputFormatter
         sb.AppendLine("|------|------|------------|-----------|------------|--------|--------|");
 
         foreach (var result in resultsList)
-        {
             if (result.Profile != null)
             {
                 var status = result.WasEscalated ? "✓ LLM" : "✓";
@@ -276,19 +273,18 @@ public class MarkdownFormatter : IOutputFormatter
                 }
 
                 sb.AppendLine($"| `{Path.GetFileName(result.FilePath)}` | " +
-                             $"{result.Profile.DetectedType} | " +
-                             $"{result.Profile.Width}x{result.Profile.Height} | " +
-                             $"{result.Profile.LaplacianVariance:F0} | " +
-                             $"{result.Profile.TextLikeliness:F2} | " +
-                             $"{motionDisplay} | " +
-                             $"{status} |");
+                              $"{result.Profile.DetectedType} | " +
+                              $"{result.Profile.Width}x{result.Profile.Height} | " +
+                              $"{result.Profile.LaplacianVariance:F0} | " +
+                              $"{result.Profile.TextLikeliness:F2} | " +
+                              $"{motionDisplay} | " +
+                              $"{status} |");
             }
             else
             {
                 sb.AppendLine($"| `{Path.GetFileName(result.FilePath)}` | " +
-                             $"ERROR | - | - | - | - | ✗ {result.Error} |");
+                              $"ERROR | - | - | - | - | ✗ {result.Error} |");
             }
-        }
 
         sb.AppendLine();
         sb.AppendLine("---");
@@ -314,7 +310,7 @@ public class MarkdownFormatter : IOutputFormatter
         string low, string medium, string high)
     {
         return value < lowThreshold ? low :
-               value < highThreshold ? medium : high;
+            value < highThreshold ? medium : high;
     }
 
     private static string CategorizeSharpness(double laplacianVariance)
@@ -341,7 +337,6 @@ public class MarkdownFormatter : IOutputFormatter
         var avg = (r + g + b) / 3.0;
 
         if (Math.Abs(r - g) < 30 && Math.Abs(g - b) < 30 && Math.Abs(r - b) < 30)
-        {
             return avg switch
             {
                 < 50 => "Black",
@@ -350,7 +345,6 @@ public class MarkdownFormatter : IOutputFormatter
                 < 200 => "Light Gray",
                 _ => "White"
             };
-        }
 
         if (r > g && r > b) return "Red";
         if (g > r && g > b) return "Green";

@@ -1,26 +1,31 @@
+using System.Collections;
 using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
-using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Extensions;
+using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
+using Mostlylucid.DocSummarizer.Images.Services.Pipelines;
 
 namespace Mostlylucid.ImageSummarizer.Cli.Tools;
 
 [McpServerToolType]
 public static class ImageOcrTools
 {
-    private static readonly string DefaultPipeline = Environment.GetEnvironmentVariable("OCR_PIPELINE") ?? "advancedocr";
+    private static readonly string
+        DefaultPipeline = Environment.GetEnvironmentVariable("OCR_PIPELINE") ?? "advancedocr";
+
     private static readonly string DefaultLanguage = Environment.GetEnvironmentVariable("OCR_LANGUAGE") ?? "en_US";
 
     /// <summary>
-    /// Extract text from images using advanced OCR.
+    ///     Extract text from images using advanced OCR.
     /// </summary>
     [McpServerTool(Name = "extract_text_from_image")]
-    [Description("Extract text from images (all ImageSharp formats: JPEG, PNG, GIF, BMP, TIFF, TGA, WebP, PBM) using advanced OCR. Supports animations with temporal voting for improved accuracy.")]
+    [Description(
+        "Extract text from images (all ImageSharp formats: JPEG, PNG, GIF, BMP, TIFF, TGA, WebP, PBM) using advanced OCR. Supports animations with temporal voting for improved accuracy.")]
     public static async Task<string> ExtractTextFromImageAsync(
         [Description("Path to image file (supports all ImageSharp formats: JPEG, PNG, GIF, BMP, TIFF, TGA, WebP, PBM)")]
         string imagePath,
@@ -32,13 +37,11 @@ public static class ImageOcrTools
         try
         {
             if (!File.Exists(imagePath))
-            {
                 return JsonSerializer.Serialize(new
                 {
                     success = false,
                     error = $"File not found: {imagePath}"
                 });
-            }
 
             var services = new ServiceCollection();
             services.AddDocSummarizerImages(opt =>
@@ -77,13 +80,15 @@ public static class ImageOcrTools
                     pipeline_used = pipeline ?? DefaultPipeline,
                     waves_executed = profile.ContributingWaves.Count
                 },
-                signals = includeSignals ? profile.GetAllSignals().Select(s => new
-                {
-                    source = s.Source,
-                    key = s.Key,
-                    value = s.Value?.ToString(),
-                    confidence = s.Confidence
-                }).ToList() : null
+                signals = includeSignals
+                    ? profile.GetAllSignals().Select(s => new
+                    {
+                        source = s.Source,
+                        key = s.Key,
+                        value = s.Value?.ToString(),
+                        confidence = s.Confidence
+                    }).ToList()
+                    : null
             };
 
             return JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
@@ -100,23 +105,22 @@ public static class ImageOcrTools
     }
 
     /// <summary>
-    /// Analyze image quality metrics without full OCR.
+    ///     Analyze image quality metrics without full OCR.
     /// </summary>
     [McpServerTool(Name = "analyze_image_quality")]
-    [Description("Analyze image quality metrics: text likeliness, sharpness, color analysis, motion (for GIFs). Faster than full OCR.")]
+    [Description(
+        "Analyze image quality metrics: text likeliness, sharpness, color analysis, motion (for GIFs). Faster than full OCR.")]
     public static async Task<string> AnalyzeImageQualityAsync(
         [Description("Path to image file")] string imagePath)
     {
         try
         {
             if (!File.Exists(imagePath))
-            {
                 return JsonSerializer.Serialize(new
                 {
                     success = false,
                     error = $"File not found: {imagePath}"
                 });
-            }
 
             var services = new ServiceCollection();
             services.AddDocSummarizerImages(opt =>
@@ -159,12 +163,14 @@ public static class ImageOcrTools
                         name = c.Name
                     }).ToList()
                 },
-                motion = ledger.Motion != null ? new
-                {
-                    is_animated = ledger.Identity.IsAnimated,
-                    frame_count = ledger.Motion.FrameCount,
-                    motion_intensity = ledger.Motion.MotionIntensity
-                } : null,
+                motion = ledger.Motion != null
+                    ? new
+                    {
+                        is_animated = ledger.Identity.IsAnimated,
+                        frame_count = ledger.Motion.FrameCount,
+                        motion_intensity = ledger.Motion.MotionIntensity
+                    }
+                    : null,
                 duration_ms = profile.AnalysisDurationMs
             };
 
@@ -182,15 +188,16 @@ public static class ImageOcrTools
     }
 
     /// <summary>
-    /// List available OCR pipelines.
+    ///     List available OCR pipelines.
     /// </summary>
     [McpServerTool(Name = "list_ocr_pipelines")]
-    [Description("List available OCR pipelines with details on speed, quality, and features. Helps choose the right pipeline for the task.")]
+    [Description(
+        "List available OCR pipelines with details on speed, quality, and features. Helps choose the right pipeline for the task.")]
     public static async Task<string> ListOcrPipelinesAsync()
     {
         try
         {
-            var pipelineService = new Mostlylucid.DocSummarizer.Images.Services.Pipelines.PipelineService();
+            var pipelineService = new PipelineService();
             var config = await pipelineService.LoadPipelinesAsync();
 
             var pipelines = config.Pipelines.Select(p => new
@@ -232,39 +239,39 @@ public static class ImageOcrTools
     }
 
     /// <summary>
-    /// Batch extract text from multiple images.
+    ///     Batch extract text from multiple images.
     /// </summary>
     [McpServerTool(Name = "batch_extract_text")]
-    [Description("Extract text from multiple images in a directory. Returns aggregated results with quality statistics.")]
+    [Description(
+        "Extract text from multiple images in a directory. Returns aggregated results with quality statistics.")]
     public static async Task<string> BatchExtractTextAsync(
-        [Description("Directory path containing images")] string directoryPath,
-        [Description("File pattern (e.g., '*.gif', '*.png')")] string pattern = "*.gif",
+        [Description("Directory path containing images")]
+        string directoryPath,
+        [Description("File pattern (e.g., '*.gif', '*.png')")]
+        string pattern = "*.gif",
         [Description("OCR pipeline to use")] string? pipeline = null,
-        [Description("Maximum number of files to process")] int maxFiles = 10)
+        [Description("Maximum number of files to process")]
+        int maxFiles = 10)
     {
         try
         {
             if (!Directory.Exists(directoryPath))
-            {
                 return JsonSerializer.Serialize(new
                 {
                     success = false,
                     error = $"Directory not found: {directoryPath}"
                 });
-            }
 
             var files = Directory.GetFiles(directoryPath, pattern)
                 .Take(maxFiles)
                 .ToList();
 
             if (files.Count == 0)
-            {
                 return JsonSerializer.Serialize(new
                 {
                     success = false,
                     error = $"No files matching pattern '{pattern}' found in directory"
                 });
-            }
 
             var results = new List<object>();
             var totalDuration = 0.0;
@@ -323,24 +330,24 @@ public static class ImageOcrTools
     }
 
     /// <summary>
-    /// Summarize an animated GIF with motion analysis.
+    ///     Summarize an animated GIF with motion analysis.
     /// </summary>
     [McpServerTool(Name = "summarize_animated_gif")]
-    [Description("Generate a motion-aware summary of an animated GIF, including temporal changes, text extraction, and key visual features.")]
+    [Description(
+        "Generate a motion-aware summary of an animated GIF, including temporal changes, text extraction, and key visual features.")]
     public static async Task<string> SummarizeAnimatedGifAsync(
         [Description("Path to GIF file")] string imagePath,
-        [Description("Include OCR text extraction")] bool includeText = true)
+        [Description("Include OCR text extraction")]
+        bool includeText = true)
     {
         try
         {
             if (!File.Exists(imagePath))
-            {
                 return JsonSerializer.Serialize(new
                 {
                     success = false,
                     error = $"File not found: {imagePath}"
                 });
-            }
 
             var services = new ServiceCollection();
             services.AddDocSummarizerImages(opt =>
@@ -358,7 +365,7 @@ public static class ImageOcrTools
             var ledger = profile.GetLedger();
 
             // Build motion-aware summary
-            var summary = new System.Text.StringBuilder();
+            var summary = new StringBuilder();
 
             // Basic identity
             summary.AppendLine($"{ledger.Identity.Format} image ({ledger.Identity.Width}×{ledger.Identity.Height})");
@@ -367,10 +374,7 @@ public static class ImageOcrTools
             if (ledger.Motion != null && ledger.Identity.IsAnimated)
             {
                 summary.AppendLine($"Animated: {ledger.Motion.FrameCount} frames");
-                if (ledger.Motion.Duration.HasValue)
-                {
-                    summary.AppendLine($"Duration: {ledger.Motion.Duration:F1}s");
-                }
+                if (ledger.Motion.Duration.HasValue) summary.AppendLine($"Duration: {ledger.Motion.Duration:F1}s");
                 if (ledger.Motion.MotionIntensity > 0)
                 {
                     var motionDesc = ledger.Motion.MotionIntensity switch
@@ -398,10 +402,7 @@ public static class ImageOcrTools
             if (includeText && !string.IsNullOrWhiteSpace(ledger.Text.ExtractedText))
             {
                 summary.AppendLine($"Text: \"{ledger.Text.ExtractedText}\"");
-                if (ledger.Text.Confidence > 0)
-                {
-                    summary.AppendLine($"Text confidence: {ledger.Text.Confidence:P0}");
-                }
+                if (ledger.Text.Confidence > 0) summary.AppendLine($"Text confidence: {ledger.Text.Confidence:P0}");
             }
 
             // Quality assessment
@@ -430,13 +431,15 @@ public static class ImageOcrTools
                         dimensions = $"{ledger.Identity.Width}×{ledger.Identity.Height}",
                         is_animated = ledger.Identity.IsAnimated
                     },
-                    motion = ledger.Motion != null ? new
-                    {
-                        frame_count = ledger.Motion.FrameCount,
-                        duration_seconds = ledger.Motion.Duration,
-                        motion_intensity = ledger.Motion.MotionIntensity,
-                        optical_flow_magnitude = ledger.Motion.OpticalFlowMagnitude
-                    } : null,
+                    motion = ledger.Motion != null
+                        ? new
+                        {
+                            frame_count = ledger.Motion.FrameCount,
+                            duration_seconds = ledger.Motion.Duration,
+                            motion_intensity = ledger.Motion.MotionIntensity,
+                            optical_flow_magnitude = ledger.Motion.OpticalFlowMagnitude
+                        }
+                        : null,
                     colors = new
                     {
                         is_grayscale = ledger.Colors.IsGrayscale,
@@ -446,12 +449,14 @@ public static class ImageOcrTools
                             percentage = c.Percentage
                         }).ToList()
                     },
-                    text = includeText ? new
-                    {
-                        extracted = ledger.Text.ExtractedText,
-                        confidence = ledger.Text.Confidence,
-                        word_count = ledger.Text.WordCount
-                    } : null,
+                    text = includeText
+                        ? new
+                        {
+                            extracted = ledger.Text.ExtractedText,
+                            confidence = ledger.Text.Confidence,
+                            word_count = ledger.Text.WordCount
+                        }
+                        : null,
                     quality = new
                     {
                         sharpness = ledger.Quality.Sharpness,
@@ -475,24 +480,24 @@ public static class ImageOcrTools
     }
 
     /// <summary>
-    /// Generate a concise caption for an image.
+    ///     Generate a concise caption for an image.
     /// </summary>
     [McpServerTool(Name = "generate_caption")]
-    [Description("Generate a concise, accessible caption for an image. Optimized for alt-text, social media, or quick descriptions.")]
+    [Description(
+        "Generate a concise, accessible caption for an image. Optimized for alt-text, social media, or quick descriptions.")]
     public static async Task<string> GenerateCaptionAsync(
         [Description("Path to image file")] string imagePath,
-        [Description("Maximum caption length in characters")] int maxLength = 150)
+        [Description("Maximum caption length in characters")]
+        int maxLength = 150)
     {
         try
         {
             if (!File.Exists(imagePath))
-            {
                 return JsonSerializer.Serialize(new
                 {
                     success = false,
                     error = $"File not found: {imagePath}"
                 });
-            }
 
             var services = new ServiceCollection();
             services.AddDocSummarizerImages(opt =>
@@ -512,10 +517,7 @@ public static class ImageOcrTools
             var caption = ledger.ToAltTextContext();
 
             // Truncate if needed
-            if (caption.Length > maxLength)
-            {
-                caption = caption.Substring(0, maxLength - 3) + "...";
-            }
+            if (caption.Length > maxLength) caption = caption.Substring(0, maxLength - 3) + "...";
 
             var result = new
             {
@@ -547,23 +549,22 @@ public static class ImageOcrTools
     }
 
     /// <summary>
-    /// Generate a detailed description of an image.
+    ///     Generate a detailed description of an image.
     /// </summary>
     [McpServerTool(Name = "generate_detailed_description")]
-    [Description("Generate a comprehensive description of an image including composition, colors, text, motion (for GIFs), and quality assessment.")]
+    [Description(
+        "Generate a comprehensive description of an image including composition, colors, text, motion (for GIFs), and quality assessment.")]
     public static async Task<string> GenerateDetailedDescriptionAsync(
         [Description("Path to image file")] string imagePath)
     {
         try
         {
             if (!File.Exists(imagePath))
-            {
                 return JsonSerializer.Serialize(new
                 {
                     success = false,
                     error = $"File not found: {imagePath}"
                 });
-            }
 
             var services = new ServiceCollection();
             services.AddDocSummarizerImages(opt =>
@@ -615,13 +616,15 @@ public static class ImageOcrTools
                         text_quality = ledger.Text.SpellCheckScore,
                         word_count = ledger.Text.WordCount
                     },
-                    motion = ledger.Motion != null ? new
-                    {
-                        is_animated = ledger.Identity.IsAnimated,
-                        frames = ledger.Motion.FrameCount,
-                        duration = ledger.Motion.Duration,
-                        intensity = ledger.Motion.MotionIntensity
-                    } : null,
+                    motion = ledger.Motion != null
+                        ? new
+                        {
+                            is_animated = ledger.Identity.IsAnimated,
+                            frames = ledger.Motion.FrameCount,
+                            duration = ledger.Motion.Duration,
+                            intensity = ledger.Motion.MotionIntensity
+                        }
+                        : null,
                     quality = new
                     {
                         sharpness = ledger.Quality.Sharpness,
@@ -646,27 +649,28 @@ public static class ImageOcrTools
     }
 
     /// <summary>
-    /// Analyze image using a customizable output template.
+    ///     Analyze image using a customizable output template.
     /// </summary>
     [McpServerTool(Name = "analyze_with_template")]
-    [Description("Analyze an image and format the output using a predefined template or custom format string. Supports variable substitution and conditional formatting.")]
+    [Description(
+        "Analyze an image and format the output using a predefined template or custom format string. Supports variable substitution and conditional formatting.")]
     public static async Task<string> AnalyzeWithTemplateAsync(
         [Description("Path to image file")] string imagePath,
-        [Description("Template name (social_media, accessibility, seo, technical_report, animated_gif_summary, markdown_blog, content_moderation, json_structured) or 'custom'")]
+        [Description(
+            "Template name (social_media, accessibility, seo, technical_report, animated_gif_summary, markdown_blog, content_moderation, json_structured) or 'custom'")]
         string templateName = "social_media",
-        [Description("Custom format string (only used when templateName='custom'). Use {variable.path} for substitution.")]
+        [Description(
+            "Custom format string (only used when templateName='custom'). Use {variable.path} for substitution.")]
         string? customFormat = null)
     {
         try
         {
             if (!File.Exists(imagePath))
-            {
                 return JsonSerializer.Serialize(new
                 {
                     success = false,
                     error = $"File not found: {imagePath}"
                 });
-            }
 
             var services = new ServiceCollection();
             services.AddDocSummarizerImages(opt =>
@@ -695,13 +699,11 @@ public static class ImageOcrTools
             else
             {
                 if (!File.Exists(templatePath))
-                {
                     return JsonSerializer.Serialize(new
                     {
                         success = false,
                         error = "Template configuration file not found. Using templates is currently unavailable."
                     });
-                }
 
                 var templatesJson = await File.ReadAllTextAsync(templatePath);
                 var templatesDoc = JsonDocument.Parse(templatesJson);
@@ -709,33 +711,26 @@ public static class ImageOcrTools
 
                 JsonElement? selectedTemplate = null;
                 foreach (var template in templatesArray.EnumerateArray())
-                {
                     if (template.GetProperty("name").GetString() == templateName)
                     {
                         selectedTemplate = template;
                         break;
                     }
-                }
 
                 if (!selectedTemplate.HasValue)
-                {
                     return JsonSerializer.Serialize(new
                     {
                         success = false,
-                        error = $"Template '{templateName}' not found. Available templates: social_media, accessibility, seo, technical_report, animated_gif_summary, markdown_blog, content_moderation, json_structured, custom"
+                        error =
+                            $"Template '{templateName}' not found. Available templates: social_media, accessibility, seo, technical_report, animated_gif_summary, markdown_blog, content_moderation, json_structured, custom"
                     });
-                }
 
                 templateFormat = selectedTemplate.Value.GetProperty("format").GetString() ?? "{llm_summary}";
                 variables = new Dictionary<string, string>();
 
                 if (selectedTemplate.Value.TryGetProperty("variables", out var varsElement))
-                {
                     foreach (var varProp in varsElement.EnumerateObject())
-                    {
                         variables[varProp.Name] = varProp.Value.GetString() ?? "";
-                    }
-                }
             }
 
             // Build variable context from ledger
@@ -768,7 +763,7 @@ public static class ImageOcrTools
     }
 
     /// <summary>
-    /// List available output templates.
+    ///     List available output templates.
     /// </summary>
     [McpServerTool(Name = "list_output_templates")]
     [Description("List all available output templates with descriptions and example usage.")]
@@ -779,13 +774,11 @@ public static class ImageOcrTools
             var templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Config", "output-templates.json");
 
             if (!File.Exists(templatePath))
-            {
                 return JsonSerializer.Serialize(new
                 {
                     success = false,
                     error = "Template configuration file not found"
                 });
-            }
 
             var templatesJson = await File.ReadAllTextAsync(templatePath);
             var templatesDoc = JsonDocument.Parse(templatesJson);
@@ -820,8 +813,8 @@ public static class ImageOcrTools
 
     // Helper: Build variable context from ledger
     private static Dictionary<string, object?> BuildVariableContext(
-        Mostlylucid.DocSummarizer.Images.Models.Dynamic.ImageLedger ledger,
-        Mostlylucid.DocSummarizer.Images.Models.Dynamic.DynamicImageProfile profile,
+        ImageLedger ledger,
+        DynamicImageProfile profile,
         string imagePath)
     {
         var fileInfo = new FileInfo(imagePath);
@@ -863,7 +856,8 @@ public static class ImageOcrTools
     }
 
     // Helper: Process template with variable substitution
-    private static string ProcessTemplate(string template, Dictionary<string, string> variables, Dictionary<string, object?> context)
+    private static string ProcessTemplate(string template, Dictionary<string, string> variables,
+        Dictionary<string, object?> context)
     {
         var output = template;
 
@@ -880,10 +874,7 @@ public static class ImageOcrTools
             var placeholder = match.Groups[1].Value;
 
             // Check if it's a variable reference
-            if (variables.ContainsKey(placeholder))
-            {
-                return variables[placeholder];
-            }
+            if (variables.ContainsKey(placeholder)) return variables[placeholder];
 
             // Otherwise, try direct context lookup
             return GetContextValue(placeholder, context);
@@ -939,8 +930,7 @@ public static class ImageOcrTools
             var index = int.Parse(arrayMatch.Groups[2].Value);
             var property = arrayMatch.Groups[3].Value;
 
-            if (context.TryGetValue(arrayKey, out var arrayObj) && arrayObj is System.Collections.IList list)
-            {
+            if (context.TryGetValue(arrayKey, out var arrayObj) && arrayObj is IList list)
                 if (index < list.Count)
                 {
                     var item = list[index];
@@ -954,15 +944,12 @@ public static class ImageOcrTools
                         }
                     }
                 }
-            }
+
             return "";
         }
 
         // Direct lookup
-        if (context.TryGetValue(placeholder, out var obj))
-        {
-            return obj?.ToString() ?? "";
-        }
+        if (context.TryGetValue(placeholder, out var obj)) return obj?.ToString() ?? "";
 
         return $"{{{placeholder}}}"; // Return unchanged if not found
     }
@@ -979,7 +966,6 @@ public static class ImageOcrTools
             var right = comparisonMatch.Groups[3].Value.Trim();
 
             if (double.TryParse(left, out var leftNum) && double.TryParse(right, out var rightNum))
-            {
                 return op switch
                 {
                     ">" => leftNum > rightNum,
@@ -987,7 +973,6 @@ public static class ImageOcrTools
                     "==" => Math.Abs(leftNum - rightNum) < 0.0001,
                     _ => false
                 };
-            }
 
             return op == "==" && left == right;
         }

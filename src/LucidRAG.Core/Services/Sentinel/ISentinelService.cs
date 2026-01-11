@@ -55,6 +55,58 @@ public interface ISentinelService
     /// Falls back to this when no LLM available or for simple queries.
     /// </summary>
     QueryPlan DecomposeTraditional(string query, SchemaContext schema);
+
+    /// <summary>
+    /// Detect if a query is a follow-up to a previous topic.
+    /// Uses coreference detection, semantic similarity, and conversation context.
+    /// </summary>
+    /// <param name="query">The new query to analyze.</param>
+    /// <param name="previousQuery">The previous topic-establishing query.</param>
+    /// <param name="conversationHistory">Recent conversation messages (optional).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Follow-up detection result with confidence and resolved query.</returns>
+    Task<FollowUpDetectionResult> DetectFollowUpAsync(
+        string query,
+        string? previousQuery,
+        IReadOnlyList<string>? conversationHistory = null,
+        CancellationToken ct = default);
+}
+
+/// <summary>
+/// Result of follow-up detection analysis.
+/// </summary>
+public record FollowUpDetectionResult
+{
+    /// <summary>
+    /// Whether this query is detected as a follow-up to the previous topic.
+    /// </summary>
+    public bool IsFollowUp { get; init; }
+
+    /// <summary>
+    /// Confidence score (0.0-1.0) in the follow-up detection.
+    /// </summary>
+    public double Confidence { get; init; }
+
+    /// <summary>
+    /// The reason for the classification (for debugging/transparency).
+    /// </summary>
+    public string? Reason { get; init; }
+
+    /// <summary>
+    /// The resolved query with coreferences expanded.
+    /// E.g., "Tell me more about it" -> "Tell me more about GraphRAG entity extraction"
+    /// </summary>
+    public string? ResolvedQuery { get; init; }
+
+    /// <summary>
+    /// Detected coreferences that were resolved (e.g., "it" -> "GraphRAG").
+    /// </summary>
+    public Dictionary<string, string>? ResolvedCoreferences { get; init; }
+
+    /// <summary>
+    /// Whether to use the same document set from the previous query.
+    /// </summary>
+    public bool UseSameDocumentSet { get; init; }
 }
 
 /// <summary>

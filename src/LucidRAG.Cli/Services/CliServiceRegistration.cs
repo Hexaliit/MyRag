@@ -1,36 +1,36 @@
+using AudioSummarizer.Core.Config;
+using AudioSummarizer.Core.Extensions;
+using LucidRAG.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Config;
-using Mostlylucid.DocSummarizer.Extensions;
-using Mostlylucid.DocSummarizer.Services;
-using Mostlylucid.DocSummarizer.Images.Extensions;
-using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Data.Extensions;
+using Mostlylucid.DocSummarizer.Extensions;
+using Mostlylucid.DocSummarizer.Images.Config;
+using Mostlylucid.DocSummarizer.Images.Extensions;
+using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.Summarizer.Core.Extensions;
-using AudioSummarizer.Core.Extensions;
-using AudioSummarizer.Core.Config;
-using LucidRAG.Data;
 using Serilog;
+using Serilog.Events;
 
 namespace LucidRAG.Cli.Services;
 
 /// <summary>
-/// Service registration for CLI-specific DI container
-/// Uses SQLite + in-memory vectors for zero-dependency local storage
+///     Service registration for CLI-specific DI container
+///     Uses SQLite + in-memory vectors for zero-dependency local storage
 /// </summary>
 public static class CliServiceRegistration
 {
     /// <summary>
-    /// Build a service provider configured for CLI usage with local storage
+    ///     Build a service provider configured for CLI usage with local storage
     /// </summary>
     public static ServiceProvider BuildServiceProvider(CliConfig config, bool verbose = false)
     {
         var services = new ServiceCollection();
 
         // Logging via Serilog - suppress DocSummarizer internal messages unless verbose
-        var logLevel = verbose ? Serilog.Events.LogEventLevel.Debug : Serilog.Events.LogEventLevel.Information;
-        var docSummarizerLogLevel = verbose ? Serilog.Events.LogEventLevel.Debug : Serilog.Events.LogEventLevel.Warning;
+        var logLevel = verbose ? LogEventLevel.Debug : LogEventLevel.Information;
+        var docSummarizerLogLevel = verbose ? LogEventLevel.Debug : LogEventLevel.Warning;
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Is(logLevel)
             // Suppress all DocSummarizer.* namespace logs unless verbose
@@ -127,7 +127,7 @@ public static class CliServiceRegistration
     }
 
     /// <summary>
-    /// Ensure database is created and up to date
+    ///     Ensure database is created and up to date
     /// </summary>
     public static async Task EnsureDatabaseAsync(IServiceProvider services)
     {
@@ -138,7 +138,7 @@ public static class CliServiceRegistration
 }
 
 /// <summary>
-/// CLI configuration
+///     CLI configuration
 /// </summary>
 public class CliConfig
 {

@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
@@ -8,17 +7,15 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.DocSummarizer.Images.Services.Vision.Clients;
 
 /// <summary>
-/// Anthropic Claude Vision client for image analysis
-/// Uses Claude 3.5 Sonnet or Claude 3 Opus with vision capabilities
+///     Anthropic Claude Vision client for image analysis
+///     Uses Claude 3.5 Sonnet or Claude 3 Opus with vision capabilities
 /// </summary>
 public class AnthropicVisionClient : IVisionClient
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<AnthropicVisionClient> _logger;
     private readonly string _apiKey;
     private readonly string _defaultModel;
-
-    public string Provider => "Anthropic";
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<AnthropicVisionClient> _logger;
 
     public AnthropicVisionClient(IConfiguration configuration, ILogger<AnthropicVisionClient> logger)
     {
@@ -41,12 +38,13 @@ public class AnthropicVisionClient : IVisionClient
         }
     }
 
+    public string Provider => "Anthropic";
+
     public async Task<(bool Available, string? Message)> CheckAvailabilityAsync(CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(_apiKey))
-        {
-            return (false, "Anthropic API key not configured. Set ANTHROPIC_API_KEY environment variable or configure in appsettings.json");
-        }
+            return (false,
+                "Anthropic API key not configured. Set ANTHROPIC_API_KEY environment variable or configure in appsettings.json");
 
         try
         {
@@ -63,15 +61,10 @@ public class AnthropicVisionClient : IVisionClient
 
             var response = await _httpClient.PostAsJsonAsync("/v1/messages", testRequest, ct);
 
-            if (response.IsSuccessStatusCode)
-            {
-                return (true, $"Anthropic ready with {_defaultModel}");
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync(ct);
-                return (false, $"Anthropic API error: {response.StatusCode} - {errorContent}");
-            }
+            if (response.IsSuccessStatusCode) return (true, $"Anthropic ready with {_defaultModel}");
+
+            var errorContent = await response.Content.ReadAsStringAsync(ct);
+            return (false, $"Anthropic API error: {response.StatusCode} - {errorContent}");
         }
         catch (Exception ex)
         {
@@ -87,13 +80,11 @@ public class AnthropicVisionClient : IVisionClient
         CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(_apiKey))
-        {
             return new VisionResult(
-                Success: false,
-                Error: "Anthropic API key not configured",
-                Caption: null,
+                false,
+                "Anthropic API key not configured",
+                null,
                 Provider: Provider);
-        }
 
         try
         {
@@ -155,24 +146,22 @@ public class AnthropicVisionClient : IVisionClient
                 var errorContent = await response.Content.ReadAsStringAsync(ct);
                 _logger.LogError("Anthropic API error: {StatusCode} - {Error}", response.StatusCode, errorContent);
                 return new VisionResult(
-                    Success: false,
-                    Error: $"API error: {response.StatusCode}",
-                    Caption: null,
-                    Model: modelToUse,
-                    Provider: Provider);
+                    false,
+                    $"API error: {response.StatusCode}",
+                    null,
+                    modelToUse,
+                    Provider);
             }
 
             var result = await response.Content.ReadFromJsonAsync<AnthropicResponse>(ct);
 
             if (result?.Content == null || result.Content.Count == 0)
-            {
                 return new VisionResult(
-                    Success: false,
-                    Error: "No response from Anthropic",
-                    Caption: null,
-                    Model: modelToUse,
-                    Provider: Provider);
-            }
+                    false,
+                    "No response from Anthropic",
+                    null,
+                    modelToUse,
+                    Provider);
 
             var responseText = result.Content[0].Text;
 
@@ -195,13 +184,11 @@ public class AnthropicVisionClient : IVisionClient
             var jsonStart = jsonText.IndexOf('{');
             var jsonEnd = jsonText.LastIndexOf('}');
             if (jsonStart >= 0 && jsonEnd > jsonStart)
-            {
                 jsonText = jsonText.Substring(jsonStart, jsonEnd - jsonStart + 1);
-            }
 
             try
             {
-                var visionResponse = System.Text.Json.JsonSerializer.Deserialize<VisionJsonResponse>(jsonText);
+                var visionResponse = JsonSerializer.Deserialize<VisionJsonResponse>(jsonText);
                 if (visionResponse?.Caption != null)
                 {
                     caption = visionResponse.Caption;
@@ -224,15 +211,18 @@ public class AnthropicVisionClient : IVisionClient
                             TargetAudience = visionResponse.Metadata.TargetAudience,
                             Confidence = visionResponse.Metadata.Confidence ?? 1.0
                         };
-                        _logger.LogWarning("✓ Parsed enhanced metadata: Tone={Tone}, Sentiment={Sentiment}, Complexity={Complexity}, Purpose={Purpose}",
-                            enhancedMetadata.Tone, enhancedMetadata.Sentiment, enhancedMetadata.Complexity, enhancedMetadata.Purpose);
+                        _logger.LogWarning(
+                            "✓ Parsed enhanced metadata: Tone={Tone}, Sentiment={Sentiment}, Complexity={Complexity}, Purpose={Purpose}",
+                            enhancedMetadata.Tone, enhancedMetadata.Sentiment, enhancedMetadata.Complexity,
+                            enhancedMetadata.Purpose);
                     }
                     else
                     {
                         _logger.LogWarning("✗ JSON response parsed but metadata field is null");
                     }
 
-                    _logger.LogDebug("Parsed structured response with {ClaimCount} evidence claims", claims?.Count ?? 0);
+                    _logger.LogDebug("Parsed structured response with {ClaimCount} evidence claims",
+                        claims?.Count ?? 0);
                 }
                 else
                 {
@@ -248,14 +238,15 @@ public class AnthropicVisionClient : IVisionClient
                 caption = responseText;
             }
 
-            _logger.LogInformation("Anthropic vision analysis completed for {ImagePath} using {Model}", imagePath, modelToUse);
+            _logger.LogInformation("Anthropic vision analysis completed for {ImagePath} using {Model}", imagePath,
+                modelToUse);
 
             return new VisionResult(
-                Success: true,
-                Error: null,
-                Caption: caption,
-                Model: modelToUse,
-                Provider: Provider,
+                true,
+                null,
+                caption,
+                modelToUse,
+                Provider,
                 Metadata: new Dictionary<string, object>
                 {
                     { "stop_reason", result.StopReason ?? "unknown" },
@@ -269,9 +260,9 @@ public class AnthropicVisionClient : IVisionClient
         {
             _logger.LogError(ex, "Anthropic vision analysis failed for {ImagePath}", imagePath);
             return new VisionResult(
-                Success: false,
-                Error: $"Analysis failed: {ex.Message}",
-                Caption: null,
+                false,
+                $"Analysis failed: {ex.Message}",
+                null,
                 Provider: Provider);
         }
     }
@@ -282,9 +273,11 @@ internal record AnthropicResponse(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("role")] string Role,
-    [property: JsonPropertyName("content")] List<AnthropicContent> Content,
+    [property: JsonPropertyName("content")]
+    List<AnthropicContent> Content,
     [property: JsonPropertyName("model")] string Model,
-    [property: JsonPropertyName("stop_reason")] string? StopReason,
+    [property: JsonPropertyName("stop_reason")]
+    string? StopReason,
     [property: JsonPropertyName("usage")] AnthropicUsage? Usage);
 
 internal record AnthropicContent(
@@ -292,26 +285,39 @@ internal record AnthropicContent(
     [property: JsonPropertyName("text")] string Text);
 
 internal record AnthropicUsage(
-    [property: JsonPropertyName("input_tokens")] int InputTokens,
-    [property: JsonPropertyName("output_tokens")] int OutputTokens);
+    [property: JsonPropertyName("input_tokens")]
+    int InputTokens,
+    [property: JsonPropertyName("output_tokens")]
+    int OutputTokens);
 
 // Vision JSON response models (structured evidence format)
 internal record VisionJsonResponse(
-    [property: JsonPropertyName("caption")] string? Caption,
+    [property: JsonPropertyName("caption")]
+    string? Caption,
     [property: JsonPropertyName("claims")] List<VisionJsonClaim>? Claims,
-    [property: JsonPropertyName("metadata")] VisionJsonMetadata? Metadata);
+    [property: JsonPropertyName("metadata")]
+    VisionJsonMetadata? Metadata);
 
 internal record VisionJsonClaim(
     [property: JsonPropertyName("text")] string Text,
-    [property: JsonPropertyName("sources")] List<string>? Sources,
-    [property: JsonPropertyName("evidence")] List<string>? Evidence);
+    [property: JsonPropertyName("sources")]
+    List<string>? Sources,
+    [property: JsonPropertyName("evidence")]
+    List<string>? Evidence);
 
 internal record VisionJsonMetadata(
     [property: JsonPropertyName("tone")] string? Tone,
-    [property: JsonPropertyName("sentiment")] double? Sentiment,
-    [property: JsonPropertyName("complexity")] double? Complexity,
-    [property: JsonPropertyName("aesthetic_score")] double? AestheticScore,
-    [property: JsonPropertyName("primary_subject")] string? PrimarySubject,
-    [property: JsonPropertyName("purpose")] string? Purpose,
-    [property: JsonPropertyName("target_audience")] string? TargetAudience,
-    [property: JsonPropertyName("confidence")] double? Confidence);
+    [property: JsonPropertyName("sentiment")]
+    double? Sentiment,
+    [property: JsonPropertyName("complexity")]
+    double? Complexity,
+    [property: JsonPropertyName("aesthetic_score")]
+    double? AestheticScore,
+    [property: JsonPropertyName("primary_subject")]
+    string? PrimarySubject,
+    [property: JsonPropertyName("purpose")]
+    string? Purpose,
+    [property: JsonPropertyName("target_audience")]
+    string? TargetAudience,
+    [property: JsonPropertyName("confidence")]
+    double? Confidence);

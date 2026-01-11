@@ -19,7 +19,10 @@
       "estimatedDurationSeconds": 0.5,
       "accuracyImprovement": 0,
       "isDefault": false,
-      "tags": ["fast", "baseline"],
+      "tags": [
+        "fast",
+        "baseline"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 2000,
         "enableParallelization": false,
@@ -34,11 +37,17 @@
           "priority": 100,
           "waveType": "ColorWave",
           "inputs": [],
-          "outputs": ["color.dominant_colors", "color.palette", "content.text_likeliness"],
+          "outputs": [
+            "color.dominant_colors",
+            "color.palette",
+            "content.text_likeliness"
+          ],
           "artifacts": [],
           "costWeight": 1,
           "fallbackOnTimeout": "degrade",
-          "tags": ["preprocessing"]
+          "tags": [
+            "preprocessing"
+          ]
         },
         {
           "id": "simple-ocr",
@@ -47,13 +56,24 @@
           "enabled": true,
           "priority": 60,
           "waveType": "OcrWave",
-          "inputs": ["image"],
-          "outputs": ["ocr.text", "ocr.confidence", "ocr.regions"],
-          "artifacts": ["ocr.raw"],
+          "inputs": [
+            "image"
+          ],
+          "outputs": [
+            "ocr.text",
+            "ocr.confidence",
+            "ocr.regions"
+          ],
+          "artifacts": [
+            "ocr.raw"
+          ],
           "costWeight": 3,
           "fallbackOnTimeout": "abort",
           "maxDurationMs": 1000,
-          "tags": ["ocr", "baseline"]
+          "tags": [
+            "ocr",
+            "baseline"
+          ]
         },
         {
           "id": "spell-check",
@@ -62,13 +82,24 @@
           "enabled": true,
           "priority": 58,
           "waveType": "OcrQualityWave",
-          "dependsOn": ["simple-ocr"],
-          "inputs": ["ocr.text"],
-          "outputs": ["ocr.quality.score", "ocr.quality.spell_check_score", "ocr.quality.is_garbled"],
+          "dependsOn": [
+            "simple-ocr"
+          ],
+          "inputs": [
+            "ocr.text"
+          ],
+          "outputs": [
+            "ocr.quality.score",
+            "ocr.quality.spell_check_score",
+            "ocr.quality.is_garbled"
+          ],
           "artifacts": [],
           "costWeight": 1,
           "fallbackOnTimeout": "skip",
-          "tags": ["quality", "spell-check"]
+          "tags": [
+            "quality",
+            "spell-check"
+          ]
         }
       ]
     },
@@ -80,7 +111,10 @@
       "estimatedDurationSeconds": 2.5,
       "accuracyImprovement": 25,
       "isDefault": true,
-      "tags": ["balanced", "recommended"],
+      "tags": [
+        "balanced",
+        "recommended"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 5000,
         "globalEarlyExitPredicate": "ocr.quality.score >= 0.95 && ocr.text.length >= 5"
@@ -94,11 +128,17 @@
           "priority": 100,
           "waveType": "ColorWave",
           "inputs": [],
-          "outputs": ["color.dominant_colors", "color.palette", "content.text_likeliness"],
+          "outputs": [
+            "color.dominant_colors",
+            "color.palette",
+            "content.text_likeliness"
+          ],
           "artifacts": [],
           "costWeight": 1,
           "fallbackOnTimeout": "degrade",
-          "tags": ["preprocessing"]
+          "tags": [
+            "preprocessing"
+          ]
         },
         {
           "id": "simple-ocr",
@@ -107,13 +147,24 @@
           "enabled": true,
           "priority": 60,
           "waveType": "OcrWave",
-          "inputs": ["image"],
-          "outputs": ["ocr.text", "ocr.confidence", "ocr.regions"],
-          "artifacts": ["ocr.raw"],
+          "inputs": [
+            "image"
+          ],
+          "outputs": [
+            "ocr.text",
+            "ocr.confidence",
+            "ocr.regions"
+          ],
+          "artifacts": [
+            "ocr.raw"
+          ],
           "costWeight": 3,
           "fallbackOnTimeout": "abort",
           "maxDurationMs": 1000,
-          "tags": ["ocr", "baseline"]
+          "tags": [
+            "ocr",
+            "baseline"
+          ]
         },
         {
           "id": "advanced-ocr",
@@ -122,10 +173,22 @@
           "enabled": true,
           "priority": 59,
           "waveType": "AdvancedOcrWave",
-          "dependsOn": ["simple-ocr"],
-          "inputs": ["frames.extracted"],
-          "outputs": ["ocr.voting.consensus_text", "ocr.voting.confidence", "ocr.segments"],
-          "artifacts": ["frames.composited", "plate.median", "ocr.voted"],
+          "dependsOn": [
+            "simple-ocr"
+          ],
+          "inputs": [
+            "frames.extracted"
+          ],
+          "outputs": [
+            "ocr.voting.consensus_text",
+            "ocr.voting.confidence",
+            "ocr.segments"
+          ],
+          "artifacts": [
+            "frames.composited",
+            "plate.median",
+            "ocr.voted"
+          ],
           "costWeight": 10,
           "fallbackOnTimeout": "degrade",
           "parameters": {
@@ -138,7 +201,11 @@
             "enableVoting": true,
             "votingConfidenceThreshold": 0.3
           },
-          "tags": ["ocr", "temporal", "advanced"]
+          "tags": [
+            "ocr",
+            "temporal",
+            "advanced"
+          ]
         },
         {
           "id": "spell-check",
@@ -147,9 +214,18 @@
           "enabled": true,
           "priority": 58,
           "waveType": "OcrQualityWave",
-          "dependsOn": ["advanced-ocr"],
-          "inputs": ["ocr.voting.consensus_text"],
-          "outputs": ["ocr.quality.score", "ocr.quality.spell_check_score", "ocr.quality.is_garbled", "pipeline.exit"],
+          "dependsOn": [
+            "advanced-ocr"
+          ],
+          "inputs": [
+            "ocr.voting.consensus_text"
+          ],
+          "outputs": [
+            "ocr.quality.score",
+            "ocr.quality.spell_check_score",
+            "ocr.quality.is_garbled",
+            "pipeline.exit"
+          ],
           "artifacts": [],
           "costWeight": 1,
           "fallbackOnTimeout": "skip",
@@ -158,7 +234,10 @@
             "garbledThreshold": 0.5,
             "setExitSignalOnQuality": true
           },
-          "tags": ["quality", "spell-check"]
+          "tags": [
+            "quality",
+            "spell-check"
+          ]
         }
       ]
     },
@@ -170,7 +249,11 @@
       "estimatedDurationSeconds": 12,
       "accuracyImprovement": 45,
       "isDefault": false,
-      "tags": ["quality", "slow", "accurate"],
+      "tags": [
+        "quality",
+        "slow",
+        "accurate"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 30000,
         "globalEarlyExitPredicate": "ocr.quality.score >= 0.98 && ocr.text.length >= 5"
@@ -184,11 +267,17 @@
           "priority": 100,
           "waveType": "ColorWave",
           "inputs": [],
-          "outputs": ["color.dominant_colors", "color.palette", "content.text_likeliness"],
+          "outputs": [
+            "color.dominant_colors",
+            "color.palette",
+            "content.text_likeliness"
+          ],
           "artifacts": [],
           "costWeight": 1,
           "fallbackOnTimeout": "degrade",
-          "tags": ["preprocessing"]
+          "tags": [
+            "preprocessing"
+          ]
         },
         {
           "id": "simple-ocr",
@@ -197,13 +286,24 @@
           "enabled": true,
           "priority": 60,
           "waveType": "OcrWave",
-          "inputs": ["image"],
-          "outputs": ["ocr.text", "ocr.confidence", "ocr.regions"],
-          "artifacts": ["ocr.raw"],
+          "inputs": [
+            "image"
+          ],
+          "outputs": [
+            "ocr.text",
+            "ocr.confidence",
+            "ocr.regions"
+          ],
+          "artifacts": [
+            "ocr.raw"
+          ],
           "costWeight": 3,
           "fallbackOnTimeout": "abort",
           "maxDurationMs": 1000,
-          "tags": ["ocr", "baseline"]
+          "tags": [
+            "ocr",
+            "baseline"
+          ]
         },
         {
           "id": "advanced-ocr",
@@ -212,10 +312,24 @@
           "enabled": true,
           "priority": 59,
           "waveType": "AdvancedOcrWave",
-          "dependsOn": ["simple-ocr"],
-          "inputs": ["frames.extracted"],
-          "outputs": ["ocr.voting.consensus_text", "ocr.voting.confidence", "ocr.segments"],
-          "artifacts": ["frames.composited", "frames.stabilized", "plate.median", "plate.sr", "ocr.voted"],
+          "dependsOn": [
+            "simple-ocr"
+          ],
+          "inputs": [
+            "frames.extracted"
+          ],
+          "outputs": [
+            "ocr.voting.consensus_text",
+            "ocr.voting.confidence",
+            "ocr.segments"
+          ],
+          "artifacts": [
+            "frames.composited",
+            "frames.stabilized",
+            "plate.median",
+            "plate.sr",
+            "ocr.voted"
+          ],
           "costWeight": 20,
           "fallbackOnTimeout": "degrade",
           "parameters": {
@@ -229,7 +343,11 @@
             "votingConfidenceThreshold": 0.2,
             "votingMinFrames": 5
           },
-          "tags": ["ocr", "temporal", "advanced"]
+          "tags": [
+            "ocr",
+            "temporal",
+            "advanced"
+          ]
         },
         {
           "id": "spell-check",
@@ -238,9 +356,18 @@
           "enabled": true,
           "priority": 58,
           "waveType": "OcrQualityWave",
-          "dependsOn": ["advanced-ocr"],
-          "inputs": ["ocr.voting.consensus_text"],
-          "outputs": ["ocr.quality.score", "ocr.quality.spell_check_score", "ocr.quality.is_garbled", "pipeline.exit"],
+          "dependsOn": [
+            "advanced-ocr"
+          ],
+          "inputs": [
+            "ocr.voting.consensus_text"
+          ],
+          "outputs": [
+            "ocr.quality.score",
+            "ocr.quality.spell_check_score",
+            "ocr.quality.is_garbled",
+            "pipeline.exit"
+          ],
           "artifacts": [],
           "costWeight": 2,
           "fallbackOnTimeout": "skip",
@@ -250,7 +377,10 @@
             "enableDetailedAnalysis": true,
             "setExitSignalOnQuality": true
           },
-          "tags": ["quality", "spell-check"]
+          "tags": [
+            "quality",
+            "spell-check"
+          ]
         }
       ]
     },
@@ -261,7 +391,11 @@
       "category": "accessibility",
       "estimatedDurationSeconds": 3.5,
       "isDefault": false,
-      "tags": ["accessibility", "alttext", "description"],
+      "tags": [
+        "accessibility",
+        "alttext",
+        "description"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 10000,
         "enableParallelization": true
@@ -275,11 +409,18 @@
           "priority": 100,
           "waveType": "ColorWave",
           "inputs": [],
-          "outputs": ["color.dominant_colors", "color.palette", "color.is_grayscale"],
+          "outputs": [
+            "color.dominant_colors",
+            "color.palette",
+            "color.is_grayscale"
+          ],
           "artifacts": [],
           "costWeight": 1,
           "fallbackOnTimeout": "degrade",
-          "tags": ["vision", "color"]
+          "tags": [
+            "vision",
+            "color"
+          ]
         },
         {
           "id": "simple-ocr",
@@ -288,13 +429,23 @@
           "enabled": true,
           "priority": 60,
           "waveType": "OcrWave",
-          "inputs": ["image"],
-          "outputs": ["ocr.text", "ocr.confidence"],
-          "artifacts": ["ocr.raw"],
+          "inputs": [
+            "image"
+          ],
+          "outputs": [
+            "ocr.text",
+            "ocr.confidence"
+          ],
+          "artifacts": [
+            "ocr.raw"
+          ],
           "costWeight": 3,
           "fallbackOnTimeout": "skip",
           "maxDurationMs": 1000,
-          "tags": ["ocr", "text"]
+          "tags": [
+            "ocr",
+            "text"
+          ]
         },
         {
           "id": "advanced-ocr",
@@ -303,10 +454,20 @@
           "enabled": true,
           "priority": 59,
           "waveType": "AdvancedOcrWave",
-          "dependsOn": ["simple-ocr"],
-          "inputs": ["frames.extracted"],
-          "outputs": ["ocr.voting.consensus_text", "ocr.voting.confidence"],
-          "artifacts": ["plate.median", "ocr.voted"],
+          "dependsOn": [
+            "simple-ocr"
+          ],
+          "inputs": [
+            "frames.extracted"
+          ],
+          "outputs": [
+            "ocr.voting.consensus_text",
+            "ocr.voting.confidence"
+          ],
+          "artifacts": [
+            "plate.median",
+            "ocr.voted"
+          ],
           "costWeight": 8,
           "fallbackOnTimeout": "skip",
           "parameters": {
@@ -319,7 +480,10 @@
             "enableVoting": true,
             "votingConfidenceThreshold": 0.4
           },
-          "tags": ["ocr", "temporal"]
+          "tags": [
+            "ocr",
+            "temporal"
+          ]
         },
         {
           "id": "spell-check",
@@ -328,9 +492,17 @@
           "enabled": true,
           "priority": 58,
           "waveType": "OcrQualityWave",
-          "dependsOn": ["advanced-ocr"],
-          "inputs": ["ocr.voting.consensus_text"],
-          "outputs": ["ocr.quality.score", "ocr.quality.is_garbled", "ocr.quality.llm_escalation_recommended"],
+          "dependsOn": [
+            "advanced-ocr"
+          ],
+          "inputs": [
+            "ocr.voting.consensus_text"
+          ],
+          "outputs": [
+            "ocr.quality.score",
+            "ocr.quality.is_garbled",
+            "ocr.quality.llm_escalation_recommended"
+          ],
           "artifacts": [],
           "costWeight": 1,
           "fallbackOnTimeout": "skip",
@@ -338,7 +510,9 @@
             "language": "en_US",
             "garbledThreshold": 0.5
           },
-          "tags": ["quality"]
+          "tags": [
+            "quality"
+          ]
         },
         {
           "id": "vision-llm",
@@ -347,9 +521,18 @@
           "enabled": false,
           "priority": 50,
           "waveType": "VisionLlmWave",
-          "inputs": ["image"],
-          "outputs": ["vision.llm.caption", "vision.llm.scene", "vision.llm.entities", "vision.llm.detailed_description"],
-          "artifacts": ["vision.llm.response"],
+          "inputs": [
+            "image"
+          ],
+          "outputs": [
+            "vision.llm.caption",
+            "vision.llm.scene",
+            "vision.llm.entities",
+            "vision.llm.detailed_description"
+          ],
+          "artifacts": [
+            "vision.llm.response"
+          ],
           "costWeight": 8,
           "fallbackOnTimeout": "skip",
           "maxDurationMs": 30000,
@@ -357,7 +540,11 @@
             "model": "llava",
             "generateDetailedDescription": false
           },
-          "tags": ["vision", "llm", "ml"]
+          "tags": [
+            "vision",
+            "llm",
+            "ml"
+          ]
         },
         {
           "id": "clip-embedding",
@@ -366,12 +553,21 @@
           "enabled": true,
           "priority": 45,
           "waveType": "ClipEmbeddingWave",
-          "inputs": ["image"],
-          "outputs": ["vision.clip.embedding", "vision.clip.embedding_hash"],
+          "inputs": [
+            "image"
+          ],
+          "outputs": [
+            "vision.clip.embedding",
+            "vision.clip.embedding_hash"
+          ],
           "artifacts": [],
           "costWeight": 2,
           "fallbackOnTimeout": "skip",
-          "tags": ["embedding", "clip", "ml"]
+          "tags": [
+            "embedding",
+            "clip",
+            "ml"
+          ]
         },
         {
           "id": "alttext-compose",
@@ -380,7 +576,12 @@
           "enabled": true,
           "priority": 55,
           "waveType": "AltTextComposeWave",
-          "dependsOn": ["color-analysis", "spell-check", "vision-llm", "clip-embedding"],
+          "dependsOn": [
+            "color-analysis",
+            "spell-check",
+            "vision-llm",
+            "clip-embedding"
+          ],
           "inputs": [
             "color.dominant_colors",
             "color.is_grayscale",
@@ -397,8 +598,15 @@
             "faces.embeddings",
             "faces.clusters"
           ],
-          "outputs": ["alttext.primary", "alttext.verbatim_text", "alttext.warnings", "alttext.entity_summary"],
-          "artifacts": ["alttext.ledger"],
+          "outputs": [
+            "alttext.primary",
+            "alttext.verbatim_text",
+            "alttext.warnings",
+            "alttext.entity_summary"
+          ],
+          "artifacts": [
+            "alttext.ledger"
+          ],
           "costWeight": 1,
           "fallbackOnTimeout": "degrade",
           "parameters": {
@@ -409,7 +617,10 @@
             "preferVisionLlmCaption": true,
             "includeEntitySummary": true
           },
-          "tags": ["alttext", "synthesis"]
+          "tags": [
+            "alttext",
+            "synthesis"
+          ]
         },
         {
           "id": "alttext-llm",
@@ -418,9 +629,15 @@
           "enabled": false,
           "priority": 54,
           "waveType": "AltTextLlmWave",
-          "dependsOn": ["alttext-compose"],
-          "inputs": ["alttext.ledger"],
-          "outputs": ["alttext.llm_enhanced"],
+          "dependsOn": [
+            "alttext-compose"
+          ],
+          "inputs": [
+            "alttext.ledger"
+          ],
+          "outputs": [
+            "alttext.llm_enhanced"
+          ],
           "artifacts": [],
           "costWeight": 5,
           "fallbackOnTimeout": "skip",
@@ -429,7 +646,11 @@
             "temperature": 0.3,
             "constrainToLedger": true
           },
-          "tags": ["alttext", "llm", "optional"]
+          "tags": [
+            "alttext",
+            "llm",
+            "optional"
+          ]
         }
       ]
     }

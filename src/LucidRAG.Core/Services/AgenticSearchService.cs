@@ -15,6 +15,7 @@ using LucidRAG.Core.Services;
 using LucidRAG.Entities;
 using LucidRAG.Services.Sentinel;
 using LucidRAG.Services.Lenses;
+using static LucidRAG.Services.Sentinel.ISentinelService;
 using LucidRAG.Lenses;
 using StyloFlow.Retrieval;
 
@@ -214,7 +215,8 @@ public class AgenticSearchService(
 
         // Get or create conversation
         var conversationId = request.ConversationId;
-        if (!conversationId.HasValue)
+        var isNewConversation = !conversationId.HasValue;
+        if (isNewConversation)
         {
             var conv = await conversationService.CreateConversationAsync(request.CollectionId, ct: ct);
             conversationId = conv.Id;
@@ -225,6 +227,40 @@ public class AgenticSearchService(
 
         // Build context from conversation history
         var context = await conversationService.BuildContextAsync(conversationId.Value, ct: ct);
+
+        // Follow-up detection for existing conversations
+        string queryToSearch = request.Query;
+        Guid[]? cachedDocumentIds = null;
+        FollowUpDetectionResult? followUpResult = null;
+
+        if (!isNewConversation)
+        {
+            var previousQuery = await conversationService.GetLastTopicQueryAsync(conversationId.Value, ct);
+            followUpResult = await sentinelService.DetectFollowUpAsync(request.Query, previousQuery, ct: ct);
+
+            logger.LogInformation("Follow-up detection: IsFollowUp={IsFollowUp}, Confidence={Confidence:F2}, Reason='{Reason}'",
+                followUpResult.IsFollowUp, followUpResult.Confidence, followUpResult.Reason);
+
+            if (followUpResult.IsFollowUp)
+            {
+                // Use resolved query if coreferences were expanded
+                if (!string.IsNullOrEmpty(followUpResult.ResolvedQuery))
+                {
+                    queryToSearch = followUpResult.ResolvedQuery;
+                    logger.LogDebug("Using resolved query: '{Original}' -> '{Resolved}'", request.Query, queryToSearch);
+                }
+
+                // Use cached document set if confidence is high
+                if (followUpResult.UseSameDocumentSet)
+                {
+                    cachedDocumentIds = await conversationService.GetActiveDocumentsAsync(conversationId.Value, ct);
+                    if (cachedDocumentIds?.Length > 0)
+                    {
+                        logger.LogInformation("Using cached document set of {Count} documents for follow-up", cachedDocumentIds.Length);
+                    }
+                }
+            }
+        }
 
         // Get collection for lens template context
         var collection = request.CollectionId.HasValue
@@ -253,11 +289,36 @@ public class AgenticSearchService(
         }
 
         // Search for relevant segments
+        // Use cached document IDs if follow-up with high confidence, otherwise search normally
+        var documentIdsToSearch = cachedDocumentIds ?? request.DocumentIds;
+
         var searchResult = await SearchAsync(new SearchRequest(
-            request.Query,
+            queryToSearch, // Use resolved query (with expanded coreferences)
             request.CollectionId,
-            request.DocumentIds,
+            documentIdsToSearch,
             SearchMode: request.SearchMode), ct);
+
+        // Store document set for follow-up questions if this is a new topic or new conversation
+        if (!followUpResult?.UseSameDocumentSet == true || isNewConversation || cachedDocumentIds == null)
+        {
+            var documentIdsFromSearch = searchResult.Results
+                .Select(r => r.DocumentId)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToArray();
+
+            if (documentIdsFromSearch.Length > 0)
+            {
+                await conversationService.SetActiveDocumentsAsync(
+                    conversationId.Value,
+                    documentIdsFromSearch,
+                    queryToSearch,
+                    ct: ct);
+
+                logger.LogDebug("Stored {Count} document IDs for conversation {ConversationId}",
+                    documentIdsFromSearch.Length, conversationId);
+            }
+        }
 
         // Check if Sentinel needs clarification
         if (searchResult.QueryPlan?.NeedsClarification == true)
@@ -414,22 +475,26 @@ public class AgenticSearchService(
         // Build context from sources
         var sourceTexts = string.Join("\n\n", sources.Select(s => $"[{s.Number}] ({s.DocumentName}): {s.Text}"));
 
-        // Create prompt for LLM synthesis - with strict anti-leak rules
-        var prompt = $@"{systemPrompt}
+        // Create prompt for LLM synthesis - STRICT documents-only answering
+        // The user's raw query is passed through - LLM must answer ONLY from provided evidence
+        var prompt = $@"You are a document-grounded assistant. You MUST answer questions using ONLY the evidence provided below.
 
-Answer the question using ONLY the evidence below.
+{systemPrompt}
 
-QUESTION: {query}
+USER QUESTION (answer this exactly as asked):
+{query}
 
-EVIDENCE:
+DOCUMENT EVIDENCE (these are the ONLY facts you may use):
 {sourceTexts}
 
-RULES:
-1. If evidence answers the question: explain clearly with [N] citations after each point
-2. If evidence is NOT relevant: say ""I don't have specific information about [topic] in the documents.""
-3. Write complete sentences - never output just citation numbers alone
-4. NO meta phrases like ""based on sources"" or ""the documents show""
-5. NO system terms: models, pipelines, embeddings, vectors
+CRITICAL INSTRUCTIONS:
+1. Answer ONLY using information found in the DOCUMENT EVIDENCE above
+2. If the evidence contains the answer: explain clearly with [N] citations after each claim
+3. If the evidence does NOT answer the question: say exactly 'I don't have information about [topic] in the provided documents.'
+4. NEVER use your own knowledge - only cite what's in the evidence
+5. NEVER invent, assume, or extrapolate beyond what's explicitly stated
+6. NEVER use meta phrases like 'based on the documents' or 'according to sources'
+7. Write naturally as if the evidence is your only source of knowledge
 
 ANSWER:";
 

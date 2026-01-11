@@ -1,5 +1,6 @@
 -- Connect to database (MySQL only)
-USE hospital_db;
+USE
+hospital_db;
 
 -- OBJECTIVE 1: ENCOUNTERS OVERVIEW
 

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using LucidRAG.Authorization;
 using LucidRAG.Identity;
 using LucidRAG.Multitenancy;
@@ -9,8 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace LucidRAG.Controllers.UI;
 
 /// <summary>
-/// System administration controller for managing tenants, users, and system settings.
-/// Requires SystemAdmin role.
+///     System administration controller for managing tenants, users, and system settings.
+///     Requires SystemAdmin role.
 /// </summary>
 [Route("admin/system")]
 [Authorize(Roles = Roles.SystemAdmin)]
@@ -21,7 +22,7 @@ public class SystemAdminController(
     ILogger<SystemAdminController> logger) : Controller
 {
     /// <summary>
-    /// System admin dashboard.
+    ///     System admin dashboard.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken ct = default)
@@ -57,7 +58,7 @@ public class SystemAdminController(
     #region Tenant Management
 
     /// <summary>
-    /// List all tenants.
+    ///     List all tenants.
     /// </summary>
     [HttpGet("tenants")]
     public async Task<IActionResult> Tenants(CancellationToken ct = default)
@@ -84,7 +85,7 @@ public class SystemAdminController(
     }
 
     /// <summary>
-    /// Create tenant form.
+    ///     Create tenant form.
     /// </summary>
     [HttpGet("tenants/create")]
     public IActionResult CreateTenant()
@@ -93,21 +94,19 @@ public class SystemAdminController(
     }
 
     /// <summary>
-    /// Create tenant handler.
+    ///     Create tenant handler.
     /// </summary>
     [HttpPost("tenants/create")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateTenant(TenantFormViewModel model, CancellationToken ct = default)
     {
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
+        if (!ModelState.IsValid) return View(model);
 
         // Validate tenant ID format
-        if (!System.Text.RegularExpressions.Regex.IsMatch(model.TenantId!, @"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"))
+        if (!Regex.IsMatch(model.TenantId!, @"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"))
         {
-            ModelState.AddModelError(nameof(model.TenantId), "Tenant ID must be lowercase alphanumeric with optional hyphens (3-64 chars)");
+            ModelState.AddModelError(nameof(model.TenantId),
+                "Tenant ID must be lowercase alphanumeric with optional hyphens (3-64 chars)");
             return View(model);
         }
 
@@ -128,7 +127,8 @@ public class SystemAdminController(
                 ct);
 
             logger.LogInformation("Created tenant {TenantId}", model.TenantId);
-            TempData["Success"] = $"Tenant '{model.DisplayName ?? model.TenantId}' created and provisioned successfully";
+            TempData["Success"] =
+                $"Tenant '{model.DisplayName ?? model.TenantId}' created and provisioned successfully";
             return RedirectToAction(nameof(Tenants));
         }
         catch (Exception ex)
@@ -140,16 +140,13 @@ public class SystemAdminController(
     }
 
     /// <summary>
-    /// Tenant details.
+    ///     Tenant details.
     /// </summary>
     [HttpGet("tenants/{tenantId}")]
     public async Task<IActionResult> TenantDetails(string tenantId, CancellationToken ct = default)
     {
         var tenant = await tenantService.GetTenantAsync(tenantId, ct);
-        if (tenant is null)
-        {
-            return NotFound();
-        }
+        if (tenant is null) return NotFound();
 
         var model = new TenantDetailsViewModel
         {
@@ -171,17 +168,14 @@ public class SystemAdminController(
     }
 
     /// <summary>
-    /// Toggle tenant active status.
+    ///     Toggle tenant active status.
     /// </summary>
     [HttpPost("tenants/{tenantId}/toggle-status")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleTenantStatus(string tenantId, CancellationToken ct = default)
     {
         var tenant = await tenantService.GetTenantAsync(tenantId, ct);
-        if (tenant is null)
-        {
-            return NotFound();
-        }
+        if (tenant is null) return NotFound();
 
         await tenantService.UpdateStatusAsync(tenantId, !tenant.IsActive, ct);
 
@@ -193,16 +187,13 @@ public class SystemAdminController(
     }
 
     /// <summary>
-    /// Delete tenant confirmation.
+    ///     Delete tenant confirmation.
     /// </summary>
     [HttpGet("tenants/{tenantId}/delete")]
     public async Task<IActionResult> DeleteTenant(string tenantId, CancellationToken ct = default)
     {
         var tenant = await tenantService.GetTenantAsync(tenantId, ct);
-        if (tenant is null)
-        {
-            return NotFound();
-        }
+        if (tenant is null) return NotFound();
 
         var model = new TenantDeleteViewModel
         {
@@ -215,17 +206,14 @@ public class SystemAdminController(
     }
 
     /// <summary>
-    /// Delete tenant handler.
+    ///     Delete tenant handler.
     /// </summary>
     [HttpPost("tenants/{tenantId}/delete")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteTenantConfirmed(string tenantId, CancellationToken ct = default)
     {
         var tenant = await tenantService.GetTenantAsync(tenantId, ct);
-        if (tenant is null)
-        {
-            return NotFound();
-        }
+        if (tenant is null) return NotFound();
 
         try
         {
@@ -247,7 +235,7 @@ public class SystemAdminController(
     #region User Management
 
     /// <summary>
-    /// List all users.
+    ///     List all users.
     /// </summary>
     [HttpGet("users")]
     public async Task<IActionResult> Users(CancellationToken ct = default)
@@ -278,16 +266,13 @@ public class SystemAdminController(
     }
 
     /// <summary>
-    /// User details.
+    ///     User details.
     /// </summary>
     [HttpGet("users/{id}")]
     public async Task<IActionResult> UserDetails(string id, CancellationToken ct = default)
     {
         var user = await userManager.FindByIdAsync(id);
-        if (user is null)
-        {
-            return NotFound();
-        }
+        if (user is null) return NotFound();
 
         var roles = await userManager.GetRolesAsync(user);
         var allRoles = await roleManager.Roles.ToListAsync(ct);
@@ -310,33 +295,25 @@ public class SystemAdminController(
     }
 
     /// <summary>
-    /// Update user roles.
+    ///     Update user roles.
     /// </summary>
     [HttpPost("users/{id}/roles")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UpdateUserRoles(string id, [FromForm] List<string> roles, CancellationToken ct = default)
+    public async Task<IActionResult> UpdateUserRoles(string id, [FromForm] List<string> roles,
+        CancellationToken ct = default)
     {
         var user = await userManager.FindByIdAsync(id);
-        if (user is null)
-        {
-            return NotFound();
-        }
+        if (user is null) return NotFound();
 
         var currentRoles = await userManager.GetRolesAsync(user);
 
         // Remove old roles
         var rolesToRemove = currentRoles.Except(roles).ToList();
-        if (rolesToRemove.Any())
-        {
-            await userManager.RemoveFromRolesAsync(user, rolesToRemove);
-        }
+        if (rolesToRemove.Any()) await userManager.RemoveFromRolesAsync(user, rolesToRemove);
 
         // Add new roles
         var rolesToAdd = roles.Except(currentRoles).ToList();
-        if (rolesToAdd.Any())
-        {
-            await userManager.AddToRolesAsync(user, rolesToAdd);
-        }
+        if (rolesToAdd.Any()) await userManager.AddToRolesAsync(user, rolesToAdd);
 
         logger.LogInformation("Updated roles for user {UserId}: {Roles}", id, string.Join(", ", roles));
         TempData["Success"] = "User roles updated successfully";
@@ -344,17 +321,14 @@ public class SystemAdminController(
     }
 
     /// <summary>
-    /// Toggle user lockout.
+    ///     Toggle user lockout.
     /// </summary>
     [HttpPost("users/{id}/toggle-lockout")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleUserLockout(string id)
     {
         var user = await userManager.FindByIdAsync(id);
-        if (user is null)
-        {
-            return NotFound();
-        }
+        if (user is null) return NotFound();
 
         if (user.LockoutEnd.HasValue && user.LockoutEnd > DateTimeOffset.UtcNow)
         {

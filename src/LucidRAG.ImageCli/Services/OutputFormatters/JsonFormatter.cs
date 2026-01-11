@@ -6,7 +6,7 @@ using Mostlylucid.DocSummarizer.Images.Services.Vision.Clients;
 namespace LucidRAG.ImageCli.Services.OutputFormatters;
 
 /// <summary>
-/// Formats image analysis results as JSON.
+///     Formats image analysis results as JSON.
 /// </summary>
 public class JsonFormatter : IOutputFormatter
 {
@@ -18,7 +18,8 @@ public class JsonFormatter : IOutputFormatter
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public string FormatSingle(string filePath, ImageProfile profile, string? llmCaption = null, string? extractedText = null, GifMotionProfile? gifMotion = null, List<EvidenceClaim>? evidenceClaims = null)
+    public string FormatSingle(string filePath, ImageProfile profile, string? llmCaption = null,
+        string? extractedText = null, GifMotionProfile? gifMotion = null, List<EvidenceClaim>? evidenceClaims = null)
     {
         var result = new
         {
@@ -75,18 +76,20 @@ public class JsonFormatter : IOutputFormatter
                         name = c.Name,
                         percentage = c.Percentage
                     }),
-                    colorGrid = profile.ColorGrid != null ? new
-                    {
-                        rows = profile.ColorGrid.Rows,
-                        cols = profile.ColorGrid.Cols,
-                        cells = profile.ColorGrid.Cells?.Select(c => new
+                    colorGrid = profile.ColorGrid != null
+                        ? new
                         {
-                            row = c.Row,
-                            col = c.Col,
-                            hex = c.Hex,
-                            coverage = c.Coverage
-                        })
-                    } : null,
+                            rows = profile.ColorGrid.Rows,
+                            cols = profile.ColorGrid.Cols,
+                            cells = profile.ColorGrid.Cells?.Select(c => new
+                            {
+                                row = c.Row,
+                                col = c.Col,
+                                hex = c.Hex,
+                                coverage = c.Coverage
+                            })
+                        }
+                        : null,
                     meanSaturation = profile.MeanSaturation,
                     isGrayscale = profile.IsMostlyGrayscale
                 },
@@ -96,30 +99,34 @@ public class JsonFormatter : IOutputFormatter
             },
 
             // GIF/WebP motion analysis
-            gifMotion = gifMotion != null ? new
-            {
-                frameCount = gifMotion.FrameCount,
-                frameDelayMs = gifMotion.FrameDelayMs,
-                fps = gifMotion.Fps,
-                totalDurationMs = gifMotion.TotalDurationMs,
-                loops = gifMotion.Loops,
-                motionDirection = gifMotion.MotionDirection,
-                motionMagnitude = gifMotion.MotionMagnitude,
-                maxMotionMagnitude = gifMotion.MaxMotionMagnitude,
-                motionPercentage = gifMotion.MotionPercentage,
-                confidence = gifMotion.Confidence,
-                complexity = gifMotion.Complexity != null ? new
+            gifMotion = gifMotion != null
+                ? new
                 {
-                    animationType = gifMotion.Complexity.AnimationType,
-                    overallComplexity = gifMotion.Complexity.OverallComplexity,
-                    visualStability = gifMotion.Complexity.VisualStability,
-                    colorVariation = gifMotion.Complexity.ColorVariation,
-                    entropyVariation = gifMotion.Complexity.EntropyVariation,
-                    sceneChangeCount = gifMotion.Complexity.SceneChangeCount,
-                    averageFrameDifference = gifMotion.Complexity.AverageFrameDifference,
-                    maxFrameDifference = gifMotion.Complexity.MaxFrameDifference
-                } : null
-            } : null,
+                    frameCount = gifMotion.FrameCount,
+                    frameDelayMs = gifMotion.FrameDelayMs,
+                    fps = gifMotion.Fps,
+                    totalDurationMs = gifMotion.TotalDurationMs,
+                    loops = gifMotion.Loops,
+                    motionDirection = gifMotion.MotionDirection,
+                    motionMagnitude = gifMotion.MotionMagnitude,
+                    maxMotionMagnitude = gifMotion.MaxMotionMagnitude,
+                    motionPercentage = gifMotion.MotionPercentage,
+                    confidence = gifMotion.Confidence,
+                    complexity = gifMotion.Complexity != null
+                        ? new
+                        {
+                            animationType = gifMotion.Complexity.AnimationType,
+                            overallComplexity = gifMotion.Complexity.OverallComplexity,
+                            visualStability = gifMotion.Complexity.VisualStability,
+                            colorVariation = gifMotion.Complexity.ColorVariation,
+                            entropyVariation = gifMotion.Complexity.EntropyVariation,
+                            sceneChangeCount = gifMotion.Complexity.SceneChangeCount,
+                            averageFrameDifference = gifMotion.Complexity.AverageFrameDifference,
+                            maxFrameDifference = gifMotion.Complexity.MaxFrameDifference
+                        }
+                        : null
+                }
+                : null,
 
             // Optional LLM/OCR results
             llmCaption,
@@ -156,35 +163,39 @@ public class JsonFormatter : IOutputFormatter
                 success = r.Profile != null,
                 wasEscalated = r.WasEscalated,
                 error = r.Error,
-                profile = r.Profile != null ? new
-                {
-                    detectedType = r.Profile.DetectedType.ToString(),
-                    typeConfidence = r.Profile.TypeConfidence,
-                    width = r.Profile.Width,
-                    height = r.Profile.Height,
-                    aspectRatio = r.Profile.AspectRatio,
-                    edgeDensity = r.Profile.EdgeDensity,
-                    laplacianVariance = r.Profile.LaplacianVariance,
-                    textLikeliness = r.Profile.TextLikeliness,
-                    meanSaturation = r.Profile.MeanSaturation,
-                    isGrayscale = r.Profile.IsMostlyGrayscale,
-                    perceptualHash = r.Profile.PerceptualHash,
-                    dominantColors = r.Profile.DominantColors?.Take(3).Select(c => new
+                profile = r.Profile != null
+                    ? new
                     {
-                        hex = c.Hex,
-                        name = c.Name,
-                        percentage = c.Percentage
-                    })
-                } : null,
-                gifMotion = r.GifMotion != null ? new
-                {
-                    frameCount = r.GifMotion.FrameCount,
-                    fps = r.GifMotion.Fps,
-                    motionDirection = r.GifMotion.MotionDirection,
-                    motionMagnitude = r.GifMotion.MotionMagnitude,
-                    motionPercentage = r.GifMotion.MotionPercentage,
-                    confidence = r.GifMotion.Confidence
-                } : null,
+                        detectedType = r.Profile.DetectedType.ToString(),
+                        typeConfidence = r.Profile.TypeConfidence,
+                        width = r.Profile.Width,
+                        height = r.Profile.Height,
+                        aspectRatio = r.Profile.AspectRatio,
+                        edgeDensity = r.Profile.EdgeDensity,
+                        laplacianVariance = r.Profile.LaplacianVariance,
+                        textLikeliness = r.Profile.TextLikeliness,
+                        meanSaturation = r.Profile.MeanSaturation,
+                        isGrayscale = r.Profile.IsMostlyGrayscale,
+                        perceptualHash = r.Profile.PerceptualHash,
+                        dominantColors = r.Profile.DominantColors?.Take(3).Select(c => new
+                        {
+                            hex = c.Hex,
+                            name = c.Name,
+                            percentage = c.Percentage
+                        })
+                    }
+                    : null,
+                gifMotion = r.GifMotion != null
+                    ? new
+                    {
+                        frameCount = r.GifMotion.FrameCount,
+                        fps = r.GifMotion.Fps,
+                        motionDirection = r.GifMotion.MotionDirection,
+                        motionMagnitude = r.GifMotion.MotionMagnitude,
+                        motionPercentage = r.GifMotion.MotionPercentage,
+                        confidence = r.GifMotion.Confidence
+                    }
+                    : null,
                 llmCaption = r.LlmCaption,
                 extractedText = r.ExtractedText
             })

@@ -1,9 +1,9 @@
 using FluentAssertions;
-using Microsoft.Extensions.Logging;
-using Moq;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Services;
+using Microsoft.Extensions.Logging;
+using Moq;
 
 namespace LucidRAG.Tests.Services;
 
@@ -59,7 +59,7 @@ public class ConversationServiceTests : IDisposable
         await _db.SaveChangesAsync();
 
         // Act
-        var conversation = await _service.CreateConversationAsync(collectionId: collection.Id);
+        var conversation = await _service.CreateConversationAsync(collection.Id);
 
         // Assert
         conversation.CollectionId.Should().Be(collection.Id);
@@ -190,13 +190,10 @@ public class ConversationServiceTests : IDisposable
     {
         // Arrange
         var conversation = await _service.CreateConversationAsync();
-        for (int i = 0; i < 20; i++)
-        {
-            await _service.AddMessageAsync(conversation.Id, "user", $"Message {i}");
-        }
+        for (var i = 0; i < 20; i++) await _service.AddMessageAsync(conversation.Id, "user", $"Message {i}");
 
         // Act
-        var context = await _service.BuildContextAsync(conversation.Id, maxMessages: 5);
+        var context = await _service.BuildContextAsync(conversation.Id, 5);
 
         // Assert
         // Should only contain the last 5 messages
@@ -243,11 +240,11 @@ public class ConversationServiceTests : IDisposable
         _db.Collections.Add(collection);
         await _db.SaveChangesAsync();
 
-        await _service.CreateConversationAsync(collectionId: collection.Id, title: "In Collection");
+        await _service.CreateConversationAsync(collection.Id, "In Collection");
         await _service.CreateConversationAsync(title: "No Collection");
 
         // Act
-        var filtered = await _service.GetConversationsAsync(collectionId: collection.Id);
+        var filtered = await _service.GetConversationsAsync(collection.Id);
 
         // Assert
         filtered.Should().HaveCount(1);

@@ -1,27 +1,26 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
 
 namespace Mostlylucid.Shared.Services;
 
 /// <summary>
-/// Singleton service that coordinates startup of background services.
-/// Services register themselves, signal when ready, and can wait for others.
+///     Singleton service that coordinates startup of background services.
+///     Services register themselves, signal when ready, and can wait for others.
 /// </summary>
 public class StartupCoordinator : IStartupCoordinator
 {
+    private readonly TaskCompletionSource<bool> _allReadyTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly object _lock = new();
+    private readonly ILogger<StartupCoordinator> _logger;
     private readonly ConcurrentDictionary<string, bool> _services = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _serviceWaiters = new();
-    private readonly TaskCompletionSource<bool> _allReadyTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly ILogger<StartupCoordinator> _logger;
-    private readonly object _lock = new();
     private bool _allServicesStartedRaised;
-
-    public event EventHandler? AllServicesStarted;
 
     public StartupCoordinator(ILogger<StartupCoordinator> logger)
     {
         _logger = logger;
     }
+
+    public event EventHandler? AllServicesStarted;
 
     /// <inheritdoc />
     public void RegisterService(string serviceName)
@@ -31,7 +30,8 @@ public class StartupCoordinator : IStartupCoordinator
 
         if (_services.TryAdd(serviceName, false))
         {
-            _serviceWaiters.TryAdd(serviceName, new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
+            _serviceWaiters.TryAdd(serviceName,
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
             _logger.LogDebug("Registered service for startup coordination: {ServiceName}", serviceName);
         }
     }
@@ -49,10 +49,7 @@ public class StartupCoordinator : IStartupCoordinator
         _logger.LogInformation("Service {ServiceName} is ready", serviceName);
 
         // Signal the waiter for this specific service
-        if (_serviceWaiters.TryGetValue(serviceName, out var tcs))
-        {
-            tcs.TrySetResult(true);
-        }
+        if (_serviceWaiters.TryGetValue(serviceName, out var tcs)) tcs.TrySetResult(true);
 
         // Check if all services are now ready
         CheckAllServicesReady();

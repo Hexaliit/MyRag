@@ -1,29 +1,26 @@
 using Microsoft.Extensions.Logging;
-using Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.Voting;
 
 /// <summary>
-/// Performs character-level voting across multiple OCR results from different frames.
-/// Dramatically improves accuracy by combining OCR from multiple frames.
-///
-/// Algorithm:
-/// 1. Align text regions from different frames by bounding box IoU (Intersection over Union)
-/// 2. For each aligned region, vote on character-by-character basis
-/// 3. Most common character wins (with confidence weighting)
-/// 4. Output: consensus text with aggregate confidence
-///
-/// Benefits:
-/// - Corrects transient OCR errors (noise, compression artifacts)
-/// - Increases confidence in final result
-/// - Works well with partial text reveals (progressive typing)
+///     Performs character-level voting across multiple OCR results from different frames.
+///     Dramatically improves accuracy by combining OCR from multiple frames.
+///     Algorithm:
+///     1. Align text regions from different frames by bounding box IoU (Intersection over Union)
+///     2. For each aligned region, vote on character-by-character basis
+///     3. Most common character wins (with confidence weighting)
+///     4. Output: consensus text with aggregate confidence
+///     Benefits:
+///     - Corrects transient OCR errors (noise, compression artifacts)
+///     - Increases confidence in final result
+///     - Works well with partial text reveals (progressive typing)
 /// </summary>
 public class TemporalVotingEngine
 {
+    private readonly bool _confidenceWeighting; // Weight votes by OCR confidence
+    private readonly double _iouThreshold; // Minimum IoU to consider regions aligned
     private readonly ILogger<TemporalVotingEngine>? _logger;
     private readonly bool _verbose;
-    private readonly double _iouThreshold; // Minimum IoU to consider regions aligned
-    private readonly bool _confidenceWeighting; // Weight votes by OCR confidence
 
     public TemporalVotingEngine(
         double iouThreshold = 0.5,
@@ -38,13 +35,12 @@ public class TemporalVotingEngine
     }
 
     /// <summary>
-    /// Perform temporal voting on OCR results from multiple frames.
-    /// Returns consensus text with confidence scores.
+    ///     Perform temporal voting on OCR results from multiple frames.
+    ///     Returns consensus text with confidence scores.
     /// </summary>
     public VotingResult PerformVoting(List<FrameOcrResult> frameResults)
     {
         if (frameResults.Count == 0)
-        {
             return new VotingResult
             {
                 ConsensusText = string.Empty,
@@ -52,7 +48,6 @@ public class TemporalVotingEngine
                 AgreementScore = 0.0,
                 TextRegions = new List<OcrTextRegion>()
             };
-        }
 
         if (frameResults.Count == 1)
         {
@@ -75,10 +70,8 @@ public class TemporalVotingEngine
         var regionGroups = GroupRegionsByLocation(frameResults);
 
         if (_verbose)
-        {
             _logger?.LogDebug("Grouped {Total} regions into {Groups} spatial clusters",
                 frameResults.Sum(f => f.TextRegions.Count), regionGroups.Count);
-        }
 
         // Step 2: Perform character-level voting for each group
         var consensusRegions = new List<OcrTextRegion>();
@@ -123,7 +116,7 @@ public class TemporalVotingEngine
     }
 
     /// <summary>
-    /// Group text regions from different frames by spatial proximity using IoU.
+    ///     Group text regions from different frames by spatial proximity using IoU.
     /// </summary>
     private List<List<OcrTextRegion>> GroupRegionsByLocation(List<FrameOcrResult> frameResults)
     {
@@ -159,21 +152,15 @@ public class TemporalVotingEngine
     }
 
     /// <summary>
-    /// Perform character-level voting on a group of text regions.
-    /// Returns (consensus text, confidence, agreement score).
+    ///     Perform character-level voting on a group of text regions.
+    ///     Returns (consensus text, confidence, agreement score).
     /// </summary>
     private (string ConsensusText, double Confidence, double AgreementScore) VoteOnTextRegion(
         List<OcrTextRegion> regions)
     {
-        if (regions.Count == 0)
-        {
-            return (string.Empty, 0.0, 0.0);
-        }
+        if (regions.Count == 0) return (string.Empty, 0.0, 0.0);
 
-        if (regions.Count == 1)
-        {
-            return (regions[0].Text, regions[0].Confidence, 1.0);
-        }
+        if (regions.Count == 1) return (regions[0].Text, regions[0].Confidence, 1.0);
 
         // Find the longest text (assume it's most complete)
         var maxLength = regions.Max(r => r.Text.Length);
@@ -183,27 +170,21 @@ public class TemporalVotingEngine
         var agreementScores = new List<double>();
 
         // Vote on each character position
-        for (int pos = 0; pos < maxLength; pos++)
+        for (var pos = 0; pos < maxLength; pos++)
         {
             var votes = new Dictionary<char, double>(); // char -> weighted vote count
 
             foreach (var region in regions)
-            {
                 if (pos < region.Text.Length)
                 {
                     var ch = region.Text[pos];
                     var weight = _confidenceWeighting ? region.Confidence : 1.0;
 
                     if (votes.ContainsKey(ch))
-                    {
                         votes[ch] += weight;
-                    }
                     else
-                    {
                         votes[ch] = weight;
-                    }
                 }
-            }
 
             if (votes.Count == 0)
             {
@@ -235,18 +216,16 @@ public class TemporalVotingEngine
         var avgAgreement = agreementScores.Any() ? agreementScores.Average() : 0.0;
 
         if (_verbose)
-        {
             _logger?.LogDebug(
                 "Voted on region: '{Text}' (confidence={Conf:F3}, agreement={Agree:F3}, {Count} candidates)",
                 consensusText, avgConfidence, avgAgreement, regions.Count);
-        }
 
         return (consensusText, avgConfidence, avgAgreement);
     }
 
     /// <summary>
-    /// Compute Intersection over Union (IoU) between two bounding boxes.
-    /// Returns value from 0.0 (no overlap) to 1.0 (perfect overlap).
+    ///     Compute Intersection over Union (IoU) between two bounding boxes.
+    ///     Returns value from 0.0 (no overlap) to 1.0 (perfect overlap).
     /// </summary>
     private double ComputeIoU(BoundingBox box1, BoundingBox box2)
     {
@@ -257,10 +236,8 @@ public class TemporalVotingEngine
         var y2 = Math.Min(box1.Y2, box2.Y2);
 
         if (x2 < x1 || y2 < y1)
-        {
             // No intersection
             return 0.0;
-        }
 
         var intersectionArea = (x2 - x1) * (y2 - y1);
         var box1Area = box1.Width * box1.Height;
@@ -272,44 +249,44 @@ public class TemporalVotingEngine
 }
 
 /// <summary>
-/// OCR result from a single frame.
+///     OCR result from a single frame.
 /// </summary>
 public record FrameOcrResult
 {
     /// <summary>
-    /// Frame index in sequence.
+    ///     Frame index in sequence.
     /// </summary>
     public required int FrameIndex { get; init; }
 
     /// <summary>
-    /// Text regions detected in this frame.
+    ///     Text regions detected in this frame.
     /// </summary>
     public required List<OcrTextRegion> TextRegions { get; init; }
 }
 
 /// <summary>
-/// Result of temporal voting operation.
+///     Result of temporal voting operation.
 /// </summary>
 public record VotingResult
 {
     /// <summary>
-    /// Consensus text from voting across all frames.
+    ///     Consensus text from voting across all frames.
     /// </summary>
     public required string ConsensusText { get; init; }
 
     /// <summary>
-    /// Average confidence score (0-1) for consensus text.
+    ///     Average confidence score (0-1) for consensus text.
     /// </summary>
     public required double Confidence { get; init; }
 
     /// <summary>
-    /// Agreement score (0-1) indicating how well frames agreed.
-    /// Higher = more frames contributed to each character.
+    ///     Agreement score (0-1) indicating how well frames agreed.
+    ///     Higher = more frames contributed to each character.
     /// </summary>
     public required double AgreementScore { get; init; }
 
     /// <summary>
-    /// Consensus text regions with voted text.
+    ///     Consensus text regions with voted text.
     /// </summary>
     public required List<OcrTextRegion> TextRegions { get; init; }
 }

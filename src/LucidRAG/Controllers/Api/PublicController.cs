@@ -1,4 +1,3 @@
-using LucidRAG.Authorization;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Models;
@@ -11,8 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace LucidRAG.Controllers.Api;
 
 /// <summary>
-/// Public API endpoints accessible without authentication.
-/// Provides limited read-only access to tenant information.
+///     Public API endpoints accessible without authentication.
+///     Provides limited read-only access to tenant information.
 /// </summary>
 [ApiController]
 [Route("api/public")]
@@ -25,7 +24,7 @@ public class PublicController(
     ILogger<PublicController> logger) : ControllerBase
 {
     /// <summary>
-    /// Gets public tenant statistics (document counts, not actual documents).
+    ///     Gets public tenant statistics (document counts, not actual documents).
     /// </summary>
     [HttpGet("stats")]
     public async Task<Ok<PublicStatsResponse>> GetStats(CancellationToken ct = default)
@@ -36,16 +35,16 @@ public class PublicController(
         var totalEntities = await db.Entities.CountAsync(ct);
 
         return TypedResults.Ok(new PublicStatsResponse(
-            TotalDocuments: totalDocuments,
-            CompletedDocuments: completedDocuments,
-            TotalCollections: totalCollections,
-            TotalEntities: totalEntities,
-            LastUpdated: DateTimeOffset.UtcNow
+            totalDocuments,
+            completedDocuments,
+            totalCollections,
+            totalEntities,
+            DateTimeOffset.UtcNow
         ));
     }
 
     /// <summary>
-    /// Lists collections with document counts (no document details).
+    ///     Lists collections with document counts (no document details).
     /// </summary>
     [HttpGet("collections")]
     public async Task<Ok<PagedResponse<PublicCollectionItem>>> ListCollections(
@@ -77,7 +76,7 @@ public class PublicController(
     }
 
     /// <summary>
-    /// Gets entity type breakdown (without entity details).
+    ///     Gets entity type breakdown (without entity details).
     /// </summary>
     [HttpGet("entity-types")]
     public async Task<Ok<List<EntityTypeCount>>> GetEntityTypes(CancellationToken ct = default)
@@ -99,7 +98,7 @@ public class PublicController(
     }
 
     /// <summary>
-    /// Chat endpoint for public users (read-only, no document access).
+    ///     Chat endpoint for public users (read-only, no document access).
     /// </summary>
     [HttpPost("chat")]
     public async Task<Results<Ok<PublicChatResponse>, BadRequest<ApiError>>> Chat(
@@ -107,32 +106,28 @@ public class PublicController(
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(request.Message))
-        {
             return TypedResults.BadRequest(new ApiError("Message is required", "VALIDATION_ERROR"));
-        }
 
         if (request.Message.Length > 2000)
-        {
             return TypedResults.BadRequest(new ApiError("Message too long (max 2000 chars)", "VALIDATION_ERROR"));
-        }
 
         try
         {
             // Use agentic search service for chat
             var chatRequest = new ChatRequest(
-                Query: request.Message,
-                ConversationId: request.ConversationId,
-                CollectionId: request.CollectionId
+                request.Message,
+                request.ConversationId,
+                request.CollectionId
             );
 
             var response = await searchService.ChatAsync(chatRequest, ct);
 
             // Return limited response (no full evidence, just summary)
             return TypedResults.Ok(new PublicChatResponse(
-                ConversationId: response.ConversationId,
-                Response: response.Answer,
-                SourceCount: response.Sources?.Count ?? 0,
-                EntityHints: [] // Don't expose entity details in public API
+                response.ConversationId,
+                response.Answer,
+                response.Sources?.Count ?? 0,
+                [] // Don't expose entity details in public API
             ));
         }
         catch (Exception ex)
@@ -143,7 +138,7 @@ public class PublicController(
     }
 
     /// <summary>
-    /// Public search endpoint (returns counts and entity hints, not full documents).
+    ///     Public search endpoint (returns counts and entity hints, not full documents).
     /// </summary>
     [HttpGet("search")]
     public async Task<Results<Ok<PublicSearchResponse>, BadRequest<ApiError>>> Search(
@@ -153,16 +148,14 @@ public class PublicController(
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
-        {
             return TypedResults.BadRequest(new ApiError("Query is required", "VALIDATION_ERROR"));
-        }
 
         try
         {
             // Use search service with limited results
             var searchRequest = new SearchRequest(
-                Query: query,
-                CollectionId: collectionId,
+                query,
+                collectionId,
                 TopK: limit
             );
 
@@ -170,10 +163,10 @@ public class PublicController(
 
             // Return limited info - counts only, no document content
             return TypedResults.Ok(new PublicSearchResponse(
-                Query: query,
-                ResultCount: results.TotalResults,
-                TopEntityTypes: [], // Don't expose entity details in public API
-                Relevance: results.Results.Count > 0
+                query,
+                results.TotalResults,
+                [], // Don't expose entity details in public API
+                results.Results.Count > 0
                     ? results.Results.Max(r => r.Score)
                     : 0
             ));
@@ -186,8 +179,8 @@ public class PublicController(
     }
 
     /// <summary>
-    /// Get autocomplete suggestions for a query prefix within a collection.
-    /// Returns pre-computed salient terms from TF-IDF and entity analysis.
+    ///     Get autocomplete suggestions for a query prefix within a collection.
+    ///     Returns pre-computed salient terms from TF-IDF and entity analysis.
     /// </summary>
     [HttpGet("autocomplete")]
     public async Task<Results<Ok<List<AutocompleteSuggestion>>, BadRequest<ApiError>>> Autocomplete(
@@ -197,15 +190,11 @@ public class PublicController(
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
-        {
             return TypedResults.BadRequest(new ApiError("Query must be at least 2 characters", "VALIDATION_ERROR"));
-        }
 
         if (salientTermsService == null)
-        {
             // Service not available, return empty suggestions
             return TypedResults.Ok(new List<AutocompleteSuggestion>());
-        }
 
         try
         {
@@ -216,17 +205,12 @@ public class PublicController(
                     .AsNoTracking()
                     .FirstOrDefaultAsync(c => c.IsDefault, ct);
 
-                if (defaultCollection != null)
-                {
-                    collectionId = defaultCollection.Id;
-                }
+                if (defaultCollection != null) collectionId = defaultCollection.Id;
             }
 
             if (collectionId == null)
-            {
                 // No collection available, return empty
                 return TypedResults.Ok(new List<AutocompleteSuggestion>());
-            }
 
             var suggestions = await salientTermsService.GetAutocompleteSuggestionsAsync(
                 collectionId.Value,
@@ -251,8 +235,8 @@ public class PublicController(
     }
 
     /// <summary>
-    /// Get detected communities for a collection.
-    /// Communities are clusters of related entities discovered through graph analysis.
+    ///     Get detected communities for a collection.
+    ///     Communities are clusters of related entities discovered through graph analysis.
     /// </summary>
     [HttpGet("communities")]
     public async Task<Ok<List<PublicCommunityItem>>> GetCommunities(

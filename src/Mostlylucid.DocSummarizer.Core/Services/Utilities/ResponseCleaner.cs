@@ -1,14 +1,16 @@
+using System.Text.RegularExpressions;
+
 namespace Mostlylucid.DocSummarizer.Services.Utilities;
 
 /// <summary>
-/// Shared utilities for cleaning LLM responses.
-/// Removes preambles, meta-commentary, and other LLM-isms that leak into outputs.
+///     Shared utilities for cleaning LLM responses.
+///     Removes preambles, meta-commentary, and other LLM-isms that leak into outputs.
 /// </summary>
 public static class ResponseCleaner
 {
     /// <summary>
-    /// Preamble patterns that appear at the start of LLM responses.
-    /// These are typical "acknowledgment" phrases that should be stripped.
+    ///     Preamble patterns that appear at the start of LLM responses.
+    ///     These are typical "acknowledgment" phrases that should be stripped.
     /// </summary>
     private static readonly string[] PreamblePatterns =
     {
@@ -36,7 +38,7 @@ public static class ResponseCleaner
     };
 
     /// <summary>
-    /// Fact-check preamble patterns (more specific to correction tasks).
+    ///     Fact-check preamble patterns (more specific to correction tasks).
     /// </summary>
     private static readonly string[] FactCheckPreamblePatterns =
     {
@@ -64,7 +66,7 @@ public static class ResponseCleaner
     };
 
     /// <summary>
-    /// Trailing patterns that indicate meta-commentary at the end.
+    ///     Trailing patterns that indicate meta-commentary at the end.
     /// </summary>
     private static readonly string[] TrailingPatterns =
     {
@@ -89,7 +91,7 @@ public static class ResponseCleaner
     };
 
     /// <summary>
-    /// Remove common LLM preamble patterns from synthesis responses.
+    ///     Remove common LLM preamble patterns from synthesis responses.
     /// </summary>
     /// <param name="response">Raw LLM response</param>
     /// <returns>Cleaned response with preamble stripped</returns>
@@ -131,8 +133,8 @@ public static class ResponseCleaner
     }
 
     /// <summary>
-    /// Clean fact-check response to remove meta-commentary that LLMs tend to add.
-    /// More aggressive than CleanSynthesisResponse - removes both preambles and trailing notes.
+    ///     Clean fact-check response to remove meta-commentary that LLMs tend to add.
+    ///     More aggressive than CleanSynthesisResponse - removes both preambles and trailing notes.
     /// </summary>
     /// <param name="response">Raw fact-check response</param>
     /// <returns>Cleaned response with meta-commentary stripped</returns>
@@ -186,8 +188,8 @@ public static class ResponseCleaner
     }
 
     /// <summary>
-    /// Clean a response that should contain a simple list or enumeration.
-    /// Removes numbering inconsistencies and normalizes format.
+    ///     Clean a response that should contain a simple list or enumeration.
+    ///     Removes numbering inconsistencies and normalizes format.
     /// </summary>
     public static string CleanListResponse(string response)
     {
@@ -207,8 +209,8 @@ public static class ResponseCleaner
     }
 
     /// <summary>
-    /// Strip markdown headers from response if they were added by the LLM.
-    /// Useful when you asked for plain text but got markdown.
+    ///     Strip markdown headers from response if they were added by the LLM.
+    ///     Useful when you asked for plain text but got markdown.
     /// </summary>
     public static string StripMarkdownHeaders(string response)
     {
@@ -226,6 +228,7 @@ public static class ResponseCleaner
                     var afterHash = trimmed.TrimStart('#').Trim();
                     return afterHash;
                 }
+
                 return l;
             });
 
@@ -233,7 +236,7 @@ public static class ResponseCleaner
     }
 
     /// <summary>
-    /// Remove code block markers from response.
+    ///     Remove code block markers from response.
     /// </summary>
     public static string StripCodeBlocks(string response)
     {
@@ -247,7 +250,7 @@ public static class ResponseCleaner
     }
 
     /// <summary>
-    /// Normalize whitespace in response (collapse multiple newlines, trim).
+    ///     Normalize whitespace in response (collapse multiple newlines, trim).
     /// </summary>
     public static string NormalizeWhitespace(string response)
     {
@@ -255,7 +258,7 @@ public static class ResponseCleaner
             return response;
 
         // Collapse multiple newlines to max 2
-        var normalized = System.Text.RegularExpressions.Regex.Replace(
+        var normalized = Regex.Replace(
             response, @"\n{3,}", "\n\n");
 
         // Trim each line
@@ -266,7 +269,7 @@ public static class ResponseCleaner
     }
 
     /// <summary>
-    /// Full cleaning pipeline: remove preamble, trailing notes, normalize whitespace.
+    ///     Full cleaning pipeline: remove preamble, trailing notes, normalize whitespace.
     /// </summary>
     public static string CleanFull(string response)
     {

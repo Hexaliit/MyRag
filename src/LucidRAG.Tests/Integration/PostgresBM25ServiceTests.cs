@@ -1,22 +1,23 @@
+using System.Diagnostics;
 using FluentAssertions;
-using Microsoft.Extensions.DependencyInjection;
 using LucidRAG.Core.Services;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Integration tests for PostgreSQL full-text search service.
-/// Tests the actual PostgreSQL FTS functionality with real database.
+///     Integration tests for PostgreSQL full-text search service.
+///     Tests the actual PostgreSQL FTS functionality with real database.
 /// </summary>
 [Collection("Integration")]
 public class PostgresBM25ServiceTests : IAsyncLifetime
 {
     private readonly TestWebApplicationFactory _factory;
-    private PostgresBM25Service _service = null!;
     private RagDocumentsDbContext _db = null!;
     private IServiceScope _scope = null!;
+    private PostgresBM25Service _service = null!;
 
     public PostgresBM25ServiceTests(TestWebApplicationFactory factory)
     {
@@ -69,7 +70,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
                 StorageBackend = "inline",
                 StoragePath = "inline:segment_text",
                 Content = "Machine learning is a subset of artificial intelligence. " +
-                         "It uses algorithms to learn patterns from data without explicit programming.",
+                          "It uses algorithms to learn patterns from data without explicit programming.",
                 SegmentHash = "hash1",
                 Metadata = "{\"salience_score\": 0.9}"
             },
@@ -82,7 +83,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
                 StorageBackend = "inline",
                 StoragePath = "inline:segment_text",
                 Content = "Neural networks are inspired by biological neurons. " +
-                         "Deep learning uses multiple layers of neural networks for complex tasks.",
+                          "Deep learning uses multiple layers of neural networks for complex tasks.",
                 SegmentHash = "hash2",
                 Metadata = "{\"salience_score\": 0.85}"
             },
@@ -95,7 +96,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
                 StorageBackend = "inline",
                 StoragePath = "inline:segment_text",
                 Content = "Supervised learning requires labeled training data. " +
-                         "Classification and regression are common supervised learning tasks.",
+                          "Classification and regression are common supervised learning tasks.",
                 SegmentHash = "hash3",
                 Metadata = "{\"salience_score\": 0.7}"
             },
@@ -108,7 +109,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
                 StorageBackend = "inline",
                 StoragePath = "inline:segment_text",
                 Content = "Unsupervised learning discovers patterns without labels. " +
-                         "Clustering and dimensionality reduction are unsupervised techniques.",
+                          "Clustering and dimensionality reduction are unsupervised techniques.",
                 SegmentHash = "hash4",
                 Metadata = "{\"salience_score\": 0.6}"
             }
@@ -128,7 +129,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         var query = "machine learning algorithms";
 
         // Act
-        var results = await _service.SearchWithScoresAsync(query, topK: 10);
+        var results = await _service.SearchWithScoresAsync(query, 10);
 
         // Assert
         results.Should().NotBeEmpty();
@@ -140,10 +141,8 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         topResult.score.Should().BeGreaterThan(0);
 
         // Results should be ordered by score descending
-        for (int i = 0; i < results.Count - 1; i++)
-        {
+        for (var i = 0; i < results.Count - 1; i++)
             results[i].score.Should().BeGreaterThanOrEqualTo(results[i + 1].score);
-        }
     }
 
     [Fact]
@@ -153,7 +152,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         var query = "neural networks deep learning";
 
         // Act
-        var results = await _service.SearchWithScoresAsync(query, topK: 5);
+        var results = await _service.SearchWithScoresAsync(query, 5);
 
         // Assert
         results.Should().NotBeEmpty();
@@ -170,7 +169,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         var query = "quantum computing blockchain cryptocurrency";
 
         // Act
-        var results = await _service.SearchWithScoresAsync(query, topK: 10);
+        var results = await _service.SearchWithScoresAsync(query, 10);
 
         // Assert
         // Should return empty or very low scores since none of these terms exist
@@ -185,7 +184,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         var topK = 2;
 
         // Act
-        var results = await _service.SearchWithScoresAsync(query, topK: topK);
+        var results = await _service.SearchWithScoresAsync(query, topK);
 
         // Assert
         results.Should().HaveCountLessThanOrEqualTo(topK);
@@ -198,7 +197,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         var query = "";
 
         // Act
-        var results = await _service.SearchWithScoresAsync(query, topK: 10);
+        var results = await _service.SearchWithScoresAsync(query, 10);
 
         // Assert
         results.Should().BeEmpty();
@@ -217,18 +216,14 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         var results = await _service.HybridSearchAsync(
             query,
             queryEmbedding,
-            topK: 5,
-            rrfK: 60);
+            5);
 
         // Assert
         // May return empty if no embeddings in database, but should not throw
         results.Should().NotBeNull();
 
         // If results exist, they should have RRF scores
-        if (results.Count > 0)
-        {
-            results.First().rrfScore.Should().BeGreaterThan(0);
-        }
+        if (results.Count > 0) results.First().rrfScore.Should().BeGreaterThan(0);
     }
 
     [Fact]
@@ -240,8 +235,8 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         // Act - no embedding provided
         var results = await _service.HybridSearchAsync(
             query,
-            queryEmbedding: null,
-            topK: 5);
+            null,
+            5);
 
         // Assert
         results.Should().NotBeEmpty();
@@ -261,10 +256,10 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
     {
         // Arrange
         var query = "machine learning neural networks";
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         // Act
-        var results = await _service.SearchWithScoresAsync(query, topK: 25);
+        var results = await _service.SearchWithScoresAsync(query);
 
         // Assert
         sw.Stop();
@@ -283,7 +278,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         var query = "\"neural networks\"";
 
         // Act
-        var results = await _service.SearchWithScoresAsync(query, topK: 5);
+        var results = await _service.SearchWithScoresAsync(query, 5);
 
         // Assert
         if (results.Count > 0)
@@ -301,8 +296,8 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         var query2 = "neural networks";
 
         // Act
-        var results1 = await _service.SearchWithScoresAsync(query1, topK: 10);
-        var results2 = await _service.SearchWithScoresAsync(query2, topK: 10);
+        var results1 = await _service.SearchWithScoresAsync(query1, 10);
+        var results2 = await _service.SearchWithScoresAsync(query2, 10);
 
         // Assert
         results1.Should().NotBeEmpty();

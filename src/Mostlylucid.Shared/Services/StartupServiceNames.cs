@@ -1,8 +1,8 @@
 namespace Mostlylucid.Shared.Services;
 
 /// <summary>
-/// Well-known service names for startup coordination.
-/// Use these constants when registering/signaling services.
+///     Well-known service names for startup coordination.
+///     Use these constants when registering/signaling services.
 /// </summary>
 public static class StartupServiceNames
 {

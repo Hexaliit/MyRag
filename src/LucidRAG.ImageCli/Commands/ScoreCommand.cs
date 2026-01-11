@@ -1,29 +1,39 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using Mostlylucid.DocSummarizer.Images.Models;
+using Microsoft.Extensions.Logging;
+using Mostlylucid.DocSummarizer.Images.Services;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Mostlylucid.DocSummarizer.Images.Services.Storage;
-using Mostlylucid.DocSummarizer.Images.Services;
 using Mostlylucid.DocSummarizer.Images.Services.Vision;
 using Spectre.Console;
 
 namespace LucidRAG.ImageCli.Commands;
 
 /// <summary>
-/// Command for demonstrating multi-vector discriminator scoring with decay-based learning
+///     Command for demonstrating multi-vector discriminator scoring with decay-based learning
 /// </summary>
 public static class ScoreCommand
 {
     private static readonly Argument<string> ImagePathArg = new("image-path") { Description = "Path to image file" };
-    private static readonly Option<string?> ModelOpt = new("--model", "-m") { Description = "Vision model to use (e.g., anthropic:claude-3-opus-20240229)" };
-    private static readonly Option<string> GoalOpt = new("--goal", "-g") { Description = "Analysis goal (caption, ocr, object_detection, etc.)", DefaultValueFactory = _ => "caption" };
-    private static readonly Option<bool?> AcceptOpt = new("--accept", "-a") { Description = "Accept result (true) or reject (false) for learning" };
-    private static readonly Option<string?> FeedbackOpt = new("--feedback", "-f") { Description = "Optional feedback text" };
-    private static readonly Option<bool> ShowTopOpt = new("--show-top") { Description = "Show top discriminators for this image type", DefaultValueFactory = _ => false };
-    private static readonly Option<bool> PruneOpt = new("--prune") { Description = "Prune ineffective discriminators", DefaultValueFactory = _ => false };
+
+    private static readonly Option<string?> ModelOpt = new("--model", "-m")
+        { Description = "Vision model to use (e.g., anthropic:claude-3-opus-20240229)" };
+
+    private static readonly Option<string> GoalOpt = new("--goal", "-g")
+        { Description = "Analysis goal (caption, ocr, object_detection, etc.)", DefaultValueFactory = _ => "caption" };
+
+    private static readonly Option<bool?> AcceptOpt = new("--accept", "-a")
+        { Description = "Accept result (true) or reject (false) for learning" };
+
+    private static readonly Option<string?> FeedbackOpt = new("--feedback", "-f")
+        { Description = "Optional feedback text" };
+
+    private static readonly Option<bool> ShowTopOpt = new("--show-top")
+        { Description = "Show top discriminators for this image type", DefaultValueFactory = _ => false };
+
+    private static readonly Option<bool> PruneOpt = new("--prune")
+        { Description = "Prune ineffective discriminators", DefaultValueFactory = _ => false };
 
     public static Command Create()
     {
@@ -71,15 +81,12 @@ public static class ScoreCommand
         // Build configuration
         var config = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddUserSecrets<Program>(optional: true)
+            .AddJsonFile("appsettings.json", true)
+            .AddUserSecrets<Program>(true)
             .AddEnvironmentVariables()
             .Build();
 
-        var loggerFactory = LoggerFactory.Create(builder =>
-        {
-            builder.SetMinimumLevel(LogLevel.Warning);
-        });
+        var loggerFactory = LoggerFactory.Create(builder => { builder.SetMinimumLevel(LogLevel.Warning); });
 
         // Setup services
         var databasePath = Path.Combine(
@@ -100,16 +107,14 @@ public static class ScoreCommand
         if (prune)
         {
             await AnsiConsole.Status()
-                .StartAsync("Pruning ineffective discriminators...", async ctx =>
-                {
-                    await tracker.PruneIneffectiveDiscriminatorsAsync(ct: ct);
-                });
+                .StartAsync("Pruning ineffective discriminators...",
+                    async ctx => { await tracker.PruneIneffectiveDiscriminatorsAsync(ct: ct); });
             AnsiConsole.MarkupLine("[green]✓[/] Pruning complete");
             return 0;
         }
 
         // Build service provider for escalation service
-        var services = Program.BuildServiceProvider(config, verbose: false);
+        var services = Program.BuildServiceProvider(config, false);
         var escalationService = services.GetRequiredService<EscalationService>();
 
         // Analyze image
@@ -119,11 +124,11 @@ public static class ScoreCommand
                 // Run basic analysis
                 var result = await escalationService.AnalyzeWithEscalationAsync(
                     imagePath,
-                    forceEscalate: false);
+                    false);
 
                 if (result.Profile == null)
                 {
-                    AnsiConsole.MarkupLine($"[red]✗[/] Analysis failed");
+                    AnsiConsole.MarkupLine("[red]✗[/] Analysis failed");
                     return;
                 }
 
@@ -150,7 +155,7 @@ public static class ScoreCommand
                 AnsiConsole.WriteLine();
 
                 // Run vision analysis if model specified
-                Mostlylucid.DocSummarizer.Images.Services.Analysis.VisionResult? visionResult = null;
+                VisionResult? visionResult = null;
                 if (!string.IsNullOrEmpty(model))
                 {
                     ctx.Status("Running vision analysis...");
@@ -168,10 +173,9 @@ public static class ScoreCommand
                         AnsiConsole.WriteLine();
 
                         // Convert to discriminator VisionResult
-                        Mostlylucid.DocSummarizer.Images.Services.Analysis.VisionMetadata? discMetadata = null;
+                        VisionMetadata? discMetadata = null;
                         if (cliVisionResult.EnhancedMetadata != null)
-                        {
-                            discMetadata = new Mostlylucid.DocSummarizer.Images.Services.Analysis.VisionMetadata
+                            discMetadata = new VisionMetadata
                             {
                                 Tone = cliVisionResult.EnhancedMetadata.Tone,
                                 Sentiment = cliVisionResult.EnhancedMetadata.Sentiment,
@@ -182,18 +186,17 @@ public static class ScoreCommand
                                 TargetAudience = cliVisionResult.EnhancedMetadata.TargetAudience,
                                 Confidence = cliVisionResult.EnhancedMetadata.Confidence
                             };
-                        }
 
-                        visionResult = new Mostlylucid.DocSummarizer.Images.Services.Analysis.VisionResult(
-                            Success: cliVisionResult.Success,
-                            Error: cliVisionResult.Error,
-                            Caption: cliVisionResult.Caption,
-                            Model: cliVisionResult.Model,
-                            ConfidenceScore: cliVisionResult.ConfidenceScore,
-                            Claims: cliVisionResult.Claims?.Select(c =>
-                                new Mostlylucid.DocSummarizer.Images.Services.Analysis.EvidenceClaim(
+                        visionResult = new VisionResult(
+                            cliVisionResult.Success,
+                            cliVisionResult.Error,
+                            cliVisionResult.Caption,
+                            cliVisionResult.Model,
+                            cliVisionResult.ConfidenceScore,
+                            cliVisionResult.Claims?.Select(c =>
+                                new EvidenceClaim(
                                     c.Text, c.Sources, c.Evidence)).ToList(),
-                            EnhancedMetadata: discMetadata);
+                            discMetadata);
                     }
                 }
 
@@ -251,16 +254,16 @@ public static class ScoreCommand
                     contributionTable.AddColumn("[dim]Vectors[/]");
 
                     foreach (var kvp in score.SignalContributions
-                        .OrderByDescending(kvp => kvp.Value.Strength)
-                        .Take(10))
+                                 .OrderByDescending(kvp => kvp.Value.Strength)
+                                 .Take(10))
                     {
                         var signalName = kvp.Key;
                         var contribution = kvp.Value;
 
                         var strengthColor = contribution.Strength > 0.7 ? "green" :
-                                          contribution.Strength > 0.4 ? "yellow" : "red";
+                            contribution.Strength > 0.4 ? "yellow" : "red";
                         var agreementColor = contribution.Agreement > 0.7 ? "green" :
-                                           contribution.Agreement > 0.4 ? "yellow" : "red";
+                            contribution.Agreement > 0.4 ? "yellow" : "red";
 
                         contributionTable.AddRow(
                             signalName,
@@ -280,12 +283,11 @@ public static class ScoreCommand
 
                     var feedbackColor = accept.Value ? "green" : "red";
                     var feedbackIcon = accept.Value ? "✓" : "✗";
-                    AnsiConsole.MarkupLine($"[{feedbackColor}]{feedbackIcon}[/] Feedback recorded: {(accept.Value ? "ACCEPTED" : "REJECTED")}");
+                    AnsiConsole.MarkupLine(
+                        $"[{feedbackColor}]{feedbackIcon}[/] Feedback recorded: {(accept.Value ? "ACCEPTED" : "REJECTED")}");
 
                     if (!string.IsNullOrEmpty(feedback))
-                    {
                         AnsiConsole.MarkupLine($"[dim]  Note: {Markup.Escape(feedback)}[/]");
-                    }
 
                     AnsiConsole.WriteLine();
 
@@ -301,7 +303,8 @@ public static class ScoreCommand
                     statsTable.AddColumn("[white]Value[/]");
 
                     statsTable.AddRow("Total Evaluations", stats.TotalScores.ToString());
-                    statsTable.AddRow("With Feedback", $"{stats.TotalWithFeedback} ({(stats.TotalScores > 0 ? stats.TotalWithFeedback * 100.0 / stats.TotalScores : 0):F1}%)");
+                    statsTable.AddRow("With Feedback",
+                        $"{stats.TotalWithFeedback} ({(stats.TotalScores > 0 ? stats.TotalWithFeedback * 100.0 / stats.TotalScores : 0):F1}%)");
                     statsTable.AddRow("Active Discriminators", stats.ActiveDiscriminators.ToString());
                     statsTable.AddRow("Avg Weight", $"{stats.AverageWeight:F3}");
                     statsTable.AddRow("Avg Agreement Rate", $"{stats.AverageAgreementRate:P0}");
@@ -314,7 +317,7 @@ public static class ScoreCommand
                 {
                     AnsiConsole.WriteLine();
                     var topDiscriminators = await tracker.GetTopDiscriminatorsAsync(
-                        profile.DetectedType, goal, limit: 10, ct: ct);
+                        profile.DetectedType, goal, 10, ct);
 
                     if (topDiscriminators.Any())
                     {
@@ -332,7 +335,7 @@ public static class ScoreCommand
                         {
                             var decayedWeight = disc.GetDecayedWeight(DateTimeOffset.UtcNow);
                             var weightColor = decayedWeight > 1.2 ? "green" :
-                                            decayedWeight > 0.8 ? "yellow" : "red";
+                                decayedWeight > 0.8 ? "yellow" : "red";
 
                             topTable.AddRow(
                                 disc.SignalName,
@@ -356,8 +359,8 @@ public static class ScoreCommand
     private static void AddScoreRow(Table table, string vector, double score, string description)
     {
         var color = score > 0.7 ? "green" :
-                   score > 0.4 ? "yellow" :
-                   score > 0.0 ? "red" : "dim";
+            score > 0.4 ? "yellow" :
+            score > 0.0 ? "red" : "dim";
 
         var bar = new string('█', (int)(score * 20));
         table.AddRow(

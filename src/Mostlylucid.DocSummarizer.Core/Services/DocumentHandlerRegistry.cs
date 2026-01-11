@@ -3,13 +3,16 @@ using System.Collections.Concurrent;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Default implementation of the document handler registry.
-/// Routes file extensions to the highest-priority handler.
+///     Default implementation of the document handler registry.
+///     Routes file extensions to the highest-priority handler.
 /// </summary>
 public class DocumentHandlerRegistry : IDocumentHandlerRegistry
 {
-    private readonly ConcurrentDictionary<string, List<IDocumentHandler>> _handlersByExtension = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<IDocumentHandler> _allHandlers = [];
+
+    private readonly ConcurrentDictionary<string, List<IDocumentHandler>> _handlersByExtension =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private readonly object _lock = new();
 
     /// <inheritdoc />
@@ -19,13 +22,13 @@ public class DocumentHandlerRegistry : IDocumentHandlerRegistry
             return null;
 
         // Normalize extension to lowercase with dot
-        var normalizedExt = extension.StartsWith('.') ? extension.ToLowerInvariant() : $".{extension.ToLowerInvariant()}";
+        var normalizedExt = extension.StartsWith('.')
+            ? extension.ToLowerInvariant()
+            : $".{extension.ToLowerInvariant()}";
 
         if (_handlersByExtension.TryGetValue(normalizedExt, out var handlers) && handlers.Count > 0)
-        {
             // Return highest priority handler
             return handlers.OrderByDescending(h => h.Priority).First();
-        }
 
         return null;
     }
@@ -41,15 +44,11 @@ public class DocumentHandlerRegistry : IDocumentHandlerRegistry
 
         // Additional validation - check if handler explicitly says it can handle
         if (handler != null && !handler.CanHandle(filePath))
-        {
             // Try other handlers for this extension
             if (_handlersByExtension.TryGetValue(extension.ToLowerInvariant(), out var handlers))
-            {
                 handler = handlers
                     .OrderByDescending(h => h.Priority)
                     .FirstOrDefault(h => h.CanHandle(filePath));
-            }
-        }
 
         return handler;
     }

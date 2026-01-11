@@ -42,6 +42,7 @@ dir nupkg\LucidRAG.ImageCli.1.0.0.nupkg
 ```
 
 Expected output in `./nupkg/`:
+
 - `LucidRAG.ImageCli.1.0.0.nupkg`
 - `LucidRAG.ImageCli.1.0.0.symbols.nupkg` (if configured)
 
@@ -65,11 +66,13 @@ lucidrag-image analyze src/Mostlylucid.DocSummarizer.Images.Tests/TestImages/ico
 **Troubleshooting local install:**
 
 If you get "Tool already installed", uninstall first:
+
 ```bash
 dotnet tool uninstall -g LucidRAG.ImageCli
 ```
 
 If you make changes and want to update:
+
 ```bash
 # Increment version in .csproj first (1.0.0 -> 1.0.1)
 dotnet pack src/LucidRAG.ImageCli/LucidRAG.ImageCli.csproj
@@ -139,6 +142,7 @@ jobs:
 ```
 
 Trigger release:
+
 ```bash
 git tag imagecli-v1.0.0
 git push origin imagecli-v1.0.0
@@ -158,6 +162,7 @@ Update version in `.csproj` before each release:
 ```
 
 **Semantic Versioning:**
+
 - **1.0.0** → **1.0.1**: Bug fixes
 - **1.0.0** → **1.1.0**: New features (backward compatible)
 - **1.0.0** → **2.0.0**: Breaking changes
@@ -352,15 +357,15 @@ After publishing to NuGet.org:
    ```
 
 2. **Create Release** on GitHub with:
-   - Tag: `imagecli-v1.0.0`
-   - Title: `ImageCli v1.0.0`
-   - Description: Copy from PackageReleaseNotes
-   - Attach: `LucidRAG.ImageCli.1.0.0.nupkg`
+    - Tag: `imagecli-v1.0.0`
+    - Title: `ImageCli v1.0.0`
+    - Description: Copy from PackageReleaseNotes
+    - Attach: `LucidRAG.ImageCli.1.0.0.nupkg`
 
 3. **Announce** on:
-   - GitHub Discussions
-   - Project README
-   - Twitter/social media
+    - GitHub Discussions
+    - Project README
+    - Twitter/social media
 
 ## Monitoring
 

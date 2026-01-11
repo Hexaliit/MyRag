@@ -14,11 +14,13 @@
     <!-- Back to browse -->
     <div class="px-4 py-2 border-b border-base-300 flex items-center justify-between bg-base-100">
         <span class="text-sm text-base-content/70">
-            <span x-text="searchResults.length"></span> results for "<span x-text="searchQuery" class="font-medium"></span>"
+            <span x-text="searchResults.length"></span> results for "<span x-text="searchQuery"
+                                                                           class="font-medium"></span>"
         </span>
         <button class="btn btn-ghost btn-xs" @@click="clearSearch()">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                 stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
             Clear search
         </button>
@@ -27,8 +29,10 @@
     <!-- No results -->
     <template x-if="searchResults.length === 0">
         <div class="flex flex-col items-center justify-center py-12 text-base-content/50">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-3" fill="none" viewBox="0 0 24 24"
+                 stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
             <p>No matching documents found</p>
             <p class="text-sm mt-1">Try different keywords or broaden your search</p>
@@ -67,7 +71,8 @@
                     <!-- Meta row -->
                     <div class="flex items-center gap-3 mt-2 text-xs text-base-content/50">
                         <span x-text="formatDate(result.createdAt)"></span>
-                        <span class="badge badge-xs" :class="getStatusClass(result.status)" x-text="result.status"></span>
+                        <span class="badge badge-xs" :class="getStatusClass(result.status)"
+                              x-text="result.status"></span>
                     </div>
                 </div>
 

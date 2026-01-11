@@ -7,12 +7,12 @@ using Mostlylucid.DocSummarizer.Services;
 namespace Mostlylucid.DocSummarizer.OpenAI.Extensions;
 
 /// <summary>
-/// Extension methods for registering OpenAI services
+///     Extension methods for registering OpenAI services
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds OpenAI as the LLM and embedding backend
+    ///     Adds OpenAI as the LLM and embedding backend
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configure">Action to configure OpenAI options</param>
@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds OpenAI as the LLM and embedding backend with configuration section binding
+    ///     Adds OpenAI as the LLM and embedding backend with configuration section binding
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configurationSection">Configuration section containing OpenAI settings</param>
@@ -42,7 +42,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds only OpenAI embeddings (keeping another LLM backend)
+    ///     Adds only OpenAI embeddings (keeping another LLM backend)
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configure">Action to configure OpenAI options</param>

@@ -1,52 +1,55 @@
-using HotChocolate;
-using HotChocolate.Data;
-using HotChocolate.Types;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace LucidRAG.GraphQL;
 
 /// <summary>
-/// GraphQL Query type for the knowledge graph.
-/// Provides access to entities, relationships, communities, and documents.
+///     GraphQL Query type for the knowledge graph.
+///     Provides access to entities, relationships, communities, and documents.
 /// </summary>
 public class KnowledgeGraphQuery
 {
     /// <summary>
-    /// Get all entities with optional filtering and pagination.
+    ///     Get all entities with optional filtering and pagination.
     /// </summary>
     [UsePaging(IncludeTotalCount = true)]
     [UseFiltering]
     [UseSorting]
     public IQueryable<ExtractedEntity> GetEntities([Service] RagDocumentsDbContext db)
-        => db.Entities.AsNoTracking();
+    {
+        return db.Entities.AsNoTracking();
+    }
 
     /// <summary>
-    /// Get a specific entity by ID.
+    ///     Get a specific entity by ID.
     /// </summary>
     public async Task<ExtractedEntity?> GetEntity(
         Guid id,
         [Service] RagDocumentsDbContext db,
         CancellationToken ct)
-        => await db.Entities
+    {
+        return await db.Entities
             .Include(e => e.DocumentLinks)
             .ThenInclude(l => l.Document)
             .AsNoTracking()
             .FirstOrDefaultAsync(e => e.Id == id, ct);
+    }
 
     /// <summary>
-    /// Get entities by type (e.g., "person", "organization", "concept").
+    ///     Get entities by type (e.g., "person", "organization", "concept").
     /// </summary>
     [UsePaging(IncludeTotalCount = true)]
     [UseFiltering]
     public IQueryable<ExtractedEntity> GetEntitiesByType(
         string entityType,
         [Service] RagDocumentsDbContext db)
-        => db.Entities.Where(e => e.EntityType == entityType).AsNoTracking();
+    {
+        return db.Entities.Where(e => e.EntityType == entityType).AsNoTracking();
+    }
 
     /// <summary>
-    /// Search entities by name or description.
+    ///     Search entities by name or description.
     /// </summary>
     [UsePaging(IncludeTotalCount = true)]
     public IQueryable<ExtractedEntity> SearchEntities(
@@ -61,19 +64,21 @@ public class KnowledgeGraphQuery
     }
 
     /// <summary>
-    /// Get all relationships with optional filtering.
+    ///     Get all relationships with optional filtering.
     /// </summary>
     [UsePaging(IncludeTotalCount = true)]
     [UseFiltering]
     [UseSorting]
     public IQueryable<EntityRelationship> GetRelationships([Service] RagDocumentsDbContext db)
-        => db.EntityRelationships
+    {
+        return db.EntityRelationships
             .Include(r => r.SourceEntity)
             .Include(r => r.TargetEntity)
             .AsNoTracking();
+    }
 
     /// <summary>
-    /// Get relationships for a specific entity (both incoming and outgoing).
+    ///     Get relationships for a specific entity (both incoming and outgoing).
     /// </summary>
     public async Task<EntityConnections> GetEntityConnections(
         Guid entityId,
@@ -102,40 +107,46 @@ public class KnowledgeGraphQuery
     }
 
     /// <summary>
-    /// Get all communities with optional filtering.
+    ///     Get all communities with optional filtering.
     /// </summary>
     [UsePaging(IncludeTotalCount = true)]
     [UseFiltering]
     [UseSorting]
     public IQueryable<CommunityEntity> GetCommunities([Service] RagDocumentsDbContext db)
-        => db.Communities.AsNoTracking();
+    {
+        return db.Communities.AsNoTracking();
+    }
 
     /// <summary>
-    /// Get a specific community by ID with members.
+    ///     Get a specific community by ID with members.
     /// </summary>
     public async Task<CommunityEntity?> GetCommunity(
         Guid id,
         [Service] RagDocumentsDbContext db,
         CancellationToken ct)
-        => await db.Communities
+    {
+        return await db.Communities
             .Include(c => c.Members)
             .ThenInclude(m => m.Entity)
             .Include(c => c.ChildCommunities)
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == id, ct);
+    }
 
     /// <summary>
-    /// Get top-level communities (hierarchy root).
+    ///     Get top-level communities (hierarchy root).
     /// </summary>
     [UsePaging(IncludeTotalCount = true)]
     public IQueryable<CommunityEntity> GetTopLevelCommunities([Service] RagDocumentsDbContext db)
-        => db.Communities
+    {
+        return db.Communities
             .Where(c => c.ParentCommunityId == null)
             .OrderByDescending(c => c.EntityCount)
             .AsNoTracking();
+    }
 
     /// <summary>
-    /// Get graph statistics.
+    ///     Get graph statistics.
     /// </summary>
     public async Task<GraphStats> GetGraphStats(
         [Service] RagDocumentsDbContext db,
@@ -168,28 +179,32 @@ public class KnowledgeGraphQuery
     }
 
     /// <summary>
-    /// Get documents in the system.
+    ///     Get documents in the system.
     /// </summary>
     [UsePaging(IncludeTotalCount = true)]
     [UseFiltering]
     [UseSorting]
     public IQueryable<DocumentEntity> GetDocuments([Service] RagDocumentsDbContext db)
-        => db.Documents.Include(d => d.Collection).AsNoTracking();
+    {
+        return db.Documents.Include(d => d.Collection).AsNoTracking();
+    }
 
     /// <summary>
-    /// Get a specific document by ID.
+    ///     Get a specific document by ID.
     /// </summary>
     public async Task<DocumentEntity?> GetDocument(
         Guid id,
         [Service] RagDocumentsDbContext db,
         CancellationToken ct)
-        => await db.Documents
+    {
+        return await db.Documents
             .Include(d => d.Collection)
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == id, ct);
+    }
 
     /// <summary>
-    /// Find paths between two entities (up to maxHops).
+    ///     Find paths between two entities (up to maxHops).
     /// </summary>
     public async Task<List<EntityPath>> FindPaths(
         Guid fromEntityId,
@@ -227,6 +242,7 @@ public class KnowledgeGraphQuery
                     });
                     node = parent;
                 }
+
                 var fromEntity = await db.Entities.AsNoTracking()
                     .FirstOrDefaultAsync(e => e.Id == fromEntityId, ct);
                 path.Insert(0, new PathStep
@@ -262,7 +278,7 @@ public class KnowledgeGraphQuery
 }
 
 /// <summary>
-/// Entity connections (incoming and outgoing relationships).
+///     Entity connections (incoming and outgoing relationships).
 /// </summary>
 public class EntityConnections
 {
@@ -273,7 +289,7 @@ public class EntityConnections
 }
 
 /// <summary>
-/// Graph statistics summary.
+///     Graph statistics summary.
 /// </summary>
 public class GraphStats
 {
@@ -286,7 +302,7 @@ public class GraphStats
 }
 
 /// <summary>
-/// Type count for breakdowns.
+///     Type count for breakdowns.
 /// </summary>
 public class TypeCount
 {
@@ -295,7 +311,7 @@ public class TypeCount
 }
 
 /// <summary>
-/// A path between two entities.
+///     A path between two entities.
 /// </summary>
 public class EntityPath
 {
@@ -304,7 +320,7 @@ public class EntityPath
 }
 
 /// <summary>
-/// A step in an entity path.
+///     A step in an entity path.
 /// </summary>
 public class PathStep
 {

@@ -8,21 +8,76 @@ namespace VideoSummarizer.Core.Services;
 /// <summary>
 /// Extracts rich metadata from videos using FFmpeg/FFprobe utilities.
 /// Harvests: I-frames, scene changes, black frames, silence, loudness, frame types.
+/// Supports GPU acceleration via NVDEC (NVIDIA) or VAAPI (AMD/Intel).
 /// </summary>
 public class FFmpegAnalysisService
 {
     private readonly ILogger<FFmpegAnalysisService>? _logger;
     private readonly string _ffprobePath;
     private readonly string _ffmpegPath;
+    private readonly bool _useHardwareAcceleration;
+    private readonly string _hwAccelType;
 
     public FFmpegAnalysisService(
         ILogger<FFmpegAnalysisService>? logger = null,
         string? ffprobePath = null,
-        string? ffmpegPath = null)
+        string? ffmpegPath = null,
+        bool useHardwareAcceleration = true)
     {
         _logger = logger;
         _ffprobePath = ffprobePath ?? FindExecutable("ffprobe");
         _ffmpegPath = ffmpegPath ?? FindExecutable("ffmpeg");
+        _useHardwareAcceleration = useHardwareAcceleration;
+        _hwAccelType = DetectHardwareAcceleration();
+    }
+
+    /// <summary>
+    /// Detect available hardware acceleration (NVIDIA CUDA/NVDEC, AMD VAAPI, Intel QSV).
+    /// </summary>
+    private string DetectHardwareAcceleration()
+    {
+        // Check for NVIDIA GPU first (CUDA/NVDEC)
+        if (File.Exists(@"C:\Windows\System32\nvidia-smi.exe") ||
+            File.Exists(@"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe") ||
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CUDA_PATH")))
+        {
+            _logger?.LogInformation("NVIDIA GPU detected - using CUDA hardware acceleration");
+            return "cuda";
+        }
+
+        // Check for AMD GPU (DirectX Video Acceleration on Windows)
+        if (OperatingSystem.IsWindows())
+        {
+            _logger?.LogInformation("Using D3D11VA for hardware acceleration");
+            return "d3d11va";
+        }
+
+        // Linux: try VAAPI
+        if (OperatingSystem.IsLinux() && Directory.Exists("/dev/dri"))
+        {
+            _logger?.LogInformation("Using VAAPI for hardware acceleration");
+            return "vaapi";
+        }
+
+        _logger?.LogInformation("No GPU acceleration available, using CPU");
+        return "";
+    }
+
+    /// <summary>
+    /// Get FFmpeg input arguments with hardware acceleration if available.
+    /// </summary>
+    private string GetHwAccelArgs()
+    {
+        if (!_useHardwareAcceleration || string.IsNullOrEmpty(_hwAccelType))
+            return "";
+
+        return _hwAccelType switch
+        {
+            "cuda" => "-hwaccel cuda -hwaccel_output_format cuda ",
+            "d3d11va" => "-hwaccel d3d11va ",
+            "vaapi" => "-hwaccel vaapi -vaapi_device /dev/dri/renderD128 ",
+            _ => ""
+        };
     }
 
     /// <summary>
@@ -85,6 +140,7 @@ public class FFmpegAnalysisService
     /// <summary>
     /// Detect scene changes using FFmpeg's scene detection filter.
     /// Returns timestamps where visual content changes significantly.
+    /// Uses GPU hardware acceleration (NVDEC/VAAPI) when available for 5-10x faster decoding.
     /// </summary>
     public async Task<List<SceneChangeInfo>> DetectSceneChangesAsync(
         string videoPath,
@@ -93,13 +149,27 @@ public class FFmpegAnalysisService
     {
         var scenes = new List<SceneChangeInfo>();
 
-        // ffmpeg -i input -vf "select='gt(scene,0.4)',showinfo" -f null -
+        // Build filter chain - need hwdownload for GPU frames before CPU filter
+        var hwAccel = GetHwAccelArgs();
+        var filterPrefix = "";
+
+        // If using CUDA, need to download frames from GPU before scene filter
+        if (_hwAccelType == "cuda" && _useHardwareAcceleration)
+        {
+            filterPrefix = "hwdownload,format=nv12,";
+        }
+
+        // ffmpeg -hwaccel cuda -i input -vf "hwdownload,format=nv12,select='gt(scene,0.4)',showinfo" -f null -
         // Selects frames where scene score > threshold and outputs info
-        var args = $"-i \"{videoPath}\" -vf \"select='gt(scene,{threshold:F2})',showinfo\" -f null - 2>&1";
+        var args = $"{hwAccel}-i \"{videoPath}\" -vf \"{filterPrefix}select='gt(scene,{threshold:F2})',showinfo\" -f null - 2>&1";
 
-        _logger?.LogInformation("Detecting scene changes (threshold: {Threshold})", threshold);
+        _logger?.LogInformation("Detecting scene changes (threshold: {Threshold}, hwaccel: {HwAccel})",
+            threshold, string.IsNullOrEmpty(_hwAccelType) ? "none" : _hwAccelType);
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var output = await RunFFmpegAsync(args, ct);
+        sw.Stop();
+
         if (string.IsNullOrEmpty(output)) return scenes;
 
         // Parse showinfo output: [Parsed_showinfo_1 @ ...] n:0 pts:0 pts_time:0.000000 ...
@@ -118,7 +188,8 @@ public class FFmpegAnalysisService
             }
         }
 
-        _logger?.LogInformation("Detected {Count} scene changes", scenes.Count);
+        _logger?.LogInformation("Detected {Count} scene changes in {Time}ms (hwaccel: {HwAccel})",
+            scenes.Count, sw.ElapsedMilliseconds, string.IsNullOrEmpty(_hwAccelType) ? "none" : _hwAccelType);
         return scenes;
     }
 
@@ -316,6 +387,7 @@ public class FFmpegAnalysisService
 
     /// <summary>
     /// Extract a single frame at a specific timestamp.
+    /// Uses GPU hardware acceleration for faster decoding when available.
     /// </summary>
     /// <param name="videoPath">Path to the video file</param>
     /// <param name="timestamp">Timestamp in seconds</param>
@@ -333,13 +405,28 @@ public class FFmpegAnalysisService
     {
         var outputPath = Path.Combine(outputDir, $"{prefix}{timestamp:F3}.jpg");
 
-        // Build scale filter if width specified
-        var scaleFilter = width.HasValue
-            ? $"-vf \"scale={width}:-1\""
-            : "";
+        // Use GPU decoding for faster seeking
+        var hwAccel = GetHwAccelArgs();
+
+        // Build filter chain
+        var filters = new List<string>();
+
+        // Need hwdownload if using CUDA
+        if (_hwAccelType == "cuda" && _useHardwareAcceleration)
+        {
+            filters.Add("hwdownload");
+            filters.Add("format=nv12");
+        }
+
+        if (width.HasValue)
+        {
+            filters.Add($"scale={width}:-1");
+        }
+
+        var filterArg = filters.Count > 0 ? $"-vf \"{string.Join(",", filters)}\"" : "";
 
         // -ss before -i for fast seeking, -frames:v 1 for single frame
-        var args = $"-ss {timestamp:F3} -i \"{videoPath}\" {scaleFilter} -frames:v 1 -q:v 2 \"{outputPath}\" -y";
+        var args = $"-ss {timestamp:F3} {hwAccel}-i \"{videoPath}\" {filterArg} -frames:v 1 -q:v 2 \"{outputPath}\" -y";
 
         await RunFFmpegAsync(args, ct);
 

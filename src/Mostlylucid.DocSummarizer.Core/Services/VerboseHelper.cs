@@ -1,27 +1,24 @@
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Helper class for verbose output that replaces Spectre.Console dependency.
+///     Helper class for verbose output that replaces Spectre.Console dependency.
 /// </summary>
 internal static class VerboseHelper
 {
     /// <summary>
-    /// Write a verbose log message if verbose mode is enabled.
-    /// Messages go to stderr to avoid polluting stdout (which is reserved for JSON output).
+    ///     Write a verbose log message if verbose mode is enabled.
+    ///     Messages go to stderr to avoid polluting stdout (which is reserved for JSON output).
     /// </summary>
     /// <param name="verbose">Whether verbose mode is enabled.</param>
     /// <param name="message">The message to write.</param>
     public static void Log(bool verbose, string message)
     {
-        if (verbose)
-        {
-            Console.Error.WriteLine(StripMarkup(message));
-        }
+        if (verbose) Console.Error.WriteLine(StripMarkup(message));
     }
 
     /// <summary>
-    /// Write a verbose log message unconditionally.
-    /// Messages go to stderr to avoid polluting stdout (which is reserved for JSON output).
+    ///     Write a verbose log message unconditionally.
+    ///     Messages go to stderr to avoid polluting stdout (which is reserved for JSON output).
     /// </summary>
     /// <param name="message">The message to write.</param>
     public static void Log(string message)
@@ -30,15 +27,18 @@ internal static class VerboseHelper
     }
 
     /// <summary>
-    /// Escape text for safe display (no-op in console mode, would escape markup in Spectre).
+    ///     Escape text for safe display (no-op in console mode, would escape markup in Spectre).
     /// </summary>
     /// <param name="text">The text to escape.</param>
     /// <returns>The text unchanged.</returns>
-    public static string Escape(string? text) => text ?? "";
+    public static string Escape(string? text)
+    {
+        return text ?? "";
+    }
 
     /// <summary>
-    /// Strip Spectre markup tags from a string.
-    /// Converts "[bold cyan]text[/]" to "text".
+    ///     Strip Spectre markup tags from a string.
+    ///     Converts "[bold cyan]text[/]" to "text".
     /// </summary>
     private static string StripMarkup(string text)
     {

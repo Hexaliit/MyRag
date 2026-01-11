@@ -4,24 +4,21 @@ namespace Mostlylucid.Shared.Helpers;
 
 public static class UpdatedDateFormatter
 {
-    private static readonly CultureInfo UkCulture = new CultureInfo("en-GB");
+    private static readonly CultureInfo UkCulture = new("en-GB");
 
     /// <summary>
-    /// Formats an updated date using the provided template or default UK format.
-    /// Supports placeholders:
-    /// - {updateddateTime} - Full date and time (e.g., "11/11/2025 15:30")
-    /// - {updateddate} - Date only (e.g., "11/11/2025")
-    /// - {updatedtime} - Time only (e.g., "15:30")
+    ///     Formats an updated date using the provided template or default UK format.
+    ///     Supports placeholders:
+    ///     - {updateddateTime} - Full date and time (e.g., "11/11/2025 15:30")
+    ///     - {updateddate} - Date only (e.g., "11/11/2025")
+    ///     - {updatedtime} - Time only (e.g., "15:30")
     /// </summary>
     /// <param name="updatedDate">The date to format</param>
     /// <param name="template">Optional template string. If null, uses default "Updated {updateddateTime}"</param>
     /// <returns>Formatted string</returns>
     public static string Format(DateTimeOffset? updatedDate, string? template = null)
     {
-        if (!updatedDate.HasValue)
-        {
-            return string.Empty;
-        }
+        if (!updatedDate.HasValue) return string.Empty;
 
         // Convert to UK time zone (GMT/BST)
         var localTime = updatedDate.Value.ToLocalTime();

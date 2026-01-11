@@ -68,7 +68,7 @@ cache:
       description: OpenCV-detected text regions for downstream OCR
 
 config:
-  bindings: []  # Always runs in auto mode
+  bindings: [ ]  # Always runs in auto mode
 
 lane:
   name: routing

@@ -7,13 +7,13 @@ using FluentAssertions;
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Integration tests for the Collections API
+///     Integration tests for the Collections API
 /// </summary>
 [Collection("Integration")]
 public class CollectionsApiTests : IAsyncLifetime
 {
-    private readonly TestWebApplicationFactory _factory;
     private readonly HttpClient _client;
+    private readonly TestWebApplicationFactory _factory;
 
     public CollectionsApiTests(TestWebApplicationFactory factory)
     {
@@ -123,10 +123,7 @@ public class CollectionsApiTests : IAsyncLifetime
     public async Task ListCollections_ReturnsAllCollections()
     {
         // Arrange - Create multiple collections
-        for (int i = 0; i < 3; i++)
-        {
-            await _client.PostAsJsonAsync("/api/collections", new { name = $"List Test {i}" });
-        }
+        for (var i = 0; i < 3; i++) await _client.PostAsJsonAsync("/api/collections", new { name = $"List Test {i}" });
 
         // Act
         var response = await _client.GetAsync("/api/collections");
@@ -219,7 +216,7 @@ public class CollectionsApiTests : IAsyncLifetime
 
         // Upload documents
         var docIds = new List<string>();
-        for (int i = 0; i < 2; i++)
+        for (var i = 0; i < 2; i++)
         {
             var content = new MultipartFormDataContent();
             content.Add(new StringContent($"# Doc {i}\n\nContent {i}.", Encoding.UTF8), "file", $"doc-{i}.md");

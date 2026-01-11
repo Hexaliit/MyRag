@@ -25,12 +25,12 @@ emits:
     - key: scene.count
       type: int
       description: Number of distinct scenes detected
-      confidence_range: [1.0, 1.0]
+      confidence_range: [ 1.0, 1.0 ]
 
     - key: scene.frame_indices
       type: List<int>
       description: Frame indices at end of each scene (best for OCR/captions)
-      confidence_range: [1.0, 1.0]
+      confidence_range: [ 1.0, 1.0 ]
 
     - key: scene.last_frame
       type: int
@@ -52,7 +52,7 @@ listens:
     - identity.is_animated
     - identity.frame_count
 
-  optional: []
+  optional: [ ]
 
 # Scene detection runs very early - no dependencies
 # Other waves can use scene.frame_indices to select which frames to process

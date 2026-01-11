@@ -1,21 +1,21 @@
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Config;
-using System.Net.Http.Json;
-using System.Text.Json;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
 
 /// <summary>
-/// Tier 3: Sentinel LLM correction for OCR text
-/// Uses vision LLM to re-analyze the image and verify/correct OCR output
-/// Most accurate but slowest tier - only used when Tier 1 & 2 uncertain
+///     Tier 3: Sentinel LLM correction for OCR text
+///     Uses vision LLM to re-analyze the image and verify/correct OCR output
+///     Most accurate but slowest tier - only used when Tier 1 & 2 uncertain
 /// </summary>
 public class SentinelLlmCorrector
 {
     private readonly ImageConfig _config;
-    private readonly ILogger<SentinelLlmCorrector>? _logger;
     private readonly HttpClient _httpClient;
+    private readonly ILogger<SentinelLlmCorrector>? _logger;
 
     public SentinelLlmCorrector(
         IOptions<ImageConfig> config,
@@ -28,7 +28,7 @@ public class SentinelLlmCorrector
     }
 
     /// <summary>
-    /// Correct OCR text using vision LLM re-query
+    ///     Correct OCR text using vision LLM re-query
     /// </summary>
     public async Task<CorrectionResult> CorrectAsync(
         string ocrText,
@@ -71,7 +71,7 @@ public class SentinelLlmCorrector
 
             // Calculate edit distance to measure how much changed
             var editDistance = LevenshteinDistance(ocrText, correctedText);
-            var similarity = 1.0 - (editDistance / (double)Math.Max(ocrText.Length, correctedText.Length));
+            var similarity = 1.0 - editDistance / (double)Math.Max(ocrText.Length, correctedText.Length);
 
             _logger?.LogInformation(
                 "Vision LLM corrected: '{Original}' → '{Corrected}' (similarity: {Similarity:F2})",
@@ -104,7 +104,7 @@ public class SentinelLlmCorrector
     }
 
     /// <summary>
-    /// Query vision LLM to verify and correct OCR text
+    ///     Query vision LLM to verify and correct OCR text
     /// </summary>
     private async Task<string?> QueryVisionLlmForCorrectionAsync(
         string ocrText,
@@ -122,8 +122,8 @@ IMPORTANT: Only output the corrected text, nothing else. If the OCR is already c
 
         var request = new
         {
-            model = model,
-            prompt = prompt,
+            model,
+            prompt,
             images = new[] { imageBase64 },
             stream = false,
             options = new
@@ -142,7 +142,7 @@ IMPORTANT: Only output the corrected text, nothing else. If the OCR is already c
 
             response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+            var result = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
 
             if (result.TryGetProperty("response", out var responseText))
             {
@@ -165,7 +165,7 @@ IMPORTANT: Only output the corrected text, nothing else. If the OCR is already c
     }
 
     /// <summary>
-    /// Convert image to base64 for Ollama
+    ///     Convert image to base64 for Ollama
     /// </summary>
     private async Task<string> ConvertImageToBase64(string imagePath, CancellationToken ct)
     {
@@ -174,7 +174,7 @@ IMPORTANT: Only output the corrected text, nothing else. If the OCR is already c
     }
 
     /// <summary>
-    /// Calculate Levenshtein distance between two strings
+    ///     Calculate Levenshtein distance between two strings
     /// </summary>
     private static int LevenshteinDistance(string s, string t)
     {
@@ -184,24 +184,22 @@ IMPORTANT: Only output the corrected text, nothing else. If the OCR is already c
         if (string.IsNullOrEmpty(t))
             return s.Length;
 
-        int[,] d = new int[s.Length + 1, t.Length + 1];
+        var d = new int[s.Length + 1, t.Length + 1];
 
-        for (int i = 0; i <= s.Length; i++)
+        for (var i = 0; i <= s.Length; i++)
             d[i, 0] = i;
 
-        for (int j = 0; j <= t.Length; j++)
+        for (var j = 0; j <= t.Length; j++)
             d[0, j] = j;
 
-        for (int i = 1; i <= s.Length; i++)
+        for (var i = 1; i <= s.Length; i++)
+        for (var j = 1; j <= t.Length; j++)
         {
-            for (int j = 1; j <= t.Length; j++)
-            {
-                int cost = s[i - 1] == t[j - 1] ? 0 : 1;
+            var cost = s[i - 1] == t[j - 1] ? 0 : 1;
 
-                d[i, j] = Math.Min(
-                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
-                    d[i - 1, j - 1] + cost);
-            }
+            d[i, j] = Math.Min(
+                Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                d[i - 1, j - 1] + cost);
         }
 
         return d[s.Length, t.Length];
@@ -209,7 +207,7 @@ IMPORTANT: Only output the corrected text, nothing else. If the OCR is already c
 }
 
 /// <summary>
-/// Result of Sentinel LLM correction
+///     Result of Sentinel LLM correction
 /// </summary>
 public class CorrectionResult
 {

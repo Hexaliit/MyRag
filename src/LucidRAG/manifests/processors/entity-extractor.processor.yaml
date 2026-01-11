@@ -71,7 +71,7 @@ defaults:
       - product
       - event
       - date
-    custom: []  # Additional custom entity types
+    custom: [ ]  # Additional custom entity types
 
   # Relationship extraction
   relationships:

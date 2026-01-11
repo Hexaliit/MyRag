@@ -1,19 +1,19 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.RAG.Config;
 using Mostlylucid.RAG.Models;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace Mostlylucid.RAG.Services;
 
 /// <summary>
-/// High-level semantic search service that coordinates embedding and vector storage
+///     High-level semantic search service that coordinates embedding and vector storage
 /// </summary>
 public class SemanticSearchService : ISemanticSearchService
 {
-    private readonly ILogger<SemanticSearchService> _logger;
     private readonly SemanticSearchConfig _config;
     private readonly IEmbeddingService _embeddingService;
+    private readonly ILogger<SemanticSearchService> _logger;
     private readonly IVectorStoreService _vectorStoreService;
 
     public SemanticSearchService(
@@ -66,10 +66,7 @@ public class SemanticSearchService : ISemanticSearchService
             var embedding = await _embeddingService.GenerateEmbeddingAsync(textToEmbed, cancellationToken);
 
             // Compute content hash if not provided
-            if (string.IsNullOrEmpty(document.ContentHash))
-            {
-                document.ContentHash = ComputeContentHash(document.Content);
-            }
+            if (string.IsNullOrEmpty(document.ContentHash)) document.ContentHash = ComputeContentHash(document.Content);
 
             // Store in vector database
             await _vectorStoreService.IndexDocumentAsync(document, embedding, cancellationToken);
@@ -82,7 +79,8 @@ public class SemanticSearchService : ISemanticSearchService
         }
     }
 
-    public async Task IndexPostsAsync(IEnumerable<BlogPostDocument> documents, CancellationToken cancellationToken = default)
+    public async Task IndexPostsAsync(IEnumerable<BlogPostDocument> documents,
+        CancellationToken cancellationToken = default)
     {
         if (!_config.Enabled)
             return;
@@ -98,16 +96,13 @@ public class SemanticSearchService : ISemanticSearchService
             var documentsWithEmbeddings = new List<(BlogPostDocument Document, float[] Embedding)>();
 
             foreach (var document in documentsList)
-            {
                 try
                 {
                     var textToEmbed = PrepareTextForEmbedding(document);
                     var embedding = await _embeddingService.GenerateEmbeddingAsync(textToEmbed, cancellationToken);
 
                     if (string.IsNullOrEmpty(document.ContentHash))
-                    {
                         document.ContentHash = ComputeContentHash(document.Content);
-                    }
 
                     documentsWithEmbeddings.Add((document, embedding));
                 }
@@ -115,7 +110,6 @@ public class SemanticSearchService : ISemanticSearchService
                 {
                     _logger.LogError(ex, "Failed to generate embedding for {Slug}", document.Slug);
                 }
-            }
 
             if (documentsWithEmbeddings.Count > 0)
             {
@@ -129,7 +123,8 @@ public class SemanticSearchService : ISemanticSearchService
         }
     }
 
-    public async Task<List<SearchResult>> SearchAsync(string query, int limit = 10, CancellationToken cancellationToken = default)
+    public async Task<List<SearchResult>> SearchAsync(string query, int limit = 10,
+        CancellationToken cancellationToken = default)
     {
         if (!_config.Enabled || string.IsNullOrWhiteSpace(query))
             return new List<SearchResult>();
@@ -157,7 +152,8 @@ public class SemanticSearchService : ISemanticSearchService
         }
     }
 
-    public async Task<List<SearchResult>> GetRelatedPostsAsync(string slug, int limit = 5, CancellationToken cancellationToken = default)
+    public async Task<List<SearchResult>> GetRelatedPostsAsync(string slug, int limit = 5,
+        CancellationToken cancellationToken = default)
     {
         if (!_config.Enabled)
             return new List<SearchResult>();
@@ -196,7 +192,8 @@ public class SemanticSearchService : ISemanticSearchService
         }
     }
 
-    public async Task<bool> NeedsReindexingAsync(string slug, string currentHash, CancellationToken cancellationToken = default)
+    public async Task<bool> NeedsReindexingAsync(string slug, string currentHash,
+        CancellationToken cancellationToken = default)
     {
         if (!_config.Enabled)
             return false;
@@ -225,15 +222,13 @@ public class SemanticSearchService : ISemanticSearchService
         // Slug gets highest weight (4x) for 404 typo recovery - users mistype URLs
         // Title gets medium weight (2x) for search relevance
         // Content gets base weight (1x)
-        var text = $"{slugAsText}. {slugAsText}. {slugAsText}. {slugAsText}. {document.Title}. {document.Title}. {document.Content}";
+        var text =
+            $"{slugAsText}. {slugAsText}. {slugAsText}. {slugAsText}. {document.Title}. {document.Title}. {document.Content}";
 
         // Truncate to a reasonable length (embedding models have token limits)
         // For all-MiniLM-L6-v2, max tokens is 256, which is roughly 1000-1500 characters
         const int maxLength = 2000;
-        if (text.Length > maxLength)
-        {
-            text = text[..maxLength];
-        }
+        if (text.Length > maxLength) text = text[..maxLength];
 
         return text;
     }

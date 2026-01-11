@@ -1,14 +1,12 @@
-using Microsoft.AspNetCore.Authorization;
-
 namespace LucidRAG.Authorization;
 
 /// <summary>
-/// Extension methods for setting up authorization policies.
+///     Extension methods for setting up authorization policies.
 /// </summary>
 public static class AuthorizationSetup
 {
     /// <summary>
-    /// Adds the application's authorization policies.
+    ///     Adds the application's authorization policies.
     /// </summary>
     public static IServiceCollection AddLucidRagAuthorization(this IServiceCollection services)
     {
@@ -20,10 +18,7 @@ public static class AuthorizationSetup
                 policy.RequireAssertion(_ => true);
             })
             // Tenant read - requires authenticated user
-            .AddPolicy(Policies.TenantRead, policy =>
-            {
-                policy.RequireAuthenticatedUser();
-            })
+            .AddPolicy(Policies.TenantRead, policy => { policy.RequireAuthenticatedUser(); })
             // Tenant write - requires User role or higher
             .AddPolicy(Policies.TenantWrite, policy =>
             {

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.Summarizer.Core.Pipeline;
+using VideoSummarizer.Core.Coordination;
 using VideoSummarizer.Core.Models;
 using VideoSummarizer.Core.Waves;
 
@@ -8,11 +9,11 @@ namespace VideoSummarizer.Core.Pipeline;
 /// <summary>
 /// Pipeline implementation for video files.
 /// Chains to ImageSummarizer for keyframe analysis and AudioSummarizer for transcription.
-/// Produces shots, scenes, utterances, and text tracks as evidence for RAG.
+/// Uses signal-based wave coordination for reactive, parallel processing.
 /// </summary>
-public class VideoPipeline : PipelineBase
+public class VideoPipeline : PipelineBase, IDisposable
 {
-    private readonly VideoWaveCoordinator _coordinator;
+    private readonly SignalAwareWaveCoordinator _coordinator;
     private readonly ILogger<VideoPipeline> _logger;
 
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -21,11 +22,19 @@ public class VideoPipeline : PipelineBase
     };
 
     public VideoPipeline(
-        VideoWaveCoordinator coordinator,
+        SignalAwareWaveCoordinator coordinator,
         ILogger<VideoPipeline> logger)
     {
         _coordinator = coordinator;
         _logger = logger;
+
+        // Subscribe to signal events for progress tracking
+        _coordinator.OnSignalEmitted += OnSignalEmitted;
+    }
+
+    private void OnSignalEmitted(VideoSignalEvent evt)
+    {
+        _logger.LogDebug("Signal emitted: {Key} from {Source}", evt.Signal, evt.Source);
     }
 
     /// <inheritdoc />
@@ -333,5 +342,12 @@ public class VideoPipeline : PipelineBase
         return ts.TotalHours >= 1
             ? $"{ts.Hours}:{ts.Minutes:D2}:{ts.Seconds:D2}"
             : $"{ts.Minutes}:{ts.Seconds:D2}";
+    }
+
+    public void Dispose()
+    {
+        _coordinator.OnSignalEmitted -= OnSignalEmitted;
+        _coordinator.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

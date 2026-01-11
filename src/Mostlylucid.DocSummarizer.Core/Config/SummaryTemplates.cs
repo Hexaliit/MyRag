@@ -174,7 +174,6 @@ public class SummaryTemplate
                 .Replace("{content}", content);
 
         if (Name.Equals("bookreport", StringComparison.OrdinalIgnoreCase))
-        {
             return $"""
                     Section: {heading}
 
@@ -183,7 +182,6 @@ public class SummaryTemplate
 
                     Summarize this section in 2-3 tight sentences (≤90 words). Write in third person, no dialogue, no first-person voice. Cover only the key beats and named characters; avoid paraphrasing line-by-line. Keep prose flowing (no bullets) and be concise.
                     """;
-        }
 
         var bulletGuide = MaxBullets > 0 ? $"{MaxBullets} bullet points" : "2-4 bullet points";
 
@@ -606,7 +604,8 @@ public class SummaryTemplate
         /// </summary>
         public static IReadOnlyList<string> AvailableTemplates => new[]
         {
-            "default", "prose", "brief", "oneliner", "bullets", "executive", "detailed", "technical", "academic", "citations", "bookreport", "meeting", "strict"
+            "default", "prose", "brief", "oneliner", "bullets", "executive", "detailed", "technical", "academic",
+            "citations", "bookreport", "meeting", "strict"
         };
 
         /// <summary>

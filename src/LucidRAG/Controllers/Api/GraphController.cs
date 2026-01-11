@@ -1,6 +1,6 @@
+using LucidRAG.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using LucidRAG.Data;
 
 namespace LucidRAG.Controllers.Api;
 
@@ -11,7 +11,7 @@ public class GraphController(
     ILogger<GraphController> logger) : ControllerBase
 {
     /// <summary>
-    /// Get graph health statistics for all collections
+    ///     Get graph health statistics for all collections
     /// </summary>
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats(CancellationToken ct = default)
@@ -32,21 +32,21 @@ public class GraphController(
             .CountAsync(ct);
 
         var orphans = entities - entitiesWithRelationships;
-        var coverage = documents > 0 ? (documentsWithEntities * 100.0 / documents) : 0;
+        var coverage = documents > 0 ? documentsWithEntities * 100.0 / documents : 0;
 
         return Ok(new
         {
             nodes = entities,
             edges = relationships,
             entityCoverage = $"{coverage:F0}%",
-            orphans = orphans,
-            documents = documents,
-            documentsWithEntities = documentsWithEntities
+            orphans,
+            documents,
+            documentsWithEntities
         });
     }
 
     /// <summary>
-    /// Get full graph data for D3.js visualization
+    ///     Get full graph data for D3.js visualization
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetGraph(
@@ -105,7 +105,7 @@ public class GraphController(
     }
 
     /// <summary>
-    /// Get subgraph centered on a specific entity
+    ///     Get subgraph centered on a specific entity
     /// </summary>
     [HttpGet("subgraph/{entityId:guid}")]
     public async Task<IActionResult> GetSubgraph(
@@ -123,15 +123,13 @@ public class GraphController(
         var frontier = new HashSet<Guid> { entityId };
         var allRelationships = new List<(Guid Source, Guid Target, string Type, float Strength)>();
 
-        for (int hop = 0; hop < maxHops && frontier.Count > 0; hop++)
+        for (var hop = 0; hop < maxHops && frontier.Count > 0; hop++)
         {
             var relationshipsQuery = db.EntityRelationships
                 .Where(r => frontier.Contains(r.SourceEntityId) || frontier.Contains(r.TargetEntityId));
 
             if (!string.IsNullOrEmpty(edgeFilter) && edgeFilter != "all")
-            {
                 relationshipsQuery = relationshipsQuery.Where(r => r.RelationshipType == edgeFilter);
-            }
 
             var relationships = await relationshipsQuery.ToListAsync(ct);
 
@@ -145,12 +143,14 @@ public class GraphController(
                     visited.Add(rel.SourceEntityId);
                     newFrontier.Add(rel.SourceEntityId);
                 }
+
                 if (!visited.Contains(rel.TargetEntityId))
                 {
                     visited.Add(rel.TargetEntityId);
                     newFrontier.Add(rel.TargetEntityId);
                 }
             }
+
             frontier = newFrontier;
         }
 
@@ -181,7 +181,7 @@ public class GraphController(
     }
 
     /// <summary>
-    /// Get entity details with supporting chunks
+    ///     Get entity details with supporting chunks
     /// </summary>
     [HttpGet("entities/{entityId:guid}")]
     public async Task<IActionResult> GetEntity(Guid entityId, CancellationToken ct = default)
@@ -204,8 +204,14 @@ public class GraphController(
                 type = r.RelationshipType,
                 direction = r.SourceEntityId == entityId ? "outgoing" : "incoming",
                 otherEntity = r.SourceEntityId == entityId
-                    ? new { id = r.TargetEntityId, name = r.TargetEntity!.CanonicalName, type = r.TargetEntity.EntityType }
-                    : new { id = r.SourceEntityId, name = r.SourceEntity!.CanonicalName, type = r.SourceEntity.EntityType },
+                    ? new
+                    {
+                        id = r.TargetEntityId, name = r.TargetEntity!.CanonicalName, type = r.TargetEntity.EntityType
+                    }
+                    : new
+                    {
+                        id = r.SourceEntityId, name = r.SourceEntity!.CanonicalName, type = r.SourceEntity.EntityType
+                    },
                 strength = r.Strength
             })
             .ToListAsync(ct);
@@ -223,12 +229,12 @@ public class GraphController(
                 name = l.Document?.Name,
                 mentionCount = l.MentionCount
             }),
-            relationships = relationships
+            relationships
         });
     }
 
     /// <summary>
-    /// Search entities
+    ///     Search entities
     /// </summary>
     [HttpGet("entities")]
     public async Task<IActionResult> SearchEntities(
@@ -247,10 +253,7 @@ public class GraphController(
                 (e.Description != null && e.Description.ToLower().Contains(q)));
         }
 
-        if (!string.IsNullOrWhiteSpace(type))
-        {
-            entitiesQuery = entitiesQuery.Where(e => e.EntityType == type);
-        }
+        if (!string.IsNullOrWhiteSpace(type)) entitiesQuery = entitiesQuery.Where(e => e.EntityType == type);
 
         var entities = await entitiesQuery
             .OrderByDescending(e => db.DocumentEntityLinks.Count(l => l.EntityId == e.Id))
@@ -269,7 +272,7 @@ public class GraphController(
     }
 
     /// <summary>
-    /// Get graph paths between two entities
+    ///     Get graph paths between two entities
     /// </summary>
     [HttpGet("paths")]
     public async Task<IActionResult> GetPaths(
@@ -302,6 +305,7 @@ public class GraphController(
                     path.Insert(0, $"-({relation})-> {entityName}");
                     node = parent;
                 }
+
                 var startName = (await db.Entities.FindAsync([fromEntityId], ct))?.CanonicalName ?? "?";
                 path.Insert(0, startName);
                 paths.Add(path);

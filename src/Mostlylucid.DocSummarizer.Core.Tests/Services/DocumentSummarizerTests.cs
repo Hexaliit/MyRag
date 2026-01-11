@@ -1,12 +1,12 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Services;
 
 /// <summary>
-/// Integration tests for DocumentSummarizer - requires Ollama, Docling, and Qdrant running locally
-/// These tests are marked with the IntegrationTest trait and can be skipped in CI
+///     Integration tests for DocumentSummarizer - requires Ollama, Docling, and Qdrant running locally
+///     These tests are marked with the IntegrationTest trait and can be skipped in CI
 /// </summary>
 public class DocumentSummarizerTests
 {
@@ -14,11 +14,11 @@ public class DocumentSummarizerTests
     private readonly DocumentSummarizer _summarizer;
 
     /// <summary>
-    /// Initializes a new instance of the DocumentSummarizerTests class
+    ///     Initializes a new instance of the DocumentSummarizerTests class
     /// </summary>
     public DocumentSummarizerTests()
     {
-        _summarizer = new DocumentSummarizer("llama3.2:3b");
+        _summarizer = new DocumentSummarizer();
     }
 
     [Fact(Skip = "Integration test - requires Ollama, Docling, and Qdrant running locally")]
@@ -38,7 +38,7 @@ Content for section 2.
 ";
 
         // Act
-        var summary = await _summarizer.SummarizeAsync("test.md", SummarizationMode.MapReduce);
+        var summary = await _summarizer.SummarizeAsync("test.md");
 
         // Assert
         Assert.NotNull(summary);
@@ -137,7 +137,7 @@ Content for section 2.
 ";
 
         // Act
-        var mapReduceSummary = await _summarizer.SummarizeAsync("test.md", SummarizationMode.MapReduce);
+        var mapReduceSummary = await _summarizer.SummarizeAsync("test.md");
         var ragSummary = await _summarizer.SummarizeAsync("test.md", SummarizationMode.Rag);
 
         // Assert

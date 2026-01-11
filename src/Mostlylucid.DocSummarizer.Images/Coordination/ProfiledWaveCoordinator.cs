@@ -1,11 +1,5 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Mostlylucid.DocSummarizer.Images.Models;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 // Orchestration types (using aliases to avoid conflict with Signal class)
@@ -16,21 +10,16 @@ using SignalScope = Mostlylucid.DocSummarizer.Images.Orchestration.SignalScope;
 namespace Mostlylucid.DocSummarizer.Images.Coordination;
 
 /// <summary>
-/// Profiled wave coordinator that uses coordinator profiles for execution.
-/// Each profile defines lane configurations, timeouts, and enabled waves.
-/// YAML manifests define signal contracts; profiles define execution context.
+///     Profiled wave coordinator that uses coordinator profiles for execution.
+///     Each profile defines lane configurations, timeouts, and enabled waves.
+///     YAML manifests define signal contracts; profiles define execution context.
 /// </summary>
 public sealed class ProfiledWaveCoordinator : IDisposable
 {
-    private readonly WaveManifestLoader _manifestLoader;
-    private readonly ILogger<ProfiledWaveCoordinator>? _logger;
-    private readonly ConcurrentDictionary<string, IAnalysisWave> _waves = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _laneSemaphores = new();
-
-    /// <summary>
-    /// Event fired when a signal is emitted.
-    /// </summary>
-    public event Action<SignalEvent>? OnSignalEmitted;
+    private readonly ILogger<ProfiledWaveCoordinator>? _logger;
+    private readonly WaveManifestLoader _manifestLoader;
+    private readonly ConcurrentDictionary<string, IAnalysisWave> _waves = new();
 
     public ProfiledWaveCoordinator(
         WaveManifestLoader manifestLoader,
@@ -43,8 +32,19 @@ public sealed class ProfiledWaveCoordinator : IDisposable
         _manifestLoader.LoadEmbeddedManifests();
     }
 
+    public void Dispose()
+    {
+        foreach (var semaphore in _laneSemaphores.Values) semaphore.Dispose();
+        _laneSemaphores.Clear();
+    }
+
     /// <summary>
-    /// Register a wave implementation.
+    ///     Event fired when a signal is emitted.
+    /// </summary>
+    public event Action<SignalEvent>? OnSignalEmitted;
+
+    /// <summary>
+    ///     Register a wave implementation.
     /// </summary>
     public void RegisterWave(IAnalysisWave wave)
     {
@@ -53,8 +53,8 @@ public sealed class ProfiledWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Execute analysis using a specific profile with parallel wave execution.
-    /// Waves without dependencies run first in parallel, then dependent waves.
+    ///     Execute analysis using a specific profile with parallel wave execution.
+    ///     Waves without dependencies run first in parallel, then dependent waves.
     /// </summary>
     public async Task<AnalysisResult> ExecuteAsync(
         string imagePath,
@@ -101,7 +101,8 @@ public sealed class ProfiledWaveCoordinator : IDisposable
 
         await Parallel.ForEachAsync(wavesWithoutDeps, parallelOptions, async (manifest, token) =>
         {
-            await ExecuteWaveAsync(manifest, imagePath, context, profile, signals, executionLog, availableSignals, token);
+            await ExecuteWaveAsync(manifest, imagePath, context, profile, signals, executionLog, availableSignals,
+                token);
             completedWaves[manifest.Name] = true;
         });
 
@@ -132,7 +133,8 @@ public sealed class ProfiledWaveCoordinator : IDisposable
             // Run this batch in parallel
             await Parallel.ForEachAsync(runnableWaves, parallelOptions, async (manifest, token) =>
             {
-                await ExecuteWaveAsync(manifest, imagePath, context, profile, signals, executionLog, availableSignals, token);
+                await ExecuteWaveAsync(manifest, imagePath, context, profile, signals, executionLog, availableSignals,
+                    token);
                 completedWaves[manifest.Name] = true;
             });
         }
@@ -144,10 +146,10 @@ public sealed class ProfiledWaveCoordinator : IDisposable
             profile.Name, executionLog.Count, signals.Count, totalDuration.TotalMilliseconds);
 
         return new AnalysisResult(
-            Profile: profile.Name,
-            Signals: signals.ToList(),
-            ExecutionLog: executionLog.ToList(),
-            TotalDuration: totalDuration);
+            profile.Name,
+            signals.ToList(),
+            executionLog.ToList(),
+            totalDuration);
     }
 
     private async Task ExecuteWaveAsync(
@@ -185,9 +187,7 @@ public sealed class ProfiledWaveCoordinator : IDisposable
             {
                 // Emit start signal
                 foreach (var startSignal in manifest.Emits.OnStart)
-                {
                     EmitSignal(startSignal, true, manifest.Name, signals, profile.Scope);
-                }
 
                 var waveStart = DateTimeOffset.UtcNow;
 
@@ -209,11 +209,11 @@ public sealed class ProfiledWaveCoordinator : IDisposable
 
                     // Notify subscribers
                     OnSignalEmitted?.Invoke(new SignalEvent(
-                        Signal: signal.Key,
-                        Value: signal.Value,
-                        Source: signal.Source,
-                        Confidence: signal.Confidence,
-                        Timestamp: DateTimeOffset.UtcNow
+                        signal.Key,
+                        signal.Value,
+                        signal.Source,
+                        signal.Confidence,
+                        DateTimeOffset.UtcNow
                     ));
                 }
 
@@ -221,8 +221,8 @@ public sealed class ProfiledWaveCoordinator : IDisposable
                     manifest.Name,
                     duration,
                     signalCount,
-                    Success: true,
-                    Error: null));
+                    true,
+                    null));
 
                 _logger?.LogDebug("{Wave} completed in {Duration}ms ({Signals} signals)",
                     manifest.Name, duration.TotalMilliseconds, signalCount);
@@ -231,16 +231,14 @@ public sealed class ProfiledWaveCoordinator : IDisposable
             {
                 _logger?.LogWarning("{Wave} timed out", manifest.Name);
                 EmitSignal($"wave.timeout.{manifest.Name}", true, manifest.Name, signals, profile.Scope);
-                executionLog.Add(new WaveExecutionLog(manifest.Name, TimeSpan.Zero, 0, Success: false, Error: "Timeout"));
+                executionLog.Add(new WaveExecutionLog(manifest.Name, TimeSpan.Zero, 0, false, "Timeout"));
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "{Wave} failed", manifest.Name);
                 foreach (var failSignal in manifest.Emits.OnFailure)
-                {
                     EmitSignal(failSignal, true, manifest.Name, signals, profile.Scope);
-                }
-                executionLog.Add(new WaveExecutionLog(manifest.Name, TimeSpan.Zero, 0, Success: false, Error: ex.Message));
+                executionLog.Add(new WaveExecutionLog(manifest.Name, TimeSpan.Zero, 0, false, ex.Message));
             }
             finally
             {
@@ -310,9 +308,7 @@ public sealed class ProfiledWaveCoordinator : IDisposable
 
                 // Emit start signal
                 foreach (var startSignal in manifest.Emits.OnStart)
-                {
                     EmitSignal(startSignal, true, manifest.Name, signals, profile.Scope);
-                }
 
                 var waveStart = DateTimeOffset.UtcNow;
 
@@ -336,11 +332,11 @@ public sealed class ProfiledWaveCoordinator : IDisposable
 
                         // Notify subscribers
                         OnSignalEmitted?.Invoke(new SignalEvent(
-                            Signal: signal.Key,
-                            Value: signal.Value,
-                            Source: signal.Source,
-                            Confidence: signal.Confidence,
-                            Timestamp: DateTimeOffset.UtcNow
+                            signal.Key,
+                            signal.Value,
+                            signal.Source,
+                            signal.Confidence,
+                            DateTimeOffset.UtcNow
                         ));
                     }
 
@@ -348,8 +344,8 @@ public sealed class ProfiledWaveCoordinator : IDisposable
                         manifest.Name,
                         duration,
                         signalCount,
-                        Success: true,
-                        Error: null));
+                        true,
+                        null));
 
                     _logger?.LogDebug(
                         "{Wave} completed in {Duration}ms ({Signals} signals)",
@@ -364,24 +360,22 @@ public sealed class ProfiledWaveCoordinator : IDisposable
                         manifest.Name,
                         DateTimeOffset.UtcNow - waveStart,
                         0,
-                        Success: false,
-                        Error: "Timeout"));
+                        false,
+                        "Timeout"));
                 }
                 catch (Exception ex)
                 {
                     _logger?.LogError(ex, "{Wave} failed", manifest.Name);
 
                     foreach (var failSignal in manifest.Emits.OnFailure)
-                    {
                         EmitSignal(failSignal, true, manifest.Name, signals, profile.Scope);
-                    }
 
                     executionLog.Add(new WaveExecutionLog(
                         manifest.Name,
                         DateTimeOffset.UtcNow - waveStart,
                         0,
-                        Success: false,
-                        Error: ex.Message));
+                        false,
+                        ex.Message));
                 }
             }
             finally
@@ -397,14 +391,14 @@ public sealed class ProfiledWaveCoordinator : IDisposable
             profile.Name, executionLog.Count, signals.Count, totalDuration.TotalMilliseconds);
 
         return new AnalysisResult(
-            Profile: profile.Name,
-            Signals: signals,
-            ExecutionLog: executionLog,
-            TotalDuration: totalDuration);
+            profile.Name,
+            signals,
+            executionLog,
+            totalDuration);
     }
 
     /// <summary>
-    /// Execute using the single-request profile (default for API/UI).
+    ///     Execute using the single-request profile (default for API/UI).
     /// </summary>
     public Task<AnalysisResult> ExecuteSingleRequestAsync(
         string imagePath,
@@ -415,7 +409,7 @@ public sealed class ProfiledWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Execute using the batch profile (for bulk processing).
+    ///     Execute using the batch profile (for bulk processing).
     /// </summary>
     public Task<AnalysisResult> ExecuteBatchAsync(
         string imagePath,
@@ -426,7 +420,7 @@ public sealed class ProfiledWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Execute using the streaming profile (low latency).
+    ///     Execute using the streaming profile (low latency).
     /// </summary>
     public Task<AnalysisResult> ExecuteStreamingAsync(
         string imagePath,
@@ -437,7 +431,7 @@ public sealed class ProfiledWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Execute using the quality profile (comprehensive analysis).
+    ///     Execute using the quality profile (comprehensive analysis).
     /// </summary>
     public Task<AnalysisResult> ExecuteQualityAsync(
         string imagePath,
@@ -448,19 +442,28 @@ public sealed class ProfiledWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Get signal contracts summary for LLM consumption.
+    ///     Get signal contracts summary for LLM consumption.
     /// </summary>
-    public string GetSignalContractsSummary() => _manifestLoader.GetSignalContractsSummary();
+    public string GetSignalContractsSummary()
+    {
+        return _manifestLoader.GetSignalContractsSummary();
+    }
 
     /// <summary>
-    /// Get all signal contracts.
+    ///     Get all signal contracts.
     /// </summary>
-    public IReadOnlyList<SignalContract> GetAllContracts() => _manifestLoader.GetAllContracts();
+    public IReadOnlyList<SignalContract> GetAllContracts()
+    {
+        return _manifestLoader.GetAllContracts();
+    }
 
     /// <summary>
-    /// Get dependency graph for visualization.
+    ///     Get dependency graph for visualization.
     /// </summary>
-    public Dictionary<string, HashSet<string>> GetDependencyGraph() => _manifestLoader.BuildDependencyGraph();
+    public Dictionary<string, HashSet<string>> GetDependencyGraph()
+    {
+        return _manifestLoader.BuildDependencyGraph();
+    }
 
     private bool IsWaveEnabledForProfile(WaveManifest manifest, CoordinatorProfile profile)
     {
@@ -475,10 +478,7 @@ public sealed class ProfiledWaveCoordinator : IDisposable
     private LaneConfig GetLaneForWave(WaveManifest manifest, CoordinatorProfile profile)
     {
         // Use profile's lane config if it exists for this lane name
-        if (profile.Lanes.TryGetValue(manifest.Lane.Name, out var profileLane))
-        {
-            return profileLane;
-        }
+        if (profile.Lanes.TryGetValue(manifest.Lane.Name, out var profileLane)) return profileLane;
 
         // Fall back to manifest's lane config
         return manifest.Lane;
@@ -487,11 +487,9 @@ public sealed class ProfiledWaveCoordinator : IDisposable
     private void InitializeLanes(CoordinatorProfile profile)
     {
         foreach (var (name, config) in profile.Lanes)
-        {
             _laneSemaphores.GetOrAdd(
                 $"{profile.Name}:{name}",
                 _ => new SemaphoreSlim(config.MaxConcurrency, config.MaxConcurrency));
-        }
     }
 
     private SemaphoreSlim GetLaneSemaphore(LaneConfig lane)
@@ -520,11 +518,11 @@ public sealed class ProfiledWaveCoordinator : IDisposable
         signals.Add(signal);
 
         OnSignalEmitted?.Invoke(new SignalEvent(
-            Signal: key,
-            Value: value,
-            Source: source,
-            Confidence: 1.0,
-            Timestamp: DateTimeOffset.UtcNow
+            key,
+            value,
+            source,
+            1.0,
+            DateTimeOffset.UtcNow
         ));
     }
 
@@ -547,26 +545,17 @@ public sealed class ProfiledWaveCoordinator : IDisposable
         signals.Add(signal);
 
         OnSignalEmitted?.Invoke(new SignalEvent(
-            Signal: key,
-            Value: value,
-            Source: source,
-            Confidence: 1.0,
-            Timestamp: DateTimeOffset.UtcNow
+            key,
+            value,
+            source,
+            1.0,
+            DateTimeOffset.UtcNow
         ));
-    }
-
-    public void Dispose()
-    {
-        foreach (var semaphore in _laneSemaphores.Values)
-        {
-            semaphore.Dispose();
-        }
-        _laneSemaphores.Clear();
     }
 }
 
 /// <summary>
-/// Wave execution log entry.
+///     Wave execution log entry.
 /// </summary>
 public readonly record struct WaveExecutionLog(
     string WaveName,
@@ -577,7 +566,7 @@ public readonly record struct WaveExecutionLog(
 );
 
 /// <summary>
-/// Analysis result from a profiled coordinator execution.
+///     Analysis result from a profiled coordinator execution.
 /// </summary>
 public sealed record AnalysisResult(
     string Profile,
@@ -587,7 +576,7 @@ public sealed record AnalysisResult(
 )
 {
     /// <summary>
-    /// Get a signal value by key.
+    ///     Get a signal value by key.
     /// </summary>
     public T? GetValue<T>(string key)
     {
@@ -597,7 +586,7 @@ public sealed record AnalysisResult(
     }
 
     /// <summary>
-    /// Get all signals matching a prefix.
+    ///     Get all signals matching a prefix.
     /// </summary>
     public IEnumerable<Signal> GetSignals(string prefix)
     {
@@ -605,7 +594,7 @@ public sealed record AnalysisResult(
     }
 
     /// <summary>
-    /// Get execution summary for logging/debugging.
+    ///     Get execution summary for logging/debugging.
     /// </summary>
     public string GetExecutionSummary()
     {

@@ -3,19 +3,16 @@ using System.Text.RegularExpressions;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Detects and filters front matter, junk content, and identifies where the main content begins.
-/// Uses heuristics and optionally a sentinel LLM for difficult cases.
+///     Detects and filters front matter, junk content, and identifies where the main content begins.
+///     Uses heuristics and optionally a sentinel LLM for difficult cases.
 /// </summary>
 public class FrontMatterDetector
 {
-    private readonly OllamaService? _ollama;
-    private readonly bool _verbose;
-
     // Common front matter patterns
-    private static readonly Regex YamlFrontMatter = new(@"^---\s*\n.*?\n---\s*\n", 
+    private static readonly Regex YamlFrontMatter = new(@"^---\s*\n.*?\n---\s*\n",
         RegexOptions.Singleline | RegexOptions.Compiled);
-    
-    private static readonly Regex TomlFrontMatter = new(@"^\+\+\+\s*\n.*?\n\+\+\+\s*\n", 
+
+    private static readonly Regex TomlFrontMatter = new(@"^\+\+\+\s*\n.*?\n\+\+\+\s*\n",
         RegexOptions.Singleline | RegexOptions.Compiled);
 
     // Junk patterns commonly found in PDFs (spam, watermarks, metadata)
@@ -94,6 +91,9 @@ public class FrontMatterDetector
         "introduction", "background"
     ];
 
+    private readonly OllamaService? _ollama;
+    private readonly bool _verbose;
+
     public FrontMatterDetector(OllamaService? ollama = null, bool verbose = false)
     {
         _ollama = ollama;
@@ -101,7 +101,7 @@ public class FrontMatterDetector
     }
 
     /// <summary>
-    /// Analyze markdown content and return a profile with filtering recommendations
+    ///     Analyze markdown content and return a profile with filtering recommendations
     /// </summary>
     public async Task<DocumentProfile> AnalyzeAsync(string markdown, CancellationToken ct = default)
     {
@@ -148,9 +148,9 @@ public class FrontMatterDetector
     }
 
     /// <summary>
-    /// Apply the profile to filter markdown content.
-    /// NOTE: The profile indices are relative to markdown AFTER metadata stripping,
-    /// since AnalyzeAsync strips metadata before calculating indices.
+    ///     Apply the profile to filter markdown content.
+    ///     NOTE: The profile indices are relative to markdown AFTER metadata stripping,
+    ///     since AnalyzeAsync strips metadata before calculating indices.
     /// </summary>
     public string ApplyProfile(string markdown, DocumentProfile profile)
     {
@@ -166,21 +166,17 @@ public class FrontMatterDetector
                 var lines = skipped.Split('\n').Length;
                 Console.WriteLine($"[FrontMatter] Skipping {lines} lines of front matter");
             }
+
             markdown = markdown[profile.MainContentStartIndex..];
         }
 
         // Remove junk ranges (work backwards to preserve indices)
         foreach (var (start, end) in profile.JunkRanges.OrderByDescending(r => r.start))
-        {
             if (start >= 0 && end <= markdown.Length && start < end)
-            {
                 markdown = markdown[..start] + markdown[end..];
-            }
-        }
 
         // Apply skip patterns
         foreach (var pattern in profile.SkipPatterns)
-        {
             try
             {
                 var regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Multiline);
@@ -190,7 +186,6 @@ public class FrontMatterDetector
             {
                 // Invalid regex, skip
             }
-        }
 
         // Apply text cleaning (ligatures, unicode quotes, etc.)
         markdown = TextCleaner.CleanForSummarization(markdown);
@@ -199,7 +194,7 @@ public class FrontMatterDetector
     }
 
     /// <summary>
-    /// Quick check if content has potential front matter issues
+    ///     Quick check if content has potential front matter issues
     /// </summary>
     public bool HasFrontMatterToFilter(string markdown)
     {
@@ -219,7 +214,7 @@ public class FrontMatterDetector
         // Check for junk sequences (multi-word spam patterns)
         if (JunkSequences.Any(j => early.Contains(j)))
             return true;
-        
+
         // Check for keyword stuffing (many capitalized words in a row - spam signature)
         if (KeywordStuffingPattern.IsMatch(earlyOriginal))
         {
@@ -338,50 +333,46 @@ public class FrontMatterDetector
         {
             var lineLower = line.ToLowerInvariant();
             var isJunk = false;
-            
+
             // Check 1: Single junk indicator keywords
-            if (JunkIndicators.Any(j => lineLower.Contains(j)))
-            {
-                isJunk = true;
-            }
-            
+            if (JunkIndicators.Any(j => lineLower.Contains(j))) isJunk = true;
+
             // Check 2: Multiple junk indicators in one line (high density spam)
             if (!isJunk)
             {
                 var junkWordCount = JunkIndicators.Count(j => lineLower.Contains(j));
-                if (junkWordCount >= 2)
-                {
-                    isJunk = true;
-                }
+                if (junkWordCount >= 2) isJunk = true;
             }
-            
+
             // Check 3: Junk sequences (multi-word spam patterns)
-            if (!isJunk && JunkSequences.Any(s => lineLower.Contains(s)))
-            {
-                isJunk = true;
-            }
-            
+            if (!isJunk && JunkSequences.Any(s => lineLower.Contains(s))) isJunk = true;
+
             // Check 4: Keyword stuffing pattern - many capitalized words in a row
             // This catches spam like "Online Auction Search Engine Optimization Spam Blocking..."
             if (!isJunk && line.Length > 30 && KeywordStuffingPattern.IsMatch(line))
             {
                 // Additional validation: count how many capitalized word sequences
                 var matches = KeywordStuffingPattern.Matches(line);
-                var totalCapitalizedWords = matches.Sum(m => m.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
+                var totalCapitalizedWords =
+                    matches.Sum(m => m.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
                 // If more than 40% of the line is keyword-stuffed capitalized words, it's spam
                 var lineWordCount = line.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
                 if (lineWordCount > 0 && (double)totalCapitalizedWords / lineWordCount > 0.4)
                 {
                     isJunk = true;
-                    if (_verbose) Console.WriteLine($"[FrontMatter] Keyword stuffing detected: {line[..Math.Min(60, line.Length)]}...");
+                    if (_verbose)
+                        Console.WriteLine(
+                            $"[FrontMatter] Keyword stuffing detected: {line[..Math.Min(60, line.Length)]}...");
                 }
             }
-            
+
             // Check 5: Topic list pattern - lines that are just category lists
             if (!isJunk && line.Length > 50 && TopicListPattern.IsMatch(line))
             {
                 isJunk = true;
-                if (_verbose) Console.WriteLine($"[FrontMatter] Topic list spam detected: {line[..Math.Min(60, line.Length)]}...");
+                if (_verbose)
+                    Console.WriteLine(
+                        $"[FrontMatter] Topic list spam detected: {line[..Math.Min(60, line.Length)]}...");
             }
 
             if (isJunk)
@@ -392,10 +383,7 @@ public class FrontMatterDetector
             else if (junkStart >= 0)
             {
                 // End of junk section - mark even single lines if they're clearly spam
-                if (junkLineCount >= 1)
-                {
-                    ranges.Add((junkStart, currentPos));
-                }
+                if (junkLineCount >= 1) ranges.Add((junkStart, currentPos));
                 junkStart = -1;
                 junkLineCount = 0;
             }
@@ -404,10 +392,7 @@ public class FrontMatterDetector
         }
 
         // Handle trailing junk
-        if (junkStart >= 0 && junkLineCount >= 1)
-        {
-            ranges.Add((junkStart, markdown.Length));
-        }
+        if (junkStart >= 0 && junkLineCount >= 1) ranges.Add((junkStart, markdown.Length));
 
         return ranges;
     }
@@ -462,8 +447,8 @@ public class FrontMatterDetector
         {
             @"^#+\s*chapter\b",
             @"^\*{3,}$", // *** divider
-            @"^-{3,}$",  // --- divider
-            @"^={3,}$"   // === divider
+            @"^-{3,}$", // --- divider
+            @"^={3,}$" // === divider
         };
 
         // Track if we're still in obvious front matter
@@ -477,36 +462,31 @@ public class FrontMatterDetector
             // Check if we've passed obvious front matter sections
             if (inFrontMatter)
             {
-                var isFrontMatterContent = 
+                var isFrontMatterContent =
                     AcademicFrontMatterIndicators.Any(a => trimmedLine.Contains(a)) ||
                     BookFrontMatterIndicators.Any(b => trimmedLine.Contains(b));
 
-                if (isFrontMatterContent)
-                {
-                    frontMatterEndIndex = currentPos + line.Length + 1;
-                }
+                if (isFrontMatterContent) frontMatterEndIndex = currentPos + line.Length + 1;
 
                 // Check for front matter end markers
                 foreach (var endPattern in frontMatterEndPatterns)
-                {
                     if (Regex.IsMatch(line, endPattern, RegexOptions.IgnoreCase))
                     {
                         // Don't mark as main content start yet, but note we left front matter
                         inFrontMatter = false;
                         break;
                     }
-                }
             }
 
             // Check for main content start
             foreach (var pattern in patterns)
-            {
                 if (Regex.IsMatch(line, pattern, RegexOptions.IgnoreCase))
                 {
-                    if (_verbose) Console.WriteLine($"[FrontMatter] Found main content start: '{line.Trim()[..Math.Min(50, line.Trim().Length)]}'");
+                    if (_verbose)
+                        Console.WriteLine(
+                            $"[FrontMatter] Found main content start: '{line.Trim()[..Math.Min(50, line.Trim().Length)]}'");
                     return currentPos;
                 }
-            }
 
             currentPos += line.Length + 1;
         }
@@ -526,12 +506,12 @@ public class FrontMatterDetector
         var lower = earlyContent.ToLowerInvariant();
 
         // Has some front matter indicators but no clear main content start
-        var hasFrontMatterHints = 
+        var hasFrontMatterHints =
             AcademicFrontMatterIndicators.Any(a => lower.Contains(a)) ||
             BookFrontMatterIndicators.Any(b => lower.Contains(b)) ||
             JunkIndicators.Any(j => lower.Contains(j));
 
-        var hasMainContentStart = MainContentIndicators.Any(m => 
+        var hasMainContentStart = MainContentIndicators.Any(m =>
             Regex.IsMatch(lower, $@"^#+?\s*{Regex.Escape(m)}", RegexOptions.Multiline));
 
         return hasFrontMatterHints && !hasMainContentStart;
@@ -547,24 +527,24 @@ public class FrontMatterDetector
             var sample = earlyContent.Length > 1500 ? earlyContent[..1500] : earlyContent;
 
             var prompt = $"""
-                Analyze this document excerpt. Answer these questions briefly:
-                1. TYPE: Is this a THESIS, PAPER, MANUAL, FICTION, NONFICTION, or OTHER?
-                2. SKIP: What sections should be skipped? List any: copyright, dedication, acknowledgments, table of contents, etc.
-                3. START: What phrase or heading marks where the main content begins?
+                          Analyze this document excerpt. Answer these questions briefly:
+                          1. TYPE: Is this a THESIS, PAPER, MANUAL, FICTION, NONFICTION, or OTHER?
+                          2. SKIP: What sections should be skipped? List any: copyright, dedication, acknowledgments, table of contents, etc.
+                          3. START: What phrase or heading marks where the main content begins?
 
-                EXCERPT:
-                {sample}
+                          EXCERPT:
+                          {sample}
 
-                Answer format (one line each):
-                TYPE: [type]
-                SKIP: [comma-separated list or "none"]
-                START: [phrase or "unknown"]
-                """;
+                          Answer format (one line each):
+                          TYPE: [type]
+                          SKIP: [comma-separated list or "none"]
+                          START: [phrase or "unknown"]
+                          """;
 
             var classifierModel = _ollama.ClassifierModel;
             if (_verbose) Console.WriteLine($"[FrontMatter] Asking sentinel ({classifierModel}) for help...");
 
-            var response = await _ollama.GenerateWithModelAsync(classifierModel, prompt, temperature: 0.1);
+            var response = await _ollama.GenerateWithModelAsync(classifierModel, prompt, 0.1);
 
             // Parse response
             var profile = new DocumentProfile { SentinelUsed = true };
@@ -573,7 +553,7 @@ public class FrontMatterDetector
             foreach (var line in lines)
             {
                 var upper = line.ToUpperInvariant();
-                
+
                 if (upper.StartsWith("TYPE:"))
                 {
                     var typeStr = line[5..].Trim().ToUpperInvariant();
@@ -583,7 +563,8 @@ public class FrontMatterDetector
                         var t when t.Contains("PAPER") => DocumentProfileType.AcademicPaper,
                         var t when t.Contains("MANUAL") => DocumentProfileType.TechnicalManual,
                         var t when t.Contains("FICTION") => DocumentProfileType.Fiction,
-                        var t when t.Contains("NONFICTION") || t.Contains("NON-FICTION") => DocumentProfileType.NonFictionBook,
+                        var t when t.Contains("NONFICTION") || t.Contains("NON-FICTION") => DocumentProfileType
+                            .NonFictionBook,
                         _ => DocumentProfileType.Unknown
                     };
                 }
@@ -597,17 +578,16 @@ public class FrontMatterDetector
                         {
                             var clean = item.Trim().ToLowerInvariant();
                             if (!string.IsNullOrEmpty(clean))
-                            {
                                 // Convert to regex pattern
                                 profile.SkipPatterns.Add($@"^#+\s*{Regex.Escape(clean)}.*?(?=^#+|\Z)");
-                            }
                         }
                     }
                 }
                 else if (upper.StartsWith("START:"))
                 {
                     var startStr = line[6..].Trim();
-                    if (!startStr.Equals("unknown", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(startStr))
+                    if (!startStr.Equals("unknown", StringComparison.OrdinalIgnoreCase) &&
+                        !string.IsNullOrEmpty(startStr))
                     {
                         // Find this phrase in the content
                         var idx = earlyContent.IndexOf(startStr, StringComparison.OrdinalIgnoreCase);
@@ -666,7 +646,7 @@ public class FrontMatterDetector
 }
 
 /// <summary>
-/// Document type profile for filtering decisions
+///     Document type profile for filtering decisions
 /// </summary>
 public enum DocumentProfileType
 {
@@ -680,12 +660,12 @@ public enum DocumentProfileType
 }
 
 /// <summary>
-/// Profile containing front matter detection results and filtering rules
+///     Profile containing front matter detection results and filtering rules
 /// </summary>
 public class DocumentProfile
 {
     public DocumentProfileType DetectedType { get; set; } = DocumentProfileType.Unknown;
-    public int MainContentStartIndex { get; set; } = 0;
+    public int MainContentStartIndex { get; set; }
     public List<(int start, int end)> JunkRanges { get; } = new();
     public List<string> SkipPatterns { get; } = new();
     public List<string> MetadataStripped { get; } = new();

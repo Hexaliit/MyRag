@@ -1,3 +1,4 @@
+using System.Text;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -6,8 +7,8 @@ using Spectre.Console;
 namespace Mostlylucid.ImageSummarizer.Cli.Services;
 
 /// <summary>
-/// Renders low-resolution image previews in the console using Unicode block characters.
-/// Enables conversational filtering with visual feedback.
+///     Renders low-resolution image previews in the console using Unicode block characters.
+///     Enables conversational filtering with visual feedback.
 /// </summary>
 public static class ConsoleImageRenderer
 {
@@ -15,7 +16,7 @@ public static class ConsoleImageRenderer
     private const int DefaultHeight = 20;
 
     /// <summary>
-    /// Render an image preview to console using Unicode half-blocks with colors.
+    ///     Render an image preview to console using Unicode half-blocks with colors.
     /// </summary>
     public static void RenderToConsole(
         string imagePath,
@@ -39,8 +40,8 @@ public static class ConsoleImageRenderer
     }
 
     /// <summary>
-    /// Render using colored Unicode half-blocks (best quality).
-    /// Each character represents 2 vertical pixels using half-block with different fg/bg colors.
+    ///     Render using colored Unicode half-blocks (best quality).
+    ///     Each character represents 2 vertical pixels using half-block with different fg/bg colors.
     /// </summary>
     private static void RenderColorBlocks(Image<Rgb24> image, int maxWidth, int maxHeight)
     {
@@ -49,21 +50,23 @@ public static class ConsoleImageRenderer
 
         using var resized = image.Clone(ctx => ctx.Resize(width, height));
 
-        for (int y = 0; y < height; y += 2)
+        for (var y = 0; y < height; y += 2)
         {
-            for (int x = 0; x < width; x++)
+            for (var x = 0; x < width; x++)
             {
                 var topPixel = resized[x, y];
                 var bottomPixel = y + 1 < height ? resized[x, y + 1] : topPixel;
 
-                AnsiConsole.Markup($"[rgb({topPixel.R},{topPixel.G},{topPixel.B}) on rgb({bottomPixel.R},{bottomPixel.G},{bottomPixel.B})]\u2580[/]");
+                AnsiConsole.Markup(
+                    $"[rgb({topPixel.R},{topPixel.G},{topPixel.B}) on rgb({bottomPixel.R},{bottomPixel.G},{bottomPixel.B})]\u2580[/]");
             }
+
             AnsiConsole.WriteLine();
         }
     }
 
     /// <summary>
-    /// Render using grayscale blocks with half-block technique for better resolution.
+    ///     Render using grayscale blocks with half-block technique for better resolution.
     /// </summary>
     private static void RenderGrayscaleBlocks(Image<Rgb24> image, int maxWidth, int maxHeight)
     {
@@ -73,9 +76,9 @@ public static class ConsoleImageRenderer
         using var resized = image.Clone(ctx => ctx.Resize(width, height).Grayscale());
 
         // Use half-blocks for grayscale too - just with gray RGB values
-        for (int y = 0; y < height; y += 2)
+        for (var y = 0; y < height; y += 2)
         {
-            for (int x = 0; x < width; x++)
+            for (var x = 0; x < width; x++)
             {
                 var topPixel = resized[x, y];
                 var bottomPixel = y + 1 < height ? resized[x, y + 1] : topPixel;
@@ -84,14 +87,16 @@ public static class ConsoleImageRenderer
                 var topGray = topPixel.R;
                 var bottomGray = bottomPixel.R;
 
-                AnsiConsole.Markup($"[rgb({topGray},{topGray},{topGray}) on rgb({bottomGray},{bottomGray},{bottomGray})]\u2580[/]");
+                AnsiConsole.Markup(
+                    $"[rgb({topGray},{topGray},{topGray}) on rgb({bottomGray},{bottomGray},{bottomGray})]\u2580[/]");
             }
+
             AnsiConsole.WriteLine();
         }
     }
 
     /// <summary>
-    /// Generate a color bar representation of the image (single line preview).
+    ///     Generate a color bar representation of the image (single line preview).
     /// </summary>
     public static string GenerateColorBar(string imagePath, int segments = 40)
     {
@@ -100,9 +105,9 @@ public static class ConsoleImageRenderer
             using var image = Image.Load<Rgb24>(imagePath);
             using var resized = image.Clone(ctx => ctx.Resize(segments, 1));
 
-            var bar = new System.Text.StringBuilder();
+            var bar = new StringBuilder();
 
-            for (int x = 0; x < segments; x++)
+            for (var x = 0; x < segments; x++)
             {
                 var pixel = resized[x, 0];
                 bar.Append($"[rgb({pixel.R},{pixel.G},{pixel.B})]\u258c[/]");
@@ -117,28 +122,31 @@ public static class ConsoleImageRenderer
     }
 
     /// <summary>
-    /// Create a bordered preview panel for display.
+    ///     Create a bordered preview panel for display.
     /// </summary>
-    public static Panel CreatePreviewPanel(string imagePath, string? caption = null, int maxWidth = 60, int maxHeight = 20)
+    public static Panel CreatePreviewPanel(string imagePath, string? caption = null, int maxWidth = 60,
+        int maxHeight = 20)
     {
         try
         {
             using var image = Image.Load<Rgb24>(imagePath);
             var (width, height) = CalculateTargetDimensions(image.Width, image.Height, maxWidth, maxHeight * 2);
 
-            var preview = new System.Text.StringBuilder();
+            var preview = new StringBuilder();
 
             using var resized = image.Clone(ctx => ctx.Resize(width, height));
 
-            for (int y = 0; y < height; y += 2)
+            for (var y = 0; y < height; y += 2)
             {
-                for (int x = 0; x < width; x++)
+                for (var x = 0; x < width; x++)
                 {
                     var topPixel = resized[x, y];
                     var bottomPixel = y + 1 < height ? resized[x, y + 1] : topPixel;
 
-                    preview.Append($"[rgb({topPixel.R},{topPixel.G},{topPixel.B}) on rgb({bottomPixel.R},{bottomPixel.G},{bottomPixel.B})]\u2580[/]");
+                    preview.Append(
+                        $"[rgb({topPixel.R},{topPixel.G},{topPixel.B}) on rgb({bottomPixel.R},{bottomPixel.G},{bottomPixel.B})]\u2580[/]");
                 }
+
                 preview.AppendLine();
             }
 

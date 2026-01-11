@@ -1,19 +1,17 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Mostlylucid.DocSummarizer.Services;
-using Mostlylucid.Summarizer.Core.Pipeline;
-using Spectre.Console;
 using LucidRAG.Cli.Services;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Mostlylucid.Summarizer.Core.Pipeline;
+using Spectre.Console;
 
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// Unified processing command using the IPipelineRegistry.
-/// Routes files to the appropriate pipeline based on extension.
+///     Unified processing command using the IPipelineRegistry.
+///     Routes files to the appropriate pipeline based on extension.
 /// </summary>
 public static class ProcessCommand
 {
@@ -120,13 +118,8 @@ public static class ProcessCommand
             {
                 AnsiConsole.MarkupLine("\n[cyan]Dry run - no files will be processed[/]");
                 foreach (var (pipeline, pipelineFiles) in filesByPipeline.Where(kv => kv.Value.Count > 0))
-                {
                     ShowFileList(pipeline.Name, pipelineFiles, GetPipelineColor(pipeline.PipelineId));
-                }
-                if (unknownFiles.Count > 0)
-                {
-                    ShowFileList("Unknown", unknownFiles, Color.Red);
-                }
+                if (unknownFiles.Count > 0) ShowFileList("Unknown", unknownFiles, Color.Red);
                 return;
             }
 
@@ -134,7 +127,7 @@ public static class ProcessCommand
             await CliServiceRegistration.EnsureDatabaseAsync(services);
 
             // Resolve collection
-            Guid? collectionId = await ResolveCollectionAsync(scope.ServiceProvider, collection, ct);
+            var collectionId = await ResolveCollectionAsync(scope.ServiceProvider, collection, ct);
 
             // Process files by pipeline
             var totalChunks = 0;
@@ -212,9 +205,7 @@ public static class ProcessCommand
         {
             forcedPipeline = registry.GetById(forcePipelineId);
             if (forcedPipeline == null)
-            {
                 AnsiConsole.MarkupLine($"[yellow]⚠ Unknown pipeline '{forcePipelineId}', using auto-detection[/]");
-            }
         }
 
         foreach (var pattern in files)
@@ -241,6 +232,7 @@ public static class ProcessCommand
                         list = [];
                         result[pipeline] = list;
                     }
+
                     list.Add(file);
                 }
             }
@@ -258,29 +250,27 @@ public static class ProcessCommand
             .AddColumn("[bold]Files[/]");
 
         foreach (var (pipeline, files) in filesByPipeline.OrderBy(kv => kv.Key.Name))
-        {
             if (files.Count > 0)
             {
                 var color = GetPipelineColor(pipeline.PipelineId);
                 table.AddRow($"[{color}]{pipeline.Name}[/]", files.Count.ToString());
             }
-        }
 
-        if (unknownFiles.Count > 0)
-        {
-            table.AddRow("[red]Unknown[/]", unknownFiles.Count.ToString());
-        }
+        if (unknownFiles.Count > 0) table.AddRow("[red]Unknown[/]", unknownFiles.Count.ToString());
 
         AnsiConsole.Write(table);
     }
 
-    private static Color GetPipelineColor(string pipelineId) => pipelineId.ToLower() switch
+    private static Color GetPipelineColor(string pipelineId)
     {
-        "doc" => Color.Blue,
-        "image" => Color.Green,
-        "data" => Color.Yellow,
-        _ => Color.Grey
-    };
+        return pipelineId.ToLower() switch
+        {
+            "doc" => Color.Blue,
+            "image" => Color.Green,
+            "data" => Color.Yellow,
+            _ => Color.Grey
+        };
+    }
 
     private static async Task<Guid?> ResolveCollectionAsync(
         IServiceProvider services,
@@ -343,10 +333,7 @@ public static class ProcessCommand
                     {
                         var progress = new Progress<PipelineProgress>(p =>
                         {
-                            if (verbose)
-                            {
-                                task.Description = $"[{color}]{p.Stage}: {p.Message}[/]";
-                            }
+                            if (verbose) task.Description = $"[{color}]{p.Stage}: {p.Message}[/]";
                         });
 
                         var result = await pipeline.ProcessAsync(file, null, progress, ct);
@@ -358,16 +345,14 @@ public static class ProcessCommand
 
                             if (verbose)
                             {
-                                AnsiConsole.MarkupLine($"  [green]✓[/] {Path.GetFileName(file)} - {result.Chunks.Count} chunks ({result.ProcessingTime.TotalMilliseconds:F0}ms)");
+                                AnsiConsole.MarkupLine(
+                                    $"  [green]✓[/] {Path.GetFileName(file)} - {result.Chunks.Count} chunks ({result.ProcessingTime.TotalMilliseconds:F0}ms)");
 
                                 // Show chunk content for images
                                 if (pipeline.PipelineId == "image")
-                                {
                                     foreach (var chunk in result.Chunks.Take(3))
-                                    {
-                                        AnsiConsole.MarkupLine($"    [dim]{chunk.ContentType}: {chunk.Text.Substring(0, Math.Min(100, chunk.Text.Length))}...[/]");
-                                    }
-                                }
+                                        AnsiConsole.MarkupLine(
+                                            $"    [dim]{chunk.ContentType}: {chunk.Text.Substring(0, Math.Min(100, chunk.Text.Length))}...[/]");
                             }
                         }
                         else
@@ -387,7 +372,8 @@ public static class ProcessCommand
             });
 
         // Summary for this pipeline
-        AnsiConsole.MarkupLine($"[{color}]{pipeline.Name}:[/] {processed} processed → {totalChunks} chunks, {failed} failed");
+        AnsiConsole.MarkupLine(
+            $"[{color}]{pipeline.Name}:[/] {processed} processed → {totalChunks} chunks, {failed} failed");
 
         return (processed, totalChunks, failed);
     }
@@ -413,10 +399,7 @@ public static class ProcessCommand
 
             var filePattern = Path.GetFileName(pattern);
 
-            if (Directory.Exists(dir))
-            {
-                return Directory.GetFiles(dir, filePattern, SearchOption.TopDirectoryOnly);
-            }
+            if (Directory.Exists(dir)) return Directory.GetFiles(dir, filePattern, SearchOption.TopDirectoryOnly);
             return [];
         }
 

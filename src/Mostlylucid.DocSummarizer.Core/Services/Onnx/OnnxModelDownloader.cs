@@ -1,6 +1,5 @@
 using Mostlylucid.DocSummarizer.Config;
 
-
 namespace Mostlylucid.DocSummarizer.Services.Onnx;
 
 /// <summary>
@@ -24,7 +23,7 @@ public class OnnxModelDownloader
     ///     Ensure embedding model is downloaded and return local path
     /// </summary>
     public async Task<EmbeddingModelPaths> EnsureEmbeddingModelAsync(
-        EmbeddingModelInfo model, 
+        EmbeddingModelInfo model,
         CancellationToken ct = default)
     {
         var modelDir = Path.Combine(_modelDirectory, "embeddings", SanitizeName(model.Name));
@@ -37,55 +36,58 @@ public class OnnxModelDownloader
         var tasks = new List<Task>();
 
         if (!File.Exists(modelPath))
-            tasks.Add(DownloadFileAsync(model.GetModelUrl(), modelPath, $"Downloading {model.Name} model", model.SizeBytes, ct));
-        
+            tasks.Add(DownloadFileAsync(model.GetModelUrl(), modelPath, $"Downloading {model.Name} model",
+                model.SizeBytes, ct));
+
         if (!File.Exists(tokenizerPath))
-            tasks.Add(DownloadFileAsync(model.GetTokenizerUrl(), tokenizerPath, $"Downloading tokenizer", null, ct));
-        
+            tasks.Add(DownloadFileAsync(model.GetTokenizerUrl(), tokenizerPath, "Downloading tokenizer", null, ct));
+
         if (!File.Exists(vocabPath))
-            tasks.Add(DownloadFileAsync(model.GetVocabUrl(), vocabPath, $"Downloading vocab", null, ct));
+            tasks.Add(DownloadFileAsync(model.GetVocabUrl(), vocabPath, "Downloading vocab", null, ct));
 
         if (tasks.Count > 0)
         {
             // Always show download message (not just verbose) - this is a one-time operation
             // Write to stderr to avoid polluting stdout (which is reserved for JSON output)
-            VerboseHelper.Log($"[yellow]First run: downloading ONNX embedding model {model.Name} (~{model.SizeBytes / 1_000_000}MB)...[/]");
+            VerboseHelper.Log(
+                $"[yellow]First run: downloading ONNX embedding model {model.Name} (~{model.SizeBytes / 1_000_000}MB)...[/]");
             Console.Error.WriteLine($"Models are cached at: {modelDir}");
-            
+
             await Task.WhenAll(tasks);
-            
-            Console.Error.WriteLine($"Model downloaded successfully!");
+
+            Console.Error.WriteLine("Model downloaded successfully!");
         }
 
         return new EmbeddingModelPaths(modelPath, tokenizerPath, vocabPath);
     }
 
     private async Task DownloadFileAsync(
-        string url, 
-        string localPath, 
+        string url,
+        string localPath,
         string description,
         long? expectedSize,
         CancellationToken ct)
     {
         var tempPath = localPath + ".tmp";
-        
+
         try
         {
             using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
             response.EnsureSuccessStatusCode();
 
             var totalBytes = response.Content.Headers.ContentLength ?? expectedSize ?? 0;
-            
+
             await using (var contentStream = await response.Content.ReadAsStreamAsync(ct))
-            await using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+            await using (var fileStream =
+                         new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
             {
                 // Avoid Spectre progress here to prevent concurrent interactive displays.
                 // Simply stream the download to disk; verbose info is handled above.
                 await contentStream.CopyToAsync(fileStream, ct);
             }
-            
+
             // Move after streams are closed
-            File.Move(tempPath, localPath, overwrite: true);
+            File.Move(tempPath, localPath, true);
         }
         catch
         {

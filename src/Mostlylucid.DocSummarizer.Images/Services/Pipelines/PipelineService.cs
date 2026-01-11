@@ -5,13 +5,13 @@ using Mostlylucid.DocSummarizer.Images.Config;
 namespace Mostlylucid.DocSummarizer.Images.Services.Pipelines;
 
 /// <summary>
-/// Service for loading and managing OCR pipeline configurations
+///     Service for loading and managing OCR pipeline configurations
 /// </summary>
 public class PipelineService
 {
+    private readonly string _configPath;
     private readonly ILogger<PipelineService>? _logger;
     private PipelinesConfig? _config;
-    private readonly string _configPath;
 
     public PipelineService(string? customConfigPath = null, ILogger<PipelineService>? logger = null)
     {
@@ -22,8 +22,8 @@ public class PipelineService
     }
 
     /// <summary>
-    /// Load pipelines from configuration file
-    /// Uses JSON source generation for zero-allocation deserialization
+    ///     Load pipelines from configuration file
+    ///     Uses JSON source generation for zero-allocation deserialization
     /// </summary>
     public async Task<PipelinesConfig> LoadPipelinesAsync(CancellationToken ct = default)
     {
@@ -49,7 +49,7 @@ public class PipelineService
 
             // Use source-generated JSON context for performance
             _config = JsonSerializer.Deserialize(json, PipelineJsonContext.Default.PipelinesConfig)
-                ?? throw new InvalidOperationException("Failed to deserialize pipeline configuration");
+                      ?? throw new InvalidOperationException("Failed to deserialize pipeline configuration");
 
             ValidatePipelines(_config);
 
@@ -67,7 +67,7 @@ public class PipelineService
     }
 
     /// <summary>
-    /// Get a specific pipeline by name
+    ///     Get a specific pipeline by name
     /// </summary>
     public async Task<PipelineConfig?> GetPipelineAsync(string name, CancellationToken ct = default)
     {
@@ -77,7 +77,7 @@ public class PipelineService
     }
 
     /// <summary>
-    /// Get the default pipeline
+    ///     Get the default pipeline
     /// </summary>
     public async Task<PipelineConfig> GetDefaultPipelineAsync(CancellationToken ct = default)
     {
@@ -98,11 +98,11 @@ public class PipelineService
 
         // Fallback to first pipeline
         return config.Pipelines.FirstOrDefault()
-            ?? throw new InvalidOperationException("No pipelines configured");
+               ?? throw new InvalidOperationException("No pipelines configured");
     }
 
     /// <summary>
-    /// List all available pipeline names
+    ///     List all available pipeline names
     /// </summary>
     public async Task<List<string>> ListPipelineNamesAsync(CancellationToken ct = default)
     {
@@ -111,10 +111,11 @@ public class PipelineService
     }
 
     /// <summary>
-    /// Save current configuration to file
-    /// Uses JSON source generation for efficient serialization
+    ///     Save current configuration to file
+    ///     Uses JSON source generation for efficient serialization
     /// </summary>
-    public async Task SavePipelinesAsync(PipelinesConfig config, string? outputPath = null, CancellationToken ct = default)
+    public async Task SavePipelinesAsync(PipelinesConfig config, string? outputPath = null,
+        CancellationToken ct = default)
     {
         var path = outputPath ?? _configPath;
 
@@ -131,7 +132,7 @@ public class PipelineService
     }
 
     /// <summary>
-    /// Reload configuration from disk (clears cache)
+    ///     Reload configuration from disk (clears cache)
     /// </summary>
     public void Reload()
     {
@@ -151,7 +152,7 @@ public class PipelineService
         };
 
         return locations.FirstOrDefault(File.Exists)
-            ?? locations[0]; // Default to first location
+               ?? locations[0]; // Default to first location
     }
 
     private async Task<string> LoadEmbeddedPipelinesAsync()
@@ -161,11 +162,9 @@ public class PipelineService
 
         await using var stream = assembly.GetManifestResourceStream(resourceName);
         if (stream == null)
-        {
             throw new InvalidOperationException(
                 $"Embedded resource '{resourceName}' not found. Available resources: " +
                 string.Join(", ", assembly.GetManifestResourceNames()));
-        }
 
         using var reader = new StreamReader(stream);
         return await reader.ReadToEndAsync();
@@ -187,20 +186,12 @@ public class PipelineService
             // Validate phase dependencies
             var phaseIds = new HashSet<string>(pipeline.Phases.Select(p => p.Id));
             foreach (var phase in pipeline.Phases)
-            {
                 if (phase.DependsOn != null)
-                {
                     foreach (var dep in phase.DependsOn)
-                    {
                         if (!phaseIds.Contains(dep))
-                        {
                             _logger?.LogWarning(
                                 "Phase '{PhaseId}' depends on unknown phase '{Dependency}' in pipeline '{Pipeline}'",
                                 phase.Id, dep, pipeline.Name);
-                        }
-                    }
-                }
-            }
         }
 
         _logger?.LogDebug("Pipeline configuration validated successfully");

@@ -1,24 +1,24 @@
-using System.Collections.Concurrent;
-using System.Threading.Channels;
-using Microsoft.Extensions.FileSystemGlobbing;
-using Microsoft.Extensions.Logging;
+using System.Text;
 using LucidRAG.ImageCli.Services.OutputFormatters;
+using Microsoft.Extensions.FileSystemGlobbing;
+using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
+using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Services;
 
 namespace LucidRAG.ImageCli.Services;
 
 /// <summary>
-/// Service for parallel batch processing of images with glob pattern support.
+///     Service for parallel batch processing of images with glob pattern support.
 /// </summary>
 public class ImageBatchProcessor
 {
-    private readonly EscalationService _escalationService;
-    private readonly ILogger<ImageBatchProcessor> _logger;
-
     private static readonly string[] SupportedExtensions =
     [
         ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".tif"
     ];
+
+    private readonly EscalationService _escalationService;
+    private readonly ILogger<ImageBatchProcessor> _logger;
 
     public ImageBatchProcessor(
         EscalationService escalationService,
@@ -29,7 +29,7 @@ public class ImageBatchProcessor
     }
 
     /// <summary>
-    /// Process a batch of images from a directory with glob pattern filtering.
+    ///     Process a batch of images from a directory with glob pattern filtering.
     /// </summary>
     public async Task<BatchProcessingResult> ProcessBatchAsync(
         string directory,
@@ -42,10 +42,7 @@ public class ImageBatchProcessor
         IProgress<BatchProgress>? progress = null,
         CancellationToken ct = default)
     {
-        if (maxParallel <= 0)
-        {
-            maxParallel = Environment.ProcessorCount;
-        }
+        if (maxParallel <= 0) maxParallel = Environment.ProcessorCount;
 
         // Find all matching image files
         var imageFiles = FindImageFiles(directory, globPattern, recursive);
@@ -70,27 +67,24 @@ public class ImageBatchProcessor
             ct);
 
         // Apply optional filter
-        if (filter != null)
-        {
-            results = results.Where(filter).ToList();
-        }
+        if (filter != null) results = results.Where(filter).ToList();
 
         // Convert to ImageAnalysisResult format
         var analysisResults = results.Select(r => new ImageAnalysisResult(
-            FilePath: GetRelativePath(directory, r.FilePath),
-            Profile: r.Profile,
-            LlmCaption: r.LlmCaption,
-            ExtractedText: r.ExtractedText,
-            Error: null,
-            WasEscalated: r.WasEscalated,
-            GifMotion: r.GifMotion
+            GetRelativePath(directory, r.FilePath),
+            r.Profile,
+            r.LlmCaption,
+            r.ExtractedText,
+            null,
+            r.WasEscalated,
+            r.GifMotion
         )).ToList();
 
         return new BatchProcessingResult(analysisResults, directory, globPattern);
     }
 
     /// <summary>
-    /// Find all image files matching the glob pattern.
+    ///     Find all image files matching the glob pattern.
     /// </summary>
     private List<string> FindImageFiles(string directory, string pattern, bool recursive)
     {
@@ -101,21 +95,14 @@ public class ImageBatchProcessor
 
         // Add supported extensions if pattern doesn't specify extension
         if (!pattern.Contains('.'))
-        {
             foreach (var ext in SupportedExtensions)
-            {
                 matcher.AddInclude($"{pattern}{ext}");
-            }
-        }
 
         var directoryInfo = new DirectoryInfo(directory);
-        if (!directoryInfo.Exists)
-        {
-            throw new DirectoryNotFoundException($"Directory not found: {directory}");
-        }
+        if (!directoryInfo.Exists) throw new DirectoryNotFoundException($"Directory not found: {directory}");
 
         var result = matcher.Execute(
-            new Microsoft.Extensions.FileSystemGlobbing.Abstractions.DirectoryInfoWrapper(directoryInfo));
+            new DirectoryInfoWrapper(directoryInfo));
 
         var files = result.Files
             .Select(f => Path.Combine(directory, f.Path))
@@ -126,7 +113,7 @@ public class ImageBatchProcessor
     }
 
     /// <summary>
-    /// Get relative path from base directory.
+    ///     Get relative path from base directory.
     /// </summary>
     private static string GetRelativePath(string baseDirectory, string fullPath)
     {
@@ -136,17 +123,18 @@ public class ImageBatchProcessor
     }
 
     /// <summary>
-    /// Export batch results to CSV format.
+    ///     Export batch results to CSV format.
     /// </summary>
     public async Task ExportToCsvAsync(
         BatchProcessingResult results,
         string outputPath,
         CancellationToken ct = default)
     {
-        var csv = new System.Text.StringBuilder();
+        var csv = new StringBuilder();
 
         // Header
-        csv.AppendLine("File,Type,TypeConfidence,Width,Height,AspectRatio,EdgeDensity,Sharpness,TextLikeliness,MeanSaturation,IsGrayscale,WasEscalated,DominantColor1,DominantColor2,DominantColor3");
+        csv.AppendLine(
+            "File,Type,TypeConfidence,Width,Height,AspectRatio,EdgeDensity,Sharpness,TextLikeliness,MeanSaturation,IsGrayscale,WasEscalated,DominantColor1,DominantColor2,DominantColor3");
 
         // Rows
         foreach (var result in results.Results.Where(r => r.Profile != null))
@@ -181,15 +169,13 @@ public class ImageBatchProcessor
     private static string EscapeCsv(string value)
     {
         if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
-        {
             return $"\"{value.Replace("\"", "\"\"")}\"";
-        }
         return value;
     }
 }
 
 /// <summary>
-/// Result of batch processing operation.
+///     Result of batch processing operation.
 /// </summary>
 public record BatchProcessingResult(
     List<ImageAnalysisResult> Results,

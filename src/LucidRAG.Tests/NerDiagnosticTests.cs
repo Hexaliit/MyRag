@@ -1,12 +1,14 @@
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using Microsoft.ML.Tokenizers;
 using Mostlylucid.GraphRag.Extraction;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace LucidRAG.Tests;
 
 /// <summary>
-/// Diagnostic tests for NER services (ONNX and TorchSharp).
-/// Run these to compare approaches and identify issues.
+///     Diagnostic tests for NER services (ONNX and TorchSharp).
+///     Run these to compare approaches and identify issues.
 /// </summary>
 public class NerDiagnosticTests
 {
@@ -31,7 +33,7 @@ public class NerDiagnosticTests
 
         using var nerService = new TorchSharpNerService();
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         await nerService.InitializeAsync();
         sw.Stop();
 
@@ -56,9 +58,7 @@ public class NerDiagnosticTests
 
         _output.WriteLine($"Found {entities.Count} entities:");
         foreach (var entity in entities)
-        {
             _output.WriteLine($"  - \"{entity.Text}\" ({entity.EntityType}) confidence={entity.Confidence:F2}");
-        }
 
         // We expect at least some entities from these test sentences
         Assert.True(entities.Count > 0, $"Expected entities in: {testText}");
@@ -78,15 +78,12 @@ public class NerDiagnosticTests
         using var torchNer = new TorchSharpNerService();
         await torchNer.InitializeAsync();
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         var torchEntities = await torchNer.ExtractAsync(testText);
         var torchTime = sw.ElapsedMilliseconds;
 
         _output.WriteLine($"Found {torchEntities.Count} entities in {torchTime}ms:");
-        foreach (var entity in torchEntities)
-        {
-            _output.WriteLine($"  - \"{entity.Text}\" ({entity.EntityType})");
-        }
+        foreach (var entity in torchEntities) _output.WriteLine($"  - \"{entity.Text}\" ({entity.EntityType})");
 
         _output.WriteLine("\n=== ONNX NER ===");
         var modelsDir = Path.Combine(Path.GetTempPath(), "lucidrag-ner-test");
@@ -102,10 +99,7 @@ public class NerDiagnosticTests
             var onnxTime = sw.ElapsedMilliseconds;
 
             _output.WriteLine($"Found {onnxEntities.Count} entities in {onnxTime}ms:");
-            foreach (var entity in onnxEntities)
-            {
-                _output.WriteLine($"  - \"{entity.Text}\" ({entity.EntityType})");
-            }
+            foreach (var entity in onnxEntities) _output.WriteLine($"  - \"{entity.Text}\" ({entity.EntityType})");
 
             _output.WriteLine("\n=== Comparison ===");
             _output.WriteLine($"TorchSharp: {torchEntities.Count} entities in {torchTime}ms");
@@ -218,14 +212,9 @@ public class NerDiagnosticTests
 
         _output.WriteLine($"Found {spans.Count} entities:");
         foreach (var span in spans)
-        {
             _output.WriteLine($"  - \"{span.Text}\" ({span.EntityType}) confidence={span.Confidence:F2}");
-        }
 
-        if (spans.Count == 0)
-        {
-            _output.WriteLine("WARNING: No entities found! This suggests a problem.");
-        }
+        if (spans.Count == 0) _output.WriteLine("WARNING: No entities found! This suggests a problem.");
 
         // We expect at least some entities from these test sentences
         Assert.True(spans.Count > 0, $"Expected entities in: {testText}");
@@ -242,7 +231,7 @@ public class NerDiagnosticTests
         _output.WriteLine($"Loading tokenizer from: {tokenizerPath}");
 
         using var stream = File.OpenRead(tokenizerPath);
-        var tokenizer = Microsoft.ML.Tokenizers.BertTokenizer.Create(stream);
+        var tokenizer = BertTokenizer.Create(stream);
 
         var testText = "John Smith works at Microsoft in Seattle.";
         _output.WriteLine($"Test text: \"{testText}\"");
@@ -253,10 +242,7 @@ public class NerDiagnosticTests
         _output.WriteLine($"Token count: {encoded.Count}");
         _output.WriteLine("Tokens:");
 
-        foreach (var token in encoded)
-        {
-            _output.WriteLine($"  [{token.Id}] \"{token.Value}\" (offset={token.Offset})");
-        }
+        foreach (var token in encoded) _output.WriteLine($"  [{token.Id}] \"{token.Value}\" (offset={token.Offset})");
     }
 
     [Fact]
@@ -273,10 +259,7 @@ public class NerDiagnosticTests
         _output.WriteLine("=== Heuristic Extraction (current fallback) ===");
         var heuristicEntities = ExtractHeuristic(testText);
         _output.WriteLine($"Found {heuristicEntities.Count} entities:");
-        foreach (var (name, type) in heuristicEntities.Take(20))
-        {
-            _output.WriteLine($"  - \"{name}\" ({type})");
-        }
+        foreach (var (name, type) in heuristicEntities.Take(20)) _output.WriteLine($"  - \"{name}\" ({type})");
 
         _output.WriteLine("\n=== ONNX NER Extraction ===");
         var modelsDir = Path.Combine(Path.GetTempPath(), "lucidrag-ner-test");
@@ -288,9 +271,7 @@ public class NerDiagnosticTests
         var nerEntities = await nerService.ExtractSpansAsync(testText);
         _output.WriteLine($"Found {nerEntities.Count} entities:");
         foreach (var span in nerEntities)
-        {
             _output.WriteLine($"  - \"{span.Text}\" ({span.EntityType}) conf={span.Confidence:F2}");
-        }
 
         _output.WriteLine("\n=== Analysis ===");
         _output.WriteLine($"Heuristic found: {heuristicEntities.Count} entities");
@@ -312,30 +293,23 @@ public class NerDiagnosticTests
         {
             ["PERSON"] = new[] { "Scott Galloway", "John Smith" },
             ["ORG"] = new[] { "Microsoft", "OpenAI", "Google", "Apple", "Azure" },
-            ["PRODUCT"] = new[] { "Entity Framework", "PostgreSQL", "CLIP", "Florence-2", "ML.NET", "ONNX", "Docker", "LucidRAG" },
+            ["PRODUCT"] = new[]
+                { "Entity Framework", "PostgreSQL", "CLIP", "Florence-2", "ML.NET", "ONNX", "Docker", "LucidRAG" },
             ["TECH"] = new[] { "RAG", "Retrieval-Augmented Generation", "transformer" }
         };
 
         foreach (var (type, names) in patterns)
-        {
-            foreach (var name in names)
-            {
-                if (text.Contains(name, StringComparison.OrdinalIgnoreCase))
-                {
-                    entities.Add((name, type));
-                }
-            }
-        }
+        foreach (var name in names)
+            if (text.Contains(name, StringComparison.OrdinalIgnoreCase))
+                entities.Add((name, type));
 
         // Also extract capitalized words as potential entities
-        var capitalizedPattern = new System.Text.RegularExpressions.Regex(@"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b");
-        foreach (System.Text.RegularExpressions.Match match in capitalizedPattern.Matches(text))
+        var capitalizedPattern = new Regex(@"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b");
+        foreach (Match match in capitalizedPattern.Matches(text))
         {
             var name = match.Value;
             if (name.Length >= 3 && !entities.Any(e => e.Item1.Equals(name, StringComparison.OrdinalIgnoreCase)))
-            {
                 entities.Add((name, "UNKNOWN"));
-            }
         }
 
         return entities.DistinctBy(e => e.Item1.ToLower()).ToList();

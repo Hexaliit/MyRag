@@ -1,12 +1,12 @@
+using System.Text.RegularExpressions;
 using DuckDB.NET.Data;
 using Mostlylucid.DataSummarizer.Models;
-using System.Text.RegularExpressions;
 
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Intelligent data search that adapts strategy based on column types and statistics.
-/// Supports full-text search, exact match, range queries, fuzzy matching, and natural language queries.
+///     Intelligent data search that adapts strategy based on column types and statistics.
+///     Supports full-text search, exact match, range queries, fuzzy matching, and natural language queries.
 /// </summary>
 public class DataSearcher : IDisposable
 {
@@ -18,13 +18,18 @@ public class DataSearcher : IDisposable
         _verbose = verbose;
     }
 
+    public void Dispose()
+    {
+        _conn?.Dispose();
+    }
+
     /// <summary>
-    /// Parse a natural language query and execute an intelligent search.
-    /// Examples:
-    /// - "show me ages of people named dave or david"
-    /// - "find customers where balance > 1000"
-    /// - "search for emails containing @gmail"
-    /// - "people older than 30 in France"
+    ///     Parse a natural language query and execute an intelligent search.
+    ///     Examples:
+    ///     - "show me ages of people named dave or david"
+    ///     - "find customers where balance > 1000"
+    ///     - "search for emails containing @gmail"
+    ///     - "people older than 30 in France"
     /// </summary>
     public async Task<SearchResult> NaturalSearchAsync(
         string sourcePath,
@@ -45,23 +50,17 @@ public class DataSearcher : IDisposable
         {
             // Parse source
             var dataSource = DataSource.Parse(sourcePath, tableName);
-            
+
             // Connect
             _conn = new DuckDBConnection("DataSource=:memory:");
             await _conn.OpenAsync();
 
             // Load extensions if needed
-            foreach (var ext in dataSource.GetRequiredExtensions())
-            {
-                await ExecuteAsync($"INSTALL {ext}; LOAD {ext};");
-            }
+            foreach (var ext in dataSource.GetRequiredExtensions()) await ExecuteAsync($"INSTALL {ext}; LOAD {ext};");
 
             // Attach if needed
             var attach = dataSource.GetAttachStatement();
-            if (attach != null)
-            {
-                await ExecuteAsync(attach);
-            }
+            if (attach != null) await ExecuteAsync(attach);
 
             var readExpr = dataSource.GetReadExpression();
 
@@ -80,13 +79,10 @@ public class DataSearcher : IDisposable
 
             if (_verbose)
             {
-                Console.WriteLine($"[DataSearcher] Parsed query:");
+                Console.WriteLine("[DataSearcher] Parsed query:");
                 Console.WriteLine($"  Select: {string.Join(", ", parsedQuery.SelectColumns)}");
                 Console.WriteLine($"  Conditions: {parsedQuery.Conditions.Count}");
-                foreach (var cond in parsedQuery.Conditions)
-                {
-                    Console.WriteLine($"    - {cond.Description}");
-                }
+                foreach (var cond in parsedQuery.Conditions) Console.WriteLine($"    - {cond.Description}");
             }
 
             // Build SQL from parsed query
@@ -109,10 +105,8 @@ public class DataSearcher : IDisposable
             while (await reader.ReadAsync())
             {
                 var row = new Dictionary<string, object?>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
+                for (var i = 0; i < reader.FieldCount; i++)
                     row[columnNames[i]] = reader.IsDBNull(i) ? null : reader.GetValue(i);
-                }
                 rows.Add(row);
             }
 
@@ -133,19 +127,19 @@ public class DataSearcher : IDisposable
     }
 
     /// <summary>
-    /// Parse natural language query into structured components.
+    ///     Parse natural language query into structured components.
     /// </summary>
     private ParsedNaturalQuery ParseNaturalQuery(string prompt, DataProfile profile)
     {
         var query = new ParsedNaturalQuery { OriginalPrompt = prompt };
         var lower = prompt.ToLowerInvariant();
-        
+
         // Build column name lookup (case-insensitive)
         var columnLookup = profile.Columns.ToDictionary(
-            c => c.Name.ToLowerInvariant(), 
+            c => c.Name.ToLowerInvariant(),
             c => c,
             StringComparer.OrdinalIgnoreCase);
-        
+
         // Also build lookup by common variations
         var columnAliases = new Dictionary<string, ColumnProfile>(StringComparer.OrdinalIgnoreCase);
         foreach (var col in profile.Columns)
@@ -175,31 +169,30 @@ public class DataSearcher : IDisposable
             var match = Regex.Match(lower, pattern);
             if (match.Success)
             {
-                var colNames = match.Groups[1].Value.Split(new[] { " and ", "," }, StringSplitOptions.RemoveEmptyEntries);
+                var colNames = match.Groups[1].Value
+                    .Split(new[] { " and ", "," }, StringSplitOptions.RemoveEmptyEntries);
                 foreach (var colName in colNames)
                 {
                     var trimmed = colName.Trim();
-                    if (columnAliases.TryGetValue(trimmed, out var col))
-                    {
-                        query.SelectColumns.Add(col.Name);
-                    }
+                    if (columnAliases.TryGetValue(trimmed, out var col)) query.SelectColumns.Add(col.Name);
                 }
+
                 break;
             }
         }
 
         // Parse conditions
-        
+
         // Pattern: "named X" or "called X" or "name is X"
         var namedPattern = "(?:named|called|name\\s+(?:is|=|like))\\s+(\\w+(?:\\s+or\\s+\\w+)*)";
         var namedMatch = Regex.Match(lower, namedPattern);
         if (namedMatch.Success)
         {
-            var nameCol = profile.Columns.FirstOrDefault(c => 
+            var nameCol = profile.Columns.FirstOrDefault(c =>
                 c.Name.Contains("name", StringComparison.OrdinalIgnoreCase) ||
                 c.Name.Contains("firstname", StringComparison.OrdinalIgnoreCase) ||
                 c.Name.Contains("surname", StringComparison.OrdinalIgnoreCase));
-            
+
             if (nameCol != null)
             {
                 var values = namedMatch.Groups[1].Value.Split(new[] { " or " }, StringSplitOptions.RemoveEmptyEntries);
@@ -217,7 +210,7 @@ public class DataSearcher : IDisposable
         var ageMatch = Regex.Match(lower, @"(?:older|greater|more)\s+than\s+(\d+)|age\s*[>]\s*(\d+)");
         if (ageMatch.Success)
         {
-            var ageCol = profile.Columns.FirstOrDefault(c => 
+            var ageCol = profile.Columns.FirstOrDefault(c =>
                 c.Name.Contains("age", StringComparison.OrdinalIgnoreCase));
             if (ageCol != null)
             {
@@ -235,11 +228,13 @@ public class DataSearcher : IDisposable
         var youngerMatch = Regex.Match(lower, @"(?:younger|less|under)\s+than\s+(\d+)|age\s*[<]\s*(\d+)");
         if (youngerMatch.Success)
         {
-            var ageCol = profile.Columns.FirstOrDefault(c => 
+            var ageCol = profile.Columns.FirstOrDefault(c =>
                 c.Name.Contains("age", StringComparison.OrdinalIgnoreCase));
             if (ageCol != null)
             {
-                var value = youngerMatch.Groups[1].Success ? youngerMatch.Groups[1].Value : youngerMatch.Groups[2].Value;
+                var value = youngerMatch.Groups[1].Success
+                    ? youngerMatch.Groups[1].Value
+                    : youngerMatch.Groups[2].Value;
                 query.Conditions.Add(new QueryCondition
                 {
                     ColumnName = ageCol.Name,
@@ -262,9 +257,8 @@ public class DataSearcher : IDisposable
                 c.Name.Contains("location", StringComparison.OrdinalIgnoreCase) ||
                 c.Name.Contains("region", StringComparison.OrdinalIgnoreCase) ||
                 c.Name.Contains("state", StringComparison.OrdinalIgnoreCase));
-            
+
             if (geoCol != null)
-            {
                 query.Conditions.Add(new QueryCondition
                 {
                     ColumnName = geoCol.Name,
@@ -272,7 +266,6 @@ public class DataSearcher : IDisposable
                     Values = [location],
                     Description = $"{geoCol.Name} = {location}"
                 });
-            }
         }
 
         // Pattern: "where column > value" / "column = value"
@@ -283,7 +276,7 @@ public class DataSearcher : IDisposable
             var colName = whereMatch.Groups[1].Value;
             var op = whereMatch.Groups[2].Value.ToUpperInvariant();
             var value = whereMatch.Groups[3].Value;
-            
+
             if (columnAliases.TryGetValue(colName, out var col))
             {
                 if (op == "CONTAINS") op = "ILIKE";
@@ -305,12 +298,11 @@ public class DataSearcher : IDisposable
         {
             var searchVal = containsMatch.Groups[1].Value;
             // Find best text column
-            var textCol = profile.Columns.FirstOrDefault(c => 
-                c.InferredType == ColumnType.Text || 
+            var textCol = profile.Columns.FirstOrDefault(c =>
+                c.InferredType == ColumnType.Text ||
                 (c.InferredType == ColumnType.Categorical && c.AvgLength > 10));
-            
+
             if (textCol != null)
-            {
                 query.Conditions.Add(new QueryCondition
                 {
                     ColumnName = textCol.Name,
@@ -318,7 +310,6 @@ public class DataSearcher : IDisposable
                     Values = [$"%{searchVal}%"],
                     Description = $"{textCol.Name} contains '{searchVal}'"
                 });
-            }
         }
 
         // Pattern: "balance/amount/salary > X" for numeric columns
@@ -328,9 +319,8 @@ public class DataSearcher : IDisposable
             var colName = numericMatch.Groups[1].Value;
             var op = numericMatch.Groups[2].Value;
             var value = numericMatch.Groups[3].Value;
-            
+
             if (columnAliases.TryGetValue(colName, out var col) && col.InferredType == ColumnType.Numeric)
-            {
                 query.Conditions.Add(new QueryCondition
                 {
                     ColumnName = col.Name,
@@ -338,21 +328,18 @@ public class DataSearcher : IDisposable
                     Values = [value],
                     Description = $"{col.Name} {op} {value}"
                 });
-            }
         }
-        
+
         // Pattern: "column over/above/more than X" or "column under/below/less than X" for any numeric column
         var overMatch = Regex.Match(lower, @"(\w+)\s+(?:over|above|greater\s+than|more\s+than)\s+(\d+(?:\.\d+)?)");
         if (overMatch.Success)
         {
             var colName = overMatch.Groups[1].Value;
             var value = overMatch.Groups[2].Value;
-            
+
             if (columnAliases.TryGetValue(colName, out var col) && col.InferredType == ColumnType.Numeric)
-            {
                 // Don't duplicate if already added by age pattern
                 if (!query.Conditions.Any(c => c.ColumnName == col.Name && c.Operator == ">"))
-                {
                     query.Conditions.Add(new QueryCondition
                     {
                         ColumnName = col.Name,
@@ -360,21 +347,17 @@ public class DataSearcher : IDisposable
                         Values = [value],
                         Description = $"{col.Name} > {value}"
                     });
-                }
-            }
         }
-        
+
         var underMatch = Regex.Match(lower, @"(\w+)\s+(?:under|below|less\s+than)\s+(\d+(?:\.\d+)?)");
         if (underMatch.Success)
         {
             var colName = underMatch.Groups[1].Value;
             var value = underMatch.Groups[2].Value;
-            
+
             if (columnAliases.TryGetValue(colName, out var col) && col.InferredType == ColumnType.Numeric)
-            {
                 // Don't duplicate if already added by age pattern
                 if (!query.Conditions.Any(c => c.ColumnName == col.Name && c.Operator == "<"))
-                {
                     query.Conditions.Add(new QueryCondition
                     {
                         ColumnName = col.Name,
@@ -382,42 +365,35 @@ public class DataSearcher : IDisposable
                         Values = [value],
                         Description = $"{col.Name} < {value}"
                     });
-                }
-            }
         }
 
         // If no select columns specified, include all
-        if (query.SelectColumns.Count == 0)
-        {
-            query.SelectColumns.Add("*");
-        }
+        if (query.SelectColumns.Count == 0) query.SelectColumns.Add("*");
 
         return query;
     }
 
     /// <summary>
-    /// Build SQL from parsed natural language query.
+    ///     Build SQL from parsed natural language query.
     /// </summary>
     private string BuildNaturalQuerySql(string readExpr, ParsedNaturalQuery query, int limit)
     {
-        var select = query.SelectColumns.Contains("*") 
-            ? "*" 
+        var select = query.SelectColumns.Contains("*")
+            ? "*"
             : string.Join(", ", query.SelectColumns.Select(c => $"\"{c}\""));
 
-        if (query.Conditions.Count == 0)
-        {
-            return $"SELECT {select} FROM {readExpr} LIMIT {limit}";
-        }
+        if (query.Conditions.Count == 0) return $"SELECT {select} FROM {readExpr} LIMIT {limit}";
 
         var whereClauses = new List<string>();
-        
+
         foreach (var cond in query.Conditions)
         {
             var col = $"\"{cond.ColumnName}\"";
-            
-            string clause = cond.Operator switch
+
+            var clause = cond.Operator switch
             {
-                "IN_LIKE" => $"({string.Join(" OR ", cond.Values.Select(v => $"{col}::TEXT ILIKE '%{v.Replace("'", "''")}%'"))})",
+                "IN_LIKE" =>
+                    $"({string.Join(" OR ", cond.Values.Select(v => $"{col}::TEXT ILIKE '%{v.Replace("'", "''")}%'"))})",
                 "LIKE" => $"{col}::TEXT ILIKE '%{cond.Values[0].Replace("'", "''")}%'",
                 "ILIKE" => $"{col}::TEXT ILIKE '{cond.Values[0].Replace("'", "''")}'",
                 "=" when double.TryParse(cond.Values[0], out _) => $"{col} = {cond.Values[0]}",
@@ -425,7 +401,7 @@ public class DataSearcher : IDisposable
                 ">" or "<" or ">=" or "<=" => $"{col} {cond.Operator} {cond.Values[0]}",
                 _ => $"{col} {cond.Operator} '{cond.Values[0].Replace("'", "''")}'"
             };
-            
+
             whereClauses.Add(clause);
         }
 
@@ -434,7 +410,7 @@ public class DataSearcher : IDisposable
     }
 
     /// <summary>
-    /// Search data with automatic strategy detection based on profile.
+    ///     Search data with automatic strategy detection based on profile.
     /// </summary>
     public async Task<SearchResult> SearchAsync(
         string sourcePath,
@@ -455,23 +431,17 @@ public class DataSearcher : IDisposable
         {
             // Parse source
             var dataSource = DataSource.Parse(sourcePath, tableName);
-            
+
             // Connect
             _conn = new DuckDBConnection("DataSource=:memory:");
             await _conn.OpenAsync();
 
             // Load extensions if needed
-            foreach (var ext in dataSource.GetRequiredExtensions())
-            {
-                await ExecuteAsync($"INSTALL {ext}; LOAD {ext};");
-            }
+            foreach (var ext in dataSource.GetRequiredExtensions()) await ExecuteAsync($"INSTALL {ext}; LOAD {ext};");
 
             // Attach if needed (for databases)
             var attach = dataSource.GetAttachStatement();
-            if (attach != null)
-            {
-                await ExecuteAsync(attach);
-            }
+            if (attach != null) await ExecuteAsync(attach);
 
             var readExpr = dataSource.GetReadExpression();
 
@@ -513,10 +483,8 @@ public class DataSearcher : IDisposable
             while (await reader.ReadAsync())
             {
                 var row = new Dictionary<string, object?>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
+                for (var i = 0; i < reader.FieldCount; i++)
                     row[columnNames[i]] = reader.IsDBNull(i) ? null : reader.GetValue(i);
-                }
                 rows.Add(row);
             }
 
@@ -550,12 +518,12 @@ public class DataSearcher : IDisposable
     }
 
     /// <summary>
-    /// Determine the best search strategies based on column types and search term.
+    ///     Determine the best search strategies based on column types and search term.
     /// </summary>
     private List<SearchStrategy> DetermineSearchStrategies(DataProfile profile, string searchTerm, string? targetColumn)
     {
         var strategies = new List<SearchStrategy>();
-        var columns = targetColumn != null 
+        var columns = targetColumn != null
             ? profile.Columns.Where(c => c.Name.Equals(targetColumn, StringComparison.OrdinalIgnoreCase)).ToList()
             : profile.Columns;
 
@@ -567,7 +535,8 @@ public class DataSearcher : IDisposable
         foreach (var col in columns)
         {
             // Skip ID columns unless specifically targeted
-            if (targetColumn == null && (col.InferredType == ColumnType.Id || col.SemanticRole == SemanticRole.Identifier))
+            if (targetColumn == null &&
+                (col.InferredType == ColumnType.Id || col.SemanticRole == SemanticRole.Identifier))
                 continue;
 
             var strategy = new SearchStrategy { ColumnName = col.Name, ColumnType = col.InferredType };
@@ -586,6 +555,7 @@ public class DataSearcher : IDisposable
                         strategy.Type = looksLikePattern ? SearchType.Pattern : SearchType.Contains;
                         strategy.Description = $"{col.Name}: {(looksLikePattern ? "pattern" : "contains")} search";
                     }
+
                     strategies.Add(strategy);
                     break;
 
@@ -601,6 +571,7 @@ public class DataSearcher : IDisposable
                         strategy.Type = SearchType.Contains;
                         strategy.Description = $"{col.Name}: contains search";
                     }
+
                     strategies.Add(strategy);
                     break;
 
@@ -618,8 +589,10 @@ public class DataSearcher : IDisposable
                             strategy.Type = SearchType.NumericEquals;
                             strategy.Description = $"{col.Name}: numeric equals";
                         }
+
                         strategies.Add(strategy);
                     }
+
                     break;
 
                 case ColumnType.DateTime:
@@ -629,6 +602,7 @@ public class DataSearcher : IDisposable
                         strategy.Description = $"{col.Name}: date match";
                         strategies.Add(strategy);
                     }
+
                     break;
 
                 case ColumnType.Boolean:
@@ -639,16 +613,15 @@ public class DataSearcher : IDisposable
                         strategy.Description = $"{col.Name}: boolean match";
                         strategies.Add(strategy);
                     }
+
                     break;
             }
         }
 
         // If no strategies found, fall back to text search on all text-like columns
         if (strategies.Count == 0 && targetColumn == null)
-        {
-            foreach (var col in profile.Columns.Where(c => 
-                c.InferredType is ColumnType.Text or ColumnType.Categorical))
-            {
+            foreach (var col in profile.Columns.Where(c =>
+                         c.InferredType is ColumnType.Text or ColumnType.Categorical))
                 strategies.Add(new SearchStrategy
                 {
                     ColumnName = col.Name,
@@ -656,25 +629,20 @@ public class DataSearcher : IDisposable
                     Type = SearchType.Contains,
                     Description = $"{col.Name}: fallback contains search"
                 });
-            }
-        }
 
         return strategies;
     }
 
     /// <summary>
-    /// Build SQL query based on search strategies.
+    ///     Build SQL query based on search strategies.
     /// </summary>
     private (string Sql, List<string> SearchedColumns) BuildSearchQuery(
-        string readExpr, 
-        List<SearchStrategy> strategies, 
+        string readExpr,
+        List<SearchStrategy> strategies,
         string searchTerm,
         int limit)
     {
-        if (strategies.Count == 0)
-        {
-            return ($"SELECT * FROM {readExpr} LIMIT {limit}", new List<string>());
-        }
+        if (strategies.Count == 0) return ($"SELECT * FROM {readExpr} LIMIT {limit}", new List<string>());
 
         var conditions = new List<string>();
         var searchedColumns = new List<string>();
@@ -708,7 +676,7 @@ public class DataSearcher : IDisposable
     }
 
     /// <summary>
-    /// Build count query for total matches.
+    ///     Build count query for total matches.
     /// </summary>
     private string BuildCountQuery(string readExpr, List<SearchStrategy> strategies, string searchTerm)
     {
@@ -725,9 +693,7 @@ public class DataSearcher : IDisposable
     {
         var parts = term.Split('-');
         if (parts.Length == 2 && double.TryParse(parts[0], out var min) && double.TryParse(parts[1], out var max))
-        {
             return $"{column} BETWEEN {min} AND {max}";
-        }
         return $"{column} = {term}";
     }
 
@@ -744,15 +710,10 @@ public class DataSearcher : IDisposable
         cmd.CommandText = sql;
         await cmd.ExecuteNonQueryAsync();
     }
-
-    public void Dispose()
-    {
-        _conn?.Dispose();
-    }
 }
 
 /// <summary>
-/// Search result with matched rows and metadata.
+///     Search result with matched rows and metadata.
 /// </summary>
 public class SearchResult
 {
@@ -774,7 +735,7 @@ public class SearchResult
 }
 
 /// <summary>
-/// Parsed natural language query structure.
+///     Parsed natural language query structure.
 /// </summary>
 public class ParsedNaturalQuery
 {
@@ -784,7 +745,7 @@ public class ParsedNaturalQuery
 }
 
 /// <summary>
-/// A single condition in a query.
+///     A single condition in a query.
 /// </summary>
 public class QueryCondition
 {
@@ -795,7 +756,7 @@ public class QueryCondition
 }
 
 /// <summary>
-/// Search strategy for a specific column.
+///     Search strategy for a specific column.
 /// </summary>
 public class SearchStrategy
 {
@@ -806,7 +767,7 @@ public class SearchStrategy
 }
 
 /// <summary>
-/// Types of search strategies.
+///     Types of search strategies.
 /// </summary>
 public enum SearchType
 {

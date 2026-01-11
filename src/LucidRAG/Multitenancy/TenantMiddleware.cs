@@ -3,12 +3,12 @@ using Microsoft.Extensions.Options;
 namespace LucidRAG.Multitenancy;
 
 /// <summary>
-/// Middleware that resolves the tenant for each request and sets the tenant context.
+///     Middleware that resolves the tenant for each request and sets the tenant context.
 /// </summary>
 public class TenantMiddleware
 {
-    private readonly RequestDelegate _next;
     private readonly ILogger<TenantMiddleware> _logger;
+    private readonly RequestDelegate _next;
     private readonly MultitenancyOptions _options;
 
     public TenantMiddleware(
@@ -40,7 +40,8 @@ public class TenantMiddleware
             await context.Response.WriteAsJsonAsync(new
             {
                 error = "Tenant not found",
-                message = "Could not determine tenant from request. Please use a valid tenant subdomain or provide the X-Tenant-Id header."
+                message =
+                    "Could not determine tenant from request. Please use a valid tenant subdomain or provide the X-Tenant-Id header."
             });
             return;
         }
@@ -49,10 +50,7 @@ public class TenantMiddleware
         accessor.Current = tenantContext;
 
         // Add tenant info to response headers for debugging
-        if (tenantContext != null)
-        {
-            context.Response.Headers["X-Tenant-Id"] = tenantContext.TenantId;
-        }
+        if (tenantContext != null) context.Response.Headers["X-Tenant-Id"] = tenantContext.TenantId;
 
         // Store in HttpContext.Items for access by other components
         context.Items["TenantContext"] = tenantContext;
@@ -63,7 +61,7 @@ public class TenantMiddleware
     }
 
     /// <summary>
-    /// Paths that should skip tenant resolution.
+    ///     Paths that should skip tenant resolution.
     /// </summary>
     private static bool ShouldSkipTenantResolution(PathString path)
     {
@@ -78,24 +76,20 @@ public class TenantMiddleware
         };
 
         foreach (var skipPath in skipPaths)
-        {
             if (path.StartsWithSegments(skipPath, StringComparison.OrdinalIgnoreCase))
-            {
                 return true;
-            }
-        }
 
         return false;
     }
 }
 
 /// <summary>
-/// Extension methods for tenant middleware.
+///     Extension methods for tenant middleware.
 /// </summary>
 public static class TenantMiddlewareExtensions
 {
     /// <summary>
-    /// Add multi-tenancy middleware to the pipeline.
+    ///     Add multi-tenancy middleware to the pipeline.
     /// </summary>
     public static IApplicationBuilder UseMultitenancy(this IApplicationBuilder app)
     {
@@ -103,10 +97,7 @@ public static class TenantMiddlewareExtensions
             .GetRequiredService<IOptions<MultitenancyOptions>>()
             .Value;
 
-        if (!options.Enabled)
-        {
-            return app;
-        }
+        if (!options.Enabled) return app;
 
         return app.UseMiddleware<TenantMiddleware>();
     }

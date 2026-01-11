@@ -9,14 +9,14 @@ using Mostlylucid.DocSummarizer.Services;
 namespace Mostlylucid.DocSummarizer.Anthropic.Services;
 
 /// <summary>
-/// Anthropic Claude implementation of ILlmService
+///     Anthropic Claude implementation of ILlmService
 /// </summary>
 public class AnthropicLlmService : ILlmService
 {
     private readonly AnthropicConfig _config;
     private readonly HttpClient _httpClient;
-    private readonly ILogger<AnthropicLlmService> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger<AnthropicLlmService> _logger;
 
     public AnthropicLlmService(
         IOptions<AnthropicConfig> config,
@@ -62,10 +62,7 @@ public class AnthropicLlmService : ILlmService
         };
 
         // Add system prompt if provided
-        if (!string.IsNullOrEmpty(options?.SystemPrompt))
-        {
-            request.System = options.SystemPrompt;
-        }
+        if (!string.IsNullOrEmpty(options?.SystemPrompt)) request.System = options.SystemPrompt;
 
         try
         {
@@ -80,10 +77,7 @@ public class AnthropicLlmService : ILlmService
 
             var result = await response.Content.ReadFromJsonAsync<AnthropicResponse>(_jsonOptions, ct);
 
-            if (result?.Content is { Count: > 0 })
-            {
-                return result.Content[0].Text ?? "";
-            }
+            if (result?.Content is { Count: > 0 }) return result.Content[0].Text ?? "";
 
             return "";
         }
@@ -95,15 +89,16 @@ public class AnthropicLlmService : ILlmService
     }
 
     /// <inheritdoc />
-    public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null, CancellationToken ct = default)
+    public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null,
+        CancellationToken ct = default)
         where T : class
     {
         // Wrap prompt to request JSON output
         var jsonPrompt = $"""
-            {prompt}
+                          {prompt}
 
-            Respond with valid JSON only. No markdown, no code blocks, just the JSON object.
-            """;
+                          Respond with valid JSON only. No markdown, no code blocks, just the JSON object.
+                          """;
 
         var response = await GenerateAsync(jsonPrompt, options, ct);
 
@@ -173,6 +168,7 @@ public class AnthropicLlmService : ILlmService
             var envVar = apiKey[2..^1];
             return Environment.GetEnvironmentVariable(envVar) ?? "";
         }
+
         return apiKey;
     }
 

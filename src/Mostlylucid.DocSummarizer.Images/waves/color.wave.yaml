@@ -24,7 +24,7 @@ emits:
     - key: color.dominant_1
       type: string
       description: Primary dominant color hex
-      confidence_range: [0.8, 1.0]
+      confidence_range: [ 0.8, 1.0 ]
 
     - key: color.dominant_2
       type: string
@@ -78,7 +78,7 @@ listens:
     - identity.width
     - identity.height
 
-  optional: []
+  optional: [ ]
 
 cache:
   emits:
@@ -87,7 +87,7 @@ cache:
       description: Loaded image for downstream waves
 
 config:
-  bindings: []  # Always runs
+  bindings: [ ]  # Always runs
 
 lane:
   name: metadata

@@ -10,13 +10,11 @@ using SixLabors.ImageSharp.Processing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzer for extracting dominant colors and color grid from images using ImageSharp.
-/// Uses grid-based quantization for spatial color analysis.
+///     Analyzer for extracting dominant colors and color grid from images using ImageSharp.
+///     Uses grid-based quantization for spatial color analysis.
 /// </summary>
 public class ColorAnalyzer
 {
-    private readonly ColorGridConfig _config;
-
     // Expanded named colors for better coverage of color space
     // Includes saturated primaries, desaturated tones, and pastels
     private static readonly Dictionary<string, (int R, int G, int B)> NamedColors = new()
@@ -123,8 +121,10 @@ public class ColorAnalyzer
         ["Sienna"] = (160, 82, 45),
         ["Saddle Brown"] = (139, 69, 19),
         ["Coffee"] = (111, 78, 55),
-        ["Mocha"] = (128, 71, 41),
+        ["Mocha"] = (128, 71, 41)
     };
+
+    private readonly ColorGridConfig _config;
 
     public ColorAnalyzer(IOptions<ImageConfig> config)
     {
@@ -137,7 +137,7 @@ public class ColorAnalyzer
     }
 
     /// <summary>
-    /// Compute dominant color grid from an image
+    ///     Compute dominant color grid from an image
     /// </summary>
     public ColorGrid ComputeColorGrid(Image<Rgba32> image)
     {
@@ -164,8 +164,8 @@ public class ColorAnalyzer
         {
             var x0 = c * cellW;
             var y0 = r * cellH;
-            var x1 = (c == cols - 1) ? image.Width : x0 + cellW;
-            var y1 = (r == rows - 1) ? image.Height : y0 + cellH;
+            var x1 = c == cols - 1 ? image.Width : x0 + cellW;
+            var y1 = r == rows - 1 ? image.Height : y0 + cellH;
 
             var buckets = new Dictionary<int, int>();
             var sampled = 0;
@@ -223,7 +223,7 @@ public class ColorAnalyzer
     }
 
     /// <summary>
-    /// Extract dominant colors from the entire image
+    ///     Extract dominant colors from the entire image
     /// </summary>
     public List<DominantColor> ExtractDominantColors(Image<Rgba32> image, int maxColors = 5)
     {
@@ -250,13 +250,9 @@ public class ColorAnalyzer
                 var key = (rq << (2 * bucketBits)) | (gq << bucketBits) | bq;
 
                 if (buckets.TryGetValue(key, out var existing))
-                {
                     buckets[key] = (existing.R + p.R, existing.G + p.G, existing.B + p.B, existing.Count + 1);
-                }
                 else
-                {
                     buckets[key] = (p.R, p.G, p.B, 1);
-                }
             }
         }
 
@@ -278,7 +274,7 @@ public class ColorAnalyzer
             var avgB = (byte)(b / count);
 
             var hex = $"#{avgR:X2}{avgG:X2}{avgB:X2}";
-            var percentage = (count / (double)totalPixels) * 100;
+            var percentage = count / (double)totalPixels * 100;
             var name = GetClosestColorName(avgR, avgG, avgB);
 
             result.Add(new DominantColor(hex, percentage, name));
@@ -288,7 +284,7 @@ public class ColorAnalyzer
     }
 
     /// <summary>
-    /// Calculate mean saturation (0-1)
+    ///     Calculate mean saturation (0-1)
     /// </summary>
     public double CalculateMeanSaturation(Image<Rgba32> image)
     {
@@ -313,8 +309,8 @@ public class ColorAnalyzer
     }
 
     /// <summary>
-    /// Determine if image is truly grayscale (virtually no color saturation).
-    /// Uses strict threshold - any noticeable color means NOT grayscale.
+    ///     Determine if image is truly grayscale (virtually no color saturation).
+    ///     Uses strict threshold - any noticeable color means NOT grayscale.
     /// </summary>
     public bool IsMostlyGrayscale(Image<Rgba32> image, double threshold = 0.02)
     {
@@ -323,8 +319,8 @@ public class ColorAnalyzer
     }
 
     /// <summary>
-    /// Detect if image is tinted grayscale (sepia, blue tint, aged photo, etc.).
-    /// Returns the tint color name if detected, null otherwise.
+    ///     Detect if image is tinted grayscale (sepia, blue tint, aged photo, etc.).
+    ///     Returns the tint color name if detected, null otherwise.
     /// </summary>
     public string? DetectTintedGrayscale(Image<Rgba32> image)
     {
@@ -393,11 +389,11 @@ public class ColorAnalyzer
             var (h, _, _) = RgbToHsl(avgR, avgG, avgB);
             return h switch
             {
-                >= 0.02 and < 0.12 => "Sepia",      // Orange-brown
-                >= 0.12 and < 0.20 => "Warm",       // Yellow-ish
-                >= 0.55 and < 0.70 => "Cool Blue",  // Blue tint
-                >= 0.70 and < 0.85 => "Purple",     // Purple/violet
-                >= 0.85 or < 0.02 => "Warm Red",    // Reddish
+                >= 0.02 and < 0.12 => "Sepia", // Orange-brown
+                >= 0.12 and < 0.20 => "Warm", // Yellow-ish
+                >= 0.55 and < 0.70 => "Cool Blue", // Blue tint
+                >= 0.70 and < 0.85 => "Purple", // Purple/violet
+                >= 0.85 or < 0.02 => "Warm Red", // Reddish
                 _ => "Tinted"
             };
         }
@@ -406,15 +402,15 @@ public class ColorAnalyzer
     }
 
     /// <summary>
-    /// Detect tinted grayscale using OpenCV LAB color space analysis.
-    /// LAB separates luminance (L) from color (A=green-red, B=blue-yellow).
-    /// Tinted grayscale has low A/B variance but consistent bias.
+    ///     Detect tinted grayscale using OpenCV LAB color space analysis.
+    ///     LAB separates luminance (L) from color (A=green-red, B=blue-yellow).
+    ///     Tinted grayscale has low A/B variance but consistent bias.
     /// </summary>
     public (bool IsTinted, string? TintType, double ColorCast) DetectColorCastOpenCv(string imagePath)
     {
         try
         {
-            using var mat = Cv2.ImRead(imagePath, ImreadModes.Color);
+            using var mat = Cv2.ImRead(imagePath);
             if (mat.Empty()) return (false, null, 0);
 
             // Convert to LAB color space
@@ -451,14 +447,14 @@ public class ColorAnalyzer
                 // Determine tint type based on A/B offsets
                 var tintType = (aOffset, bOffset) switch
                 {
-                    ( > 5, > 5) => "Sepia",           // Red + Yellow = Sepia/warm
-                    ( > 5, < -5) => "Magenta",        // Red + Blue = Magenta
-                    ( < -5, > 5) => "Yellow-Green",   // Green + Yellow
-                    ( < -5, < -5) => "Cyan",          // Green + Blue = Cyan/cool
-                    (_, > 10) => "Warm Yellow",       // Strong yellow
-                    (_, < -10) => "Cool Blue",        // Strong blue
-                    ( > 10, _) => "Warm Red",         // Strong red
-                    ( < -10, _) => "Cool Green",      // Strong green
+                    (> 5, > 5) => "Sepia", // Red + Yellow = Sepia/warm
+                    (> 5, < -5) => "Magenta", // Red + Blue = Magenta
+                    (< -5, > 5) => "Yellow-Green", // Green + Yellow
+                    (< -5, < -5) => "Cyan", // Green + Blue = Cyan/cool
+                    (_, > 10) => "Warm Yellow", // Strong yellow
+                    (_, < -10) => "Cool Blue", // Strong blue
+                    (> 10, _) => "Warm Red", // Strong red
+                    (< -10, _) => "Cool Green", // Strong green
                     _ => "Tinted"
                 };
 
@@ -466,10 +462,7 @@ public class ColorAnalyzer
             }
 
             // Pure grayscale has very low color cast
-            if (colorCast < 5 && isLowVariance)
-            {
-                return (false, "Grayscale", colorCast);
-            }
+            if (colorCast < 5 && isLowVariance) return (false, "Grayscale", colorCast);
 
             return (false, null, colorCast);
         }
@@ -480,7 +473,7 @@ public class ColorAnalyzer
     }
 
     /// <summary>
-    /// Find the closest named color
+    ///     Find the closest named color
     /// </summary>
     private static string GetClosestColorName(byte r, byte g, byte b)
     {
@@ -508,7 +501,7 @@ public class ColorAnalyzer
     }
 
     /// <summary>
-    /// Convert RGB to HSL
+    ///     Convert RGB to HSL
     /// </summary>
     private static (double H, double S, double L) RgbToHsl(byte r, byte g, byte b)
     {
@@ -524,19 +517,15 @@ public class ColorAnalyzer
 
         double s;
         if (delta == 0)
-        {
             s = 0;
-        }
         else
-        {
             s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
-        }
 
         double h = 0;
         if (delta != 0)
         {
             if (max == rf)
-                h = ((gf - bf) / delta) % 6;
+                h = (gf - bf) / delta % 6;
             else if (max == gf)
                 h = (bf - rf) / delta + 2;
             else

@@ -1,3 +1,4 @@
+using System.Reflection;
 using LucidRAG.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -6,8 +7,8 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.Tests.Services;
 
 /// <summary>
-/// Unit tests for the QueryExpansionService.
-/// Tests vocabulary deduplication and basic expansion logic.
+///     Unit tests for the QueryExpansionService.
+///     Tests vocabulary deduplication and basic expansion logic.
 /// </summary>
 public class QueryExpansionServiceTests
 {
@@ -30,7 +31,7 @@ public class QueryExpansionServiceTests
 
         // Mock embeddings - return simple vectors
         _mockEmbedder.Setup(e => e.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new float[] { 1.0f, 0.0f, 0.0f });
+            .ReturnsAsync(new[] { 1.0f, 0.0f, 0.0f });
 
         // Act
         var result = await _service.ExpandQueryAsync(query);
@@ -50,7 +51,7 @@ public class QueryExpansionServiceTests
         var query = "it is red";
 
         _mockEmbedder.Setup(e => e.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new float[] { 1.0f, 0.0f, 0.0f });
+            .ReturnsAsync(new[] { 1.0f, 0.0f, 0.0f });
 
         // Act
         var result = await _service.ExpandQueryAsync(query);
@@ -68,7 +69,7 @@ public class QueryExpansionServiceTests
         var query = "red, blue; green!";
 
         _mockEmbedder.Setup(e => e.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new float[] { 1.0f, 0.0f, 0.0f });
+            .ReturnsAsync(new[] { 1.0f, 0.0f, 0.0f });
 
         // Act
         var result = await _service.ExpandQueryAsync(query);
@@ -85,7 +86,7 @@ public class QueryExpansionServiceTests
     {
         // Arrange
         _mockEmbedder.Setup(e => e.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new float[] { 1.0f, 0.0f, 0.0f });
+            .ReturnsAsync(new[] { 1.0f, 0.0f, 0.0f });
 
         // Act
         var result = await _service.ExpandTermAsync("golden");
@@ -99,7 +100,7 @@ public class QueryExpansionServiceTests
     {
         // Arrange
         _mockEmbedder.Setup(e => e.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new float[] { 1.0f, 0.0f, 0.0f });
+            .ReturnsAsync(new[] { 1.0f, 0.0f, 0.0f });
 
         // Act - call twice with same term
         var result1 = await _service.ExpandTermAsync("blue");
@@ -114,7 +115,7 @@ public class QueryExpansionServiceTests
     {
         // Arrange
         _mockEmbedder.Setup(e => e.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new float[] { 1.0f, 0.0f, 0.0f });
+            .ReturnsAsync(new[] { 1.0f, 0.0f, 0.0f });
 
         // Act - call with uppercase
         var result = await _service.ExpandTermAsync("BLUE");
@@ -128,16 +129,14 @@ public class QueryExpansionServiceTests
     {
         // Access the vocabulary via reflection to verify no empty categories
         var vocabularyField = typeof(EmbeddingQueryExpansionService)
-            .GetField("SignalVocabulary", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            .GetField("SignalVocabulary", BindingFlags.NonPublic | BindingFlags.Static);
 
         var vocabulary = vocabularyField?.GetValue(null) as Dictionary<string, string[]>;
 
         Assert.NotNull(vocabulary);
 
         foreach (var (category, terms) in vocabulary)
-        {
             Assert.True(terms.Length > 0, $"Category '{category}' has no terms");
-        }
     }
 
     [Fact]
@@ -145,7 +144,7 @@ public class QueryExpansionServiceTests
     {
         // Access the vocabulary via reflection
         var vocabularyField = typeof(EmbeddingQueryExpansionService)
-            .GetField("SignalVocabulary", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            .GetField("SignalVocabulary", BindingFlags.NonPublic | BindingFlags.Static);
 
         var vocabulary = vocabularyField?.GetValue(null) as Dictionary<string, string[]>;
 
@@ -165,7 +164,7 @@ public class QueryExpansionServiceTests
     public void SignalVocabulary_ColorsContainsExpectedTerms()
     {
         var vocabularyField = typeof(EmbeddingQueryExpansionService)
-            .GetField("SignalVocabulary", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            .GetField("SignalVocabulary", BindingFlags.NonPublic | BindingFlags.Static);
 
         var vocabulary = vocabularyField?.GetValue(null) as Dictionary<string, string[]>;
 

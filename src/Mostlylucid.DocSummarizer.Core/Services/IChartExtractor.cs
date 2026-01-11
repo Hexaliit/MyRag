@@ -1,37 +1,37 @@
-using Mostlylucid.DocSummarizer.Core.Models;
+using System.Text;
 
 namespace Mostlylucid.DocSummarizer.Core.Services;
 
 /// <summary>
-/// Interface for detecting and extracting charts from documents
-/// NOTE: This is a placeholder for future implementation (Phase 3)
-/// See DESIGN_ChartExtraction.md for detailed design
+///     Interface for detecting and extracting charts from documents
+///     NOTE: This is a placeholder for future implementation (Phase 3)
+///     See DESIGN_ChartExtraction.md for detailed design
 /// </summary>
 public interface IChartDetector
 {
     /// <summary>
-    /// Detect chart regions in a document
+    ///     Detect chart regions in a document
     /// </summary>
     Task<List<ChartRegion>> DetectChartsAsync(string filePath, CancellationToken ct = default);
 
     /// <summary>
-    /// Check if detector is available (models loaded, dependencies installed)
+    ///     Check if detector is available (models loaded, dependencies installed)
     /// </summary>
     Task<bool> IsAvailableAsync(CancellationToken ct = default);
 }
 
 /// <summary>
-/// Interface for extracting data from detected charts
+///     Interface for extracting data from detected charts
 /// </summary>
 public interface IChartDataExtractor
 {
     /// <summary>
-    /// Chart type this extractor supports
+    ///     Chart type this extractor supports
     /// </summary>
     ChartType SupportedType { get; }
 
     /// <summary>
-    /// Extract data from a chart region
+    ///     Extract data from a chart region
     /// </summary>
     Task<ExtractedChartData> ExtractAsync(
         ChartRegion chart,
@@ -40,22 +40,22 @@ public interface IChartDataExtractor
 }
 
 /// <summary>
-/// Represents a detected chart region in a document
+///     Represents a detected chart region in a document
 /// </summary>
 public class ChartRegion
 {
     public required string Id { get; init; }
     public required string SourcePath { get; init; }
     public int PageNumber { get; init; }
-    public float[]? BoundingBox { get; init; }  // [x0, y0, x1, y1]
+    public float[]? BoundingBox { get; init; } // [x0, y0, x1, y1]
     public ChartType Type { get; init; }
     public double Confidence { get; init; }
-    public byte[]? ImageData { get; init; }  // Cropped chart image
+    public byte[]? ImageData { get; init; } // Cropped chart image
     public Dictionary<string, object>? Metadata { get; init; }
 }
 
 /// <summary>
-/// Extracted chart data in structured format
+///     Extracted chart data in structured format
 /// </summary>
 public class ExtractedChartData
 {
@@ -71,11 +71,11 @@ public class ExtractedChartData
     public byte[]? ChartImage { get; init; }
 
     /// <summary>
-    /// Convert chart data to CSV format
+    ///     Convert chart data to CSV format
     /// </summary>
     public string ToCsv()
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
 
         // Header
         sb.AppendLine(string.Join(",", ColumnNames));
@@ -85,10 +85,7 @@ public class ExtractedChartData
         {
             var values = ColumnNames.Select(col =>
             {
-                if (row.TryGetValue(col, out var value))
-                {
-                    return CsvEscape(value?.ToString() ?? "");
-                }
+                if (row.TryGetValue(col, out var value)) return CsvEscape(value?.ToString() ?? "");
                 return "";
             });
             sb.AppendLine(string.Join(",", values));
@@ -100,15 +97,13 @@ public class ExtractedChartData
     private static string CsvEscape(string value)
     {
         if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
-        {
             return $"\"{value.Replace("\"", "\"\"")}\"";
-        }
         return value;
     }
 }
 
 /// <summary>
-/// Chart type classification
+///     Chart type classification
 /// </summary>
 public enum ChartType
 {
@@ -126,38 +121,38 @@ public enum ChartType
 }
 
 /// <summary>
-/// Options for chart data extraction
+///     Options for chart data extraction
 /// </summary>
 public class ChartExtractionOptions
 {
     /// <summary>
-    /// Whether to use Vision LLM for extraction (higher accuracy, higher cost)
+    ///     Whether to use Vision LLM for extraction (higher accuracy, higher cost)
     /// </summary>
     public bool UseVisionLLM { get; init; } = false;
 
     /// <summary>
-    /// Minimum confidence threshold (0-1)
+    ///     Minimum confidence threshold (0-1)
     /// </summary>
     public double MinConfidence { get; init; } = 0.5;
 
     /// <summary>
-    /// Whether to preserve chart image as evidence
+    ///     Whether to preserve chart image as evidence
     /// </summary>
     public bool SaveChartImage { get; init; } = true;
 
     /// <summary>
-    /// Custom options for specific extractors
+    ///     Custom options for specific extractors
     /// </summary>
     public Dictionary<string, object>? CustomOptions { get; init; }
 }
 
 /// <summary>
-/// Placeholder: Chart extraction service combining detection and extraction
+///     Placeholder: Chart extraction service combining detection and extraction
 /// </summary>
 public interface IChartExtractionService
 {
     /// <summary>
-    /// Detect and extract all charts from a document
+    ///     Detect and extract all charts from a document
     /// </summary>
     Task<List<ExtractedChartData>> ExtractChartsFromDocumentAsync(
         string filePath,

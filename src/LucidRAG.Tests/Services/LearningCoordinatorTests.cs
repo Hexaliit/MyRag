@@ -1,20 +1,19 @@
 using FluentAssertions;
+using LucidRAG.Core.Services.Learning;
 using Microsoft.Extensions.Logging;
 using Moq;
-using LucidRAG.Core.Services.Learning;
-using LucidRAG.Core.Services.Learning.Handlers;
 
 namespace LucidRAG.Tests.Services;
 
 /// <summary>
-/// Tests for Learning Pipeline coordinator.
-/// Tests multi-tenant support, priority queue, deduplication, and sequential processing.
+///     Tests for Learning Pipeline coordinator.
+///     Tests multi-tenant support, priority queue, deduplication, and sequential processing.
 /// </summary>
 public class LearningCoordinatorTests : IAsyncDisposable
 {
-    private readonly Mock<ILogger<LearningCoordinator>> _loggerMock;
-    private readonly Mock<ILearningHandler> _handlerMock;
     private readonly LearningConfig _config;
+    private readonly Mock<ILearningHandler> _handlerMock;
+    private readonly Mock<ILogger<LearningCoordinator>> _loggerMock;
     private LearningCoordinator? _coordinator;
 
     public LearningCoordinatorTests()
@@ -67,8 +66,8 @@ public class LearningCoordinatorTests : IAsyncDisposable
         var documentId = Guid.NewGuid();
 
         // Act - Submit same documentId for different tenants
-        var result1 = _coordinator.TrySubmitLearning(tenant1, documentId, "test", priority: 50);
-        var result2 = _coordinator.TrySubmitLearning(tenant2, documentId, "test", priority: 50);
+        var result1 = _coordinator.TrySubmitLearning(tenant1, documentId, "test", 50);
+        var result2 = _coordinator.TrySubmitLearning(tenant2, documentId, "test", 50);
 
         // Assert
         result1.Should().BeTrue("first tenant submission should succeed");
@@ -105,13 +104,13 @@ public class LearningCoordinatorTests : IAsyncDisposable
             });
 
         // Act - First submission (should process)
-        _coordinator.TrySubmitLearning(tenantId, documentId, "test", priority: 50);
+        _coordinator.TrySubmitLearning(tenantId, documentId, "test", 50);
 
         // Wait a bit for processing
         await Task.Delay(2000);
 
         // Second submission with same hash (should skip)
-        _coordinator.TrySubmitLearning(tenantId, documentId, "test", priority: 50);
+        _coordinator.TrySubmitLearning(tenantId, documentId, "test", 50);
 
         await Task.Delay(2000);
 
@@ -226,9 +225,9 @@ public class LearningCoordinatorTests : IAsyncDisposable
             });
 
         // Act - Submit multiple learning tasks
-        _coordinator.TrySubmitLearning(tenantId, documentId, "test1", priority: 50);
-        _coordinator.TrySubmitLearning(tenantId, documentId, "test2", priority: 50);
-        _coordinator.TrySubmitLearning(tenantId, documentId, "test3", priority: 50);
+        _coordinator.TrySubmitLearning(tenantId, documentId, "test1", 50);
+        _coordinator.TrySubmitLearning(tenantId, documentId, "test2", 50);
+        _coordinator.TrySubmitLearning(tenantId, documentId, "test3", 50);
 
         // Wait for processing
         await Task.Delay(3000);

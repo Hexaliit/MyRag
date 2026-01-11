@@ -23,7 +23,7 @@
       "name": "seo",
       "description": "SEO-optimized image description with keywords",
       "format": "{description} | {technical}",
-        "variables": {
+      "variables": {
         "description": "{llm_summary}",
         "technical": "{identity.format} image, {identity.dimensions}, {colors.dominant[0].name}"
       }

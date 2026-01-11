@@ -7,13 +7,13 @@ using FluentAssertions;
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Integration tests for the Chat API
+///     Integration tests for the Chat API
 /// </summary>
 [Collection("Integration")]
 public class ChatApiTests : IAsyncLifetime
 {
-    private readonly TestWebApplicationFactory _factory;
     private readonly HttpClient _client;
+    private readonly TestWebApplicationFactory _factory;
 
     public ChatApiTests(TestWebApplicationFactory factory)
     {
@@ -36,7 +36,9 @@ public class ChatApiTests : IAsyncLifetime
     {
         // Arrange - First upload a document to have content to search
         var docContent = new MultipartFormDataContent();
-        docContent.Add(new StringContent("# Test Document\n\nThis document explains how authentication works using JWT tokens.", Encoding.UTF8),
+        docContent.Add(
+            new StringContent("# Test Document\n\nThis document explains how authentication works using JWT tokens.",
+                Encoding.UTF8),
             "file", "auth-doc.md");
         await _client.PostAsync("/api/documents/upload", docContent);
 
@@ -248,7 +250,9 @@ public class ChatApiTests : IAsyncLifetime
     {
         // Arrange - Upload a document
         var docContent = new MultipartFormDataContent();
-        docContent.Add(new StringContent("# API Documentation\n\nThe API uses REST principles with JSON responses.", Encoding.UTF8),
+        docContent.Add(
+            new StringContent("# API Documentation\n\nThe API uses REST principles with JSON responses.",
+                Encoding.UTF8),
             "file", "api-docs.md");
         await _client.PostAsync("/api/documents/upload", docContent);
 

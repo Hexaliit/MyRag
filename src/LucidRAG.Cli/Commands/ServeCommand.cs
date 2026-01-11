@@ -2,6 +2,9 @@ using System.CommandLine;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using LucidRAG.Cli.Services;
+using LucidRAG.Data;
+using LucidRAG.Entities;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -10,23 +13,22 @@ using Microsoft.Extensions.Hosting;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Extensions;
 using Mostlylucid.DocSummarizer.Services;
-using LucidRAG.Cli.Services;
-using LucidRAG.Data;
-using LucidRAG.Entities;
 using Scalar.AspNetCore;
 using Serilog;
+using Serilog.Events;
 using Spectre.Console;
 
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// REST API server command with optional interactive CLI
+///     REST API server command with optional interactive CLI
 /// </summary>
 public static class ServeCommand
 {
     public static Command Create()
     {
-        var portOpt = new Option<int>("--port", "-p") { Description = "Port to listen on", DefaultValueFactory = _ => 5080 };
+        var portOpt = new Option<int>("--port", "-p")
+            { Description = "Port to listen on", DefaultValueFactory = _ => 5080 };
         var noBrowserOpt = new Option<bool>("--no-browser") { Description = "Don't open browser automatically" };
         var interactiveOpt = new Option<bool>("--interactive", "-i") { Description = "Enable interactive CLI mode" };
         var dataDirOpt = new Option<string?>("--data-dir") { Description = "Data directory" };
@@ -64,14 +66,15 @@ public static class ServeCommand
             });
 
             // Serilog - suppress DocSummarizer internal messages unless verbose
-            var logLevel = verbose ? Serilog.Events.LogEventLevel.Debug : Serilog.Events.LogEventLevel.Information;
-            var docSummarizerLogLevel = verbose ? Serilog.Events.LogEventLevel.Debug : Serilog.Events.LogEventLevel.Warning;
+            var logLevel = verbose ? LogEventLevel.Debug : LogEventLevel.Information;
+            var docSummarizerLogLevel = verbose ? LogEventLevel.Debug : LogEventLevel.Warning;
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Is(logLevel)
                 // Suppress all DocSummarizer.* namespace logs unless verbose
                 .MinimumLevel.Override("Mostlylucid.DocSummarizer", docSummarizerLogLevel)
                 .MinimumLevel.Override("Mostlylucid.DocSummarizer.Services", docSummarizerLogLevel)
-                .MinimumLevel.Override("Mostlylucid.DocSummarizer.Services.DocSummarizerInitializer", docSummarizerLogLevel)
+                .MinimumLevel.Override("Mostlylucid.DocSummarizer.Services.DocSummarizerInitializer",
+                    docSummarizerLogLevel)
                 .MinimumLevel.Override("Mostlylucid.DocSummarizer.Services.Onnx", docSummarizerLogLevel)
                 .WriteTo.Console(outputTemplate: "[{Level:u3}] {Message:lj}{NewLine}{Exception}")
                 .CreateLogger();
@@ -137,7 +140,7 @@ public static class ServeCommand
                     d.FileSizeBytes,
                     d.CreatedAt,
                     d.ProcessedAt,
-                    CollectionId = d.CollectionId,
+                    d.CollectionId,
                     CollectionName = d.Collection?.Name
                 }));
             }).WithName("ListDocuments").WithOpenApi();
@@ -161,7 +164,7 @@ public static class ServeCommand
                     doc.MimeType,
                     doc.CreatedAt,
                     doc.ProcessedAt,
-                    CollectionId = doc.CollectionId,
+                    doc.CollectionId,
                     CollectionName = doc.Collection?.Name
                 });
             }).WithName("GetDocument").WithOpenApi();
@@ -180,39 +183,44 @@ public static class ServeCommand
                     c.Name,
                     c.Description,
                     DocumentCount = c.Documents.Count,
-                    SegmentCount = c.Documents.Where(d => d.Status == DocumentStatus.Completed).Sum(d => d.SegmentCount),
+                    SegmentCount =
+                        c.Documents.Where(d => d.Status == DocumentStatus.Completed).Sum(d => d.SegmentCount),
                     c.CreatedAt
                 }));
             }).WithName("ListCollections").WithOpenApi();
 
-            app.MapPost("/api/collections", async (HttpContext context, RagDocumentsDbContext db, CancellationToken ct) =>
-            {
-                var json = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: ct);
-                var name = json.RootElement.GetProperty("name").GetString();
-                var description = json.RootElement.TryGetProperty("description", out var desc) ? desc.GetString() : null;
-
-                if (string.IsNullOrWhiteSpace(name))
-                    return Results.BadRequest(new { error = "Name is required" });
-
-                var existing = await db.Collections.FirstOrDefaultAsync(c => c.Name == name, ct);
-                if (existing != null)
-                    return Results.Conflict(new { error = "Collection already exists" });
-
-                var collection = new CollectionEntity
+            app.MapPost("/api/collections",
+                async (HttpContext context, RagDocumentsDbContext db, CancellationToken ct) =>
                 {
-                    Id = Guid.NewGuid(),
-                    Name = name,
-                    Description = description
-                };
+                    var json = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: ct);
+                    var name = json.RootElement.GetProperty("name").GetString();
+                    var description = json.RootElement.TryGetProperty("description", out var desc)
+                        ? desc.GetString()
+                        : null;
 
-                db.Collections.Add(collection);
-                await db.SaveChangesAsync(ct);
+                    if (string.IsNullOrWhiteSpace(name))
+                        return Results.BadRequest(new { error = "Name is required" });
 
-                return Results.Created($"/api/collections/{collection.Id}", new { collection.Id, collection.Name });
-            }).WithName("CreateCollection").WithOpenApi();
+                    var existing = await db.Collections.FirstOrDefaultAsync(c => c.Name == name, ct);
+                    if (existing != null)
+                        return Results.Conflict(new { error = "Collection already exists" });
+
+                    var collection = new CollectionEntity
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = name,
+                        Description = description
+                    };
+
+                    db.Collections.Add(collection);
+                    await db.SaveChangesAsync(ct);
+
+                    return Results.Created($"/api/collections/{collection.Id}", new { collection.Id, collection.Name });
+                }).WithName("CreateCollection").WithOpenApi();
 
             // Search API
-            app.MapPost("/api/search", async (HttpContext context, IVectorStore vectorStore, IEmbeddingService embedder, RagDocumentsDbContext db, CancellationToken ct) =>
+            app.MapPost("/api/search", async (HttpContext context, IVectorStore vectorStore, IEmbeddingService embedder,
+                RagDocumentsDbContext db, CancellationToken ct) =>
             {
                 var json = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: ct);
                 var query = json.RootElement.GetProperty("query").GetString();
@@ -226,7 +234,7 @@ public static class ServeCommand
                     return Results.Ok(new { query, results = Array.Empty<object>(), message = "No documents indexed" });
 
                 var queryEmbedding = await embedder.EmbedAsync(query, ct);
-                var segments = await vectorStore.SearchAsync("ragdocuments", queryEmbedding, topK, docId: null, ct);
+                var segments = await vectorStore.SearchAsync("ragdocuments", queryEmbedding, topK, null, ct);
 
                 var results = segments.Select((s, i) => new
                 {
@@ -269,16 +277,12 @@ public static class ServeCommand
             AnsiConsole.WriteLine($"║  API:    {url,-47}║");
             AnsiConsole.WriteLine($"║  Docs:   {docsUrl,-47}║");
             AnsiConsole.WriteLine($"║  Health: {healthUrl,-47}║");
-            if (interactive)
-            {
-                AnsiConsole.WriteLine("║  Mode:   Interactive CLI enabled                       ║");
-            }
+            if (interactive) AnsiConsole.WriteLine("║  Mode:   Interactive CLI enabled                       ║");
             AnsiConsole.WriteLine("║  Press Ctrl+C to stop                                  ║");
             AnsiConsole.WriteLine("╚════════════════════════════════════════════════════════╝");
             AnsiConsole.WriteLine();
 
             if (!noBrowser)
-            {
                 try
                 {
                     OpenBrowser(docsUrl);
@@ -287,7 +291,6 @@ public static class ServeCommand
                 {
                     AnsiConsole.MarkupLine($"[dim]Could not open browser: {Markup.Escape(ex.Message)}[/]");
                 }
-            }
 
             if (interactive)
             {
@@ -340,7 +343,8 @@ public static class ServeCommand
         }
     }
 
-    private static async Task ProcessInteractiveCommandAsync(IServiceProvider services, CliConfig config, string input, CancellationToken ct)
+    private static async Task ProcessInteractiveCommandAsync(IServiceProvider services, CliConfig config, string input,
+        CancellationToken ct)
     {
         var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var command = parts[0].ToLowerInvariant();
@@ -388,13 +392,10 @@ public static class ServeCommand
             default:
                 // If it doesn't start with /, treat as search query
                 if (!input.StartsWith('/'))
-                {
                     await SearchAsync(vectorStore, embedder, db, input, ct);
-                }
                 else
-                {
-                    AnsiConsole.MarkupLine($"[yellow]Unknown command: {Markup.Escape(command)}. Type /help for commands.[/]");
-                }
+                    AnsiConsole.MarkupLine(
+                        $"[yellow]Unknown command: {Markup.Escape(command)}. Type /help for commands.[/]");
                 break;
         }
     }
@@ -422,7 +423,8 @@ public static class ServeCommand
         AnsiConsole.Write(table);
     }
 
-    private static async Task AddDocumentAsync(IServiceProvider services, CliConfig config, string path, CancellationToken ct)
+    private static async Task AddDocumentAsync(IServiceProvider services, CliConfig config, string path,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -443,7 +445,7 @@ public static class ServeCommand
         if (Directory.Exists(fullPath))
         {
             AnsiConsole.MarkupLine($"[cyan]Indexing directory:[/] {Markup.Escape(fullPath)}");
-            var results = await processor.IndexDirectoryAsync(fullPath, null, recursive: true, ct);
+            var results = await processor.IndexDirectoryAsync(fullPath, null, true, ct);
             var success = results.Count(r => r.Success);
             var failed = results.Count(r => !r.Success);
             AnsiConsole.MarkupLine($"[green]Indexed {success} files, {failed} failed[/]");
@@ -459,7 +461,8 @@ public static class ServeCommand
         }
     }
 
-    private static async Task SearchAsync(IVectorStore vectorStore, IEmbeddingService embedder, RagDocumentsDbContext db, string query, CancellationToken ct)
+    private static async Task SearchAsync(IVectorStore vectorStore, IEmbeddingService embedder,
+        RagDocumentsDbContext db, string query, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -475,7 +478,7 @@ public static class ServeCommand
         }
 
         var queryEmbedding = await embedder.EmbedAsync(query, ct);
-        var segments = await vectorStore.SearchAsync("ragdocuments", queryEmbedding, 5, docId: null, ct);
+        var segments = await vectorStore.SearchAsync("ragdocuments", queryEmbedding, 5, null, ct);
 
         if (segments.Count == 0)
         {
@@ -497,7 +500,7 @@ public static class ServeCommand
             var s = segments[i];
             var preview = s.Text.Length > 60 ? s.Text[..57].Replace("\n", " ") + "..." : s.Text.Replace("\n", " ");
             var scoreColor = s.QuerySimilarity > 0.7 ? "green" : s.QuerySimilarity > 0.5 ? "yellow" : "white";
-            var section = (s.SectionTitle ?? s.HeadingPath ?? "Document");
+            var section = s.SectionTitle ?? s.HeadingPath ?? "Document";
             section = section.Length > 25 ? section[..22] + "..." : section;
 
             table.AddRow(
@@ -514,8 +517,8 @@ public static class ServeCommand
     {
         // SQLite doesn't support DateTimeOffset in ORDER BY - do it client-side
         var docs = (await db.Documents
-            .Include(d => d.Collection)
-            .ToListAsync(ct))
+                .Include(d => d.Collection)
+                .ToListAsync(ct))
             .OrderByDescending(d => d.CreatedAt)
             .Take(20)
             .ToList();
@@ -578,12 +581,10 @@ public static class ServeCommand
         table.AddColumn(new TableColumn("[cyan]Segments[/]").RightAligned());
 
         foreach (var c in collections)
-        {
             table.AddRow(
                 Markup.Escape(c.Name),
                 $"{c.Documents.Count}",
                 $"{c.Documents.Where(d => d.Status == DocumentStatus.Completed).Sum(d => d.SegmentCount)}");
-        }
 
         AnsiConsole.Write(table);
     }
@@ -621,9 +622,13 @@ public static class ServeCommand
         {
             var dir = Path.GetDirectoryName(doc.FilePath);
             if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
-            {
-                try { Directory.Delete(dir, recursive: true); } catch { }
-            }
+                try
+                {
+                    Directory.Delete(dir, true);
+                }
+                catch
+                {
+                }
         }
 
         db.Documents.Remove(doc);
@@ -635,16 +640,9 @@ public static class ServeCommand
     private static void OpenBrowser(string url)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
             Process.Start("xdg-open", url);
-        }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            Process.Start("open", url);
-        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) Process.Start("open", url);
     }
 }

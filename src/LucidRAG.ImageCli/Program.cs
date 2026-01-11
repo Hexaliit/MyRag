@@ -1,30 +1,32 @@
 using System.CommandLine;
 using System.Reflection;
 using LucidRAG.ImageCli.Commands;
+using LucidRAG.ImageCli.Services;
+using LucidRAG.ImageCli.Services.OutputFormatters;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Mostlylucid.DocSummarizer.Images.Extensions;
+using Mostlylucid.DocSummarizer.Images.Services;
+using Mostlylucid.DocSummarizer.Images.Services.Storage;
+using Mostlylucid.DocSummarizer.Images.Services.Vision;
 using Serilog;
+using Serilog.Events;
 using Spectre.Console;
 
 namespace LucidRAG.ImageCli;
 
-class Program
+internal class Program
 {
-    static int Main(string[] args)
+    private static int Main(string[] args)
     {
         // Display banner
-        if (args.Length == 0 || args.Contains("--help") || args.Contains("-h"))
-        {
-            ShowBanner();
-        }
+        if (args.Length == 0 || args.Contains("--help") || args.Contains("-h")) ShowBanner();
 
         // Build configuration
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddUserSecrets<Program>(optional: true) // Load API keys from user secrets
+            .AddJsonFile("appsettings.json", true)
+            .AddUserSecrets<Program>(true) // Load API keys from user secrets
             .AddEnvironmentVariables("LUCIDRAG_")
             .Build();
 
@@ -41,8 +43,13 @@ class Program
             var rootCommand = new RootCommand("LucidRAG Image CLI - Advanced image analysis and processing");
 
             // Global options
-            var verboseOption = new Option<bool>("--verbose", "-v") { Description = "Enable verbose logging", DefaultValueFactory = _ => false };
-            var ollamaUrlOption = new Option<string?>("--ollama-url") { Description = "Ollama API base URL", DefaultValueFactory = _ => configuration["Ollama:BaseUrl"] ?? "http://localhost:11434" };
+            var verboseOption = new Option<bool>("--verbose", "-v")
+                { Description = "Enable verbose logging", DefaultValueFactory = _ => false };
+            var ollamaUrlOption = new Option<string?>("--ollama-url")
+            {
+                Description = "Ollama API base URL",
+                DefaultValueFactory = _ => configuration["Ollama:BaseUrl"] ?? "http://localhost:11434"
+            };
 
             rootCommand.Options.Add(verboseOption);
             rootCommand.Options.Add(ollamaUrlOption);
@@ -87,7 +94,7 @@ class Program
     }
 
     /// <summary>
-    /// Build a service provider with all required services.
+    ///     Build a service provider with all required services.
     /// </summary>
     public static IServiceProvider BuildServiceProvider(IConfiguration configuration, bool verbose = false)
     {
@@ -97,7 +104,7 @@ class Program
         services.AddSingleton(configuration);
 
         // Add logging
-        var logLevel = verbose ? Serilog.Events.LogEventLevel.Debug : Serilog.Events.LogEventLevel.Information;
+        var logLevel = verbose ? LogEventLevel.Debug : LogEventLevel.Information;
         services.AddLogging(builder =>
         {
             builder.AddSerilog(new LoggerConfiguration()
@@ -117,26 +124,25 @@ class Program
         Directory.CreateDirectory(appDataPath);
 
         var dbPath = Path.Combine(appDataPath, "imageanalysis.db");
-        services.AddSingleton<Mostlylucid.DocSummarizer.Images.Services.Storage.ISignalDatabase>(
-            sp => new Mostlylucid.DocSummarizer.Images.Services.Storage.SignalDatabase(dbPath));
+        services.AddSingleton<ISignalDatabase>(sp => new SignalDatabase(dbPath));
 
         // Add CLI-specific services
-        services.AddSingleton<Services.OutputFormatters.TableFormatter>();
-        services.AddSingleton<Services.OutputFormatters.JsonFormatter>();
-        services.AddSingleton<Services.OutputFormatters.MarkdownFormatter>();
+        services.AddSingleton<TableFormatter>();
+        services.AddSingleton<JsonFormatter>();
+        services.AddSingleton<MarkdownFormatter>();
 
         // Add vision LLM services (from core library)
-        services.AddSingleton<Mostlylucid.DocSummarizer.Images.Services.Vision.VisionLlmService>();
-        services.AddSingleton<Mostlylucid.DocSummarizer.Images.Services.Vision.UnifiedVisionService>();
+        services.AddSingleton<VisionLlmService>();
+        services.AddSingleton<UnifiedVisionService>();
 
         // Add escalation service (from core library)
-        services.AddSingleton<Mostlylucid.DocSummarizer.Images.Services.EscalationService>();
+        services.AddSingleton<EscalationService>();
 
         // Add batch processor (CLI-specific)
-        services.AddSingleton<Services.ImageBatchProcessor>();
+        services.AddSingleton<ImageBatchProcessor>();
 
         // Add deduplication service (from core library)
-        services.AddSingleton<Mostlylucid.DocSummarizer.Images.Services.DeduplicationService>();
+        services.AddSingleton<DeduplicationService>();
 
         return services.BuildServiceProvider();
     }

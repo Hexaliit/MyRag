@@ -8,9 +8,9 @@ using Spectre.Console;
 namespace LucidRAG.ImageCli.Commands;
 
 /// <summary>
-/// Command for extracting and saving processed frames from animated images (GIFs/WebP).
-/// Creates a "minimum" animated GIF showing only the deduplicated, stabilized frames
-/// used for OCR analysis.
+///     Command for extracting and saving processed frames from animated images (GIFs/WebP).
+///     Creates a "minimum" animated GIF showing only the deduplicated, stabilized frames
+///     used for OCR analysis.
 /// </summary>
 public static class ExtractFramesCommand
 {
@@ -75,8 +75,8 @@ public static class ExtractFramesCommand
         // Build configuration
         var config = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddUserSecrets<Program>(optional: true)
+            .AddJsonFile("appsettings.json", true)
+            .AddUserSecrets<Program>(true)
             .AddEnvironmentVariables()
             .Build();
 
@@ -100,8 +100,8 @@ public static class ExtractFramesCommand
                     // Extract with frame capture enabled
                     var result = await advancedOcrService.ExtractTextAsync(
                         inputPath,
-                        captureProcessedFrames: true,
-                        ct: ct);
+                        true,
+                        ct);
 
                     if (result.ProcessedFrames == null || result.ProcessedFrames.Count == 0)
                     {
@@ -113,19 +113,13 @@ public static class ExtractFramesCommand
 
                     // Ensure output directory exists
                     var outputDir = Path.GetDirectoryName(outputPath);
-                    if (!string.IsNullOrEmpty(outputDir))
-                    {
-                        Directory.CreateDirectory(outputDir);
-                    }
+                    if (!string.IsNullOrEmpty(outputDir)) Directory.CreateDirectory(outputDir);
 
                     // Save as animated GIF
                     AdvancedGifOcrService.SaveAsAnimatedGif(result.ProcessedFrames, outputPath, frameDelay);
 
                     // Clean up
-                    foreach (var frame in result.ProcessedFrames)
-                    {
-                        frame.Dispose();
-                    }
+                    foreach (var frame in result.ProcessedFrames) frame.Dispose();
 
                     ctx.Status("Complete!");
                 });

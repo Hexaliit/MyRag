@@ -24,6 +24,7 @@ imagesummarizer image.gif --pipeline alttext
 ## Custom Pipelines: `--pipeline-file`
 
 **Use `--pipeline-file` only for custom configurations** - when you need to:
+
 - Specify exact signal patterns
 - Override LLM settings
 - Create specialized workflows
@@ -43,25 +44,26 @@ The YAML files in this directory serve as **templates and documentation** for cr
 
 ## Quick Reference
 
-| Pipeline | Use Case | LLM Required | Speed |
-|----------|----------|--------------|-------|
-| `stats.yaml` | File metadata only | No | ~5ms |
-| `fast-dedupe.yaml` | Image deduplication | No | ~50ms |
-| `quality-check.yaml` | Quality assessment | No | ~100ms |
-| `motion-analysis.yaml` | Animation analysis | No | ~200ms |
-| `florence2.yaml` | Fast local captioning | No | ~2s |
-| `advancedocr.yaml` | Text extraction | No | ~500ms |
-| `vision.yaml` | Vision-only (no OCR) | Yes | ~3s |
-| `florence2-llm.yaml` | Hybrid (fast + LLM) | Yes | ~3-5s |
-| `caption.yaml` | Full analysis | Yes | ~5s |
-| `alttext.yaml` | Accessible alt text | Yes | ~5s |
-| `social-alttext.yaml` | Social media ready | Yes | ~5s |
+| Pipeline               | Use Case              | LLM Required | Speed  |
+|------------------------|-----------------------|--------------|--------|
+| `stats.yaml`           | File metadata only    | No           | ~5ms   |
+| `fast-dedupe.yaml`     | Image deduplication   | No           | ~50ms  |
+| `quality-check.yaml`   | Quality assessment    | No           | ~100ms |
+| `motion-analysis.yaml` | Animation analysis    | No           | ~200ms |
+| `florence2.yaml`       | Fast local captioning | No           | ~2s    |
+| `advancedocr.yaml`     | Text extraction       | No           | ~500ms |
+| `vision.yaml`          | Vision-only (no OCR)  | Yes          | ~3s    |
+| `florence2-llm.yaml`   | Hybrid (fast + LLM)   | Yes          | ~3-5s  |
+| `caption.yaml`         | Full analysis         | Yes          | ~5s    |
+| `alttext.yaml`         | Accessible alt text   | Yes          | ~5s    |
+| `social-alttext.yaml`  | Social media ready    | Yes          | ~5s    |
 
 ---
 
 ## Pipeline Details
 
 ### stats.yaml
+
 **Fast metadata extraction** - Identity signals only (hash, dimensions, format)
 
 ```yaml
@@ -76,6 +78,7 @@ llm:
 ---
 
 ### fast-dedupe.yaml
+
 **Image fingerprinting for deduplication**
 
 ```yaml
@@ -92,6 +95,7 @@ llm:
 ---
 
 ### quality-check.yaml
+
 **Image quality assessment**
 
 ```yaml
@@ -108,6 +112,7 @@ llm:
 ---
 
 ### motion-analysis.yaml
+
 **Animation analysis for GIFs**
 
 ```yaml
@@ -124,6 +129,7 @@ llm:
 ---
 
 ### florence2.yaml
+
 **Fast local captioning** - Uses Florence-2 ONNX model (no external API)
 
 ```yaml
@@ -142,6 +148,7 @@ llm:
 ---
 
 ### advancedocr.yaml
+
 **Multi-frame OCR with voting**
 
 ```yaml
@@ -158,6 +165,7 @@ llm:
 ---
 
 ### vision.yaml
+
 **Vision LLM only** - No Tesseract required
 
 ```yaml
@@ -175,6 +183,7 @@ llm:
 ---
 
 ### florence2-llm.yaml
+
 **Hybrid pipeline** - Florence-2 first, LLM escalation for complex images
 
 ```yaml
@@ -196,6 +205,7 @@ escalation:
 ---
 
 ### caption.yaml (Default)
+
 **Full analysis with Vision LLM**
 
 ```yaml
@@ -215,6 +225,7 @@ llm:
 ---
 
 ### alttext.yaml
+
 **WCAG-compliant accessible alt text**
 
 ```yaml
@@ -237,6 +248,7 @@ llm:
 ---
 
 ### social-alttext.yaml
+
 **Social media optimized alt text**
 
 ```yaml
@@ -301,17 +313,17 @@ escalation:
 
 Use `@collection` syntax for predefined signal groups:
 
-| Collection | Signals | Use Case |
-|------------|---------|----------|
-| `@identity` | identity.* | File metadata |
-| `@motion` | motion.*, complexity.* | Animation analysis |
-| `@color` | color.* | Color extraction |
-| `@quality` | quality.* | Quality metrics |
-| `@text` | content.text*, ocr.* | Text extraction |
-| `@vision` | vision.* | Vision LLM outputs |
-| `@alttext` | vision.llm.caption, content.text*, motion.summary | Alt text |
-| `@tool` | Curated set for MCP/automation | Tool integration |
-| `@all` | * | Full pipeline |
+| Collection  | Signals                                           | Use Case           |
+|-------------|---------------------------------------------------|--------------------|
+| `@identity` | identity.*                                        | File metadata      |
+| `@motion`   | motion.*, complexity.*                            | Animation analysis |
+| `@color`    | color.*                                           | Color extraction   |
+| `@quality`  | quality.*                                         | Quality metrics    |
+| `@text`     | content.text*, ocr.*                              | Text extraction    |
+| `@vision`   | vision.*                                          | Vision LLM outputs |
+| `@alttext`  | vision.llm.caption, content.text*, motion.summary | Alt text           |
+| `@tool`     | Curated set for MCP/automation                    | Tool integration   |
+| `@all`      | *                                                 | Full pipeline      |
 
 ## Creating Custom Pipelines
 

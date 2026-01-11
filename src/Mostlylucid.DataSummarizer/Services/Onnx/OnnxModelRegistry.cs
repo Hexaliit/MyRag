@@ -3,12 +3,12 @@ using Mostlylucid.DataSummarizer.Configuration;
 namespace Mostlylucid.DataSummarizer.Services.Onnx;
 
 /// <summary>
-/// Registry of available ONNX models with download URLs and metadata
+///     Registry of available ONNX models with download URLs and metadata
 /// </summary>
 public static class OnnxModelRegistry
 {
     /// <summary>
-    /// Get embedding model info
+    ///     Get embedding model info
     /// </summary>
     public static EmbeddingModelInfo GetEmbeddingModel(OnnxEmbeddingModel model, bool quantized = true)
     {
@@ -80,7 +80,7 @@ public static class OnnxModelRegistry
     }
 
     /// <summary>
-    /// Build HuggingFace download URL
+    ///     Build HuggingFace download URL
     /// </summary>
     public static string GetDownloadUrl(string repo, string file)
     {
@@ -89,7 +89,7 @@ public static class OnnxModelRegistry
 }
 
 /// <summary>
-/// Embedding model metadata
+///     Embedding model metadata
 /// </summary>
 public class EmbeddingModelInfo
 {
@@ -103,8 +103,19 @@ public class EmbeddingModelInfo
     public required long SizeBytes { get; init; }
     public bool RequiresInstruction { get; init; }
     public string? QueryInstruction { get; init; }
-    
-    public string GetModelUrl() => OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, ModelFile);
-    public string GetTokenizerUrl() => OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, TokenizerFile);
-    public string GetVocabUrl() => OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, VocabFile);
+
+    public string GetModelUrl()
+    {
+        return OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, ModelFile);
+    }
+
+    public string GetTokenizerUrl()
+    {
+        return OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, TokenizerFile);
+    }
+
+    public string GetVocabUrl()
+    {
+        return OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, VocabFile);
+    }
 }

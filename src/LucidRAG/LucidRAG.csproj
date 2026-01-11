@@ -11,8 +11,8 @@
         <AssemblyName>LucidRAG</AssemblyName>
         <Product>LucidRAG</Product>
         <Description>Multi-document RAG web application with semantic search and GraphRAG entity extraction</Description>
-      <UserSecretsId>84efb9dc-f8d5-4359-b732-b9c3236a98d1</UserSecretsId>
-  </PropertyGroup>
+        <UserSecretsId>84efb9dc-f8d5-4359-b732-b9c3236a98d1</UserSecretsId>
+    </PropertyGroup>
 
     <!-- Single EXE publishing configuration - only applies during publish -->
     <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
@@ -28,59 +28,59 @@
 
     <!-- Core ASP.NET packages -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
-        <PackageReference Include="Scalar.AspNetCore" Version="2.12.4" />
-        <PackageReference Include="System.ServiceModel.Syndication" Version="10.0.1" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1"/>
+        <PackageReference Include="Scalar.AspNetCore" Version="2.12.4"/>
+        <PackageReference Include="System.ServiceModel.Syndication" Version="10.0.1"/>
     </ItemGroup>
 
     <!-- Entity Framework Core + PostgreSQL + SQLite (for standalone) -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.1" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.1"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.1">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.1" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.1"/>
     </ItemGroup>
 
     <!-- Logging -->
     <ItemGroup>
-        <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
-        <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
-        <PackageReference Include="Serilog.Sinks.File" Version="8.0.0-dev-02318" />
+        <PackageReference Include="Serilog.AspNetCore" Version="10.0.0"/>
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1"/>
+        <PackageReference Include="Serilog.Sinks.File" Version="8.0.0-dev-02318"/>
     </ItemGroup>
 
     <!-- Health Checks -->
     <ItemGroup>
-        <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
+        <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0"/>
     </ItemGroup>
 
     <!-- Resilience (Polly) -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.4.0" />
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.4.0"/>
     </ItemGroup>
 
     <!-- Frontend -->
     <ItemGroup>
-        <PackageReference Include="Htmx" Version="1.9.0" />
-        <PackageReference Include="Htmx.TagHelpers" Version="1.9.0" />
+        <PackageReference Include="Htmx" Version="1.9.0"/>
+        <PackageReference Include="Htmx.TagHelpers" Version="1.9.0"/>
     </ItemGroup>
 
     <!-- GraphQL -->
     <ItemGroup>
-        <PackageReference Include="HotChocolate.AspNetCore" Version="15.1.11" />
-        <PackageReference Include="HotChocolate.Data.EntityFramework" Version="15.1.11" />
+        <PackageReference Include="HotChocolate.AspNetCore" Version="15.1.11"/>
+        <PackageReference Include="HotChocolate.Data.EntityFramework" Version="15.1.11"/>
     </ItemGroup>
 
     <!-- Authentication -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.1" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.1"/>
     </ItemGroup>
 
     <!-- Project references -->
     <ItemGroup>
-        <ProjectReference Include="..\LucidRAG.Core\LucidRAG.Core.csproj" />
+        <ProjectReference Include="..\LucidRAG.Core\LucidRAG.Core.csproj"/>
     </ItemGroup>
 
     <!-- Ensure static files and config are published -->
@@ -90,54 +90,54 @@
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
         </Content>
-        <Content Include="package.json" />
-        <Content Update="package-lock.json" />
+        <Content Include="package.json"/>
+        <Content Update="package-lock.json"/>
     </ItemGroup>
 
     <!-- Exclude npm/node artifacts and generated data from project -->
     <ItemGroup>
-        <None Remove="node_modules\**" />
-        <Content Remove="node_modules\**" />
-        <Compile Remove="node_modules\**" />
-        <EmbeddedResource Remove="node_modules\**" />
-        <None Remove="package*.json" />
-        <Content Remove="package*.json" />
-        <None Remove="package-lock.json" />
-        <None Remove="screenshots\**" />
-        <Content Remove="screenshots\**" />
-        <None Remove="data\**" />
-        <Content Remove="data\**" />
-        <None Remove="uploads\**" />
-        <Content Remove="uploads\**" />
-        <None Remove="*.duckdb*" />
-        <Content Remove="*.duckdb*" />
+        <None Remove="node_modules\**"/>
+        <Content Remove="node_modules\**"/>
+        <Compile Remove="node_modules\**"/>
+        <EmbeddedResource Remove="node_modules\**"/>
+        <None Remove="package*.json"/>
+        <Content Remove="package*.json"/>
+        <None Remove="package-lock.json"/>
+        <None Remove="screenshots\**"/>
+        <Content Remove="screenshots\**"/>
+        <None Remove="data\**"/>
+        <Content Remove="data\**"/>
+        <None Remove="uploads\**"/>
+        <Content Remove="uploads\**"/>
+        <None Remove="*.duckdb*"/>
+        <Content Remove="*.duckdb*"/>
     </ItemGroup>
     <ItemGroup>
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\Microsoft.Build.Locator.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe.config" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\Microsoft.IO.Redist.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\Newtonsoft.Json.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Buffers.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Collections.Immutable.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.CommandLine.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Memory.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Numerics.Vectors.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Runtime.CompilerServices.Unsafe.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Threading.Tasks.Extensions.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\cs\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\de\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\es\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\fr\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\it\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\ja\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\ko\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\pl\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\pt-BR\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\ru\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\tr\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\zh-Hans\System.CommandLine.resources.dll" />
-      <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\zh-Hant\System.CommandLine.resources.dll" />
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\Microsoft.Build.Locator.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe.config"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\Microsoft.IO.Redist.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\Newtonsoft.Json.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Buffers.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Collections.Immutable.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.CommandLine.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Memory.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Numerics.Vectors.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Runtime.CompilerServices.Unsafe.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\System.Threading.Tasks.Extensions.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\cs\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\de\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\es\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\fr\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\it\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\ja\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\ko\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\pl\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\pt-BR\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\ru\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\tr\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\zh-Hans\System.CommandLine.resources.dll"/>
+        <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\zh-Hant\System.CommandLine.resources.dll"/>
     </ItemGroup>
 
 </Project>

@@ -3,20 +3,24 @@ using Mostlylucid.DocSummarizer.Models;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Abstraction for vector storage in BertRag pipeline.
-/// Allows switching between in-memory (default) and persistent (Qdrant) storage.
-/// Supports both segment storage (for retrieval) and summary caching (to avoid re-LLM).
-///
-/// PRIVACY: Vector store contains NO PII or text content. All text is stored in the
-/// evidence repository (PostgreSQL). The vector DB only contains:
-/// - Embeddings (numeric vectors)
-/// - Content hashes (segmentHash, docHash) for lookup
-/// - Non-PII metadata (type, index, scores, positions)
+///     Abstraction for vector storage in BertRag pipeline.
+///     Allows switching between in-memory (default) and persistent (Qdrant) storage.
+///     Supports both segment storage (for retrieval) and summary caching (to avoid re-LLM).
+///     PRIVACY: Vector store contains NO PII or text content. All text is stored in the
+///     evidence repository (PostgreSQL). The vector DB only contains:
+///     - Embeddings (numeric vectors)
+///     - Content hashes (segmentHash, docHash) for lookup
+///     - Non-PII metadata (type, index, scores, positions)
 /// </summary>
 public interface IVectorStore : IAsyncDisposable, IDisposable
 {
     /// <summary>
-    /// Initialize the vector store (create collection if needed)
+    ///     Whether this store persists data between runs
+    /// </summary>
+    bool IsPersistent { get; }
+
+    /// <summary>
+    ///     Initialize the vector store (create collection if needed)
     /// </summary>
     /// <param name="collectionName">Name of the collection/index</param>
     /// <param name="vectorSize">Dimension of the embedding vectors</param>
@@ -24,8 +28,8 @@ public interface IVectorStore : IAsyncDisposable, IDisposable
     Task InitializeAsync(string collectionName, int vectorSize, CancellationToken ct = default);
 
     /// <summary>
-    /// Check if a collection exists and has segments for the given document.
-    /// Internally extracts content hash from docId for privacy-safe lookup.
+    ///     Check if a collection exists and has segments for the given document.
+    ///     Internally extracts content hash from docId for privacy-safe lookup.
     /// </summary>
     /// <param name="collectionName">Name of the collection</param>
     /// <param name="docId">Document ID (content hash will be extracted for lookup)</param>
@@ -34,8 +38,8 @@ public interface IVectorStore : IAsyncDisposable, IDisposable
     Task<bool> HasDocumentAsync(string collectionName, string docId, CancellationToken ct = default);
 
     /// <summary>
-    /// Store segments with their embeddings.
-    /// NOTE: Text is NOT stored - only embeddings and non-PII metadata.
+    ///     Store segments with their embeddings.
+    ///     NOTE: Text is NOT stored - only embeddings and non-PII metadata.
     /// </summary>
     /// <param name="collectionName">Name of the collection</param>
     /// <param name="segments">Segments to store (must have embeddings)</param>
@@ -43,8 +47,8 @@ public interface IVectorStore : IAsyncDisposable, IDisposable
     Task UpsertSegmentsAsync(string collectionName, IEnumerable<Segment> segments, CancellationToken ct = default);
 
     /// <summary>
-    /// Search for similar segments by embedding vector.
-    /// NOTE: Returned segments have empty text - caller must hydrate from evidence repository.
+    ///     Search for similar segments by embedding vector.
+    ///     NOTE: Returned segments have empty text - caller must hydrate from evidence repository.
     /// </summary>
     /// <param name="collectionName">Name of the collection</param>
     /// <param name="queryEmbedding">Query vector</param>
@@ -60,8 +64,8 @@ public interface IVectorStore : IAsyncDisposable, IDisposable
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get all segments for a document (for salience-based retrieval without query).
-    /// NOTE: Returned segments have empty text - caller must hydrate from evidence repository.
+    ///     Get all segments for a document (for salience-based retrieval without query).
+    ///     NOTE: Returned segments have empty text - caller must hydrate from evidence repository.
     /// </summary>
     /// <param name="collectionName">Name of the collection</param>
     /// <param name="docId">Document ID (hash extracted internally)</param>
@@ -70,42 +74,37 @@ public interface IVectorStore : IAsyncDisposable, IDisposable
     Task<List<Segment>> GetDocumentSegmentsAsync(string collectionName, string docId, CancellationToken ct = default);
 
     /// <summary>
-    /// Delete a collection
+    ///     Delete a collection
     /// </summary>
     /// <param name="collectionName">Name of the collection to delete</param>
     /// <param name="ct">Cancellation token</param>
     Task DeleteCollectionAsync(string collectionName, CancellationToken ct = default);
 
     /// <summary>
-    /// Delete segments for a specific document
+    ///     Delete segments for a specific document
     /// </summary>
     /// <param name="collectionName">Name of the collection</param>
     /// <param name="docId">Document ID (hash extracted internally)</param>
     /// <param name="ct">Cancellation token</param>
     Task DeleteDocumentAsync(string collectionName, string docId, CancellationToken ct = default);
-    
-    /// <summary>
-    /// Whether this store persists data between runs
-    /// </summary>
-    bool IsPersistent { get; }
-    
+
     // === Segment-Level Caching (Granular Invalidation) ===
-    
+
     /// <summary>
-    /// Get segments by their content hashes (for drift detection).
-    /// Returns only segments whose content hash matches - unchanged segments.
+    ///     Get segments by their content hashes (for drift detection).
+    ///     Returns only segments whose content hash matches - unchanged segments.
     /// </summary>
     /// <param name="collectionName">Name of the collection</param>
     /// <param name="contentHashes">Content hashes to look up</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>Dictionary of contentHash → Segment for found segments</returns>
     Task<Dictionary<string, Segment>> GetSegmentsByHashAsync(
-        string collectionName, 
-        IEnumerable<string> contentHashes, 
+        string collectionName,
+        IEnumerable<string> contentHashes,
         CancellationToken ct = default);
-    
+
     /// <summary>
-    /// Remove segments that no longer exist in the document (drift cleanup).
+    ///     Remove segments that no longer exist in the document (drift cleanup).
     /// </summary>
     /// <param name="collectionName">Name of the collection</param>
     /// <param name="docId">Document ID (hash extracted internally)</param>
@@ -116,51 +115,53 @@ public interface IVectorStore : IAsyncDisposable, IDisposable
         string docId,
         IEnumerable<string> validContentHashes,
         CancellationToken ct = default);
-    
+
     // === Summary Caching ===
-    
+
     /// <summary>
-    /// Get a cached summary if it exists.
-    /// Cache key should be evidence-based (hash of retrieved segment IDs + content hashes).
+    ///     Get a cached summary if it exists.
+    ///     Cache key should be evidence-based (hash of retrieved segment IDs + content hashes).
     /// </summary>
     /// <param name="collectionName">Name of the collection</param>
     /// <param name="evidenceHash">Hash of evidence set (segment identities)</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>Cached summary or null if not found</returns>
-    Task<DocumentSummary?> GetCachedSummaryAsync(string collectionName, string evidenceHash, CancellationToken ct = default);
-    
+    Task<DocumentSummary?> GetCachedSummaryAsync(string collectionName, string evidenceHash,
+        CancellationToken ct = default);
+
     /// <summary>
-    /// Store a summary in the cache, keyed by evidence set.
+    ///     Store a summary in the cache, keyed by evidence set.
     /// </summary>
     /// <param name="collectionName">Name of the collection</param>
     /// <param name="evidenceHash">Hash of evidence set</param>
     /// <param name="summary">Summary to cache</param>
     /// <param name="ct">Cancellation token</param>
-    Task CacheSummaryAsync(string collectionName, string evidenceHash, DocumentSummary summary, CancellationToken ct = default);
+    Task CacheSummaryAsync(string collectionName, string evidenceHash, DocumentSummary summary,
+        CancellationToken ct = default);
 }
 
 /// <summary>
-/// Vector store backend type
+///     Vector store backend type
 /// </summary>
 public enum VectorStoreBackend
 {
     /// <summary>
-    /// In-memory storage - no external dependencies, vectors lost on exit.
-    /// Best for: Testing, prototyping, ephemeral workloads.
+    ///     In-memory storage - no external dependencies, vectors lost on exit.
+    ///     Best for: Testing, prototyping, ephemeral workloads.
     /// </summary>
     InMemory,
 
     /// <summary>
-    /// DuckDB embedded database - persistent storage, file-based, no external server required.
-    /// Best for: Development, standalone deployments, local storage with persistence.
-    /// Default option for embedded scenarios and learning systems.
+    ///     DuckDB embedded database - persistent storage, file-based, no external server required.
+    ///     Best for: Development, standalone deployments, local storage with persistence.
+    ///     Default option for embedded scenarios and learning systems.
     /// </summary>
     DuckDB,
 
     /// <summary>
-    /// Qdrant vector database (recommended for production) - persistent storage, requires Qdrant server.
-    /// Best for: Production deployments, distributed systems, multi-node setups, persistent storage.
-    /// Supports advanced features: multi-vector embeddings, hybrid search, filtering.
+    ///     Qdrant vector database (recommended for production) - persistent storage, requires Qdrant server.
+    ///     Best for: Production deployments, distributed systems, multi-node setups, persistent storage.
+    ///     Supports advanced features: multi-vector embeddings, hybrid search, filtering.
     /// </summary>
     Qdrant
 }

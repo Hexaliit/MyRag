@@ -17,7 +17,10 @@
       "estimatedDurationSeconds": 0.5,
       "accuracyImprovement": 0,
       "isDefault": false,
-      "tags": ["fast", "baseline"],
+      "tags": [
+        "fast",
+        "baseline"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 2000,
         "enableParallelization": false
@@ -30,7 +33,9 @@
           "enabled": true,
           "priority": 100,
           "waveType": "ColorWave",
-          "tags": ["preprocessing"]
+          "tags": [
+            "preprocessing"
+          ]
         },
         {
           "id": "simple-ocr",
@@ -40,7 +45,10 @@
           "priority": 60,
           "waveType": "OcrWave",
           "earlyExitThreshold": 0.9,
-          "tags": ["ocr", "baseline"]
+          "tags": [
+            "ocr",
+            "baseline"
+          ]
         },
         {
           "id": "spell-check",
@@ -49,8 +57,13 @@
           "enabled": true,
           "priority": 58,
           "waveType": "OcrQualityWave",
-          "dependsOn": ["simple-ocr"],
-          "tags": ["quality", "spell-check"]
+          "dependsOn": [
+            "simple-ocr"
+          ],
+          "tags": [
+            "quality",
+            "spell-check"
+          ]
         }
       ]
     },
@@ -62,7 +75,10 @@
       "estimatedDurationSeconds": 2.5,
       "accuracyImprovement": 25,
       "isDefault": true,
-      "tags": ["balanced", "recommended"],
+      "tags": [
+        "balanced",
+        "recommended"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 5000,
         "globalEarlyExitThreshold": 0.95
@@ -75,7 +91,9 @@
           "enabled": true,
           "priority": 100,
           "waveType": "ColorWave",
-          "tags": ["preprocessing"]
+          "tags": [
+            "preprocessing"
+          ]
         },
         {
           "id": "simple-ocr",
@@ -86,7 +104,10 @@
           "waveType": "OcrWave",
           "earlyExitThreshold": 0.95,
           "maxDurationMs": 1000,
-          "tags": ["ocr", "baseline"]
+          "tags": [
+            "ocr",
+            "baseline"
+          ]
         },
         {
           "id": "advanced-ocr",
@@ -95,7 +116,9 @@
           "enabled": true,
           "priority": 59,
           "waveType": "AdvancedOcrWave",
-          "dependsOn": ["simple-ocr"],
+          "dependsOn": [
+            "simple-ocr"
+          ],
           "parameters": {
             "maxFrames": 30,
             "ssimThreshold": 0.95,
@@ -104,7 +127,11 @@
             "enableVoting": true,
             "votingConfidenceThreshold": 0.3
           },
-          "tags": ["ocr", "temporal", "advanced"]
+          "tags": [
+            "ocr",
+            "temporal",
+            "advanced"
+          ]
         },
         {
           "id": "spell-check",
@@ -113,12 +140,17 @@
           "enabled": true,
           "priority": 58,
           "waveType": "OcrQualityWave",
-          "dependsOn": ["advanced-ocr"],
+          "dependsOn": [
+            "advanced-ocr"
+          ],
           "parameters": {
             "language": "en_US",
             "garbledThreshold": 0.5
           },
-          "tags": ["quality", "spell-check"]
+          "tags": [
+            "quality",
+            "spell-check"
+          ]
         }
       ]
     },
@@ -130,7 +162,11 @@
       "estimatedDurationSeconds": 12,
       "accuracyImprovement": 45,
       "isDefault": false,
-      "tags": ["quality", "slow", "accurate"],
+      "tags": [
+        "quality",
+        "slow",
+        "accurate"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 30000,
         "globalEarlyExitThreshold": 0.98
@@ -143,7 +179,9 @@
           "enabled": true,
           "priority": 100,
           "waveType": "ColorWave",
-          "tags": ["preprocessing"]
+          "tags": [
+            "preprocessing"
+          ]
         },
         {
           "id": "simple-ocr",
@@ -154,7 +192,10 @@
           "waveType": "OcrWave",
           "earlyExitThreshold": 0.98,
           "maxDurationMs": 1000,
-          "tags": ["ocr", "baseline"]
+          "tags": [
+            "ocr",
+            "baseline"
+          ]
         },
         {
           "id": "advanced-ocr",
@@ -163,7 +204,9 @@
           "enabled": true,
           "priority": 59,
           "waveType": "AdvancedOcrWave",
-          "dependsOn": ["simple-ocr"],
+          "dependsOn": [
+            "simple-ocr"
+          ],
           "parameters": {
             "maxFrames": 100,
             "ssimThreshold": 0.98,
@@ -173,7 +216,11 @@
             "votingConfidenceThreshold": 0.2,
             "votingMinFrames": 5
           },
-          "tags": ["ocr", "temporal", "advanced"]
+          "tags": [
+            "ocr",
+            "temporal",
+            "advanced"
+          ]
         },
         {
           "id": "spell-check",
@@ -182,13 +229,18 @@
           "enabled": true,
           "priority": 58,
           "waveType": "OcrQualityWave",
-          "dependsOn": ["advanced-ocr"],
+          "dependsOn": [
+            "advanced-ocr"
+          ],
           "parameters": {
             "language": "en_US",
             "garbledThreshold": 0.5,
             "enableDetailedAnalysis": true
           },
-          "tags": ["quality", "spell-check"]
+          "tags": [
+            "quality",
+            "spell-check"
+          ]
         }
       ]
     },
@@ -199,7 +251,11 @@
       "category": "speed",
       "estimatedDurationSeconds": 0.3,
       "isDefault": false,
-      "tags": ["fast", "stats", "metrics"],
+      "tags": [
+        "fast",
+        "stats",
+        "metrics"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 1000,
         "enableParallelization": false
@@ -212,7 +268,10 @@
           "enabled": true,
           "priority": 100,
           "waveType": "ColorWave",
-          "tags": ["color", "metrics"]
+          "tags": [
+            "color",
+            "metrics"
+          ]
         }
       ]
     },
@@ -223,7 +282,11 @@
       "category": "quality",
       "estimatedDurationSeconds": 5.0,
       "isDefault": false,
-      "tags": ["caption", "llm", "description"],
+      "tags": [
+        "caption",
+        "llm",
+        "description"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 15000,
         "enableParallelization": true,
@@ -237,7 +300,9 @@
           "enabled": true,
           "priority": 100,
           "waveType": "ColorWave",
-          "tags": ["preprocessing"]
+          "tags": [
+            "preprocessing"
+          ]
         },
         {
           "id": "motion-analysis",
@@ -246,7 +311,10 @@
           "enabled": true,
           "priority": 95,
           "waveType": "MotionWave",
-          "tags": ["motion", "animation"]
+          "tags": [
+            "motion",
+            "animation"
+          ]
         },
         {
           "id": "advanced-ocr",
@@ -263,7 +331,11 @@
             "enableVoting": true,
             "votingConfidenceThreshold": 0.3
           },
-          "tags": ["ocr", "temporal", "subtitles"]
+          "tags": [
+            "ocr",
+            "temporal",
+            "subtitles"
+          ]
         },
         {
           "id": "vision-llm",
@@ -272,7 +344,11 @@
           "enabled": true,
           "priority": 50,
           "waveType": "VisionLlmWave",
-          "tags": ["llm", "caption", "text"]
+          "tags": [
+            "llm",
+            "caption",
+            "text"
+          ]
         }
       ]
     },
@@ -283,7 +359,11 @@
       "category": "accessibility",
       "estimatedDurationSeconds": 3.5,
       "isDefault": false,
-      "tags": ["accessibility", "alttext", "description"],
+      "tags": [
+        "accessibility",
+        "alttext",
+        "description"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 10000,
         "enableParallelization": true
@@ -296,7 +376,10 @@
           "enabled": true,
           "priority": 100,
           "waveType": "ColorWave",
-          "tags": ["vision", "color"]
+          "tags": [
+            "vision",
+            "color"
+          ]
         },
         {
           "id": "simple-ocr",
@@ -306,7 +389,10 @@
           "priority": 60,
           "waveType": "OcrWave",
           "maxDurationMs": 1000,
-          "tags": ["ocr", "text"]
+          "tags": [
+            "ocr",
+            "text"
+          ]
         },
         {
           "id": "advanced-ocr",
@@ -315,7 +401,9 @@
           "enabled": true,
           "priority": 59,
           "waveType": "AdvancedOcrWave",
-          "dependsOn": ["simple-ocr"],
+          "dependsOn": [
+            "simple-ocr"
+          ],
           "parameters": {
             "maxFrames": 20,
             "ssimThreshold": 0.95,
@@ -324,7 +412,10 @@
             "enableVoting": true,
             "votingConfidenceThreshold": 0.4
           },
-          "tags": ["ocr", "temporal"]
+          "tags": [
+            "ocr",
+            "temporal"
+          ]
         },
         {
           "id": "spell-check",
@@ -333,12 +424,16 @@
           "enabled": true,
           "priority": 58,
           "waveType": "OcrQualityWave",
-          "dependsOn": ["advanced-ocr"],
+          "dependsOn": [
+            "advanced-ocr"
+          ],
           "parameters": {
             "language": "en_US",
             "garbledThreshold": 0.5
           },
-          "tags": ["quality"]
+          "tags": [
+            "quality"
+          ]
         }
       ]
     },
@@ -349,7 +444,12 @@
       "category": "vision",
       "estimatedDurationSeconds": 4.0,
       "isDefault": false,
-      "tags": ["vision", "llm", "no-ocr", "lightweight"],
+      "tags": [
+        "vision",
+        "llm",
+        "no-ocr",
+        "lightweight"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 15000,
         "enableParallelization": true,
@@ -364,7 +464,10 @@
           "enabled": true,
           "priority": 100,
           "waveType": "ColorWave",
-          "tags": ["color", "preprocessing"]
+          "tags": [
+            "color",
+            "preprocessing"
+          ]
         },
         {
           "id": "motion-analysis",
@@ -373,7 +476,10 @@
           "enabled": true,
           "priority": 95,
           "waveType": "MotionWave",
-          "tags": ["motion", "animation"]
+          "tags": [
+            "motion",
+            "animation"
+          ]
         },
         {
           "id": "vision-llm",
@@ -382,7 +488,12 @@
           "enabled": true,
           "priority": 50,
           "waveType": "VisionLlmWave",
-          "tags": ["llm", "caption", "entities", "text"]
+          "tags": [
+            "llm",
+            "caption",
+            "entities",
+            "text"
+          ]
         }
       ]
     },
@@ -393,7 +504,12 @@
       "category": "analysis",
       "estimatedDurationSeconds": 1.0,
       "isDefault": false,
-      "tags": ["motion", "animation", "fast", "no-ocr"],
+      "tags": [
+        "motion",
+        "animation",
+        "fast",
+        "no-ocr"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 5000,
         "enableParallelization": true,
@@ -407,7 +523,9 @@
           "enabled": true,
           "priority": 100,
           "waveType": "ColorWave",
-          "tags": ["color"]
+          "tags": [
+            "color"
+          ]
         },
         {
           "id": "motion-analysis",
@@ -416,7 +534,10 @@
           "enabled": true,
           "priority": 95,
           "waveType": "MotionWave",
-          "tags": ["motion", "animation"]
+          "tags": [
+            "motion",
+            "animation"
+          ]
         }
       ]
     },
@@ -427,7 +548,13 @@
       "category": "speed",
       "estimatedDurationSeconds": 0.8,
       "isDefault": false,
-      "tags": ["fast", "local", "onnx", "florence2", "no-ollama"],
+      "tags": [
+        "fast",
+        "local",
+        "onnx",
+        "florence2",
+        "no-ollama"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 3000,
         "enableParallelization": true,
@@ -441,7 +568,10 @@
           "enabled": true,
           "priority": 100,
           "waveType": "ColorWave",
-          "tags": ["color", "enhancement"]
+          "tags": [
+            "color",
+            "enhancement"
+          ]
         },
         {
           "id": "florence2-caption",
@@ -455,7 +585,12 @@
             "enhanceWithColors": true,
             "extractOcr": true
           },
-          "tags": ["caption", "ocr", "local", "onnx"]
+          "tags": [
+            "caption",
+            "ocr",
+            "local",
+            "onnx"
+          ]
         }
       ]
     },
@@ -466,7 +601,13 @@
       "category": "balanced",
       "estimatedDurationSeconds": 2.5,
       "isDefault": false,
-      "tags": ["balanced", "two-stage", "florence2", "llm", "escalation"],
+      "tags": [
+        "balanced",
+        "two-stage",
+        "florence2",
+        "llm",
+        "escalation"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 15000,
         "enableParallelization": true,
@@ -480,7 +621,10 @@
           "enabled": true,
           "priority": 100,
           "waveType": "ColorWave",
-          "tags": ["color", "preprocessing"]
+          "tags": [
+            "color",
+            "preprocessing"
+          ]
         },
         {
           "id": "motion-analysis",
@@ -489,7 +633,10 @@
           "enabled": true,
           "priority": 95,
           "waveType": "MotionWave",
-          "tags": ["motion", "animation"]
+          "tags": [
+            "motion",
+            "animation"
+          ]
         },
         {
           "id": "florence2-caption",
@@ -504,7 +651,11 @@
             "extractOcr": true
           },
           "earlyExitThreshold": 0.85,
-          "tags": ["caption", "first-pass", "fast"]
+          "tags": [
+            "caption",
+            "first-pass",
+            "fast"
+          ]
         },
         {
           "id": "vision-llm",
@@ -513,13 +664,19 @@
           "enabled": true,
           "priority": 50,
           "waveType": "VisionLlmWave",
-          "dependsOn": ["florence2-caption"],
+          "dependsOn": [
+            "florence2-caption"
+          ],
           "conditionalTrigger": {
             "type": "confidence_threshold",
             "threshold": 0.85,
             "triggerWhenBelow": true
           },
-          "tags": ["llm", "escalation", "quality"]
+          "tags": [
+            "llm",
+            "escalation",
+            "quality"
+          ]
         }
       ]
     },
@@ -530,7 +687,13 @@
       "category": "accessibility",
       "estimatedDurationSeconds": 8.0,
       "isDefault": false,
-      "tags": ["accessibility", "wcag", "social-media", "comprehensive", "alttext"],
+      "tags": [
+        "accessibility",
+        "wcag",
+        "social-media",
+        "comprehensive",
+        "alttext"
+      ],
       "globalSettings": {
         "maxTotalDurationMs": 30000,
         "enableParallelization": true,
@@ -545,7 +708,10 @@
           "enabled": true,
           "priority": 100,
           "waveType": "IdentityWave",
-          "tags": ["metadata", "identity"]
+          "tags": [
+            "metadata",
+            "identity"
+          ]
         },
         {
           "id": "color-analysis",
@@ -554,7 +720,10 @@
           "enabled": true,
           "priority": 99,
           "waveType": "ColorWave",
-          "tags": ["color", "visual"]
+          "tags": [
+            "color",
+            "visual"
+          ]
         },
         {
           "id": "motion-analysis",
@@ -563,7 +732,11 @@
           "enabled": true,
           "priority": 95,
           "waveType": "MotionWave",
-          "tags": ["motion", "animation", "wcag"]
+          "tags": [
+            "motion",
+            "animation",
+            "wcag"
+          ]
         },
         {
           "id": "face-detection",
@@ -572,7 +745,10 @@
           "enabled": true,
           "priority": 90,
           "waveType": "FaceDetectionWave",
-          "tags": ["faces", "people"]
+          "tags": [
+            "faces",
+            "people"
+          ]
         },
         {
           "id": "advanced-ocr",
@@ -590,7 +766,11 @@
             "votingConfidenceThreshold": 0.25,
             "votingMinFrames": 3
           },
-          "tags": ["ocr", "text", "subtitles"]
+          "tags": [
+            "ocr",
+            "text",
+            "subtitles"
+          ]
         },
         {
           "id": "ocr-quality",
@@ -599,13 +779,18 @@
           "enabled": true,
           "priority": 58,
           "waveType": "OcrQualityWave",
-          "dependsOn": ["advanced-ocr"],
+          "dependsOn": [
+            "advanced-ocr"
+          ],
           "parameters": {
             "language": "en_US",
             "garbledThreshold": 0.4,
             "enableDetailedAnalysis": true
           },
-          "tags": ["quality", "validation"]
+          "tags": [
+            "quality",
+            "validation"
+          ]
         },
         {
           "id": "vision-llm",
@@ -619,7 +804,12 @@
             "includeEmotions": true,
             "includeContext": true
           },
-          "tags": ["llm", "caption", "description", "wcag"]
+          "tags": [
+            "llm",
+            "caption",
+            "description",
+            "wcag"
+          ]
         },
         {
           "id": "contradiction-check",
@@ -628,7 +818,10 @@
           "enabled": true,
           "priority": 10,
           "waveType": "ContradictionWave",
-          "tags": ["validation", "quality"]
+          "tags": [
+            "validation",
+            "quality"
+          ]
         }
       ]
     }

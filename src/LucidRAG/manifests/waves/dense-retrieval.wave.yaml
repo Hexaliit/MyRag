@@ -49,7 +49,7 @@ emits:
   on_complete:
     - key: retrieval.dense.similarity
       type: number
-      confidence_range: [0.0, 1.0]
+      confidence_range: [ 0.0, 1.0 ]
     - key: retrieval.dense.result_count
       type: number
     - key: retrieval.dense.completed

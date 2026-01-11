@@ -4,7 +4,8 @@
 
 ### Major Changes
 
-This release represents a major architectural refactoring, extracting all document processing logic into a reusable **Mostlylucid.DocSummarizer.Core** NuGet library. The CLI is now a thin wrapper that uses Core via dependency injection.
+This release represents a major architectural refactoring, extracting all document processing logic into a reusable *
+*Mostlylucid.DocSummarizer.Core** NuGet library. The CLI is now a thin wrapper that uses Core via dependency injection.
 
 ### Architecture
 
@@ -17,9 +18,11 @@ CLI (thin wrapper) → IDocumentSummarizer (DI) → Core services
 
 ### Breaking Changes
 
-- **Namespace restructured**: All Core types now live in `Mostlylucid.DocSummarizer.*` namespace (shared between CLI and Core)
+- **Namespace restructured**: All Core types now live in `Mostlylucid.DocSummarizer.*` namespace (shared between CLI and
+  Core)
 - **DI-first architecture**: Services now registered via `services.AddDocSummarizer()` extension method
-- **IVectorStore interface updated**: Now implements both `IDisposable` and `IAsyncDisposable` for proper container disposal
+- **IVectorStore interface updated**: Now implements both `IDisposable` and `IAsyncDisposable` for proper container
+  disposal
 
 ### New Features
 
@@ -59,14 +62,15 @@ Clean, DI-friendly API with comprehensive functionality:
 
 ### Improvements
 
-- **Proper disposal**: All vector stores (`DuckDbVectorStore`, `QdrantVectorStore`, `InMemoryVectorStore`) now implement both `IDisposable` and `IAsyncDisposable`
+- **Proper disposal**: All vector stores (`DuckDbVectorStore`, `QdrantVectorStore`, `InMemoryVectorStore`) now implement
+  both `IDisposable` and `IAsyncDisposable`
 - **101 tests passing**: Comprehensive test coverage for Core library
 - **CLI simplified**: Program.cs reduced from top-level statements to proper `Program` class with explicit `Main` method
 - **Enhanced `tool` command**: Comprehensive JSON output for LLM integration with:
-  - Entity extraction (people, organizations, locations, dates, events)
-  - Source chunk references for citation tracking
-  - Processing metadata (coverage, citation rate, timing, model)
-  - Q&A mode via `--ask` flag with evidence segments
+    - Entity extraction (people, organizations, locations, dates, events)
+    - Source chunk references for citation tracking
+    - Processing metadata (coverage, citation rate, timing, model)
+    - Q&A mode via `--ask` flag with evidence segments
 
 ### Files Added (Core Library)
 
@@ -83,6 +87,7 @@ Mostlylucid.DocSummarizer.Core/
 ### Files Removed (from CLI)
 
 ~40 service files removed from CLI - now consumed from Core library:
+
 - `Services/Onnx/*.cs` (tokenizer, embedding, model registry)
 - `Services/Utilities/*.cs` (vector math, word lists, response cleaner)
 - `Services/*.cs` (all summarizers, extractors, vector stores)
@@ -93,7 +98,7 @@ Mostlylucid.DocSummarizer.Core/
 
 **For CLI users**: No changes required - the CLI works exactly as before.
 
-**For library consumers**: 
+**For library consumers**:
 
 1. Add reference to `Mostlylucid.DocSummarizer.Core`
 2. Register services: `services.AddDocSummarizer()`
@@ -134,15 +139,15 @@ None - this is a compatibility release.
 
 8 new embedding models added:
 
-| Model | Dimensions | Context | Use Case |
-|-------|-----------|---------|----------|
-| `BgeBaseEnV15` | 768 | 512 | **New default** - best quality/speed |
-| `BgeLargeEnV15` | 1024 | 512 | Maximum quality |
-| `GteBase` | 768 | 512 | Strong MTEB performer |
-| `GteLarge` | 1024 | 512 | Top-tier quality |
-| `JinaEmbeddingsV2BaseEn` | 768 | **8192** | Long context specialist |
-| `SnowflakeArcticEmbedM` | 768 | 512 | Top MTEB retrieval |
-| `NomicEmbedTextV15` | 768 | **8192** | Long context + Matryoshka |
+| Model                    | Dimensions | Context  | Use Case                             |
+|--------------------------|------------|----------|--------------------------------------|
+| `BgeBaseEnV15`           | 768        | 512      | **New default** - best quality/speed |
+| `BgeLargeEnV15`          | 1024       | 512      | Maximum quality                      |
+| `GteBase`                | 768        | 512      | Strong MTEB performer                |
+| `GteLarge`               | 1024       | 512      | Top-tier quality                     |
+| `JinaEmbeddingsV2BaseEn` | 768        | **8192** | Long context specialist              |
+| `SnowflakeArcticEmbedM`  | 768        | 512      | Top MTEB retrieval                   |
+| `NomicEmbedTextV15`      | 768        | **8192** | Long context + Matryoshka            |
 
 ```bash
 # Use new default (auto)
@@ -159,12 +164,12 @@ docsummarizer -f doc.pdf --embedding-model JinaEmbeddingsV2BaseEn
 
 New inverse-scaling algorithm ensures smaller documents get higher coverage:
 
-| Document Size | Coverage | Example |
-|--------------|----------|---------|
-| ≤50 segments | 40-50% | Nearly all content |
-| 150-400 segments | 10-20% | 310 segments → 43 retrieved (13.6%) |
-| 400-1000 segments | 5-10% | Balanced coverage |
-| >1000 segments | 5% | Large document optimization |
+| Document Size     | Coverage | Example                             |
+|-------------------|----------|-------------------------------------|
+| ≤50 segments      | 40-50%   | Nearly all content                  |
+| 150-400 segments  | 10-20%   | 310 segments → 43 retrieved (13.6%) |
+| 400-1000 segments | 5-10%    | Balanced coverage                   |
+| >1000 segments    | 5%       | Large document optimization         |
 
 **Before**: 310 segments → 16 retrieved (5.2%)
 **After**: 310 segments → 43 retrieved (13.6%)
@@ -172,6 +177,7 @@ New inverse-scaling algorithm ensures smaller documents get higher coverage:
 #### Cross-Encoder Reranking
 
 New second-stage precision reranker using:
+
 - Exact term overlap with early-match bonus
 - Query term density analysis
 - Exact phrase matching (huge boost)
@@ -183,6 +189,7 @@ Enable with `retrieval.useReranking: true` (default: enabled).
 #### Document Metadata & arXiv Banner
 
 Automatic metadata extraction and display:
+
 - Detects arXiv IDs from filenames (e.g., `1506.01057v2.pdf`)
 - Fetches metadata from arXiv API (title, authors, date, abstract)
 - Extracts PDF embedded metadata as fallback
@@ -201,16 +208,19 @@ ArXiv: 1506.01057
 All hardcoded scoring values now have sensible defaults but are fully configurable:
 
 **Hierarchical Encoder** (`HierarchicalEncoderConfig`):
+
 - Section context blending weight (default: 15%)
 - Per-section-type boosts (introduction: 1.3x, conclusion: 1.25x, results: 1.2x)
 - Position boosts (first sentence: 1.2x, last sentence: 1.1x)
 - Heading level boosts (H1: 1.15x, H2: 1.1x, H3: 1.05x)
 
 **Cross-Encoder Reranker** (`RerankerConfig`):
+
 - 12 configurable scoring signals
 - Term overlap, exact phrase, heading match, density, position weights
 
 **Adaptive Sampling** (`RetrievalConfig`):
+
 - Document size thresholds (50, 150, 400, 1000 segments)
 - Coverage percentages per tier (50%, 40%, 20%, 10%, 5%)
 - All configurable via JSON config
@@ -218,6 +228,7 @@ All hardcoded scoring values now have sensible defaults but are fully configurab
 #### Clearer Coverage Labels
 
 Changed from misleading "Coverage: 5%" to:
+
 ```
 Evidence: 43 segments (13.6% of 310)
 Confidence: Medium
@@ -251,7 +262,8 @@ README.md                            # Documentation updates
 
 **Default embedding model changed**: `AllMiniLmL6V2` → `BgeBaseEnV15`
 
-The new model is ~4x larger (110MB vs 23MB) but produces significantly better quality embeddings. First run will auto-download the new model.
+The new model is ~4x larger (110MB vs 23MB) but produces significantly better quality embeddings. First run will
+auto-download the new model.
 
 To use the old default: `--embedding-model AllMiniLmL6V2`
 
@@ -265,43 +277,54 @@ To use the old default: `--embedding-model AllMiniLmL6V2`
 
 Three detailed blog articles covering DocSummarizer architecture, usage, and internals:
 
-- **[Part 1: Building a Document Summarizer with RAG](/blog/building-a-document-summarizer-with-rag)** - Architecture, design patterns, and why structure-first beats naive LLM calls
+- **[Part 1: Building a Document Summarizer with RAG](/blog/building-a-document-summarizer-with-rag)** - Architecture,
+  design patterns, and why structure-first beats naive LLM calls
 - **[Part 2: Using the Tool](/blog/docsummarizer-tool)** - Quick-start guide, modes, templates, and common workflows
-- **[Part 3: Advanced Concepts](/blog/docsummarizer-advanced-concepts)** - Deep dive into BERT, ONNX, embeddings, hybrid search, and the BertRag pipeline
+- **[Part 3: Advanced Concepts](/blog/docsummarizer-advanced-concepts)** - Deep dive into BERT, ONNX, embeddings, hybrid
+  search, and the BertRag pipeline
 
 #### Documentation Improvements
 
 - **Terminology Consistency**: Standardized "BertRag" (not "BERT-RAG" or "Bert-Rag") across all documentation
 - **Accurate Claims**: Changed "perfect citations" → "validated citations" in user-facing docs to avoid overselling
-- **Mode Corrections**: Updated all references from legacy modes (MapReduce/Rag as primary) to current production modes (Auto/BertRag/Bert)
+- **Mode Corrections**: Updated all references from legacy modes (MapReduce/Rag as primary) to current production
+  modes (Auto/BertRag/Bert)
 - **Template Count Fix**: Corrected from "11 templates" to "13 templates" with full documentation
-- **Performance Verification**: Validated all benchmark numbers against source code (3-5s for Bert, ~15-20s for full pipeline, 500+ page support)
-- **Feature Completeness**: Verified all user-facing features are documented (Project Gutenberg ZIP support, all 13 templates, all 7 modes)
+- **Performance Verification**: Validated all benchmark numbers against source code (3-5s for Bert, ~15-20s for full
+  pipeline, 500+ page support)
+- **Feature Completeness**: Verified all user-facing features are documented (Project Gutenberg ZIP support, all 13
+  templates, all 7 modes)
 
 ### New Features
 
 #### Two New Summary Templates
 
 **`prose`** - Clean multi-paragraph prose summary without metadata:
+
 ```bash
 docsummarizer -f doc.pdf -t prose
 ```
+
 - 400-word target, 4 paragraphs
 - No citations, no metadata, no formatting
 - Just flowing prose for clean presentation
 - Perfect for embedding in reports or presentations
 
 **`strict`** - Token-efficient summary with hard constraints:
+
 ```bash
 docsummarizer -f doc.pdf -t strict
 ```
+
 - Exactly 3 bullet points, ≤60 words total
 - No hedging language ("appears to", "seems", "possibly")
 - Highest-confidence facts only
 - Optimized for token-constrained contexts
 
 **Total templates now: 13**
-- default, prose, brief, oneliner, bullets, executive, detailed, technical, academic, citations, bookreport, meeting, strict
+
+- default, prose, brief, oneliner, bullets, executive, detailed, technical, academic, citations, bookreport, meeting,
+  strict
 
 ### Improvements
 
@@ -358,6 +381,7 @@ docsummarizer -f document.pdf -m BertRag
 ```
 
 **How it works:**
+
 1. Prefers `tokenizer.json` (universal HuggingFace format)
 2. Falls back to `vocab.txt` (legacy WordPiece) if needed
 3. Auto-detects tokenizer type: WordPiece, BPE, or Unigram
@@ -365,6 +389,7 @@ docsummarizer -f document.pdf -m BertRag
 5. Supports all normalizers: BERT, Lowercase, NFC, NFKC, Sequence
 
 **Models now supported:**
+
 - All existing BERT models (AllMiniLM, BGE, GTE, etc.)
 - Future BPE models (GPT-style, RoBERTa, MPNet)
 - Future Unigram models (T5, XLNet, SentencePiece)
@@ -385,12 +410,14 @@ ui.WriteCompletion(elapsed);
 ```
 
 **Features:**
+
 - Automatic fallback to simple console when in batch context
 - Prevents nested Spectre.Console progress bar conflicts
 - Consistent styling across all operations
 - Batch context management via `ui.EnterBatchContext()`
 
 **Replaces:**
+
 - `ProgressService` (plain Console.WriteLine)
 - `SpectreProgressService` (rich Spectre output)
 - `SimpleProgressService` (simple console)
@@ -467,6 +494,7 @@ docsummarizer tool -u "https://example.com/docs"
 ```
 
 Output includes:
+
 - Evidence-grounded claims with confidence levels (high/medium/low)
 - Chunk IDs for citation tracking
 - Structured topics with evidence references
@@ -477,7 +505,8 @@ Output includes:
 
 New `WebFetcher` service with comprehensive security controls:
 
-- **SSRF Protection**: Blocks private IPs (10.x, 172.16.x, 192.168.x), localhost, link-local, cloud metadata endpoints (169.254.169.254)
+- **SSRF Protection**: Blocks private IPs (10.x, 172.16.x, 192.168.x), localhost, link-local, cloud metadata endpoints (
+  169.254.169.254)
 - **DNS Rebinding Protection**: Re-validates IP addresses after each redirect
 - **Request Limits**: Max 5 redirects, 10MB response size, configurable timeouts
 - **Content-Type Gating**: Only accepts safe document types (HTML, PDF, images, text)
@@ -533,7 +562,8 @@ New `TuiProgressService` using Terminal.Gui:
 
 Two new templates added:
 
-- **`bookreport`** (~400 words): Classic book report style with overview, characters/key players, plot/content, themes, and opinion sections
+- **`bookreport`** (~400 words): Classic book report style with overview, characters/key players, plot/content, themes,
+  and opinion sections
 - **`meeting`** (~200 words): Meeting notes format with summary, key decisions, action items, and open questions
 
 #### Template Word Count Syntax

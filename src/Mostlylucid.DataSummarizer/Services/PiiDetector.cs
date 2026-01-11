@@ -6,125 +6,14 @@ using Mostlylucid.DataSummarizer.Services.Onnx;
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Detects Personally Identifiable Information (PII) and sensitive data in columns.
-/// Uses source-generated regex patterns for common PII types, optionally enhanced
-/// with ONNX-based semantic classification for subtle cases.
+///     Detects Personally Identifiable Information (PII) and sensitive data in columns.
+///     Uses source-generated regex patterns for common PII types, optionally enhanced
+///     with ONNX-based semantic classification for subtle cases.
 /// </summary>
 public partial class PiiDetector : IAsyncDisposable
 {
-    private readonly bool _verbose;
-    private TinyClassifier? _classifier;
-    private bool _classifierEnabled;
-
-    public PiiDetector(bool verbose = false)
-    {
-        _verbose = verbose;
-    }
-    
     /// <summary>
-    /// Enable ONNX-based classification for enhanced PII detection.
-    /// This adds semantic understanding to complement regex patterns.
-    /// </summary>
-    public async Task EnableClassifierAsync(OnnxConfig? config = null, CancellationToken ct = default)
-    {
-        _classifier = new TinyClassifier(_verbose, config);
-        await _classifier.InitializeAsync(ct);
-        _classifierEnabled = true;
-        if (_verbose) Console.WriteLine("[PiiDetector] Classifier enabled for ensemble detection");
-    }
-    
-    public async ValueTask DisposeAsync()
-    {
-        _classifier?.Dispose();
-        await Task.CompletedTask;
-    }
-
-    #region Source-Generated Regex Patterns
-
-    // SSN (US) - XXX-XX-XXXX or XXXXXXXXX
-    [GeneratedRegex(@"^\d{3}-?\d{2}-?\d{4}$", RegexOptions.Compiled)]
-    private static partial Regex SsnRegex();
-
-    // Credit Card (major card patterns)
-    [GeneratedRegex(@"^(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})$", RegexOptions.Compiled)]
-    private static partial Regex CreditCardRegex();
-
-    // Credit Card (formatted with spaces/dashes)
-    [GeneratedRegex(@"^\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}$", RegexOptions.Compiled)]
-    private static partial Regex CreditCardFormattedRegex();
-
-    // Email
-    [GeneratedRegex(@"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
-    private static partial Regex EmailRegex();
-
-    // US Phone Number
-    [GeneratedRegex(@"^(\+1)?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$", RegexOptions.Compiled)]
-    private static partial Regex UsPhoneRegex();
-
-    // International Phone
-    [GeneratedRegex(@"^\+?[1-9]\d{9,14}$", RegexOptions.Compiled)]
-    private static partial Regex IntlPhoneRegex();
-
-    // IPv4 Address
-    [GeneratedRegex(@"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$", RegexOptions.Compiled)]
-    private static partial Regex Ipv4Regex();
-
-    // IPv6 Address
-    [GeneratedRegex(@"^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
-    private static partial Regex Ipv6Regex();
-
-    // MAC Address
-    [GeneratedRegex(@"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
-    private static partial Regex MacAddressRegex();
-
-    // US Zip Code
-    [GeneratedRegex(@"^\d{5}(-\d{4})?$", RegexOptions.Compiled)]
-    private static partial Regex ZipCodeRegex();
-
-    // US State (2-letter)
-    [GeneratedRegex(@"^(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
-    private static partial Regex UsStateRegex();
-
-    // Date MM/DD/YYYY
-    [GeneratedRegex(@"^(0[1-9]|1[0-2])/(0[1-9]|[12]\d|3[01])/(19|20)\d{2}$", RegexOptions.Compiled)]
-    private static partial Regex DateMdyRegex();
-
-    // Date YYYY-MM-DD
-    [GeneratedRegex(@"^(19|20)\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$", RegexOptions.Compiled)]
-    private static partial Regex DateYmdRegex();
-
-    // UUID
-    [GeneratedRegex(@"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
-    private static partial Regex UuidRegex();
-
-    // URL
-    [GeneratedRegex(@"^https?://[^\s/$.?#].[^\s]*$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
-    private static partial Regex UrlRegex();
-
-    // Bank Account (generic - 8-17 digits)
-    [GeneratedRegex(@"^\d{8,17}$", RegexOptions.Compiled)]
-    private static partial Regex BankAccountRegex();
-
-    // Routing Number (US - 9 digits)
-    [GeneratedRegex(@"^[0-9]{9}$", RegexOptions.Compiled)]
-    private static partial Regex RoutingNumberRegex();
-
-    // Passport (alphanumeric 6-9 chars, must contain at least one digit to avoid matching plain words)
-    [GeneratedRegex(@"^(?=.*[0-9])[A-Z0-9]{6,9}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
-    private static partial Regex PassportRegex();
-
-    // VIN (Vehicle Identification Number)
-    [GeneratedRegex(@"^[A-HJ-NPR-Z0-9]{17}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
-    private static partial Regex VinRegex();
-
-    // IBAN (International Bank Account Number)
-    [GeneratedRegex(@"^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
-    private static partial Regex IbanRegex();
-
-    #endregion
-
-    /// <summary>
-    /// All PII patterns with their associated types, ordered by specificity
+    ///     All PII patterns with their associated types, ordered by specificity
     /// </summary>
     private static readonly List<(PiiType Type, Func<Regex> GetRegex, string Description)> Patterns =
     [
@@ -147,11 +36,38 @@ public partial class PiiDetector : IAsyncDisposable
         (PiiType.RoutingNumber, RoutingNumberRegex, "US Routing Number"),
         (PiiType.PhoneNumber, IntlPhoneRegex, "International Phone"),
         (PiiType.PassportNumber, PassportRegex, "Passport Number"),
-        (PiiType.BankAccount, BankAccountRegex, "Bank Account Number"),
+        (PiiType.BankAccount, BankAccountRegex, "Bank Account Number")
     ];
 
+    private readonly bool _verbose;
+    private TinyClassifier? _classifier;
+    private bool _classifierEnabled;
+
+    public PiiDetector(bool verbose = false)
+    {
+        _verbose = verbose;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _classifier?.Dispose();
+        await Task.CompletedTask;
+    }
+
     /// <summary>
-    /// Scan a column's sample values for PII
+    ///     Enable ONNX-based classification for enhanced PII detection.
+    ///     This adds semantic understanding to complement regex patterns.
+    /// </summary>
+    public async Task EnableClassifierAsync(OnnxConfig? config = null, CancellationToken ct = default)
+    {
+        _classifier = new TinyClassifier(_verbose, config);
+        await _classifier.InitializeAsync(ct);
+        _classifierEnabled = true;
+        if (_verbose) Console.WriteLine("[PiiDetector] Classifier enabled for ensemble detection");
+    }
+
+    /// <summary>
+    ///     Scan a column's sample values for PII
     /// </summary>
     public PiiScanResult ScanColumn(string columnName, IEnumerable<object?> sampleValues, int totalRows)
     {
@@ -180,24 +96,18 @@ public partial class PiiDetector : IAsyncDisposable
         if (values.Count > 0)
         {
             foreach (var value in values)
-            {
-                foreach (var (type, getRegex, _) in Patterns)
+            foreach (var (type, getRegex, _) in Patterns)
+                if (getRegex().IsMatch(value))
                 {
-                    if (getRegex().IsMatch(value))
-                    {
-                        detections.TryAdd(type, 0);
-                        detections[type]++;
+                    detections.TryAdd(type, 0);
+                    detections[type]++;
 
-                        sampleMatches.TryAdd(type, []);
-                        if (sampleMatches[type].Count < 3)
-                        {
-                            // Redact the sample for safety
-                            sampleMatches[type].Add(RedactValue(value, type));
-                        }
-                        break; // One match per value is enough
-                    }
+                    sampleMatches.TryAdd(type, []);
+                    if (sampleMatches[type].Count < 3)
+                        // Redact the sample for safety
+                        sampleMatches[type].Add(RedactValue(value, type));
+                    break; // One match per value is enough
                 }
-            }
 
             if (detections.Count > 0)
             {
@@ -247,22 +157,22 @@ public partial class PiiDetector : IAsyncDisposable
 
         return result;
     }
-    
+
     /// <summary>
-    /// Scan a column using ensemble detection (regex + classifier + uniqueness).
-    /// Returns a comprehensive PII risk assessment.
+    ///     Scan a column using ensemble detection (regex + classifier + uniqueness).
+    ///     Returns a comprehensive PII risk assessment.
     /// </summary>
     public async Task<ColumnPiiRisk> ScanColumnEnsembleAsync(
         ColumnProfile column,
         CancellationToken ct = default)
     {
         var risk = new ColumnPiiRisk();
-        
+
         // 1. Regex-based detection (fast, reliable for structured patterns)
-        var regexResult = ScanColumn(column.Name, 
-            column.TopValues?.Select(tv => (object?)tv.Value) ?? [], 
+        var regexResult = ScanColumn(column.Name,
+            column.TopValues?.Select(tv => (object?)tv.Value) ?? [],
             (int)column.Count);
-        
+
         if (regexResult.DetectedTypes.Count > 0)
         {
             risk.Regex = new RegexDetection
@@ -275,7 +185,7 @@ public partial class PiiDetector : IAsyncDisposable
             risk.DetectedTypes = regexResult.DetectedTypes.Select(d => d.Type).ToList();
             risk.Reasons.Add($"Regex matched {regexResult.PrimaryType} with {regexResult.Confidence:P0} confidence");
         }
-        
+
         // 2. Classifier-based detection (semantic understanding for subtle cases)
         if (_classifierEnabled && _classifier != null)
         {
@@ -283,10 +193,10 @@ public partial class PiiDetector : IAsyncDisposable
                 .Take(5)
                 .Select(tv => tv.Value)
                 .ToList();
-                
+
             var (label, confidence) = await _classifier.ClassifyPiiAsync(
                 column.Name, sampleValues, ct);
-            
+
             if (label != "not_pii" && confidence > 0.5)
             {
                 var classifierType = MapLabelToPiiType(label);
@@ -296,18 +206,18 @@ public partial class PiiDetector : IAsyncDisposable
                     Types = classifierType != PiiType.None ? [classifierType] : [],
                     AverageConfidence = confidence,
                     HighConfidenceRate = confidence > 0.8 ? 1.0 : 0.0,
-                    AgreementRate = risk.Regex != null && 
-                        risk.Regex.Types.Contains(classifierType) ? 1.0 : 0.0
+                    AgreementRate = risk.Regex != null &&
+                                    risk.Regex.Types.Contains(classifierType)
+                        ? 1.0
+                        : 0.0
                 };
-                
+
                 if (!risk.DetectedTypes.Contains(classifierType) && classifierType != PiiType.None)
-                {
                     risk.DetectedTypes.Add(classifierType);
-                }
                 risk.Reasons.Add($"Classifier detected {label} with {confidence:P0} confidence");
             }
         }
-        
+
         // 3. Identifier/uniqueness risk (quasi-identifiers)
         var cardinalityRatio = column.Count > 0 ? (double)column.UniqueCount / column.Count : 0;
         if (cardinalityRatio > 0.9 && column.InferredType == ColumnType.Text)
@@ -323,28 +233,31 @@ public partial class PiiDetector : IAsyncDisposable
             };
             risk.Reasons.Add($"High uniqueness ratio ({cardinalityRatio:P1}) suggests identifier");
         }
-        
+
         // Determine overall risk level
         risk.RiskLevel = DetermineOverallRisk(risk);
         risk.RecommendedAction = GetRecommendedAction(risk);
-        
+
         return risk;
     }
-    
-    private static PiiType MapLabelToPiiType(string label) => label switch
+
+    private static PiiType MapLabelToPiiType(string label)
     {
-        "email" => PiiType.Email,
-        "phone" => PiiType.PhoneNumber,
-        "name" => PiiType.PersonName,
-        "address" => PiiType.Address,
-        "ssn" => PiiType.SSN,
-        "credit_card" => PiiType.CreditCard,
-        "ip_address" => PiiType.IPAddress,
-        "password" => PiiType.Other,
-        "dob" => PiiType.DateOfBirth,
-        _ => PiiType.None
-    };
-    
+        return label switch
+        {
+            "email" => PiiType.Email,
+            "phone" => PiiType.PhoneNumber,
+            "name" => PiiType.PersonName,
+            "address" => PiiType.Address,
+            "ssn" => PiiType.SSN,
+            "credit_card" => PiiType.CreditCard,
+            "ip_address" => PiiType.IPAddress,
+            "password" => PiiType.Other,
+            "dob" => PiiType.DateOfBirth,
+            _ => PiiType.None
+        };
+    }
+
     private static bool HasFixedLength(ColumnProfile column)
     {
         // Check if all top values have the same length (suggests structured ID)
@@ -355,87 +268,86 @@ public partial class PiiDetector : IAsyncDisposable
             .ToList();
         return lengths?.Count == 1;
     }
-    
+
     private static bool AppearsSequential(ColumnProfile column)
     {
         // Simple heuristic: if values contain sequential numeric patterns
         var values = column.TopValues?.Select(tv => tv.Value).Take(5).ToList();
         if (values == null || values.Count < 2) return false;
-        
+
         // Extract numeric portions and check if they're sequential
         var numbers = values
             .Select(v => v?.All(c => char.IsDigit(c) || c == '-') == true)
             .ToList();
         return numbers.Count(n => n) >= values.Count / 2;
     }
-    
+
     private static PiiRiskLevel DetermineOverallRisk(ColumnPiiRisk risk)
     {
         // Ensemble decision: combine signals
         var signals = new List<(PiiRiskLevel Level, double Weight)>();
-        
+
         if (risk.Regex != null)
         {
-            var regexRisk = risk.Regex.Types.Any(t => 
-                t is PiiType.SSN or PiiType.CreditCard or PiiType.BankAccount) 
-                ? PiiRiskLevel.Critical 
-                : risk.Regex.HitRate > 0.7 ? PiiRiskLevel.High : PiiRiskLevel.Medium;
+            var regexRisk = risk.Regex.Types.Any(t =>
+                t is PiiType.SSN or PiiType.CreditCard or PiiType.BankAccount)
+                ? PiiRiskLevel.Critical
+                : risk.Regex.HitRate > 0.7
+                    ? PiiRiskLevel.High
+                    : PiiRiskLevel.Medium;
             signals.Add((regexRisk, 0.5));
         }
-        
+
         if (risk.Classifier != null)
         {
-            var classifierRisk = risk.Classifier.AverageConfidence > 0.8 
-                ? PiiRiskLevel.High 
+            var classifierRisk = risk.Classifier.AverageConfidence > 0.8
+                ? PiiRiskLevel.High
                 : PiiRiskLevel.Medium;
             signals.Add((classifierRisk, 0.3));
         }
-        
-        if (risk.UniqueIdentifierRisk != null)
-        {
-            signals.Add((risk.UniqueIdentifierRisk.Level, 0.2));
-        }
-        
+
+        if (risk.UniqueIdentifierRisk != null) signals.Add((risk.UniqueIdentifierRisk.Level, 0.2));
+
         if (signals.Count == 0) return PiiRiskLevel.None;
-        
+
         // Weighted max (bias towards highest risk)
         var maxRisk = signals.Max(s => s.Level);
         return maxRisk;
     }
-    
-    private static string GetRecommendedAction(ColumnPiiRisk risk) => risk.RiskLevel switch
+
+    private static string GetRecommendedAction(ColumnPiiRisk risk)
     {
-        PiiRiskLevel.Critical => "EXCLUDE from output or use heavy masking (e.g., hash)",
-        PiiRiskLevel.High => "Mask or redact values in synthetic output",
-        PiiRiskLevel.Medium => "Consider using Faker patterns for realistic pseudonymization",
-        PiiRiskLevel.Low => "Safe for synthetic generation with distribution matching",
-        _ => "No action needed"
-    };
-    
+        return risk.RiskLevel switch
+        {
+            PiiRiskLevel.Critical => "EXCLUDE from output or use heavy masking (e.g., hash)",
+            PiiRiskLevel.High => "Mask or redact values in synthetic output",
+            PiiRiskLevel.Medium => "Consider using Faker patterns for realistic pseudonymization",
+            PiiRiskLevel.Low => "Safe for synthetic generation with distribution matching",
+            _ => "No action needed"
+        };
+    }
+
     /// <summary>
-    /// Scan all columns in a profile for PII using ensemble detection.
+    ///     Scan all columns in a profile for PII using ensemble detection.
     /// </summary>
     public async Task<List<(ColumnProfile Column, ColumnPiiRisk Risk)>> ScanProfileEnsembleAsync(
         DataProfile profile,
         CancellationToken ct = default)
     {
         var results = new List<(ColumnProfile, ColumnPiiRisk)>();
-        
+
         foreach (var col in profile.Columns)
         {
             ct.ThrowIfCancellationRequested();
             var risk = await ScanColumnEnsembleAsync(col, ct);
-            if (risk.RiskLevel != PiiRiskLevel.None)
-            {
-                results.Add((col, risk));
-            }
+            if (risk.RiskLevel != PiiRiskLevel.None) results.Add((col, risk));
         }
-        
+
         return results;
     }
 
     /// <summary>
-    /// Scan all columns in a profile for PII
+    ///     Scan all columns in a profile for PII
     /// </summary>
     public List<PiiScanResult> ScanProfile(DataProfile profile)
     {
@@ -444,21 +356,18 @@ public partial class PiiDetector : IAsyncDisposable
         foreach (var col in profile.Columns)
         {
             // Get sample values from top values if available
-            var samples = col.TopValues?.Select(tv => (object?)tv.Value).ToList() 
-                ?? new List<object?>();
+            var samples = col.TopValues?.Select(tv => (object?)tv.Value).ToList()
+                          ?? new List<object?>();
 
             var result = ScanColumn(col.Name, samples, (int)profile.RowCount);
-            if (result.IsPii || result.DetectedTypes.Count > 0)
-            {
-                results.Add(result);
-            }
+            if (result.IsPii || result.DetectedTypes.Count > 0) results.Add(result);
         }
 
         return results;
     }
 
     /// <summary>
-    /// Generate alerts for detected PII
+    ///     Generate alerts for detected PII
     /// </summary>
     public List<DataAlert> GeneratePiiAlerts(List<PiiScanResult> piiResults)
     {
@@ -480,7 +389,7 @@ public partial class PiiDetector : IAsyncDisposable
                 Column = result.ColumnName,
                 Type = AlertType.PiiDetected,
                 Message = $"Potential {result.PrimaryType} detected ({result.Confidence:P0} confidence). " +
-                         $"Risk level: {result.RiskLevel}. Consider masking or excluding this column."
+                          $"Risk level: {result.RiskLevel}. Consider masking or excluding this column."
             });
         }
 
@@ -514,7 +423,7 @@ public partial class PiiDetector : IAsyncDisposable
             return PiiType.Address;
 
         // Name
-        if (lower == "name" || lower.Contains("first_name") || lower.Contains("last_name") || 
+        if (lower == "name" || lower.Contains("first_name") || lower.Contains("last_name") ||
             lower.Contains("firstname") || lower.Contains("lastname") || lower.Contains("full_name"))
             return PiiType.PersonName;
 
@@ -555,20 +464,110 @@ public partial class PiiDetector : IAsyncDisposable
     {
         // Redact sensitive data for display
         if (value.Length <= 4) return "****";
-        
+
         return type switch
         {
             PiiType.SSN => "***-**-" + value[^4..],
             PiiType.CreditCard => "**** **** **** " + value[^4..],
-            PiiType.Email => value[..2] + "***@***" + (value.Contains('@') ? value[(value.LastIndexOf('.')..)] : ""),
+            PiiType.Email => value[..2] + "***@***" + (value.Contains('@') ? value[value.LastIndexOf('.')..] : ""),
             PiiType.PhoneNumber => "***-***-" + value[^4..],
             _ => value[..2] + new string('*', Math.Min(value.Length - 4, 10)) + value[^2..]
         };
     }
+
+    #region Source-Generated Regex Patterns
+
+    // SSN (US) - XXX-XX-XXXX or XXXXXXXXX
+    [GeneratedRegex(@"^\d{3}-?\d{2}-?\d{4}$", RegexOptions.Compiled)]
+    private static partial Regex SsnRegex();
+
+    // Credit Card (major card patterns)
+    [GeneratedRegex(@"^(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})$",
+        RegexOptions.Compiled)]
+    private static partial Regex CreditCardRegex();
+
+    // Credit Card (formatted with spaces/dashes)
+    [GeneratedRegex(@"^\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}$", RegexOptions.Compiled)]
+    private static partial Regex CreditCardFormattedRegex();
+
+    // Email
+    [GeneratedRegex(@"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex EmailRegex();
+
+    // US Phone Number
+    [GeneratedRegex(@"^(\+1)?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$", RegexOptions.Compiled)]
+    private static partial Regex UsPhoneRegex();
+
+    // International Phone
+    [GeneratedRegex(@"^\+?[1-9]\d{9,14}$", RegexOptions.Compiled)]
+    private static partial Regex IntlPhoneRegex();
+
+    // IPv4 Address
+    [GeneratedRegex(@"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+        RegexOptions.Compiled)]
+    private static partial Regex Ipv4Regex();
+
+    // IPv6 Address
+    [GeneratedRegex(@"^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex Ipv6Regex();
+
+    // MAC Address
+    [GeneratedRegex(@"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex MacAddressRegex();
+
+    // US Zip Code
+    [GeneratedRegex(@"^\d{5}(-\d{4})?$", RegexOptions.Compiled)]
+    private static partial Regex ZipCodeRegex();
+
+    // US State (2-letter)
+    [GeneratedRegex(
+        @"^(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex UsStateRegex();
+
+    // Date MM/DD/YYYY
+    [GeneratedRegex(@"^(0[1-9]|1[0-2])/(0[1-9]|[12]\d|3[01])/(19|20)\d{2}$", RegexOptions.Compiled)]
+    private static partial Regex DateMdyRegex();
+
+    // Date YYYY-MM-DD
+    [GeneratedRegex(@"^(19|20)\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$", RegexOptions.Compiled)]
+    private static partial Regex DateYmdRegex();
+
+    // UUID
+    [GeneratedRegex(@"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex UuidRegex();
+
+    // URL
+    [GeneratedRegex(@"^https?://[^\s/$.?#].[^\s]*$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex UrlRegex();
+
+    // Bank Account (generic - 8-17 digits)
+    [GeneratedRegex(@"^\d{8,17}$", RegexOptions.Compiled)]
+    private static partial Regex BankAccountRegex();
+
+    // Routing Number (US - 9 digits)
+    [GeneratedRegex(@"^[0-9]{9}$", RegexOptions.Compiled)]
+    private static partial Regex RoutingNumberRegex();
+
+    // Passport (alphanumeric 6-9 chars, must contain at least one digit to avoid matching plain words)
+    [GeneratedRegex(@"^(?=.*[0-9])[A-Z0-9]{6,9}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex PassportRegex();
+
+    // VIN (Vehicle Identification Number)
+    [GeneratedRegex(@"^[A-HJ-NPR-Z0-9]{17}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex VinRegex();
+
+    // IBAN (International Bank Account Number)
+    [GeneratedRegex(@"^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex IbanRegex();
+
+    #endregion
 }
 
 /// <summary>
-/// Result of PII scanning for a column
+///     Result of PII scanning for a column
 /// </summary>
 public class PiiScanResult
 {
@@ -582,7 +581,7 @@ public class PiiScanResult
 }
 
 /// <summary>
-/// A specific PII detection
+///     A specific PII detection
 /// </summary>
 public class PiiDetection
 {

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
@@ -14,7 +15,7 @@ public class ChunkCacheServiceTests
         var tempDir = CreateTempDir();
         try
         {
-            var service = CreateService(tempDir, retentionDays: 30);
+            var service = CreateService(tempDir, 30);
             Assert.True(service.Enabled, "Service should be enabled");
             var chunks = new List<DocumentChunk>
             {
@@ -26,20 +27,20 @@ public class ChunkCacheServiceTests
             await service.SaveAsync("doc", "filehash", chunks);
 
             // List all files/dirs for debugging
-            var allFiles = Directory.Exists(tempDir) 
-                ? Directory.GetFileSystemEntries(tempDir, "*", SearchOption.AllDirectories) 
+            var allFiles = Directory.Exists(tempDir)
+                ? Directory.GetFileSystemEntries(tempDir, "*", SearchOption.AllDirectories)
                 : Array.Empty<string>();
 
             // v2 format: metadata JSON + content directory
             var metadataPath = Path.Combine(tempDir, "doc_filehash.json");
             var contentDir = Path.Combine(tempDir, "doc_filehash_content");
-            
-            Assert.True(File.Exists(metadataPath), 
+
+            Assert.True(File.Exists(metadataPath),
                 $"Metadata file not found at {metadataPath}. TempDir exists: {Directory.Exists(tempDir)}. All entries: [{string.Join(", ", allFiles)}]");
             Assert.True(Directory.Exists(contentDir), $"Content directory not found at {contentDir}");
- 
+
             var loaded = await service.TryLoadAsync("doc", "filehash");
- 
+
             Assert.True(loaded != null, $"Cache load failed. Enabled={service.Enabled}");
             Assert.Equal(2, loaded!.Count);
             Assert.All(loaded, c => Assert.Equal(2, c.TotalChunks));
@@ -56,7 +57,7 @@ public class ChunkCacheServiceTests
         var tempDir = CreateTempDir();
         try
         {
-            var service = CreateService(tempDir, retentionDays: 30);
+            var service = CreateService(tempDir, 30);
             var chunks = new List<DocumentChunk> { new(0, "Heading", 1, "content", "hash1") };
 
             await service.SaveAsync("doc", "filehash", chunks);
@@ -76,18 +77,18 @@ public class ChunkCacheServiceTests
         var tempDir = CreateTempDir();
         try
         {
-            var service = CreateService(tempDir, retentionDays: 1);
+            var service = CreateService(tempDir, 1);
             Assert.True(service.Enabled);
             var chunks = new List<DocumentChunk> { new(0, "Heading", 1, "content", "hash1") };
 
             await service.SaveAsync("doc", "filehash", chunks);
-            
+
             // v2 format paths
             var metadataPath = Path.Combine(tempDir, "doc_filehash.json");
             var contentDir = Path.Combine(tempDir, "doc_filehash_content");
             Assert.True(File.Exists(metadataPath));
             Assert.True(Directory.Exists(contentDir));
- 
+
             // Overwrite with an expired v2 metadata entry
             var expiredMetadata = new
             {
@@ -96,21 +97,22 @@ public class ChunkCacheServiceTests
                 Version = "v1",
                 CreatedUtc = DateTimeOffset.UtcNow.AddDays(-10),
                 LastAccessUtc = DateTimeOffset.UtcNow.AddDays(-10),
-                ChunkMetadata = new[] { new { Index = 0, Heading = "Heading", HeadingLevel = 1, ContentHash = "hash1" } }
+                ChunkMetadata = new[]
+                    { new { Index = 0, Heading = "Heading", HeadingLevel = 1, ContentHash = "hash1" } }
             };
 
             var options = new JsonSerializerOptions(JsonSerializerDefaults.General)
             {
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             };
 
             await using (var stream = File.Create(metadataPath))
             {
                 await JsonSerializer.SerializeAsync(stream, expiredMetadata, options);
             }
- 
+
             var loaded = await service.TryLoadAsync("doc", "filehash");
- 
+
             // Should return null for expired entry
             Assert.Null(loaded);
             // Should have cleaned up the metadata file
@@ -132,7 +134,7 @@ public class ChunkCacheServiceTests
             VersionToken = "v1"
         };
 
-        return new ChunkCacheService(config, verbose: true);
+        return new ChunkCacheService(config, true);
     }
 
     private static string CreateTempDir()
@@ -146,10 +148,7 @@ public class ChunkCacheServiceTests
     {
         try
         {
-            if (Directory.Exists(dir))
-            {
-                Directory.Delete(dir, true);
-            }
+            if (Directory.Exists(dir)) Directory.Delete(dir, true);
         }
         catch
         {

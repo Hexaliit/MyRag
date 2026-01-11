@@ -13,8 +13,10 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div class="stat bg-base-100 rounded-lg shadow">
             <div class="stat-figure text-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                 </svg>
             </div>
             <div class="stat-title">Total Tenants</div>
@@ -24,8 +26,10 @@
 
         <div class="stat bg-base-100 rounded-lg shadow">
             <div class="stat-figure text-success">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
             </div>
             <div class="stat-title">Provisioned</div>
@@ -35,8 +39,10 @@
 
         <div class="stat bg-base-100 rounded-lg shadow">
             <div class="stat-figure text-secondary">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
                 </svg>
             </div>
             <div class="stat-title">Total Users</div>
@@ -46,8 +52,10 @@
 
         <div class="stat bg-base-100 rounded-lg shadow">
             <div class="stat-figure text-info">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M13 10V3L4 14h7v7l9-11h-7z"/>
                 </svg>
             </div>
             <div class="stat-title">System Status</div>
@@ -69,7 +77,8 @@
                 {
                     <div class="text-center py-4 text-base-content/60">
                         <p>No tenants yet</p>
-                        <a href="@Url.Action("CreateTenant")" class="btn btn-primary btn-sm mt-2">Create First Tenant</a>
+                        <a href="@Url.Action("CreateTenant")" class="btn btn-primary btn-sm mt-2">Create First
+                            Tenant</a>
                     </div>
                 }
                 else
@@ -77,43 +86,44 @@
                     <div class="overflow-x-auto">
                         <table class="table table-sm">
                             <thead>
-                                <tr>
-                                    <th>Tenant</th>
-                                    <th>Plan</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                </tr>
+                            <tr>
+                                <th>Tenant</th>
+                                <th>Plan</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                            </tr>
                             </thead>
                             <tbody>
-                                @foreach (var tenant in Model.RecentTenants)
-                                {
-                                    <tr class="hover">
-                                        <td>
-                                            <a href="@Url.Action("TenantDetails", new { tenantId = tenant.TenantId })" class="link link-hover font-medium">
-                                                @(tenant.DisplayName ?? tenant.TenantId)
-                                            </a>
-                                            <div class="text-xs text-base-content/50">@tenant.TenantId</div>
-                                        </td>
-                                        <td>
-                                            <span class="badge badge-ghost badge-sm">@(tenant.Plan ?? "Free")</span>
-                                        </td>
-                                        <td>
-                                            @if (tenant.IsActive && tenant.IsProvisioned)
-                                            {
-                                                <span class="badge badge-success badge-sm">Active</span>
-                                            }
-                                            else if (tenant.IsProvisioned)
-                                            {
-                                                <span class="badge badge-warning badge-sm">Inactive</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge badge-ghost badge-sm">Pending</span>
-                                            }
-                                        </td>
-                                        <td class="text-sm text-base-content/60">@tenant.CreatedAt.ToString("MMM d")</td>
-                                    </tr>
-                                }
+                            @foreach (var tenant in Model.RecentTenants)
+                            {
+                                <tr class="hover">
+                                    <td>
+                                        <a href="@Url.Action("TenantDetails", new { tenantId = tenant.TenantId })"
+                                           class="link link-hover font-medium">
+                                            @(tenant.DisplayName ?? tenant.TenantId)
+                                        </a>
+                                        <div class="text-xs text-base-content/50">@tenant.TenantId</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-ghost badge-sm">@(tenant.Plan ?? "Free")</span>
+                                    </td>
+                                    <td>
+                                        @if (tenant.IsActive && tenant.IsProvisioned)
+                                        {
+                                            <span class="badge badge-success badge-sm">Active</span>
+                                        }
+                                        else if (tenant.IsProvisioned)
+                                        {
+                                            <span class="badge badge-warning badge-sm">Inactive</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-ghost badge-sm">Pending</span>
+                                        }
+                                    </td>
+                                    <td class="text-sm text-base-content/60">@tenant.CreatedAt.ToString("MMM d")</td>
+                                </tr>
+                            }
                             </tbody>
                         </table>
                     </div>
@@ -128,29 +138,36 @@
 
                 <div class="space-y-3">
                     <a href="@Url.Action("CreateTenant")" class="btn btn-primary btn-block justify-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                         </svg>
                         Create New Tenant
                     </a>
 
                     <a href="@Url.Action("Tenants")" class="btn btn-outline btn-block justify-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                         </svg>
                         Manage Tenants
                     </a>
 
                     <a href="@Url.Action("Users")" class="btn btn-outline btn-block justify-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
                         </svg>
                         Manage Users
                     </a>
 
                     <a href="/admin" class="btn btn-ghost btn-block justify-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                         </svg>
                         Back to Admin Dashboard
                     </a>

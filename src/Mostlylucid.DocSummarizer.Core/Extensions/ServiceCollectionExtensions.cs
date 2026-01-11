@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -5,23 +6,24 @@ using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Pipeline;
 using Mostlylucid.DocSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services.Onnx;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace Mostlylucid.DocSummarizer.Extensions;
 
 /// <summary>
-/// Extension methods for registering DocSummarizer services with dependency injection.
+///     Extension methods for registering DocSummarizer services with dependency injection.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds DocSummarizer services to the service collection with default configuration.
-    /// Uses ONNX embeddings (local, no external services required) and BertRag mode.
+    ///     Adds DocSummarizer services to the service collection with default configuration.
+    ///     Uses ONNX embeddings (local, no external services required) and BertRag mode.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <example>
-    /// <code>
+    ///     <code>
     /// // In Program.cs or Startup.cs
     /// builder.Services.AddDocSummarizer();
     /// 
@@ -42,24 +44,24 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds DocSummarizer services with custom configuration.
+    ///     Adds DocSummarizer services with custom configuration.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Action to configure the options.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <example>
-    /// <code>
+    ///     <code>
     /// builder.Services.AddDocSummarizer(options =>
     /// {
     ///     // Use Ollama for embeddings instead of local ONNX
     ///     options.EmbeddingBackend = EmbeddingBackend.Ollama;
     ///     options.Ollama.BaseUrl = "http://localhost:11434";
     ///     options.Ollama.Model = "llama3.2:3b";
-    ///
+    /// 
     ///     // Configure vector storage (Qdrant recommended for production)
     ///     options.BertRag.VectorStore = VectorStoreBackend.Qdrant;
     ///     options.BertRag.ReindexOnStartup = false; // Production setting
-    ///
+    /// 
     ///     // Verbose logging during development
     ///     options.Output.Verbose = true;
     /// });
@@ -117,13 +119,13 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds DocSummarizer services bound to a configuration section.
+    ///     Adds DocSummarizer services bound to a configuration section.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configurationSection">The configuration section containing DocSummarizer settings.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <example>
-    /// <code>
+    ///     <code>
     /// // In appsettings.json:
     /// // {
     /// //   "DocSummarizer": {
@@ -140,7 +142,7 @@ public static class ServiceCollectionExtensions
     /// </example>
     public static IServiceCollection AddDocSummarizer(
         this IServiceCollection services,
-        Microsoft.Extensions.Configuration.IConfigurationSection configurationSection)
+        IConfigurationSection configurationSection)
     {
         services.Configure<DocSummarizerConfig>(configurationSection);
 
@@ -186,16 +188,16 @@ public static class ServiceCollectionExtensions
 
     private static IEmbeddingService CreateOnnxEmbeddingService(OnnxConfig config, bool verbose)
     {
-        return new Services.Onnx.OnnxEmbeddingService(config, verbose);
+        return new OnnxEmbeddingService(config, verbose);
     }
 
     private static IEmbeddingService CreateOllamaEmbeddingService(OllamaConfig config)
     {
         var ollamaService = new OllamaService(
-            model: config.Model,
-            embedModel: config.EmbedModel,
-            baseUrl: config.BaseUrl,
-            timeout: TimeSpan.FromSeconds(config.TimeoutSeconds),
+            config.Model,
+            config.EmbedModel,
+            config.BaseUrl,
+            TimeSpan.FromSeconds(config.TimeoutSeconds),
             classifierModel: config.ClassifierModel
         );
         return new OllamaEmbeddingService(ollamaService);
@@ -223,10 +225,10 @@ public static class ServiceCollectionExtensions
         if (config.LlmBackend == LlmBackend.Ollama)
         {
             var ollamaService = new OllamaService(
-                model: config.Ollama.Model,
-                embedModel: config.Ollama.EmbedModel,
-                baseUrl: config.Ollama.BaseUrl,
-                timeout: TimeSpan.FromSeconds(config.Ollama.TimeoutSeconds),
+                config.Ollama.Model,
+                config.Ollama.EmbedModel,
+                config.Ollama.BaseUrl,
+                TimeSpan.FromSeconds(config.Ollama.TimeoutSeconds),
                 classifierModel: config.Ollama.ClassifierModel
             );
             return new OllamaLlmService(ollamaService, config.Ollama);

@@ -7,12 +7,12 @@ using Mostlylucid.DocSummarizer.Services;
 namespace Mostlylucid.DocSummarizer.Anthropic.Extensions;
 
 /// <summary>
-/// Extension methods for registering Anthropic services
+///     Extension methods for registering Anthropic services
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds Anthropic Claude as the LLM backend
+    ///     Adds Anthropic Claude as the LLM backend
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configure">Action to configure Anthropic options</param>
@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds Anthropic Claude as the LLM backend with configuration section binding
+    ///     Adds Anthropic Claude as the LLM backend with configuration section binding
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configurationSection">Configuration section containing Anthropic settings</param>

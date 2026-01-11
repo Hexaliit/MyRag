@@ -1,14 +1,14 @@
 using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Integration tests for retrieval quality across all filtering mechanisms.
-/// Tests file types, collections, signals, date ranges, and entities.
-/// Requires PostgreSQL database - tests skip if unavailable.
+///     Integration tests for retrieval quality across all filtering mechanisms.
+///     Tests file types, collections, signals, date ranges, and entities.
+///     Requires PostgreSQL database - tests skip if unavailable.
 /// </summary>
 [Collection("Integration")]
 [Trait("Category", "Integration")]
@@ -16,8 +16,8 @@ public class RetrievalQualityTests : IDisposable
 {
     private readonly RagDocumentsDbContext? _db;
     private readonly bool _dbAvailable;
-    private readonly Guid _testCollectionId = Guid.NewGuid();
     private readonly Guid _testCollection2Id = Guid.NewGuid();
+    private readonly Guid _testCollectionId = Guid.NewGuid();
 
     public RetrievalQualityTests()
     {
@@ -38,7 +38,10 @@ public class RetrievalQualityTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private bool SkipIfNoDb() => !_dbAvailable;
+    private bool SkipIfNoDb()
+    {
+        return !_dbAvailable;
+    }
 
     #region File Type Filtering Tests
 
@@ -356,7 +359,7 @@ public class RetrievalQualityTests : IDisposable
 
     #region Helper Methods
 
-    private Guid _testDocumentId = Guid.NewGuid();
+    private readonly Guid _testDocumentId = Guid.NewGuid();
     private Guid _testEntityId = Guid.NewGuid();
 
     private async Task SeedMixedFileTypeDocumentsAsync()
@@ -367,7 +370,8 @@ public class RetrievalQualityTests : IDisposable
             CreateDocument("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
             CreateDocument("readme.md", "text/markdown"),
             CreateDocument("data.csv", "text/csv"),
-            CreateDocument("presentation.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            CreateDocument("presentation.pptx",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation")
         };
 
         _db!.Documents.AddRange(docs);
@@ -377,18 +381,12 @@ public class RetrievalQualityTests : IDisposable
     private async Task SeedMultipleCollectionsAsync()
     {
         // Collection 1 docs
-        _db!.Documents.AddRange(new[]
-        {
-            CreateDocument("doc1.pdf", collectionId: _testCollectionId),
-            CreateDocument("doc2.pdf", collectionId: _testCollectionId)
-        });
+        _db!.Documents.AddRange(CreateDocument("doc1.pdf", collectionId: _testCollectionId),
+            CreateDocument("doc2.pdf", collectionId: _testCollectionId));
 
         // Collection 2 docs
-        _db.Documents.AddRange(new[]
-        {
-            CreateDocument("doc3.pdf", collectionId: _testCollection2Id),
-            CreateDocument("doc4.pdf", collectionId: _testCollection2Id)
-        });
+        _db.Documents.AddRange(CreateDocument("doc3.pdf", collectionId: _testCollection2Id),
+            CreateDocument("doc4.pdf", collectionId: _testCollection2Id));
 
         await _db.SaveChangesAsync();
     }

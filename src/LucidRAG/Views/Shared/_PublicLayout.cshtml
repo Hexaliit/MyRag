@@ -8,9 +8,9 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="x-csrf-token" content="@tokens.RequestToken" />
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="x-csrf-token" content="@tokens.RequestToken"/>
     <title>@ViewData["Title"] - @tenantName</title>
 
     <!-- Fonts -->
@@ -19,7 +19,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Tailwind CSS + DaisyUI (Vite bundled) -->
-    <link href="/dist/css/styles.css" rel="stylesheet" type="text/css" />
+    <link href="/dist/css/styles.css" rel="stylesheet" type="text/css"/>
 
     <!-- App JS (must load before Alpine) -->
     <script src="/dist/js/main.js"></script>
@@ -34,289 +34,374 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
-        [x-cloak] { display: none !important; }
-        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] {
+            display: none !important;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen">
-    <div x-data="publicApp('@tenantName')" x-cloak class="flex h-screen overflow-hidden">
-        <!-- Mobile sidebar backdrop -->
-        <div x-show="sidebarOpen"
-             x-transition:enter="transition-opacity ease-linear duration-300"
-             x-transition:enter-start="opacity-0"
-             x-transition:enter-end="opacity-100"
-             x-transition:leave="transition-opacity ease-linear duration-300"
-             x-transition:leave-start="opacity-100"
-             x-transition:leave-end="opacity-0"
-             @@click="sidebarOpen = false"
-             class="fixed inset-0 bg-black/50 z-40 lg:hidden"></div>
+<div x-data="publicApp('@tenantName')" x-cloak class="flex h-screen overflow-hidden">
+    <!-- Mobile sidebar backdrop -->
+    <div x-show="sidebarOpen"
+         x-transition:enter="transition-opacity ease-linear duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition-opacity ease-linear duration-300"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @@click="sidebarOpen = false"
+         class="fixed inset-0 bg-black/50 z-40 lg:hidden"></div>
 
-        <!-- Sidebar -->
-        <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-               class="fixed lg:static inset-y-0 left-0 z-50 w-72 bg-base-100 border-r border-base-300
+    <!-- Sidebar -->
+    <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+           class="fixed lg:static inset-y-0 left-0 z-50 w-72 bg-base-100 border-r border-base-300
                       transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col">
 
-            <!-- Sidebar Header -->
-            <div class="p-4 border-b border-base-300">
-                <div class="flex items-center gap-3">
-                    @if (tenantLogo != null)
-                    {
-                        <img src="@tenantLogo" alt="@tenantName" class="h-8 w-8 rounded" />
-                    }
-                    else
-                    {
-                        <div class="h-8 w-8 rounded bg-primary flex items-center justify-center">
-                            <span class="text-primary-content font-bold text-sm">@(tenantName.Length > 0 ? tenantName[0] : 'L')</span>
-                        </div>
-                    }
-                    <span class="font-semibold text-lg">@tenantName</span>
+        <!-- Sidebar Header -->
+        <div class="p-4 border-b border-base-300">
+            <div class="flex items-center gap-3">
+                @if (tenantLogo != null)
+                {
+                    <img src="@tenantLogo" alt="@tenantName" class="h-8 w-8 rounded"/>
+                }
+                else
+                {
+                    <div class="h-8 w-8 rounded bg-primary flex items-center justify-center">
+                        <span
+                            class="text-primary-content font-bold text-sm">@(tenantName.Length > 0 ? tenantName[0] : 'L')</span>
+                    </div>
+                }
+                <span class="font-semibold text-lg">@tenantName</span>
+            </div>
+        </div>
+
+        <!-- Collections List -->
+        <div class="flex-1 overflow-y-auto p-4">
+            <h3 class="text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-3">Collections</h3>
+
+            <template x-if="loading">
+                <div class="space-y-2">
+                    <div class="skeleton h-12 w-full"></div>
+                    <div class="skeleton h-12 w-full"></div>
+                    <div class="skeleton h-12 w-full"></div>
                 </div>
-            </div>
+            </template>
 
-            <!-- Collections List -->
-            <div class="flex-1 overflow-y-auto p-4">
-                <h3 class="text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-3">Collections</h3>
-
-                <template x-if="loading">
-                    <div class="space-y-2">
-                        <div class="skeleton h-12 w-full"></div>
-                        <div class="skeleton h-12 w-full"></div>
-                        <div class="skeleton h-12 w-full"></div>
-                    </div>
-                </template>
-
-                <template x-if="!loading && collections.length === 0">
-                    <div class="text-center py-6">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-base-content/20 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
-                        <p class="text-sm text-base-content/50 mb-3">No collections yet</p>
-                        <a href="/auth/login" class="btn btn-sm btn-primary">
-                            Sign in to create
-                        </a>
-                    </div>
-                </template>
-
-                <ul class="space-y-1">
-                    <template x-for="collection in collections" :key="collection.id">
-                        <li>
-                            <button @@click="selectCollection(collection)"
-                                    :class="selectedCollection?.id === collection.id ? 'bg-primary/10 border-primary' : 'hover:bg-base-200 border-transparent'"
-                                    class="w-full text-left p-3 rounded-lg border transition-colors">
-                                <div class="flex items-center justify-between">
-                                    <span class="font-medium text-sm" x-text="collection.name"></span>
-                                    <span class="badge badge-sm" x-text="collection.completedDocuments + '/' + collection.totalDocuments"></span>
-                                </div>
-                                <!-- Progress bar for scanning -->
-                                <template x-if="collection.totalDocuments > 0 && collection.completedDocuments < collection.totalDocuments">
-                                    <div class="mt-2">
-                                        <progress class="progress progress-primary w-full h-1"
-                                                  :value="collection.completedDocuments"
-                                                  :max="collection.totalDocuments"></progress>
-                                        <span class="text-xs text-base-content/50">Processing...</span>
-                                    </div>
-                                </template>
-                                <template x-if="collection.description">
-                                    <p class="text-xs text-base-content/60 mt-1 line-clamp-2" x-text="collection.description"></p>
-                                </template>
-                            </button>
-                        </li>
-                    </template>
-                </ul>
-
-                <!-- Communities Section (shown when a collection is selected) -->
-                <template x-if="selectedCollection && communities.length > 0">
-                    <div class="mt-6">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-xs font-semibold text-base-content/60 uppercase tracking-wider">Communities</h3>
-                            <template x-if="selectedCommunity">
-                                <button @@click="clearCommunity()" class="text-xs text-primary hover:underline">Clear</button>
-                            </template>
-                        </div>
-
-                        <ul class="space-y-1">
-                            <template x-for="community in communities" :key="community.id">
-                                <li>
-                                    <button @@click="selectCommunity(community)"
-                                            :class="selectedCommunity?.id === community.id ? 'bg-primary/10 border-primary' : 'hover:bg-base-200 border-transparent'"
-                                            class="w-full text-left p-2 rounded-lg border transition-colors">
-                                        <div class="flex items-center gap-2">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                            </svg>
-                                            <div class="flex-1 min-w-0">
-                                                <div class="font-medium text-xs truncate" x-text="community.name"></div>
-                                                <template x-if="community.summary">
-                                                    <div class="text-xs text-base-content/50 line-clamp-1" x-text="community.summary"></div>
-                                                </template>
-                                            </div>
-                                            <span class="badge badge-xs" x-text="community.entityCount"></span>
-                                        </div>
-                                    </button>
-                                </li>
-                            </template>
-                        </ul>
-                    </div>
-                </template>
-            </div>
-
-            <!-- Sidebar Footer -->
-            <div class="p-4 border-t border-base-300">
-                <div class="text-xs text-base-content/50">
-                    <span x-text="stats.totalDocuments + ' documents'"></span>
-                    <span class="mx-1">|</span>
-                    <span x-text="stats.totalEntities + ' entities'"></span>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Main Content -->
-        <div class="flex-1 flex flex-col min-w-0">
-            <!-- Header -->
-            <header class="bg-base-100 border-b border-base-300 px-4 py-3 flex items-center gap-4">
-                <!-- Mobile menu button -->
-                <button @@click="sidebarOpen = !sidebarOpen" class="lg:hidden btn btn-ghost btn-sm btn-square">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            <template x-if="!loading && collections.length === 0">
+                <div class="text-center py-6">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-base-content/20 mb-3"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                              d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                     </svg>
-                </button>
+                    <p class="text-sm text-base-content/50 mb-3">No collections yet</p>
+                    <a href="/auth/login" class="btn btn-sm btn-primary">
+                        Sign in to create
+                    </a>
+                </div>
+            </template>
 
-                <!-- Selected collection indicator -->
-                <div class="flex-1 min-w-0">
-                    <template x-if="selectedCollection">
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            <ul class="space-y-1">
+                <template x-for="collection in collections" :key="collection.id">
+                    <li>
+                        <button @@click="selectCollection(collection)"
+                                :class="selectedCollection?.id === collection.id ? 'bg-primary/10 border-primary' : 'hover:bg-base-200 border-transparent'"
+                                class="w-full text-left p-3 rounded-lg border transition-colors">
+                            <div class="flex items-center justify-between">
+                                <span class="font-medium text-sm" x-text="collection.name"></span>
+                                <span class="badge badge-sm"
+                                      x-text="collection.completedDocuments + '/' + collection.totalDocuments"></span>
+                            </div>
+                            <!-- Progress bar for scanning -->
+                            <template
+                                x-if="collection.totalDocuments > 0 && collection.completedDocuments < collection.totalDocuments">
+                                <div class="mt-2">
+                                    <progress class="progress progress-primary w-full h-1"
+                                              :value="collection.completedDocuments"
+                                              :max="collection.totalDocuments"></progress>
+                                    <span class="text-xs text-base-content/50">Processing...</span>
+                                </div>
+                            </template>
+                            <template x-if="collection.description">
+                                <p class="text-xs text-base-content/60 mt-1 line-clamp-2"
+                                   x-text="collection.description"></p>
+                            </template>
+                        </button>
+                    </li>
+                </template>
+            </ul>
+
+            <!-- Communities Section (shown when a collection is selected) -->
+            <template x-if="selectedCollection && communities.length > 0">
+                <div class="mt-6">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs font-semibold text-base-content/60 uppercase tracking-wider">Communities</h3>
+                        <template x-if="selectedCommunity">
+                            <button @@click="clearCommunity()" class="text-xs text-primary hover:underline">Clear
+                            </button>
+                        </template>
+                    </div>
+
+                    <ul class="space-y-1">
+                        <template x-for="community in communities" :key="community.id">
+                            <li>
+                                <button @@click="selectCommunity(community)"
+                                        :class="selectedCommunity?.id === community.id ? 'bg-primary/10 border-primary' : 'hover:bg-base-200 border-transparent'"
+                                        class="w-full text-left p-2 rounded-lg border transition-colors">
+                                    <div class="flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg"
+                                             class="h-4 w-4 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24"
+                                             stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                        </svg>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="font-medium text-xs truncate" x-text="community.name"></div>
+                                            <template x-if="community.summary">
+                                                <div class="text-xs text-base-content/50 line-clamp-1"
+                                                     x-text="community.summary"></div>
+                                            </template>
+                                        </div>
+                                        <span class="badge badge-xs" x-text="community.entityCount"></span>
+                                    </div>
+                                </button>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </template>
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div class="p-4 border-t border-base-300">
+            <div class="text-xs text-base-content/50">
+                <span x-text="stats.totalDocuments + ' documents'"></span>
+                <span class="mx-1">|</span>
+                <span x-text="stats.totalEntities + ' entities'"></span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col min-w-0">
+        <!-- Header -->
+        <header class="bg-base-100 border-b border-base-300 px-4 py-3 flex items-center gap-4">
+            <!-- Mobile menu button -->
+            <button @@click="sidebarOpen = !sidebarOpen" class="lg:hidden btn btn-ghost btn-sm btn-square">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+
+            <!-- Selected collection indicator -->
+            <div class="flex-1 min-w-0">
+                <template x-if="selectedCollection">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary" fill="none"
+                                 viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                            </svg>
+                            <span class="font-medium truncate" x-text="selectedCollection.name"></span>
+                            <button @@click="clearCollection()" class="btn btn-ghost btn-xs">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                                     stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
-                                <span class="font-medium truncate" x-text="selectedCollection.name"></span>
-                                <button @@click="clearCollection()" class="btn btn-ghost btn-xs">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </button>
+                        </div>
+                        <!-- Selected community indicator -->
+                        <template x-if="selectedCommunity">
+                            <div class="flex items-center gap-2 mt-1 text-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-primary/70" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                </svg>
+                                <span class="text-xs text-base-content/70 truncate"
+                                      x-text="'in ' + selectedCommunity.name"></span>
+                                <button @@click="clearCommunity()" class="btn btn-ghost btn-xs">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none"
+                                         viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
                                 </button>
                             </div>
-                            <!-- Selected community indicator -->
-                            <template x-if="selectedCommunity">
-                                <div class="flex items-center gap-2 mt-1 text-sm">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-primary/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                    </svg>
-                                    <span class="text-xs text-base-content/70 truncate" x-text="'in ' + selectedCommunity.name"></span>
-                                    <button @@click="clearCommunity()" class="btn btn-ghost btn-xs">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
-                    <template x-if="!selectedCollection">
-                        <span class="text-base-content/50 hidden sm:inline">Select a collection to start chatting</span>
-                        <span class="text-base-content/50 sm:hidden">Select collection</span>
-                    </template>
-                </div>
-
-                <!-- Search Controls (shared between admin and public) -->
-                @await Html.PartialAsync("_SearchControls")
-
-                <!-- Theme Swapper Dropdown -->
-                <div class="dropdown dropdown-end">
-                    <label tabindex="0" class="btn btn-ghost btn-sm gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                        </svg>
-                        <span class="hidden sm:inline text-xs" x-text="theme"></span>
-                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </label>
-                    <div tabindex="0" class="dropdown-content z-[100] p-2 shadow-xl bg-base-200 rounded-box w-64 max-h-96 overflow-y-auto">
-                        <div class="text-xs font-semibold text-base-content/60 px-2 py-1 uppercase">Special Layouts</div>
-                        <ul class="menu menu-sm">
-                            <li><button @@click="setTheme('chatgpt')" :class="theme === 'chatgpt' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #10a37f; border-color: #10a37f;"></span> ChatGPT Style
-                            </button></li>
-                            <li><button @@click="setTheme('fun')" :class="theme === 'fun' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #ff6b6b; border-color: #ff6b6b;"></span> Fun & Playful
-                            </button></li>
-                            <li><button @@click="setTheme('minimal')" :class="theme === 'minimal' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #18181b; border-color: #18181b;"></span> Minimal
-                            </button></li>
-                        </ul>
-                        <div class="divider my-1"></div>
-                        <div class="text-xs font-semibold text-base-content/60 px-2 py-1 uppercase">Light Themes</div>
-                        <ul class="menu menu-sm">
-                            <li><button @@click="setTheme('light')" :class="theme === 'light' ? 'active' : ''">
-                                <span class="badge badge-sm bg-base-100 border-base-300"></span> Light
-                            </button></li>
-                            <li><button @@click="setTheme('cupcake')" :class="theme === 'cupcake' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #fae7e8; border-color: #fae7e8;"></span> Cupcake
-                            </button></li>
-                            <li><button @@click="setTheme('corporate')" :class="theme === 'corporate' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #4b6bfb; border-color: #4b6bfb;"></span> Corporate
-                            </button></li>
-                            <li><button @@click="setTheme('retro')" :class="theme === 'retro' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #ef9995; border-color: #ef9995;"></span> Retro
-                            </button></li>
-                            <li><button @@click="setTheme('pastel')" :class="theme === 'pastel' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #d1c1d7; border-color: #d1c1d7;"></span> Pastel
-                            </button></li>
-                            <li><button @@click="setTheme('lofi')" :class="theme === 'lofi' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #808080; border-color: #808080;"></span> Lofi
-                            </button></li>
-                            <li><button @@click="setTheme('aqua')" :class="theme === 'aqua' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #09ecf3; border-color: #09ecf3;"></span> Aqua
-                            </button></li>
-                            <li><button @@click="setTheme('valentine')" :class="theme === 'valentine' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #e96d7b; border-color: #e96d7b;"></span> Valentine
-                            </button></li>
-                            <li><button @@click="setTheme('nord')" :class="theme === 'nord' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #5e81ac; border-color: #5e81ac;"></span> Nord
-                            </button></li>
-                        </ul>
-                        <div class="divider my-1"></div>
-                        <div class="text-xs font-semibold text-base-content/60 px-2 py-1 uppercase">Dark Themes</div>
-                        <ul class="menu menu-sm">
-                            <li><button @@click="setTheme('dark')" :class="theme === 'dark' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #2a303c; border-color: #2a303c;"></span> Dark
-                            </button></li>
-                            <li><button @@click="setTheme('synthwave')" :class="theme === 'synthwave' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #e779c1; border-color: #e779c1;"></span> Synthwave
-                            </button></li>
-                            <li><button @@click="setTheme('cyberpunk')" :class="theme === 'cyberpunk' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #ff7598; border-color: #ff7598;"></span> Cyberpunk
-                            </button></li>
-                            <li><button @@click="setTheme('dracula')" :class="theme === 'dracula' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #ff79c6; border-color: #ff79c6;"></span> Dracula
-                            </button></li>
-                            <li><button @@click="setTheme('night')" :class="theme === 'night' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #38bdf8; border-color: #38bdf8;"></span> Night
-                            </button></li>
-                            <li><button @@click="setTheme('coffee')" :class="theme === 'coffee' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #db924b; border-color: #db924b;"></span> Coffee
-                            </button></li>
-                            <li><button @@click="setTheme('sunset')" :class="theme === 'sunset' ? 'active' : ''">
-                                <span class="badge badge-sm" style="background: #ff865b; border-color: #ff865b;"></span> Sunset
-                            </button></li>
-                        </ul>
+                        </template>
                     </div>
+                </template>
+                <template x-if="!selectedCollection">
+                    <span class="text-base-content/50 hidden sm:inline">Select a collection to start chatting</span>
+                    <span class="text-base-content/50 sm:hidden">Select collection</span>
+                </template>
+            </div>
+
+            <!-- Search Controls (shared between admin and public) -->
+            @await Html.PartialAsync("_SearchControls")
+
+            <!-- Theme Swapper Dropdown -->
+            <div class="dropdown dropdown-end">
+                <label tabindex="0" class="btn btn-ghost btn-sm gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
+                    </svg>
+                    <span class="hidden sm:inline text-xs" x-text="theme"></span>
+                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </label>
+                <div tabindex="0"
+                     class="dropdown-content z-[100] p-2 shadow-xl bg-base-200 rounded-box w-64 max-h-96 overflow-y-auto">
+                    <div class="text-xs font-semibold text-base-content/60 px-2 py-1 uppercase">Special Layouts</div>
+                    <ul class="menu menu-sm">
+                        <li>
+                            <button @@click="setTheme('chatgpt')" :class="theme === 'chatgpt' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #10a37f; border-color: #10a37f;"></span>
+                                ChatGPT Style
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('fun')" :class="theme === 'fun' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #ff6b6b; border-color: #ff6b6b;"></span>
+                                Fun & Playful
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('minimal')" :class="theme === 'minimal' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #18181b; border-color: #18181b;"></span>
+                                Minimal
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="divider my-1"></div>
+                    <div class="text-xs font-semibold text-base-content/60 px-2 py-1 uppercase">Light Themes</div>
+                    <ul class="menu menu-sm">
+                        <li>
+                            <button @@click="setTheme('light')" :class="theme === 'light' ? 'active' : ''">
+                                <span class="badge badge-sm bg-base-100 border-base-300"></span> Light
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('cupcake')" :class="theme === 'cupcake' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #fae7e8; border-color: #fae7e8;"></span>
+                                Cupcake
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('corporate')" :class="theme === 'corporate' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #4b6bfb; border-color: #4b6bfb;"></span>
+                                Corporate
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('retro')" :class="theme === 'retro' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #ef9995; border-color: #ef9995;"></span>
+                                Retro
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('pastel')" :class="theme === 'pastel' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #d1c1d7; border-color: #d1c1d7;"></span>
+                                Pastel
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('lofi')" :class="theme === 'lofi' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #808080; border-color: #808080;"></span>
+                                Lofi
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('aqua')" :class="theme === 'aqua' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #09ecf3; border-color: #09ecf3;"></span>
+                                Aqua
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('valentine')" :class="theme === 'valentine' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #e96d7b; border-color: #e96d7b;"></span>
+                                Valentine
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('nord')" :class="theme === 'nord' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #5e81ac; border-color: #5e81ac;"></span>
+                                Nord
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="divider my-1"></div>
+                    <div class="text-xs font-semibold text-base-content/60 px-2 py-1 uppercase">Dark Themes</div>
+                    <ul class="menu menu-sm">
+                        <li>
+                            <button @@click="setTheme('dark')" :class="theme === 'dark' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #2a303c; border-color: #2a303c;"></span>
+                                Dark
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('synthwave')" :class="theme === 'synthwave' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #e779c1; border-color: #e779c1;"></span>
+                                Synthwave
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('cyberpunk')" :class="theme === 'cyberpunk' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #ff7598; border-color: #ff7598;"></span>
+                                Cyberpunk
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('dracula')" :class="theme === 'dracula' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #ff79c6; border-color: #ff79c6;"></span>
+                                Dracula
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('night')" :class="theme === 'night' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #38bdf8; border-color: #38bdf8;"></span>
+                                Night
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('coffee')" :class="theme === 'coffee' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #db924b; border-color: #db924b;"></span>
+                                Coffee
+                            </button>
+                        </li>
+                        <li>
+                            <button @@click="setTheme('sunset')" :class="theme === 'sunset' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #ff865b; border-color: #ff865b;"></span>
+                                Sunset
+                            </button>
+                        </li>
+                    </ul>
                 </div>
+            </div>
 
-                <!-- Login link (if not authenticated) -->
-                @if (!User.Identity?.IsAuthenticated ?? true)
-                {
-                    <a href="/auth/login" class="btn btn-primary btn-sm">Sign In</a>
-                }
-            </header>
+            <!-- Login link (if not authenticated) -->
+            @if (!User.Identity?.IsAuthenticated ?? true)
+            {
+                <a href="/auth/login" class="btn btn-primary btn-sm">Sign In</a>
+            }
+        </header>
 
-            <!-- Main Panel -->
-            <main class="flex-1 overflow-hidden">
-                @RenderBody()
-            </main>
-        </div>
+        <!-- Main Panel -->
+        <main class="flex-1 overflow-hidden">
+            @RenderBody()
+        </main>
     </div>
+</div>
 
 </body>
 </html>

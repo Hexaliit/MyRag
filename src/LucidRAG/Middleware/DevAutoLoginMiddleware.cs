@@ -5,14 +5,14 @@ using Microsoft.AspNetCore.Identity;
 namespace LucidRAG.Middleware;
 
 /// <summary>
-/// Middleware that automatically logs in as the demo admin user in development mode.
-/// This makes it easier to test the application without manual login.
+///     Middleware that automatically logs in as the demo admin user in development mode.
+///     This makes it easier to test the application without manual login.
 /// </summary>
 public class DevAutoLoginMiddleware
 {
-    private readonly RequestDelegate _next;
     private readonly IWebHostEnvironment _environment;
     private readonly ILogger<DevAutoLoginMiddleware> _logger;
+    private readonly RequestDelegate _next;
     private bool _hasLoggedAutoLogin;
 
     public DevAutoLoginMiddleware(
@@ -25,7 +25,8 @@ public class DevAutoLoginMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context, SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager)
+    public async Task InvokeAsync(HttpContext context, SignInManager<ApplicationUser> signInManager,
+        UserManager<ApplicationUser> userManager)
     {
         // Only auto-login in development mode
         if (!_environment.IsDevelopment())
@@ -59,7 +60,7 @@ public class DevAutoLoginMiddleware
             path.EndsWith(".css") ||
             path.EndsWith(".map") ||
             path.EndsWith(".ico") ||
-            path == "/")  // Skip root - public page
+            path == "/") // Skip root - public page
         {
             await _next(context);
             return;
@@ -69,7 +70,7 @@ public class DevAutoLoginMiddleware
         var user = await userManager.FindByEmailAsync(DemoAdminSeeder.DemoAdminEmail);
         if (user != null)
         {
-            await signInManager.SignInAsync(user, isPersistent: true);
+            await signInManager.SignInAsync(user, true);
 
             // Update last login time
             user.LastLoginAt = DateTimeOffset.UtcNow;
@@ -93,13 +94,13 @@ public class DevAutoLoginMiddleware
 }
 
 /// <summary>
-/// Extension methods for DevAutoLoginMiddleware.
+///     Extension methods for DevAutoLoginMiddleware.
 /// </summary>
 public static class DevAutoLoginMiddlewareExtensions
 {
     /// <summary>
-    /// Adds the development auto-login middleware to the pipeline.
-    /// Only activates in development mode.
+    ///     Adds the development auto-login middleware to the pipeline.
+    ///     Only activates in development mode.
     /// </summary>
     public static IApplicationBuilder UseDevAutoLogin(this IApplicationBuilder app)
     {

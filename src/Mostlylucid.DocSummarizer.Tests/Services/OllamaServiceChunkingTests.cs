@@ -1,13 +1,12 @@
 using System.Reflection;
-using Xunit;
 using Mostlylucid.DocSummarizer.Services;
-using Mostlylucid.DocSummarizer.Config;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Services;
 
 /// <summary>
-/// Unit tests for OllamaService chunking and vector averaging functionality.
-/// Tests the text chunking and embedding averaging logic introduced in v3.0.0.
+///     Unit tests for OllamaService chunking and vector averaging functionality.
+///     Tests the text chunking and embedding averaging logic introduced in v3.0.0.
 /// </summary>
 public class OllamaServiceChunkingTests
 {
@@ -58,7 +57,8 @@ public class OllamaServiceChunkingTests
 
         // Assert
         Assert.True(chunks.Count >= 3, $"Expected at least 3 chunks, got {chunks.Count}");
-        Assert.All(chunks, c => Assert.True(c.Length <= maxChunkSize, $"Chunk length {c.Length} exceeds max {maxChunkSize}"));
+        Assert.All(chunks,
+            c => Assert.True(c.Length <= maxChunkSize, $"Chunk length {c.Length} exceeds max {maxChunkSize}"));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class OllamaServiceChunkingTests
 
         // Assert
         Assert.True(chunks.Count >= 2);
-        
+
         // Verify overlap: end of chunk[0] should match start of chunk[1]
         if (chunks.Count >= 2)
         {
@@ -98,11 +98,8 @@ public class OllamaServiceChunkingTests
         // Assert
         // Reconstruct text from chunks (accounting for overlap)
         var reconstructed = chunks[0];
-        for (var i = 1; i < chunks.Count; i++)
-        {
-            reconstructed += chunks[i][(overlap)..];
-        }
-        
+        for (var i = 1; i < chunks.Count; i++) reconstructed += chunks[i][overlap..];
+
         // The reconstructed text should cover the original
         Assert.True(text.Length <= reconstructed.Length, "Chunks should cover entire text");
     }
@@ -132,7 +129,7 @@ public class OllamaServiceChunkingTests
     public void AverageEmbeddings_SingleEmbedding_ReturnsSame()
     {
         // Arrange
-        var embedding = new float[] { 1.0f, 2.0f, 3.0f };
+        var embedding = new[] { 1.0f, 2.0f, 3.0f };
         var embeddings = new List<float[]> { embedding };
 
         // Act
@@ -146,8 +143,8 @@ public class OllamaServiceChunkingTests
     public void AverageEmbeddings_TwoIdenticalEmbeddings_ReturnsNormalized()
     {
         // Arrange
-        var embedding1 = new float[] { 1.0f, 0.0f, 0.0f };
-        var embedding2 = new float[] { 1.0f, 0.0f, 0.0f };
+        var embedding1 = new[] { 1.0f, 0.0f, 0.0f };
+        var embedding2 = new[] { 1.0f, 0.0f, 0.0f };
         var embeddings = new List<float[]> { embedding1, embedding2 };
 
         // Act
@@ -165,8 +162,8 @@ public class OllamaServiceChunkingTests
     public void AverageEmbeddings_TwoDifferentEmbeddings_ReturnsAveragedAndNormalized()
     {
         // Arrange
-        var embedding1 = new float[] { 1.0f, 0.0f };
-        var embedding2 = new float[] { 0.0f, 1.0f };
+        var embedding1 = new[] { 1.0f, 0.0f };
+        var embedding2 = new[] { 0.0f, 1.0f };
         var embeddings = new List<float[]> { embedding1, embedding2 };
 
         // Act
@@ -185,9 +182,9 @@ public class OllamaServiceChunkingTests
     public void AverageEmbeddings_ResultIsNormalized()
     {
         // Arrange
-        var embedding1 = new float[] { 3.0f, 4.0f, 0.0f };
-        var embedding2 = new float[] { 0.0f, 3.0f, 4.0f };
-        var embedding3 = new float[] { 4.0f, 0.0f, 3.0f };
+        var embedding1 = new[] { 3.0f, 4.0f, 0.0f };
+        var embedding2 = new[] { 0.0f, 3.0f, 4.0f };
+        var embedding3 = new[] { 4.0f, 0.0f, 3.0f };
         var embeddings = new List<float[]> { embedding1, embedding2, embedding3 };
 
         // Act
@@ -218,10 +215,7 @@ public class OllamaServiceChunkingTests
         for (var i = 0; i < 10; i++)
         {
             var embedding = new float[vectorSize];
-            for (var j = 0; j < vectorSize; j++)
-            {
-                embedding[j] = (float)Random.Shared.NextDouble();
-            }
+            for (var j = 0; j < vectorSize; j++) embedding[j] = (float)Random.Shared.NextDouble();
             embeddings.Add(embedding);
         }
 
@@ -230,7 +224,7 @@ public class OllamaServiceChunkingTests
 
         // Assert
         Assert.Equal(vectorSize, result.Length);
-        
+
         // Should be normalized
         var magnitude = Math.Sqrt(result.Sum(x => x * x));
         Assert.Equal(1.0, magnitude, 0.001);
@@ -347,9 +341,9 @@ public class OllamaServiceChunkingTests
         var method = typeof(OllamaService).GetMethod(
             "SplitTextIntoChunks",
             BindingFlags.NonPublic | BindingFlags.Static);
-        
+
         Assert.NotNull(method);
-        
+
         var result = method.Invoke(null, new object[] { text, maxChunkSize, overlap });
         return (List<string>)result!;
     }
@@ -359,9 +353,9 @@ public class OllamaServiceChunkingTests
         var method = typeof(OllamaService).GetMethod(
             "AverageEmbeddings",
             BindingFlags.NonPublic | BindingFlags.Static);
-        
+
         Assert.NotNull(method);
-        
+
         var result = method.Invoke(null, new object[] { embeddings });
         return (float[])result!;
     }
@@ -371,9 +365,9 @@ public class OllamaServiceChunkingTests
         var method = typeof(OllamaService).GetMethod(
             "NormalizeTextForEmbedding",
             BindingFlags.NonPublic | BindingFlags.Static);
-        
+
         Assert.NotNull(method);
-        
+
         var result = method.Invoke(null, new object[] { text });
         return (string)result!;
     }

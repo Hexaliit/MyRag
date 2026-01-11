@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Mostlylucid.DocSummarizer.Images.Models;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
+using MotionRegion = Mostlylucid.DocSummarizer.Images.Models.MotionRegion;
 
 namespace LucidRAG.ImageCli.Tests;
 
@@ -20,7 +22,7 @@ public class GifMotionAnalyzerTests
     public void GifMotionProfile_DefaultValues_AreCorrect()
     {
         // Arrange & Act
-        var profile = new Mostlylucid.DocSummarizer.Images.Models.GifMotionProfile
+        var profile = new GifMotionProfile
         {
             FrameCount = 10,
             FrameDelayMs = 100,
@@ -46,7 +48,7 @@ public class GifMotionAnalyzerTests
     public void GifMotionProfile_FpsCalculation_IsCorrect(int frameDelayMs, double expectedFps)
     {
         // Arrange
-        var profile = new Mostlylucid.DocSummarizer.Images.Models.GifMotionProfile
+        var profile = new GifMotionProfile
         {
             FrameDelayMs = frameDelayMs
         };
@@ -59,7 +61,7 @@ public class GifMotionAnalyzerTests
     public void MotionRegion_Properties_SetCorrectly()
     {
         // Arrange & Act
-        var region = new Mostlylucid.DocSummarizer.Images.Models.MotionRegion
+        var region = new MotionRegion
         {
             X = 0.25,
             Y = 0.30,
@@ -82,7 +84,7 @@ public class GifMotionAnalyzerTests
     public void FrameMotionData_Properties_SetCorrectly()
     {
         // Arrange & Act
-        var frameData = new Mostlylucid.DocSummarizer.Images.Models.FrameMotionData
+        var frameData = new FrameMotionData
         {
             FrameIndex = 5,
             Magnitude = 8.3,

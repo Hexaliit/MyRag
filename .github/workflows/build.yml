@@ -26,25 +26,25 @@ jobs:
           --health-retries 5
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '10.0.x'
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
 
-    - name: Restore dependencies
-      run: dotnet restore LucidRAG.sln
+      - name: Restore dependencies
+        run: dotnet restore LucidRAG.sln
 
-    - name: Build
-      run: dotnet build LucidRAG.sln --configuration Release --no-restore
+      - name: Build
+        run: dotnet build LucidRAG.sln --configuration Release --no-restore
 
-    - name: Run tests
-      env:
-        ConnectionStrings__DefaultConnection: "Host=localhost;Database=ragdocs_test;Username=postgres;Password=postgres"
-      run: |
-        dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj \
-          --configuration Release \
-          --no-build \
-          --filter "Category!=Browser" \
-          --logger "console;verbosity=normal"
+      - name: Run tests
+        env:
+          ConnectionStrings__DefaultConnection: "Host=localhost;Database=ragdocs_test;Username=postgres;Password=postgres"
+        run: |
+          dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --filter "Category!=Browser" \
+            --logger "console;verbosity=normal"

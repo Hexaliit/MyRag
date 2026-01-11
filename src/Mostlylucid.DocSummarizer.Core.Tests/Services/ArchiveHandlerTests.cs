@@ -1,12 +1,12 @@
-using Xunit;
-using Mostlylucid.DocSummarizer.Services;
 using System.IO.Compression;
 using System.Text;
+using Mostlylucid.DocSummarizer.Services;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Services;
 
 /// <summary>
-/// Unit tests for ArchiveHandler - tests ZIP extraction without external dependencies
+///     Unit tests for ArchiveHandler - tests ZIP extraction without external dependencies
 /// </summary>
 public class ArchiveHandlerTests
 {
@@ -203,8 +203,7 @@ public class ArchiveHandlerTests
         File.WriteAllText(invalidPath, "Not a valid zip file");
 
         // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => ArchiveHandler.ExtractTextAsync(invalidPath));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => ArchiveHandler.ExtractTextAsync(invalidPath));
     }
 
     [Fact]
@@ -244,6 +243,7 @@ public class ArchiveHandlerTests
             using var writer = new StreamWriter(stream, Encoding.UTF8);
             writer.Write(content);
         }
+
         return zipPath;
     }
 
@@ -251,10 +251,7 @@ public class ArchiveHandlerTests
     {
         try
         {
-            if (Directory.Exists(_tempDir))
-            {
-                Directory.Delete(_tempDir, recursive: true);
-            }
+            if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, true);
         }
         catch
         {

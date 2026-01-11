@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Models;
-using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
@@ -30,11 +29,11 @@ public record VisionMetadata
     public string? Purpose { get; init; }
     public string? TargetAudience { get; init; }
     public double Confidence { get; init; } = 1.0;
-};
+}
 
 /// <summary>
-/// Multi-vector discriminator service for vision analysis quality scoring
-/// Implements orthogonal vector evaluation with decay-based learning
+///     Multi-vector discriminator service for vision analysis quality scoring
+///     Implements orthogonal vector evaluation with decay-based learning
 /// </summary>
 public class DiscriminatorService
 {
@@ -50,7 +49,7 @@ public class DiscriminatorService
     }
 
     /// <summary>
-    /// Score a vision analysis result across orthogonal quality vectors
+    ///     Score a vision analysis result across orthogonal quality vectors
     /// </summary>
     public async Task<DiscriminatorScore> ScoreAnalysisAsync(
         string imageHash,
@@ -105,7 +104,7 @@ public class DiscriminatorService
     }
 
     /// <summary>
-    /// Record user feedback to update discriminator effectiveness
+    ///     Record user feedback to update discriminator effectiveness
     /// </summary>
     public async Task RecordFeedbackAsync(
         DiscriminatorScore score,
@@ -134,8 +133,8 @@ public class DiscriminatorService
     }
 
     /// <summary>
-    /// Compute OCR fidelity vector score
-    /// Measures: Text detection confidence, spell-check pass rate, OCR-vision agreement
+    ///     Compute OCR fidelity vector score
+    ///     Measures: Text detection confidence, spell-check pass rate, OCR-vision agreement
     /// </summary>
     private double ComputeOcrFidelity(
         ImageProfile profile,
@@ -171,9 +170,9 @@ public class DiscriminatorService
         {
             var captionLower = visionResult.Caption.ToLowerInvariant();
             var textMentioned = captionLower.Contains("text") ||
-                               captionLower.Contains("word") ||
-                               captionLower.Contains("caption") ||
-                               captionLower.Contains("label");
+                                captionLower.Contains("word") ||
+                                captionLower.Contains("caption") ||
+                                captionLower.Contains("label");
 
             scores.Add(textMentioned ? 0.8 : 0.3);
         }
@@ -182,8 +181,8 @@ public class DiscriminatorService
     }
 
     /// <summary>
-    /// Compute motion agreement vector score
-    /// Measures: Frame consistency, optical flow confidence, temporal voting consensus
+    ///     Compute motion agreement vector score
+    ///     Measures: Frame consistency, optical flow confidence, temporal voting consensus
     /// </summary>
     private double ComputeMotionAgreement(
         GifMotionProfile? gifMotion,
@@ -212,9 +211,9 @@ public class DiscriminatorService
         {
             var captionLower = visionResult.Caption.ToLowerInvariant();
             var motionMentioned = captionLower.Contains("animat") ||
-                                 captionLower.Contains("moving") ||
-                                 captionLower.Contains("motion") ||
-                                 captionLower.Contains(gifMotion.MotionDirection);
+                                  captionLower.Contains("moving") ||
+                                  captionLower.Contains("motion") ||
+                                  captionLower.Contains(gifMotion.MotionDirection);
 
             scores.Add(motionMentioned ? 0.9 : 0.4);
         }
@@ -223,8 +222,8 @@ public class DiscriminatorService
     }
 
     /// <summary>
-    /// Compute palette consistency vector score
-    /// Measures: Dominant color confidence, saturation variance, grayscale detection
+    ///     Compute palette consistency vector score
+    ///     Measures: Dominant color confidence, saturation variance, grayscale detection
     /// </summary>
     private double ComputePaletteConsistency(
         ImageProfile profile,
@@ -247,10 +246,7 @@ public class DiscriminatorService
         scores.Add(saturationScore);
 
         // Grayscale detection confidence
-        if (profile.IsMostlyGrayscale)
-        {
-            scores.Add(0.95); // High confidence in grayscale
-        }
+        if (profile.IsMostlyGrayscale) scores.Add(0.95); // High confidence in grayscale
 
         // Vision-color agreement: Does caption mention colors?
         if (visionResult?.Caption != null && profile.DominantColors?.Any() == true)
@@ -259,8 +255,10 @@ public class DiscriminatorService
             var topColor = profile.DominantColors.First().Name.ToLowerInvariant();
 
             var colorMentioned = captionLower.Contains(topColor) ||
-                                captionLower.Contains("color") ||
-                                (profile.IsMostlyGrayscale && (captionLower.Contains("gray") || captionLower.Contains("black") || captionLower.Contains("white")));
+                                 captionLower.Contains("color") ||
+                                 (profile.IsMostlyGrayscale && (captionLower.Contains("gray") ||
+                                                                captionLower.Contains("black") ||
+                                                                captionLower.Contains("white")));
 
             scores.Add(colorMentioned ? 0.85 : 0.4);
         }
@@ -269,8 +267,8 @@ public class DiscriminatorService
     }
 
     /// <summary>
-    /// Compute structural alignment vector score
-    /// Measures: Edge density reliability, sharpness consistency, aspect ratio stability
+    ///     Compute structural alignment vector score
+    ///     Measures: Edge density reliability, sharpness consistency, aspect ratio stability
     /// </summary>
     private double ComputeStructuralAlignment(
         ImageProfile profile,
@@ -284,8 +282,8 @@ public class DiscriminatorService
 
         // Sharpness scoring (LaplacianVariance)
         var sharpnessScore = profile.LaplacianVariance < 100 ? 0.2 : // Blurry
-                            profile.LaplacianVariance < 500 ? 0.6 :  // Soft
-                            Math.Min(1.0, profile.LaplacianVariance / 1000.0); // Sharp
+            profile.LaplacianVariance < 500 ? 0.6 : // Soft
+            Math.Min(1.0, profile.LaplacianVariance / 1000.0); // Sharp
         scores.Add(sharpnessScore);
 
         // Aspect ratio sanity check (extreme aspect ratios are suspicious)
@@ -300,8 +298,8 @@ public class DiscriminatorService
     }
 
     /// <summary>
-    /// Compute grounding completeness vector score
-    /// Measures: Evidence source coverage, claim-to-signal ratio, non-synthesis grounding
+    ///     Compute grounding completeness vector score
+    ///     Measures: Evidence source coverage, claim-to-signal ratio, non-synthesis grounding
     /// </summary>
     private double ComputeGroundingCompleteness(VisionResult? visionResult)
     {
@@ -335,15 +333,15 @@ public class DiscriminatorService
         // Penalize claims that are ONLY synthesis (L)
         var synthesisOnlyClaims = visionResult.Claims.Count(c =>
             c.Sources.All(s => s.StartsWith("L", StringComparison.OrdinalIgnoreCase)));
-        var synthesisPenalty = 1.0 - (synthesisOnlyClaims / (double)visionResult.Claims.Count);
+        var synthesisPenalty = 1.0 - synthesisOnlyClaims / (double)visionResult.Claims.Count;
         scores.Add(synthesisPenalty);
 
         return scores.Average();
     }
 
     /// <summary>
-    /// Compute novelty vs prior vector score
-    /// Measures: Caption divergence, new signals discovered, confidence delta
+    ///     Compute novelty vs prior vector score
+    ///     Measures: Caption divergence, new signals discovered, confidence delta
     /// </summary>
     private async Task<double> ComputeNoveltyVsPriorAsync(
         string imageHash,
@@ -354,7 +352,7 @@ public class DiscriminatorService
             return 0.0;
 
         // Retrieve prior scores for this image
-        var priorScores = await _tracker.GetPriorScoresAsync(imageHash, limit: 5, ct);
+        var priorScores = await _tracker.GetPriorScoresAsync(imageHash, 5, ct);
 
         if (priorScores.Count == 0)
             return 1.0; // First analysis = maximum novelty
@@ -387,7 +385,7 @@ public class DiscriminatorService
     }
 
     /// <summary>
-    /// Extract signal contributions from analysis results
+    ///     Extract signal contributions from analysis results
     /// </summary>
     private Dictionary<string, SignalContribution> ExtractSignalContributions(
         ImageProfile profile,
@@ -424,7 +422,6 @@ public class DiscriminatorService
 
         // Vision result signals
         if (visionResult != null)
-        {
             if (visionResult.Claims != null && visionResult.Claims.Count > 0)
             {
                 var groundingRate = visionResult.Claims.Count(c =>
@@ -433,7 +430,6 @@ public class DiscriminatorService
                 AddContribution(contributions, "ClaimGrounding", groundingRate,
                     new[] { "GroundingCompleteness" }, groundingRate);
             }
-        }
 
         // Enhanced vision metadata signals (tone, sentiment, purpose, etc.)
         // These are LLM-derived features that the system will learn to weight appropriately
@@ -442,12 +438,10 @@ public class DiscriminatorService
             var metadata = visionResult.EnhancedMetadata;
 
             if (!string.IsNullOrEmpty(metadata.Tone))
-            {
                 // Tone: professional, casual, humorous, formal, technical
                 // Contributes to grounding completeness (indicates model understanding)
                 AddContribution(contributions, "LlmTone", metadata.Tone,
                     new[] { "GroundingCompleteness" }, metadata.Confidence);
-            }
 
             if (metadata.Sentiment.HasValue)
             {
@@ -459,44 +453,36 @@ public class DiscriminatorService
             }
 
             if (metadata.Complexity.HasValue)
-            {
                 // Visual complexity: 0.0 (simple) to 1.0 (complex)
                 // Correlates with structural alignment
                 AddContribution(contributions, "LlmComplexity", metadata.Complexity.Value,
-                    new[] { "StructuralAlignment", "GroundingCompleteness" }, metadata.Complexity.Value * metadata.Confidence);
-            }
+                    new[] { "StructuralAlignment", "GroundingCompleteness" },
+                    metadata.Complexity.Value * metadata.Confidence);
 
             if (metadata.AestheticScore.HasValue)
-            {
                 // Aesthetic quality: 0.0 to 1.0
                 // May correlate with palette consistency and structural alignment
                 AddContribution(contributions, "LlmAestheticScore", metadata.AestheticScore.Value,
-                    new[] { "PaletteConsistency", "StructuralAlignment" }, metadata.AestheticScore.Value * metadata.Confidence);
-            }
+                    new[] { "PaletteConsistency", "StructuralAlignment" },
+                    metadata.AestheticScore.Value * metadata.Confidence);
 
             if (!string.IsNullOrEmpty(metadata.PrimarySubject))
-            {
                 // Primary subject (e.g., "portrait", "landscape", "diagram")
                 // Indicates model understanding of content
                 AddContribution(contributions, "LlmPrimarySubject", metadata.PrimarySubject,
                     new[] { "GroundingCompleteness" }, metadata.Confidence);
-            }
 
             if (!string.IsNullOrEmpty(metadata.Purpose))
-            {
                 // Purpose: educational, entertainment, commercial, documentation
                 // Correlates with image type detection
                 AddContribution(contributions, "LlmPurpose", metadata.Purpose,
                     new[] { "GroundingCompleteness" }, metadata.Confidence);
-            }
 
             if (!string.IsNullOrEmpty(metadata.TargetAudience))
-            {
                 // Target audience: general, technical, children, professionals
                 // Indicates complexity and style understanding
                 AddContribution(contributions, "LlmTargetAudience", metadata.TargetAudience,
                     new[] { "GroundingCompleteness" }, metadata.Confidence);
-            }
         }
 
         // Calculate agreement between signals (signals in same vector)
@@ -522,7 +508,7 @@ public class DiscriminatorService
     }
 
     /// <summary>
-    /// Calculate agreement between signals based on vector overlap
+    ///     Calculate agreement between signals based on vector overlap
     /// </summary>
     private void CalculateSignalAgreement(Dictionary<string, SignalContribution> contributions)
     {
@@ -531,7 +517,7 @@ public class DiscriminatorService
             // Find other signals in same vectors
             var peersInVectors = contributions.Values
                 .Where(c => c.SignalName != signalName &&
-                           c.ContributedVectors.Intersect(contribution.ContributedVectors).Any())
+                            c.ContributedVectors.Intersect(contribution.ContributedVectors).Any())
                 .ToList();
 
             if (peersInVectors.Count == 0)

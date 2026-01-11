@@ -1,17 +1,17 @@
 namespace Mostlylucid.RAG.Services;
 
 /// <summary>
-/// Service for generating text embeddings
+///     Service for generating text embeddings
 /// </summary>
 public interface IEmbeddingService
 {
     /// <summary>
-    /// Ensures the embedding model is initialized, downloading if necessary
+    ///     Ensures the embedding model is initialized, downloading if necessary
     /// </summary>
     Task EnsureInitializedAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Generate an embedding vector for the given text
+    ///     Generate an embedding vector for the given text
     /// </summary>
     /// <param name="text">Text to embed</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -19,10 +19,11 @@ public interface IEmbeddingService
     Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Generate embeddings for multiple texts in a batch
+    ///     Generate embeddings for multiple texts in a batch
     /// </summary>
     /// <param name="texts">Texts to embed</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Embedding vectors</returns>
-    Task<List<float[]>> GenerateEmbeddingsAsync(IEnumerable<string> texts, CancellationToken cancellationToken = default);
+    Task<List<float[]>> GenerateEmbeddingsAsync(IEnumerable<string> texts,
+        CancellationToken cancellationToken = default);
 }

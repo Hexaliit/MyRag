@@ -7,25 +7,24 @@ namespace Mostlylucid.DocSummarizer.Images.Orchestration.FastPath;
 ///     Ultra-fast image analyzer that checks signature cache FIRST.
 ///     If signature found → returns in &lt;1ms
 ///     If not found → runs minimal analysis, queues learning for background
-///
 ///     Architecture:
 ///     ```
 ///     Request → FastPath Check → HIT? → Return cached result (instant)
-///                    ↓
-///                   MISS
-///                    ↓
+///     ↓
+///     MISS
+///     ↓
 ///     Minimal Analysis (fast lane only: identity + color + text detection)
-///                    ↓
+///     ↓
 ///     Return minimal result + Queue full analysis for background learning
 ///     ```
 /// </summary>
 public sealed class FastPathImageAnalyzer
 {
-    private readonly IImageSignatureCache _signatureCache;
-    private readonly ImageAnalysisOrchestrator _orchestrator;
     private readonly IImageLearningCoordinator _learningCoordinator;
     private readonly ILogger<FastPathImageAnalyzer> _logger;
     private readonly FastPathOptions _options;
+    private readonly ImageAnalysisOrchestrator _orchestrator;
+    private readonly IImageSignatureCache _signatureCache;
 
     public FastPathImageAnalyzer(
         IImageSignatureCache signatureCache,
@@ -64,11 +63,9 @@ public sealed class FastPathImageAnalyzer
         {
             cached = _signatureCache.FindSimilar(signatureKey.PerceptualHash, _options.MaxHammingDistance);
             if (cached != null)
-            {
                 _logger.LogDebug(
                     "Fast-path HIT (perceptual): {Path} → similar image found",
                     Path.GetFileName(imagePath));
-            }
         }
 
         if (cached != null)
@@ -132,9 +129,7 @@ public sealed class FastPathImageAnalyzer
 
         // Cache the result for next time (if confident enough)
         if (result.Confidence >= _options.MinCacheConfidence && result.IsComplete)
-        {
             CacheResult(combinedKey, signatureKey.PerceptualHash, result);
-        }
 
         _logger.LogDebug(
             "Fast-path analysis complete: {Key} - {Mode}, {Ms}ms, confidence={Confidence:F2}",
@@ -201,9 +196,7 @@ public sealed class FastPathImageAnalyzer
 
         // If we got early exit (high confidence), queue background refinement
         if (result.EarlyExit && fastResult.Confidence >= _options.MinCacheConfidence)
-        {
             _learningCoordinator.QueueRefinement(imagePath, combinedKey, fastResult);
-        }
 
         return fastResult;
     }

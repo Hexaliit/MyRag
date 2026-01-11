@@ -1,5 +1,3 @@
-using Mostlylucid.DocSummarizer.Config;
-
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
@@ -8,23 +6,25 @@ namespace Mostlylucid.DocSummarizer.Services;
 public class OllamaEmbeddingService : IEmbeddingService
 {
     private readonly OllamaService _ollama;
-    private readonly int _embeddingDimension;
 
     public OllamaEmbeddingService(OllamaService ollama, int embeddingDimension = 768)
     {
         _ollama = ollama;
-        _embeddingDimension = embeddingDimension;
+        EmbeddingDimension = embeddingDimension;
     }
 
     /// <summary>
     ///     Embedding dimension (768 for nomic-embed-text, 1024 for mxbai-embed-large)
     /// </summary>
-    public int EmbeddingDimension => _embeddingDimension;
+    public int EmbeddingDimension { get; }
 
     /// <summary>
     ///     No initialization needed for Ollama - it's always ready
     /// </summary>
-    public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
+    public Task InitializeAsync(CancellationToken ct = default)
+    {
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     ///     Generate embedding using Ollama
@@ -45,6 +45,7 @@ public class OllamaEmbeddingService : IEmbeddingService
             ct.ThrowIfCancellationRequested();
             results.Add(await EmbedAsync(text, ct));
         }
+
         return results.ToArray();
     }
 }

@@ -11,23 +11,23 @@ The library provides comprehensive motion analysis for animated GIFs:
 
 ## Motion Signals
 
-| Signal | Type | Description |
-|--------|------|-------------|
-| `motion.is_animated` | bool | Whether image has multiple frames |
-| `motion.frame_count` | int | Total number of frames |
-| `motion.duration` | double | Total duration in seconds |
-| `motion.motion_intensity` | double | 0.0-1.0 intensity score |
-| `motion.motion_type` | string | "static", "subtle", "moderate", "dynamic" |
-| `motion.loop_detected` | bool | Whether animation loops |
+| Signal                    | Type   | Description                               |
+|---------------------------|--------|-------------------------------------------|
+| `motion.is_animated`      | bool   | Whether image has multiple frames         |
+| `motion.frame_count`      | int    | Total number of frames                    |
+| `motion.duration`         | double | Total duration in seconds                 |
+| `motion.motion_intensity` | double | 0.0-1.0 intensity score                   |
+| `motion.motion_type`      | string | "static", "subtle", "moderate", "dynamic" |
+| `motion.loop_detected`    | bool   | Whether animation loops                   |
 
 ## Motion Types
 
-| Type | Intensity | Example |
-|------|-----------|---------|
-| `static` | < 0.1 | Still image with minor variations |
-| `subtle` | 0.1-0.3 | Blinking, breathing |
-| `moderate` | 0.3-0.6 | Walking, gestures |
-| `dynamic` | > 0.6 | Action, fast movement |
+| Type       | Intensity | Example                           |
+|------------|-----------|-----------------------------------|
+| `static`   | < 0.1     | Still image with minor variations |
+| `subtle`   | 0.1-0.3   | Blinking, breathing               |
+| `moderate` | 0.3-0.6   | Walking, gestures                 |
+| `dynamic`  | > 0.6     | Action, fast movement             |
 
 ## Keyframe Extraction
 
@@ -63,12 +63,12 @@ imagesummarizer export-strip subtitle.gif --mode ocr
 
 ## CLI Strip Modes
 
-| Mode | Purpose | Output |
-|------|---------|--------|
-| `auto` | Smart selection | Best for image type |
-| `ocr` | Text changes | Deduplicated text frames |
-| `motion` | Movement | Keyframes showing motion |
-| `text-only` | Bounding boxes | Just text regions, compact |
+| Mode        | Purpose         | Output                     |
+|-------------|-----------------|----------------------------|
+| `auto`      | Smart selection | Best for image type        |
+| `ocr`       | Text changes    | Deduplicated text frames   |
+| `motion`    | Movement        | Keyframes showing motion   |
+| `text-only` | Bounding boxes  | Just text regions, compact |
 
 ## Example: Motion Strip
 

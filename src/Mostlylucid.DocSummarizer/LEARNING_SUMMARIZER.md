@@ -2,7 +2,9 @@
 
 > **Re-summarizing the same document? Skip the LLM. Same evidence set? Cache hit.**
 
-The Learning Summarizer extends BertRag mode with persistent vector storage and intelligent caching. Documents are only re-embedded when content changes. Summaries are cached by their evidence set - if the same segments are retrieved, you get instant results.
+The Learning Summarizer extends BertRag mode with persistent vector storage and intelligent caching. Documents are only
+re-embedded when content changes. Summaries are cached by their evidence set - if the same segments are retrieved, you
+get instant results.
 
 ---
 
@@ -106,6 +108,7 @@ CacheKey = Hash(
 ```
 
 This means:
+
 - Same document + same query + same evidence → cache hit
 - Same document + different query → cache miss (different segments retrieved)
 - Document updated → cache miss (content hash changed)
@@ -145,12 +148,12 @@ Original Document:              Updated Document:
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `vectorStore` | `InMemory` \| `Qdrant` | `InMemory` | Storage backend |
-| `collectionName` | string | `docsummarizer` | Collection/index name |
-| `persistVectors` | bool | `true` | Keep vectors between runs (Qdrant only) |
-| `reuseExistingEmbeddings` | bool | `true` | Reuse unchanged segment embeddings |
+| Option                    | Type                   | Default         | Description                             |
+|---------------------------|------------------------|-----------------|-----------------------------------------|
+| `vectorStore`             | `InMemory` \| `Qdrant` | `InMemory`      | Storage backend                         |
+| `collectionName`          | string                 | `docsummarizer` | Collection/index name                   |
+| `persistVectors`          | bool                   | `true`          | Keep vectors between runs (Qdrant only) |
+| `reuseExistingEmbeddings` | bool                   | `true`          | Reuse unchanged segment embeddings      |
 
 ### Vector Store Backends
 
@@ -262,46 +265,46 @@ public class PineconeVectorStore : IVectorStore
 
 ### First Run (Cold Cache)
 
-| Phase | Time | Description |
-|-------|------|-------------|
-| Parse | ~0.5s | Document to segments |
-| Embed | ~5-10s | ONNX embedding (384-dim) |
-| Store | ~0.1s | Upsert to vector store |
-| Retrieve | ~0.05s | Vector search |
-| Synthesize | ~5-15s | LLM generation |
-| **Total** | **~10-25s** | Depends on document size |
+| Phase      | Time        | Description              |
+|------------|-------------|--------------------------|
+| Parse      | ~0.5s       | Document to segments     |
+| Embed      | ~5-10s      | ONNX embedding (384-dim) |
+| Store      | ~0.1s       | Upsert to vector store   |
+| Retrieve   | ~0.05s      | Vector search            |
+| Synthesize | ~5-15s      | LLM generation           |
+| **Total**  | **~10-25s** | Depends on document size |
 
 ### Second Run (Warm Cache - Same Query)
 
-| Phase | Time | Description |
-|-------|------|-------------|
-| Hash Check | ~0.01s | Document content hash |
-| Segment Lookup | ~0.05s | Load from vector store |
-| Retrieve | ~0.05s | Vector search |
-| Cache Hit | ~0.01s | Evidence hash match |
-| **Total** | **~0.1s** | 100x faster |
+| Phase          | Time      | Description            |
+|----------------|-----------|------------------------|
+| Hash Check     | ~0.01s    | Document content hash  |
+| Segment Lookup | ~0.05s    | Load from vector store |
+| Retrieve       | ~0.05s    | Vector search          |
+| Cache Hit      | ~0.01s    | Evidence hash match    |
+| **Total**      | **~0.1s** | 100x faster            |
 
 ### Second Run (Warm Cache - Different Query)
 
-| Phase | Time | Description |
-|-------|------|-------------|
-| Hash Check | ~0.01s | Document content hash |
-| Segment Lookup | ~0.05s | Load from vector store |
-| Retrieve | ~0.05s | Different segments retrieved |
-| Synthesize | ~5-15s | New LLM call (different evidence) |
-| **Total** | **~5-15s** | Skip embedding, new synthesis |
+| Phase          | Time       | Description                       |
+|----------------|------------|-----------------------------------|
+| Hash Check     | ~0.01s     | Document content hash             |
+| Segment Lookup | ~0.05s     | Load from vector store            |
+| Retrieve       | ~0.05s     | Different segments retrieved      |
+| Synthesize     | ~5-15s     | New LLM call (different evidence) |
+| **Total**      | **~5-15s** | Skip embedding, new synthesis     |
 
 ### Document Update (Partial Change)
 
-| Phase | Time | Description |
-|-------|------|-------------|
-| Parse | ~0.5s | Document to segments |
-| Diff | ~0.1s | Compare content hashes |
-| Re-embed | ~1-3s | Only changed segments |
-| Cleanup | ~0.05s | Remove stale segments |
-| Retrieve | ~0.05s | Vector search |
-| Synthesize | ~5-15s | LLM generation |
-| **Total** | **~7-20s** | Faster than full re-process |
+| Phase      | Time       | Description                 |
+|------------|------------|-----------------------------|
+| Parse      | ~0.5s      | Document to segments        |
+| Diff       | ~0.1s      | Compare content hashes      |
+| Re-embed   | ~1-3s      | Only changed segments       |
+| Cleanup    | ~0.05s     | Remove stale segments       |
+| Retrieve   | ~0.05s     | Vector search               |
+| Synthesize | ~5-15s     | LLM generation              |
+| **Total**  | **~7-20s** | Faster than full re-process |
 
 ---
 
@@ -385,6 +388,7 @@ docsummarizer -f document.pdf -m BertRag -v
 ```
 
 Shows:
+
 - Segment parsing stats
 - Cache lookup results
 - Embedding reuse counts
@@ -394,6 +398,7 @@ Shows:
 ### Qdrant Dashboard
 
 Access the Qdrant web UI at `http://localhost:6333/dashboard`:
+
 - View collections
 - Inspect stored points
 - Search vectors manually
@@ -417,13 +422,13 @@ curl -X POST http://localhost:6333/collections/docsummarizer/points/scroll \
 
 ## Troubleshooting
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Cache never hits | Evidence set changes | Check if query/template differs |
-| Slow first run | Large document | Expected - embedding is CPU-intensive |
-| Qdrant connection failed | Server not running | `docker run -d -p 6333:6333 qdrant/qdrant` |
-| Stale summaries | Old cached version | Set `persistVectors: false` or delete collection |
-| High memory usage | Many segments in memory | Use Qdrant backend for large batches |
+| Issue                    | Cause                   | Solution                                         |
+|--------------------------|-------------------------|--------------------------------------------------|
+| Cache never hits         | Evidence set changes    | Check if query/template differs                  |
+| Slow first run           | Large document          | Expected - embedding is CPU-intensive            |
+| Qdrant connection failed | Server not running      | `docker run -d -p 6333:6333 qdrant/qdrant`       |
+| Stale summaries          | Old cached version      | Set `persistVectors: false` or delete collection |
+| High memory usage        | Many segments in memory | Use Qdrant backend for large batches             |
 
 ---
 

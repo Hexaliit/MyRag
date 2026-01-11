@@ -1,16 +1,18 @@
 using System.CommandLine;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Cli.Services;
 using LucidRAG.Data;
-using Spectre.Console;
-using Mostlylucid.DocSummarizer.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileSystemGlobbing;
+using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
 using Mostlylucid.DocSummarizer.Config;
+using Mostlylucid.DocSummarizer.Services;
+using Spectre.Console;
 
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// Interactive conversational RAG interface with slash commands
+///     Interactive conversational RAG interface with slash commands
 /// </summary>
 public static class ConversationalCommand
 {
@@ -19,7 +21,8 @@ public static class ConversationalCommand
         var command = new Command("chat", "Interactive conversational RAG interface");
 
         var dataDirOpt = new Option<string?>("--data-dir") { Description = "Data directory" };
-        var verboseOpt = new Option<bool>("-v", "--verbose") { Description = "Verbose output", DefaultValueFactory = _ => false };
+        var verboseOpt = new Option<bool>("-v", "--verbose")
+            { Description = "Verbose output", DefaultValueFactory = _ => false };
 
         command.Options.Add(dataDirOpt);
         command.Options.Add(verboseOpt);
@@ -111,10 +114,7 @@ public static class ConversationalCommand
             catch (Exception ex)
             {
                 AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message}");
-                if (verbose)
-                {
-                    AnsiConsole.MarkupLine($"[dim]{ex.StackTrace}[/]");
-                }
+                if (verbose) AnsiConsole.MarkupLine($"[dim]{ex.StackTrace}[/]");
             }
 
             AnsiConsole.WriteLine();
@@ -131,15 +131,11 @@ public static class ConversationalCommand
 
         // Ollama
         if (services.OllamaAvailable)
-        {
             table.AddRow("Ollama", "[green]✓ Available[/]",
                 $"Model: {services.OllamaModel ?? "default"}");
-        }
         else
-        {
             table.AddRow("Ollama", "[red]✗ Unavailable[/]",
                 "[dim]Required for conversational mode[/]");
-        }
 
         // ONNX Embeddings
         table.AddRow("ONNX Embeddings", "[green]✓ Available[/]",
@@ -160,15 +156,11 @@ public static class ConversationalCommand
 
         // Qdrant (optional)
         if (services.QdrantAvailable)
-        {
             table.AddRow("Qdrant", "[green]✓ Available[/]",
                 "[dim]Persistent vector storage[/]");
-        }
         else
-        {
             table.AddRow("Qdrant", "[yellow]○ Optional[/]",
                 "[dim]Using in-memory vectors[/]");
-        }
 
         AnsiConsole.Write(table);
     }
@@ -197,16 +189,16 @@ public static class ConversationalCommand
 }
 
 /// <summary>
-/// Manages conversational session state and command routing
+///     Manages conversational session state and command routing
 /// </summary>
 internal class ConversationSession
 {
+    private readonly List<(string role, string content)> _conversationHistory = new();
     private readonly RagDocumentsDbContext _db;
-    private readonly CliDocumentProcessor _processor;
     private readonly OllamaService _ollama;
+    private readonly CliDocumentProcessor _processor;
     private readonly DetectedServices _services;
     private readonly bool _verbose;
-    private readonly List<(string role, string content)> _conversationHistory = new();
 
     public ConversationSession(
         RagDocumentsDbContext db,
@@ -299,9 +291,9 @@ internal class ConversationSession
         // Expand glob pattern
         var files = await Task.Run(() =>
         {
-            var matcher = new Microsoft.Extensions.FileSystemGlobbing.Matcher();
+            var matcher = new Matcher();
             matcher.AddInclude(glob);
-            var result = matcher.Execute(new Microsoft.Extensions.FileSystemGlobbing.Abstractions.DirectoryInfoWrapper(
+            var result = matcher.Execute(new DirectoryInfoWrapper(
                 new DirectoryInfo(Directory.GetCurrentDirectory())));
             return result.Files.Select(f => Path.Combine(Directory.GetCurrentDirectory(), f.Path)).ToList();
         }, ct);
@@ -313,7 +305,7 @@ internal class ConversationSession
         }
 
         // Confirm
-        var confirm = AnsiConsole.Confirm($"Index {files.Count} file(s)?", defaultValue: true);
+        var confirm = AnsiConsole.Confirm($"Index {files.Count} file(s)?", true);
         if (!confirm)
         {
             AnsiConsole.MarkupLine("[dim]Cancelled[/]");
@@ -326,13 +318,8 @@ internal class ConversationSession
 
         await AnsiConsole.Progress()
             .AutoClear(false)
-            .Columns(new ProgressColumn[]
-            {
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new RemainingTimeColumn(),
-            })
+            .Columns(new TaskDescriptionColumn(), new ProgressBarColumn(), new PercentageColumn(),
+                new RemainingTimeColumn())
             .StartAsync(async ctx =>
             {
                 var task = ctx.AddTask("[cyan]Indexing files...[/]", maxValue: files.Count);
@@ -341,7 +328,7 @@ internal class ConversationSession
                 {
                     task.Description = $"[cyan]Processing:[/] {Path.GetFileName(file)}";
 
-                    var result = await _processor.IndexFileAsync(file, collectionId: null, ct);
+                    var result = await _processor.IndexFileAsync(file, null, ct);
                     if (result.Success)
                         success++;
                     else
@@ -391,10 +378,7 @@ internal class ConversationSession
             .AddColumn("Collection")
             .AddColumn("Created");
 
-        foreach (var collection in collections)
-        {
-            table.AddRow(collection.Name, collection.CreatedAt.ToString("g"));
-        }
+        foreach (var collection in collections) table.AddRow(collection.Name, collection.CreatedAt.ToString("g"));
 
         AnsiConsole.Write(table);
     }
@@ -433,16 +417,15 @@ internal class ConversationSession
         var clarifiedQuery = await ClarifyQueryWithLlmAsync(query, ct);
 
         if (!string.Equals(query, clarifiedQuery, StringComparison.Ordinal))
-        {
             AnsiConsole.MarkupLine($"[yellow]Corrected:[/] {Markup.Escape(clarifiedQuery)}");
-        }
 
         // Step 1.5: Validate query doesn't attempt config-only operations
         var validation = ValidateQuerySafety(clarifiedQuery);
         if (!validation.IsValid)
         {
             AnsiConsole.MarkupLine($"[red]Security:[/] {Markup.Escape(validation.Reason)}");
-            AnsiConsole.MarkupLine("[yellow]Tip:[/] Configuration settings can only be changed via appsettings.json or CLI arguments, not via natural language prompts.");
+            AnsiConsole.MarkupLine(
+                "[yellow]Tip:[/] Configuration settings can only be changed via appsettings.json or CLI arguments, not via natural language prompts.");
             return;
         }
 
@@ -461,7 +444,7 @@ internal class ConversationSession
 
             AnsiConsole.Write(planPanel);
 
-            var confirm = AnsiConsole.Confirm("Execute this plan?", defaultValue: true);
+            var confirm = AnsiConsole.Confirm("Execute this plan?", true);
             if (!confirm)
             {
                 AnsiConsole.MarkupLine("[dim]Cancelled[/]");
@@ -469,7 +452,7 @@ internal class ConversationSession
             }
 
             // Execute each step
-            for (int i = 0; i < plan.Steps.Count; i++)
+            for (var i = 0; i < plan.Steps.Count; i++)
             {
                 AnsiConsole.MarkupLine($"\n[cyan]Step {i + 1}/{plan.Steps.Count}:[/] {Markup.Escape(plan.Steps[i])}");
                 await ExecutePlanStepAsync(plan.Steps[i], plan.StepCommands[i], ct);
@@ -491,16 +474,10 @@ internal class ConversationSession
     {
         // Execute the decomposed command
         if (command.StartsWith('/'))
-        {
             await ProcessSlashCommandAsync(command, ct);
-        }
         else
-        {
             AnsiConsole.MarkupLine($"[yellow]Step execution: {Markup.Escape(command)}[/]");
-        }
     }
-
-    private record QueryPlan(List<string> Steps, List<string> StepCommands);
 
     private async Task<QueryPlan> DecomposeQueryIntoStepsAsync(string query, CancellationToken ct)
     {
@@ -535,8 +512,8 @@ If the query is a simple search, return empty (no steps needed).";
         {
             var response = await _ollama.GenerateAsync(
                 prompt,
-                temperature: 0.2,
-                cancellationToken: ct
+                0.2,
+                ct
             );
 
             var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -554,10 +531,7 @@ If the query is a simple search, return empty (no steps needed).";
                     if (desc.Length > 0 && char.IsDigit(desc[0]))
                     {
                         var dotIndex = desc.IndexOf('.');
-                        if (dotIndex > 0 && dotIndex < desc.Length - 1)
-                        {
-                            desc = desc.Substring(dotIndex + 1).Trim();
-                        }
+                        if (dotIndex > 0 && dotIndex < desc.Length - 1) desc = desc.Substring(dotIndex + 1).Trim();
                     }
 
                     steps.Add(desc);
@@ -588,8 +562,8 @@ Return ONLY the corrected query, nothing else. If the query is already correct, 
         {
             var response = await _ollama.GenerateAsync(
                 prompt,
-                temperature: 0.1, // Low temperature for consistent corrections
-                cancellationToken: ct
+                0.1, // Low temperature for consistent corrections
+                ct
             );
 
             return response.Trim().Trim('"');
@@ -602,8 +576,8 @@ Return ONLY the corrected query, nothing else. If the query is already correct, 
     }
 
     /// <summary>
-    /// Validate that query doesn't attempt config-only operations.
-    /// Allows output format flags but prevents directory/URL changes.
+    ///     Validate that query doesn't attempt config-only operations.
+    ///     Allows output format flags but prevents directory/URL changes.
     /// </summary>
     private static QueryValidation ValidateQuerySafety(string query)
     {
@@ -623,12 +597,9 @@ Return ONLY the corrected query, nothing else. If the query is already correct, 
         };
 
         foreach (var pattern in directoryPatterns)
-        {
             if (lowerQuery.Contains(pattern))
-            {
-                return new QueryValidation(false, $"Cannot change output directory via prompts. Use --output-dir CLI argument or appsettings.json.");
-            }
-        }
+                return new QueryValidation(false,
+                    "Cannot change output directory via prompts. Use --output-dir CLI argument or appsettings.json.");
 
         // Forbidden: Changing URLs/endpoints
         var urlPatterns = new[]
@@ -644,12 +615,9 @@ Return ONLY the corrected query, nothing else. If the query is already correct, 
         };
 
         foreach (var pattern in urlPatterns)
-        {
             if (lowerQuery.Contains(pattern))
-            {
-                return new QueryValidation(false, $"Cannot change service URLs via prompts. Use appsettings.json configuration.");
-            }
-        }
+                return new QueryValidation(false,
+                    "Cannot change service URLs via prompts. Use appsettings.json configuration.");
 
         // Forbidden: API keys or secrets
         var secretPatterns = new[]
@@ -662,12 +630,9 @@ Return ONLY the corrected query, nothing else. If the query is already correct, 
         };
 
         foreach (var pattern in secretPatterns)
-        {
             if (lowerQuery.Contains(pattern))
-            {
-                return new QueryValidation(false, $"Cannot configure secrets via prompts. Use environment variables or appsettings.json.");
-            }
-        }
+                return new QueryValidation(false,
+                    "Cannot configure secrets via prompts. Use environment variables or appsettings.json.");
 
         // Allowed: Output format flags (e.g., "and output json")
         // These are fine because they don't change config, just response format
@@ -684,6 +649,8 @@ Return ONLY the corrected query, nothing else. If the query is already correct, 
         // Query is valid
         return new QueryValidation(true, string.Empty);
     }
+
+    private record QueryPlan(List<string> Steps, List<string> StepCommands);
 
     private record QueryValidation(bool IsValid, string Reason);
 }

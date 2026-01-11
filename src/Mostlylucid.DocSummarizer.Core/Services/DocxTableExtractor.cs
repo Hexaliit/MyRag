@@ -10,7 +10,7 @@ using OpenXmlParagraph = DocumentFormat.OpenXml.Wordprocessing.Paragraph;
 namespace Mostlylucid.DocSummarizer.Core.Services;
 
 /// <summary>
-/// Extract tables from DOCX documents using DocumentFormat.OpenXml (.NET native)
+///     Extract tables from DOCX documents using DocumentFormat.OpenXml (.NET native)
 /// </summary>
 public class DocxTableExtractor : ITableExtractor
 {
@@ -61,7 +61,6 @@ public class DocxTableExtractor : ITableExtractor
             var tableNumber = 1;
 
             foreach (var table in tables)
-            {
                 try
                 {
                     var extractedTable = ExtractTable(table, filePath, tableNumber, options);
@@ -80,7 +79,6 @@ public class DocxTableExtractor : ITableExtractor
                         tableNumber, Path.GetFileName(filePath));
                     errors.Add($"Table {tableNumber}: {ex.Message}");
                 }
-            }
 
             stopwatch.Stop();
 
@@ -125,26 +123,17 @@ public class DocxTableExtractor : ITableExtractor
                 cellsInRow.Add(TableCell.FromText(cellText));
             }
 
-            if (cellsInRow.Count > 0)
-            {
-                rows.Add(cellsInRow);
-            }
+            if (cellsInRow.Count > 0) rows.Add(cellsInRow);
         }
 
-        if (rows.Count == 0)
-        {
-            return null;
-        }
+        if (rows.Count == 0) return null;
 
         // Detect header (first row typically has different styling or non-numeric content)
         var hasHeader = DetectHeader(rows);
 
         // Extract column names if header detected
         List<string>? columnNames = null;
-        if (hasHeader && rows.Count > 0)
-        {
-            columnNames = rows[0].Select(c => c.Text ?? "").ToList();
-        }
+        if (hasHeader && rows.Count > 0) columnNames = rows[0].Select(c => c.Text ?? "").ToList();
 
         var tableId = $"{Path.GetFileNameWithoutExtension(sourcePath)}_table_{tableNumber}";
 
@@ -176,10 +165,7 @@ public class DocxTableExtractor : ITableExtractor
         foreach (var para in paragraphs)
         {
             var paraText = para.InnerText.Trim();
-            if (!string.IsNullOrEmpty(paraText))
-            {
-                texts.Add(paraText);
-            }
+            if (!string.IsNullOrEmpty(paraText)) texts.Add(paraText);
         }
 
         return string.Join(" ", texts);
@@ -187,10 +173,7 @@ public class DocxTableExtractor : ITableExtractor
 
     private static bool DetectHeader(List<List<TableCell>> rows)
     {
-        if (rows.Count < 2)
-        {
-            return false;
-        }
+        if (rows.Count < 2) return false;
 
         var firstRow = rows[0];
 
@@ -202,10 +185,7 @@ public class DocxTableExtractor : ITableExtractor
 
     private static bool IsNumeric(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
+        if (string.IsNullOrWhiteSpace(value)) return false;
 
         // Remove common formatting
         var cleaned = value.Replace(",", "").Replace("$", "").Replace("%", "").Trim();
@@ -215,10 +195,7 @@ public class DocxTableExtractor : ITableExtractor
 
     private static double EstimateConfidence(List<List<TableCell>> rows)
     {
-        if (rows.Count == 0)
-        {
-            return 0.0;
-        }
+        if (rows.Count == 0) return 0.0;
 
         // Check column consistency
         var colCounts = rows.Select(r => r.Count).Distinct().ToList();
@@ -231,10 +208,7 @@ public class DocxTableExtractor : ITableExtractor
 
         var confidence = 0.7; // Base confidence (DOCX tables are reliable)
 
-        if (consistent)
-        {
-            confidence += 0.2;
-        }
+        if (consistent) confidence += 0.2;
 
         confidence += fillRate * 0.1;
 

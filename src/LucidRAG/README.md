@@ -1,21 +1,27 @@
 # LucidRAG
 
-A standalone multi-document RAG (Retrieval-Augmented Generation) web application with GraphRAG entity extraction, knowledge graph visualization, and web crawling.
+A standalone multi-document RAG (Retrieval-Augmented Generation) web application with GraphRAG entity extraction,
+knowledge graph visualization, and web crawling.
 
-**Website:** [lucidrag.com](https://lucidrag.com) | **Docker Hub:** [scottgal/lucidrag](https://hub.docker.com/r/scottgal/lucidrag)
+**Website:** [lucidrag.com](https://lucidrag.com) | **Docker Hub:
+** [scottgal/lucidrag](https://hub.docker.com/r/scottgal/lucidrag)
 
 ## Features
 
 - **Multi-Document Upload**: Support for PDF, DOCX, Markdown, TXT, and HTML files
 - **Web Crawling**: Crawl websites with CSS selectors for content extraction, robots.txt compliance
-- **Agentic RAG**: Deterministic query planning with bounded LLM steps (decomposition → retrieval → synthesis), including clarification loops when confidence is low
-- **GraphRAG Entity Extraction**: Automatic extraction of entities and relationships using IDF-based heuristics and BERT embeddings
-- **Knowledge Graph Visualization**: Interactive exploration with depth-limited subgraphs (max 2 hops, entity-type filtering) to prevent visual overload on large corpora
+- **Agentic RAG**: Deterministic query planning with bounded LLM steps (decomposition → retrieval → synthesis),
+  including clarification loops when confidence is low
+- **GraphRAG Entity Extraction**: Automatic extraction of entities and relationships using IDF-based heuristics and BERT
+  embeddings
+- **Knowledge Graph Visualization**: Interactive exploration with depth-limited subgraphs (max 2 hops, entity-type
+  filtering) to prevent visual overload on large corpora
 - **Evidence View**: Sentence-level grounding showing exactly which parts of source documents support each answer
 - **Conversation Memory**: Chat sessions maintain context across multiple questions
 - **Standalone Deployment**: Single executable with SQLite for portable use, or PostgreSQL for production
 
-**What the LLM does NOT do**: The LLM is never used for entity extraction, indexing, or storage — only for reasoning over retrieved, evidence-backed context. All preprocessing is deterministic and inspectable.
+**What the LLM does NOT do**: The LLM is never used for entity extraction, indexing, or storage — only for reasoning
+over retrieved, evidence-backed context. All preprocessing is deterministic and inspectable.
 
 ---
 
@@ -50,6 +56,7 @@ services:
 ```
 
 **What you get**:
+
 - SQLite for metadata (no PostgreSQL needed)
 - ONNX embeddings (no external APIs)
 - Heuristic entity extraction (no LLM needed)
@@ -57,6 +64,7 @@ services:
 - Full RAG search and chat functionality
 
 **⚠️ Limitations**:
+
 - **No vector persistence**: Embeddings are lost on restart (uses InMemory vector store)
 - **Slow startup**: Must re-index all documents on every restart
 - **No HNSW index**: Uses brute-force similarity search
@@ -64,9 +72,11 @@ services:
 - LLM-enhanced answers require Ollama
 - Hybrid/LLM extraction modes unavailable
 
-**Why no DuckDB vectors?** DuckDB vector store with VSS extension is not yet implemented for DocSummarizer (though DataSummarizer has full DuckDB VSS support). Use Qdrant for persistent embeddings.
+**Why no DuckDB vectors?** DuckDB vector store with VSS extension is not yet implemented for DocSummarizer (though
+DataSummarizer has full DuckDB VSS support). Use Qdrant for persistent embeddings.
 
 **Connect to external Ollama** (optional):
+
 ```yaml
 environment:
   - DocSummarizer__Ollama__BaseUrl=http://192.168.1.100:11434
@@ -114,6 +124,7 @@ volumes:
 ```
 
 **On the host machine**:
+
 ```bash
 # Install Ollama from https://ollama.ai
 ollama pull llama3.2:3b
@@ -121,6 +132,7 @@ ollama serve
 ```
 
 **What you get**:
+
 - PostgreSQL for reliable metadata storage
 - Full-text search with PostgreSQL
 - LLM-powered chat responses
@@ -128,6 +140,7 @@ ollama serve
 - Web crawling
 
 **Optional additions**:
+
 ```yaml
   # Add Docling for PDF/DOCX conversion
   docling:
@@ -217,6 +230,7 @@ volumes:
 ```
 
 **What you get**:
+
 - Full PDF/DOCX conversion with GPU acceleration
 - Persistent vector storage with Qdrant
 - API key authentication
@@ -234,6 +248,7 @@ dotnet run --project Mostlylucid.RagDocuments -- --standalone
 ```
 
 This starts the app on `http://localhost:5080` with:
+
 - SQLite database (stored in `data/ragdocs.db`)
 - DuckDB vector store (stored in `data/`)
 - Local file uploads (stored in `uploads/`)
@@ -250,6 +265,7 @@ docker-compose -f docker-compose.production.yml up -d
 ```
 
 **Note:** Ollama is NOT included in the compose file. Install it on your host machine:
+
 ```bash
 # Install from https://ollama.ai, then:
 ollama pull llama3.2:3b
@@ -262,15 +278,18 @@ LucidRAG will connect to Ollama at `host.docker.internal:11434`.
 
 ## Design Principles
 
-1. **Deterministic preprocessing** — Chunking, embedding, and entity extraction use fixed algorithms, not LLM calls. Results are reproducible.
+1. **Deterministic preprocessing** — Chunking, embedding, and entity extraction use fixed algorithms, not LLM calls.
+   Results are reproducible.
 
 2. **Evidence-first** — Every answer cites specific source segments. No hallucinated claims.
 
-3. **Inspectable pipelines** — All intermediate state (chunks, embeddings, entities, relationships) is queryable and debuggable.
+3. **Inspectable pipelines** — All intermediate state (chunks, embeddings, entities, relationships) is queryable and
+   debuggable.
 
 4. **Local-first execution** — ONNX embeddings, DuckDB storage, optional Ollama. No mandatory cloud dependencies.
 
-5. **Bounded LLM usage** — The LLM synthesizes answers from retrieved context. It doesn't index, extract, or store anything.
+5. **Bounded LLM usage** — The LLM synthesizes answers from retrieved context. It doesn't index, extract, or store
+   anything.
 
 ---
 
@@ -293,11 +312,13 @@ LucidRAG will connect to Ollama at `host.docker.internal:11434`.
 └─────────────────┴───────────────────┴───────────────────────────┘
 ```
 
-**Why DuckDB?** DuckDB is used for vector storage to keep indexing local, fast, and inspectable without introducing an external vector database dependency. It's ephemeral by design — you can always rebuild it from source documents.
+**Why DuckDB?** DuckDB is used for vector storage to keep indexing local, fast, and inspectable without introducing an
+external vector database dependency. It's ephemeral by design — you can always rebuild it from source documents.
 
 ### Unified Pipeline Architecture
 
-LucidRAG uses a unified pipeline system via `Mostlylucid.Summarizer.Core` that enables consistent processing across different content types:
+LucidRAG uses a unified pipeline system via `Mostlylucid.Summarizer.Core` that enables consistent processing across
+different content types:
 
 ```
 IPipelineRegistry
@@ -307,12 +328,14 @@ IPipelineRegistry
 ```
 
 **Benefits:**
+
 - **Auto-routing**: Files routed to appropriate pipeline based on extension
 - **Standardized output**: All pipelines return `ContentChunk` objects
 - **Content hashing**: Unified XxHash64 hashing via `ContentHasher` utility
 - **Modular architecture**: Each pipeline owns its domain-specific processing
 
 **Pipeline registration:**
+
 ```csharp
 // Each Core project registers its pipeline
 services.AddDocSummarizer();          // DocumentPipeline
@@ -330,14 +353,14 @@ var result = await pipeline.ProcessAsync("document.pdf");
 
 ### Key Components
 
-| Component | Description |
-|-----------|-------------|
-| `DocumentProcessingService` | Handles file upload, validation, and queue management |
-| `DocumentQueueProcessor` | Background service that processes documents through DocSummarizer |
-| `WebCrawlerService` | Crawls websites with BFS, robots.txt compliance, CSS selectors |
-| `EntityGraphService` | Extracts entities using GraphRag's IDF + BERT heuristics |
-| `AgenticSearchService` | Multi-step RAG with query decomposition and self-correction |
-| `ConversationService` | Manages chat sessions with memory and context |
+| Component                   | Description                                                       |
+|-----------------------------|-------------------------------------------------------------------|
+| `DocumentProcessingService` | Handles file upload, validation, and queue management             |
+| `DocumentQueueProcessor`    | Background service that processes documents through DocSummarizer |
+| `WebCrawlerService`         | Crawls websites with BFS, robots.txt compliance, CSS selectors    |
+| `EntityGraphService`        | Extracts entities using GraphRag's IDF + BERT heuristics          |
+| `AgenticSearchService`      | Multi-step RAG with query decomposition and self-correction       |
+| `ConversationService`       | Manages chat sessions with memory and context                     |
 
 ---
 
@@ -345,26 +368,27 @@ var result = await pipeline.ProcessAsync("document.pdf");
 
 ### Documents
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/documents/upload` | Upload a single document |
-| POST | `/api/documents/upload-batch` | Upload multiple documents |
-| GET | `/api/documents` | List all documents |
-| GET | `/api/documents/{id}` | Get document details |
-| GET | `/api/documents/{id}/status` | SSE stream of processing progress |
-| DELETE | `/api/documents/{id}` | Delete a document (with vector cleanup) |
-| GET | `/api/documents/demo-status` | Check if demo mode is enabled |
+| Method | Endpoint                      | Description                             |
+|--------|-------------------------------|-----------------------------------------|
+| POST   | `/api/documents/upload`       | Upload a single document                |
+| POST   | `/api/documents/upload-batch` | Upload multiple documents               |
+| GET    | `/api/documents`              | List all documents                      |
+| GET    | `/api/documents/{id}`         | Get document details                    |
+| GET    | `/api/documents/{id}/status`  | SSE stream of processing progress       |
+| DELETE | `/api/documents/{id}`         | Delete a document (with vector cleanup) |
+| GET    | `/api/documents/demo-status`  | Check if demo mode is enabled           |
 
 ### Web Crawling
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/crawl` | Start a new crawl job |
-| GET | `/api/crawl` | List all crawl jobs |
-| GET | `/api/crawl/{id}` | Get crawl job details |
-| GET | `/api/crawl/{id}/status` | SSE stream of crawl progress |
+| Method | Endpoint                 | Description                  |
+|--------|--------------------------|------------------------------|
+| POST   | `/api/crawl`             | Start a new crawl job        |
+| GET    | `/api/crawl`             | List all crawl jobs          |
+| GET    | `/api/crawl/{id}`        | Get crawl job details        |
+| GET    | `/api/crawl/{id}/status` | SSE stream of crawl progress |
 
 **Crawl Request**:
+
 ```json
 {
   "seedUrls": ["https://example.com/docs"],
@@ -376,6 +400,7 @@ var result = await pipeline.ProcessAsync("document.pdf");
 ```
 
 **Features**:
+
 - Same-site crawling only (respects domain boundaries)
 - robots.txt compliance
 - CSS selector for content extraction (or automatic detection)
@@ -384,53 +409,54 @@ var result = await pipeline.ProcessAsync("document.pdf");
 
 ### Search (Standalone)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/search` | Hybrid search (BM25 + BERT), returns segments |
-| POST | `/api/search/answer` | Search with LLM-synthesized answer (stateless) |
+| Method | Endpoint             | Description                                    |
+|--------|----------------------|------------------------------------------------|
+| POST   | `/api/search`        | Hybrid search (BM25 + BERT), returns segments  |
+| POST   | `/api/search/answer` | Search with LLM-synthesized answer (stateless) |
 
 ### Chat (Conversational)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/chat` | Send a message (creates new conversation) |
-| POST | `/api/chat/stream` | Stream response via SSE |
-| GET | `/api/chat/conversations` | List all conversations |
-| GET | `/api/chat/conversations/{id}` | Get conversation history |
-| DELETE | `/api/chat/conversations/{id}` | Delete conversation |
+| Method | Endpoint                       | Description                               |
+|--------|--------------------------------|-------------------------------------------|
+| POST   | `/api/chat`                    | Send a message (creates new conversation) |
+| POST   | `/api/chat/stream`             | Stream response via SSE                   |
+| GET    | `/api/chat/conversations`      | List all conversations                    |
+| GET    | `/api/chat/conversations/{id}` | Get conversation history                  |
+| DELETE | `/api/chat/conversations/{id}` | Delete conversation                       |
 
 ### Graph
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/graph` | Get full graph data (D3.js format) |
-| GET | `/api/graph/stats` | Get graph statistics |
-| GET | `/api/graph/subgraph/{entityId}` | Get entity-centered subgraph (max 2 hops) |
-| GET | `/api/graph/entities` | Search entities by name/type |
-| GET | `/api/graph/entities/{id}` | Get entity details with relationships |
-| GET | `/api/graph/paths` | Find paths between two entities |
+| Method | Endpoint                         | Description                               |
+|--------|----------------------------------|-------------------------------------------|
+| GET    | `/api/graph`                     | Get full graph data (D3.js format)        |
+| GET    | `/api/graph/stats`               | Get graph statistics                      |
+| GET    | `/api/graph/subgraph/{entityId}` | Get entity-centered subgraph (max 2 hops) |
+| GET    | `/api/graph/entities`            | Search entities by name/type              |
+| GET    | `/api/graph/entities/{id}`       | Get entity details with relationships     |
+| GET    | `/api/graph/paths`               | Find paths between two entities           |
 
 ### Collections
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/collections` | List collections with stats |
-| POST | `/api/collections` | Create collection |
-| GET | `/api/collections/{id}` | Get collection with documents |
-| PUT | `/api/collections/{id}` | Update collection name/description/settings |
-| DELETE | `/api/collections/{id}` | Delete collection (cascades to documents) |
-| POST | `/api/collections/{id}/documents` | Add documents to collection |
-| DELETE | `/api/collections/{id}/documents` | Remove documents from collection |
+| Method | Endpoint                          | Description                                 |
+|--------|-----------------------------------|---------------------------------------------|
+| GET    | `/api/collections`                | List collections with stats                 |
+| POST   | `/api/collections`                | Create collection                           |
+| GET    | `/api/collections/{id}`           | Get collection with documents               |
+| PUT    | `/api/collections/{id}`           | Update collection name/description/settings |
+| DELETE | `/api/collections/{id}`           | Delete collection (cascades to documents)   |
+| POST   | `/api/collections/{id}/documents` | Add documents to collection                 |
+| DELETE | `/api/collections/{id}/documents` | Remove documents from collection            |
 
 ### Config (Capabilities & Modes)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/config/capabilities` | Get detected services and available features |
-| GET | `/api/config/extraction-modes` | Get available extraction modes for UI dropdown |
-| PUT | `/api/config/extraction-mode` | Set extraction mode (Heuristic/Hybrid/LLM) |
+| Method | Endpoint                       | Description                                    |
+|--------|--------------------------------|------------------------------------------------|
+| GET    | `/api/config/capabilities`     | Get detected services and available features   |
+| GET    | `/api/config/extraction-modes` | Get available extraction modes for UI dropdown |
+| PUT    | `/api/config/extraction-mode`  | Set extraction mode (Heuristic/Hybrid/LLM)     |
 
 **Extraction Modes:**
+
 - **Heuristic** (default): Fast, no LLM calls - uses IDF + structural signals
 - **Hybrid**: Heuristic candidates + LLM enhancement per document
 - **LLM**: Full MSFT GraphRAG style - 2 LLM calls per chunk (requires Ollama)
@@ -476,19 +502,19 @@ var result = await pipeline.ProcessAsync("document.pdf");
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `ConnectionStrings__DefaultConnection` | PostgreSQL connection string |
-| `DocSummarizer__Ollama__BaseUrl` | Ollama API URL |
-| `DocSummarizer__Ollama__Model` | LLM model to use |
-| `DocSummarizer__Docling__BaseUrl` | Docling API URL for PDF/DOCX |
-| `DocSummarizer__Qdrant__Host` | Qdrant hostname |
-| `DocSummarizer__Qdrant__Port` | Qdrant gRPC port (default: 6334) |
-| `DocSummarizer__BertRag__VectorStore` | Vector store backend: `Qdrant`, `DuckDB`, or `InMemory` |
-| `RagDocuments__RequireApiKey` | Enable API key authentication |
-| `RagDocuments__ApiKey` | The API key (if required) |
-| `RagDocuments__Crawler__UserAgent` | Custom User-Agent for web crawling |
-| `RagDocuments__DemoMode__Enabled` | Enable demo mode (read-only) |
+| Variable                               | Description                                             |
+|----------------------------------------|---------------------------------------------------------|
+| `ConnectionStrings__DefaultConnection` | PostgreSQL connection string                            |
+| `DocSummarizer__Ollama__BaseUrl`       | Ollama API URL                                          |
+| `DocSummarizer__Ollama__Model`         | LLM model to use                                        |
+| `DocSummarizer__Docling__BaseUrl`      | Docling API URL for PDF/DOCX                            |
+| `DocSummarizer__Qdrant__Host`          | Qdrant hostname                                         |
+| `DocSummarizer__Qdrant__Port`          | Qdrant gRPC port (default: 6334)                        |
+| `DocSummarizer__BertRag__VectorStore`  | Vector store backend: `Qdrant`, `DuckDB`, or `InMemory` |
+| `RagDocuments__RequireApiKey`          | Enable API key authentication                           |
+| `RagDocuments__ApiKey`                 | The API key (if required)                               |
+| `RagDocuments__Crawler__UserAgent`     | Custom User-Agent for web crawling                      |
+| `RagDocuments__DemoMode__Enabled`      | Enable demo mode (read-only)                            |
 
 ---
 
@@ -500,10 +526,10 @@ var result = await pipeline.ProcessAsync("document.pdf");
 4. **Embedding**: ONNX BERT model generates embeddings for each segment
 5. **Indexing**: Segments stored in DuckDB/Qdrant with HNSW vector index
 6. **Entity Extraction**: GraphRag extracts entities using:
-   - IDF-based term importance (rare terms = likely entities)
-   - Structural signals (headings, code blocks, links)
-   - BERT embedding deduplication
-   - Co-occurrence relationship detection
+    - IDF-based term importance (rare terms = likely entities)
+    - Structural signals (headings, code blocks, links)
+    - BERT embedding deduplication
+    - Co-occurrence relationship detection
 
 ---
 
@@ -529,6 +555,7 @@ Specify a CSS selector to extract only the main content:
 ```
 
 **Default fallback chain** (if no selector provided):
+
 1. `article`
 2. `main`
 3. `[role="main"]`
@@ -539,6 +566,7 @@ Specify a CSS selector to extract only the main content:
 ### robots.txt Compliance
 
 The crawler respects `robots.txt` by default:
+
 - Checks each URL against Disallow rules
 - Respects specific rules for `LucidRAG` user-agent
 - Caches robots.txt per host
@@ -550,38 +578,42 @@ The crawler respects `robots.txt` by default:
 The GraphRAG integration uses a hybrid approach:
 
 1. **Heuristic Candidate Detection**: Fast, deterministic extraction using:
-   - IDF scores (terms rare across corpus)
-   - Markdown structure (headings, inline code)
-   - Link text and targets
-   - PascalCase identifiers
+    - IDF scores (terms rare across corpus)
+    - Markdown structure (headings, inline code)
+    - Link text and targets
+    - PascalCase identifiers
 
 2. **BERT Deduplication**: Merges similar entities using embedding similarity
 
 3. **Relationship Building**:
-   - Co-occurrence (entities in same segment)
-   - Explicit links (markdown links between documents)
-   - Structural hierarchy (heading → content relationships)
+    - Co-occurrence (entities in same segment)
+    - Explicit links (markdown links between documents)
+    - Structural hierarchy (heading → content relationships)
 
 ---
 
 ## UI Features
 
 ### Chat Interface
+
 - Real-time streaming responses
 - Source citations with confidence scores
 - Three view modes: Answer, Evidence, Graph
 
 ### Evidence View
+
 - Side-by-side answer and sources
 - Sentence-level highlighting
 - Click to expand source context
 
 ### Graph View
+
 - D3.js force-directed visualization
 - Color-coded entity types
 - Interactive exploration
 
 ### Content Sources
+
 - **Upload Tab**: Drag-and-drop file upload (FilePond)
 - **Crawl Tab**: Enter URLs, CSS selector, start crawl with live progress
 
@@ -683,20 +715,20 @@ Mostlylucid.RagDocuments/
 
 ## Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| **Mostlylucid.Summarizer.Core** | Unified pipeline interfaces, content hashing (XxHash64), base classes |
-| **Mostlylucid.DocSummarizer.Core** | Document processing (PDF, DOCX, Markdown, HTML, TXT) |
-| **ImageSummarizer.Core** | 22-wave image analysis, OCR, motion detection, vision LLM escalation |
-| **DataSummarizer.Core** | Structured data profiling (CSV, Excel, Parquet, JSON) |
-| **Mostlylucid.GraphRag** | Entity extraction, knowledge graph, relationship detection |
-| **Mostlylucid.RAG** | Vector store abstraction (DuckDB/Qdrant backends) |
-| AngleSharp | HTML parsing for web crawler |
-| Entity Framework Core | Database access (PostgreSQL/SQLite) |
-| Serilog | Structured logging |
-| HTMX | Server-driven UI interactions |
-| Alpine.js | Lightweight reactive UI |
-| TailwindCSS + DaisyUI | Styling |
+| Package                            | Purpose                                                               |
+|------------------------------------|-----------------------------------------------------------------------|
+| **Mostlylucid.Summarizer.Core**    | Unified pipeline interfaces, content hashing (XxHash64), base classes |
+| **Mostlylucid.DocSummarizer.Core** | Document processing (PDF, DOCX, Markdown, HTML, TXT)                  |
+| **ImageSummarizer.Core**           | 22-wave image analysis, OCR, motion detection, vision LLM escalation  |
+| **DataSummarizer.Core**            | Structured data profiling (CSV, Excel, Parquet, JSON)                 |
+| **Mostlylucid.GraphRag**           | Entity extraction, knowledge graph, relationship detection            |
+| **Mostlylucid.RAG**                | Vector store abstraction (DuckDB/Qdrant backends)                     |
+| AngleSharp                         | HTML parsing for web crawler                                          |
+| Entity Framework Core              | Database access (PostgreSQL/SQLite)                                   |
+| Serilog                            | Structured logging                                                    |
+| HTMX                               | Server-driven UI interactions                                         |
+| Alpine.js                          | Lightweight reactive UI                                               |
+| TailwindCSS + DaisyUI              | Styling                                                               |
 
 ---
 

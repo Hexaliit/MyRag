@@ -1,24 +1,36 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Avalonia.Input.Platform;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Extensions;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
+using Mostlylucid.DocSummarizer.Images.Services;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
+using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace Mostlylucid.ImageSummarizer.Desktop.ViewModels;
 
 /// <summary>
-/// Entry in the live signal log
+///     Entry in the live signal log
 /// </summary>
 public class SignalLogEntry
 {
@@ -26,214 +38,106 @@ public class SignalLogEntry
     public string Message { get; set; } = "";
     public double? Confidence { get; set; }
     public bool HasConfidence => Confidence.HasValue;
+
     public string ConfidenceColor => Confidence switch
     {
         >= 0.8 => "#22C55E", // Green
         >= 0.5 => "#FBBF24", // Yellow
-        _ => "#EF4444"       // Red
+        _ => "#EF4444" // Red
     };
 }
 
 public partial class MainViewModel : ObservableObject
 {
     private readonly IServiceProvider _serviceProvider;
-    private WaveOrchestrator? _orchestrator;
 
-    [ObservableProperty]
-    private string? _imagePath;
+    // CLIP Visual Embedding Model
+    [ObservableProperty] private bool _clipModelAvailable;
 
-    [ObservableProperty]
-    private Bitmap? _imagePreview;
+    [ObservableProperty] private bool _clipModelInUse;
 
-    [ObservableProperty]
-    private string? _gifPath;
+    // CRAFT Text Detection Model
+    [ObservableProperty] private bool _craftModelAvailable;
 
-    [ObservableProperty]
-    private bool _isAnimatedGif;
-
-    [ObservableProperty]
-    private bool _isStaticImage;
-
-    [ObservableProperty]
-    private Bitmap? _filmstripPreview;
-
-    [ObservableProperty]
-    private string _selectedPipeline = "auto";  // Smart routing: auto-selects fast/balanced/quality
-
-    [ObservableProperty]
-    private string _selectedOutput = "auto";  // Adaptive detailed description
-
-    // Route selected by auto-routing (fast/balanced/quality)
-    [ObservableProperty]
-    private string? _selectedRoute;
-
-    [ObservableProperty]
-    private string? _routeReason;
-
-    // Preferred route for auto mode (user can hint their preference)
-    [ObservableProperty]
-    private string _preferredRoute = "balanced";
-
-    // Quality tiers for auto mode
-    public ObservableCollection<string> QualityTiers { get; } = new()
-    {
-        "fast",      // Florence2 only, minimal processing
-        "balanced",  // Florence2 + OCR + Motion, escalate to LLM if needed
-        "quality"    // Full pipeline with VisionLLM
-    };
-
-    // Show quality tier dropdown when auto pipeline is selected
-    public bool ShowQualityTier => SelectedPipeline == "auto";
-
-    partial void OnSelectedPipelineChanged(string value)
-    {
-        OnPropertyChanged(nameof(ShowQualityTier));
-    }
-
-    [ObservableProperty]
-    private string? _resultText;
-
-    [ObservableProperty]
-    private string? _statusText = "Drop an image or click Browse";
-
-    [ObservableProperty]
-    private bool _isProcessing;
-
-    [ObservableProperty]
-    private bool _enableVisionLlm = true;
-
-    [ObservableProperty]
-    private bool _enableOcr = true;
-
-    [ObservableProperty]
-    private string _ollamaUrl = "http://localhost:11434";
-
-    [ObservableProperty]
-    private string _visionModel = "minicpm-v:8b";
-
-    // Available vision models from Ollama
-    public ObservableCollection<string> AvailableModels { get; } = new() { "minicpm-v:8b", "llava:7b" };
-
-    // Service availability status (traffic lights)
-    [ObservableProperty]
-    private bool _ocrAvailable = true; // Tesseract is bundled
-
-    [ObservableProperty]
-    private bool _ollamaAvailable;
-
-    [ObservableProperty]
-    private bool _openCvAvailable = true; // OpenCVSharp is bundled
-
-    [ObservableProperty]
-    private bool _florence2Available = true; // Florence-2 ONNX is bundled
-
-    [ObservableProperty]
-    private string _ocrStatus = "Tesseract (local)";
-
-    [ObservableProperty]
-    private string _ollamaStatus = "Checking...";
-
-    [ObservableProperty]
-    private string _openCvStatus = "OpenCV (local)";
-
-    [ObservableProperty]
-    private string _florence2Status = "Florence-2 (local)";
-
-    [ObservableProperty]
-    private string _fallbackMode = "Full analysis";
-
-    // Signal log for live updates
-    public ObservableCollection<SignalLogEntry> SignalLog { get; } = new();
-
-    [ObservableProperty]
-    private int _signalLogCount;
-
-    // Color properties for status indicators (green=#22C55E, red=#EF4444, yellow=#FBBF24)
-    public string OcrStatusColor => OcrAvailable ? "#22C55E" : "#EF4444";
-    public string OpenCvStatusColor => OpenCvAvailable ? "#22C55E" : "#EF4444";
-    public string OllamaStatusColor => OllamaAvailable ? "#22C55E" : "#EF4444";
-    public string Florence2StatusColor => Florence2Available ? "#22C55E" : "#EF4444";
-
-    partial void OnOcrAvailableChanged(bool value) => OnPropertyChanged(nameof(OcrStatusColor));
-    partial void OnOpenCvAvailableChanged(bool value) => OnPropertyChanged(nameof(OpenCvStatusColor));
-    partial void OnOllamaAvailableChanged(bool value) => OnPropertyChanged(nameof(OllamaStatusColor));
-    partial void OnFlorence2AvailableChanged(bool value) => OnPropertyChanged(nameof(Florence2StatusColor));
+    [ObservableProperty] private bool _craftModelInUse;
 
     // === ML Model Status Indicators ===
     // EAST Text Detection Model
-    [ObservableProperty]
-    private bool _eastModelAvailable;
-    [ObservableProperty]
-    private bool _eastModelInUse;
-    public string EastModelStatus => EastModelAvailable ? "EAST (downloaded)" : "EAST (not downloaded)";
-    public string EastModelColor => EastModelInUse ? "#FBBF24" : (EastModelAvailable ? "#22C55E" : "#EF4444");
-    partial void OnEastModelAvailableChanged(bool value) { OnPropertyChanged(nameof(EastModelColor)); OnPropertyChanged(nameof(EastModelStatus)); }
-    partial void OnEastModelInUseChanged(bool value) => OnPropertyChanged(nameof(EastModelColor));
+    [ObservableProperty] private bool _eastModelAvailable;
 
-    // CRAFT Text Detection Model
-    [ObservableProperty]
-    private bool _craftModelAvailable;
-    [ObservableProperty]
-    private bool _craftModelInUse;
-    public string CraftModelStatus => CraftModelAvailable ? "CRAFT (downloaded)" : "CRAFT (not downloaded)";
-    public string CraftModelColor => CraftModelInUse ? "#FBBF24" : (CraftModelAvailable ? "#22C55E" : "#EF4444");
-    partial void OnCraftModelAvailableChanged(bool value) { OnPropertyChanged(nameof(CraftModelColor)); OnPropertyChanged(nameof(CraftModelStatus)); }
-    partial void OnCraftModelInUseChanged(bool value) => OnPropertyChanged(nameof(CraftModelColor));
+    [ObservableProperty] private bool _eastModelInUse;
 
-    // CLIP Visual Embedding Model
-    [ObservableProperty]
-    private bool _clipModelAvailable;
-    [ObservableProperty]
-    private bool _clipModelInUse;
-    public string ClipModelStatus => ClipModelAvailable ? "CLIP (downloaded)" : "CLIP (not downloaded)";
-    public string ClipModelColor => ClipModelInUse ? "#FBBF24" : (ClipModelAvailable ? "#22C55E" : "#EF4444");
-    partial void OnClipModelAvailableChanged(bool value) { OnPropertyChanged(nameof(ClipModelColor)); OnPropertyChanged(nameof(ClipModelStatus)); }
-    partial void OnClipModelInUseChanged(bool value) => OnPropertyChanged(nameof(ClipModelColor));
+    [ObservableProperty] private bool _enableOcr = true;
+
+    [ObservableProperty] private bool _enableVisionLlm = true;
 
     // Real-ESRGAN Super Resolution Model
-    [ObservableProperty]
-    private bool _esrganModelAvailable;
-    [ObservableProperty]
-    private bool _esrganModelInUse;
-    public string EsrganModelStatus => EsrganModelAvailable ? "ESRGAN (downloaded)" : "ESRGAN (not downloaded)";
-    public string EsrganModelColor => EsrganModelInUse ? "#FBBF24" : (EsrganModelAvailable ? "#22C55E" : "#EF4444");
-    partial void OnEsrganModelAvailableChanged(bool value) { OnPropertyChanged(nameof(EsrganModelColor)); OnPropertyChanged(nameof(EsrganModelStatus)); }
-    partial void OnEsrganModelInUseChanged(bool value) => OnPropertyChanged(nameof(EsrganModelColor));
+    [ObservableProperty] private bool _esrganModelAvailable;
+
+    [ObservableProperty] private bool _esrganModelInUse;
+
+    [ObservableProperty] private string _fallbackMode = "Full analysis";
+
+    [ObservableProperty] private Bitmap? _filmstripPreview;
+
+    [ObservableProperty] private bool _florence2Available = true; // Florence-2 ONNX is bundled
 
     // Florence-2 Captioning Model (InUse tracking)
-    [ObservableProperty]
-    private bool _florence2InUse;
-    public string Florence2ModelColor => Florence2InUse ? "#FBBF24" : (Florence2Available ? "#22C55E" : "#EF4444");
-    partial void OnFlorence2InUseChanged(bool value) => OnPropertyChanged(nameof(Florence2ModelColor));
+    [ObservableProperty] private bool _florence2InUse;
+
+    [ObservableProperty] private string _florence2Status = "Florence-2 (local)";
+
+    [ObservableProperty] private string? _gifPath;
+
+    [ObservableProperty] private string? _imagePath;
+
+    [ObservableProperty] private Bitmap? _imagePreview;
+
+    [ObservableProperty] private bool _isAnimatedGif;
+
+    [ObservableProperty] private bool _isProcessing;
+
+    [ObservableProperty] private bool _isStaticImage;
+
+    // Service availability status (traffic lights)
+    [ObservableProperty] private bool _ocrAvailable = true; // Tesseract is bundled
+
+    [ObservableProperty] private string _ocrStatus = "Tesseract (local)";
+
+    [ObservableProperty] private bool _ollamaAvailable;
+
+    [ObservableProperty] private string _ollamaStatus = "Checking...";
+
+    [ObservableProperty] private string _ollamaUrl = "http://localhost:11434";
+
+    [ObservableProperty] private bool _openCvAvailable = true; // OpenCVSharp is bundled
+
+    [ObservableProperty] private string _openCvStatus = "OpenCV (local)";
+
+    private WaveOrchestrator? _orchestrator;
+
+    // Preferred route for auto mode (user can hint their preference)
+    [ObservableProperty] private string _preferredRoute = "balanced";
+
+    [ObservableProperty] private string? _resultText;
+
+    [ObservableProperty] private string? _routeReason;
+
+    [ObservableProperty] private string _selectedOutput = "auto"; // Adaptive detailed description
+
+    [ObservableProperty] private string _selectedPipeline = "auto"; // Smart routing: auto-selects fast/balanced/quality
+
+    // Route selected by auto-routing (fast/balanced/quality)
+    [ObservableProperty] private string? _selectedRoute;
+
+    [ObservableProperty] private int _signalLogCount;
+
+    [ObservableProperty] private string? _statusText = "Drop an image or click Browse";
 
     // Tesseract OCR (InUse tracking)
-    [ObservableProperty]
-    private bool _tesseractInUse;
-    public string TesseractModelColor => TesseractInUse ? "#FBBF24" : (OcrAvailable ? "#22C55E" : "#EF4444");
-    partial void OnTesseractInUseChanged(bool value) => OnPropertyChanged(nameof(TesseractModelColor));
+    [ObservableProperty] private bool _tesseractInUse;
 
-    // Pipelines: auto is default and recommended
-    public ObservableCollection<string> Pipelines { get; } = new()
-    {
-        "auto",           // Smart routing - auto-selects fast/balanced/quality (recommended)
-        "caption",        // Full caption pipeline
-        "vision",         // Vision LLM only (no OCR)
-        "florence2",      // Fast local ONNX captioning
-        "motion",         // Motion analysis for GIFs
-        "advancedocr",    // Full OCR pipeline
-        "quality",        // Full quality pipeline
-    };
-
-    public ObservableCollection<string> OutputFormats { get; } = new()
-    {
-        "auto",           // Adaptive detailed description (recommended)
-        "caption",        // Caption only
-        "alttext",        // Alt text format
-        "text",           // Route + caption + OCR
-        "json",           // Full JSON
-        "markdown",       // Markdown format
-        "signals"         // Raw signals
-    };
+    [ObservableProperty] private string _visionModel = "minicpm-v:8b";
 
     public MainViewModel()
     {
@@ -253,15 +157,150 @@ public partial class MainViewModel : ObservableObject
         _ = CheckModelAvailabilityAsync();
     }
 
+    // Quality tiers for auto mode
+    public ObservableCollection<string> QualityTiers { get; } = new()
+    {
+        "fast", // Florence2 only, minimal processing
+        "balanced", // Florence2 + OCR + Motion, escalate to LLM if needed
+        "quality" // Full pipeline with VisionLLM
+    };
+
+    // Show quality tier dropdown when auto pipeline is selected
+    public bool ShowQualityTier => SelectedPipeline == "auto";
+
+    // Available vision models from Ollama
+    public ObservableCollection<string> AvailableModels { get; } = new() { "minicpm-v:8b", "llava:7b" };
+
+    // Signal log for live updates
+    public ObservableCollection<SignalLogEntry> SignalLog { get; } = new();
+
+    // Color properties for status indicators (green=#22C55E, red=#EF4444, yellow=#FBBF24)
+    public string OcrStatusColor => OcrAvailable ? "#22C55E" : "#EF4444";
+    public string OpenCvStatusColor => OpenCvAvailable ? "#22C55E" : "#EF4444";
+    public string OllamaStatusColor => OllamaAvailable ? "#22C55E" : "#EF4444";
+    public string Florence2StatusColor => Florence2Available ? "#22C55E" : "#EF4444";
+    public string EastModelStatus => EastModelAvailable ? "EAST (downloaded)" : "EAST (not downloaded)";
+    public string EastModelColor => EastModelInUse ? "#FBBF24" : EastModelAvailable ? "#22C55E" : "#EF4444";
+    public string CraftModelStatus => CraftModelAvailable ? "CRAFT (downloaded)" : "CRAFT (not downloaded)";
+    public string CraftModelColor => CraftModelInUse ? "#FBBF24" : CraftModelAvailable ? "#22C55E" : "#EF4444";
+    public string ClipModelStatus => ClipModelAvailable ? "CLIP (downloaded)" : "CLIP (not downloaded)";
+    public string ClipModelColor => ClipModelInUse ? "#FBBF24" : ClipModelAvailable ? "#22C55E" : "#EF4444";
+    public string EsrganModelStatus => EsrganModelAvailable ? "ESRGAN (downloaded)" : "ESRGAN (not downloaded)";
+    public string EsrganModelColor => EsrganModelInUse ? "#FBBF24" : EsrganModelAvailable ? "#22C55E" : "#EF4444";
+    public string Florence2ModelColor => Florence2InUse ? "#FBBF24" : Florence2Available ? "#22C55E" : "#EF4444";
+    public string TesseractModelColor => TesseractInUse ? "#FBBF24" : OcrAvailable ? "#22C55E" : "#EF4444";
+
+    // Pipelines: auto is default and recommended
+    public ObservableCollection<string> Pipelines { get; } = new()
+    {
+        "auto", // Smart routing - auto-selects fast/balanced/quality (recommended)
+        "caption", // Full caption pipeline
+        "vision", // Vision LLM only (no OCR)
+        "florence2", // Fast local ONNX captioning
+        "motion", // Motion analysis for GIFs
+        "advancedocr", // Full OCR pipeline
+        "quality" // Full quality pipeline
+    };
+
+    public ObservableCollection<string> OutputFormats { get; } = new()
+    {
+        "auto", // Adaptive detailed description (recommended)
+        "caption", // Caption only
+        "alttext", // Alt text format
+        "text", // Route + caption + OCR
+        "json", // Full JSON
+        "markdown", // Markdown format
+        "signals" // Raw signals
+    };
+
+    partial void OnSelectedPipelineChanged(string value)
+    {
+        OnPropertyChanged(nameof(ShowQualityTier));
+    }
+
+    partial void OnOcrAvailableChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OcrStatusColor));
+    }
+
+    partial void OnOpenCvAvailableChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OpenCvStatusColor));
+    }
+
+    partial void OnOllamaAvailableChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OllamaStatusColor));
+    }
+
+    partial void OnFlorence2AvailableChanged(bool value)
+    {
+        OnPropertyChanged(nameof(Florence2StatusColor));
+    }
+
+    partial void OnEastModelAvailableChanged(bool value)
+    {
+        OnPropertyChanged(nameof(EastModelColor));
+        OnPropertyChanged(nameof(EastModelStatus));
+    }
+
+    partial void OnEastModelInUseChanged(bool value)
+    {
+        OnPropertyChanged(nameof(EastModelColor));
+    }
+
+    partial void OnCraftModelAvailableChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CraftModelColor));
+        OnPropertyChanged(nameof(CraftModelStatus));
+    }
+
+    partial void OnCraftModelInUseChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CraftModelColor));
+    }
+
+    partial void OnClipModelAvailableChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ClipModelColor));
+        OnPropertyChanged(nameof(ClipModelStatus));
+    }
+
+    partial void OnClipModelInUseChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ClipModelColor));
+    }
+
+    partial void OnEsrganModelAvailableChanged(bool value)
+    {
+        OnPropertyChanged(nameof(EsrganModelColor));
+        OnPropertyChanged(nameof(EsrganModelStatus));
+    }
+
+    partial void OnEsrganModelInUseChanged(bool value)
+    {
+        OnPropertyChanged(nameof(EsrganModelColor));
+    }
+
+    partial void OnFlorence2InUseChanged(bool value)
+    {
+        OnPropertyChanged(nameof(Florence2ModelColor));
+    }
+
+    partial void OnTesseractInUseChanged(bool value)
+    {
+        OnPropertyChanged(nameof(TesseractModelColor));
+    }
+
     /// <summary>
-    /// Check Ollama availability and discover vision models.
+    ///     Check Ollama availability and discover vision models.
     /// </summary>
     private async Task CheckServicesAsync()
     {
         // Check Ollama
         try
         {
-            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
             var response = await http.GetAsync($"{OllamaUrl}/api/tags");
 
             if (response.IsSuccessStatusCode)
@@ -271,14 +310,13 @@ public partial class MainViewModel : ObservableObject
 
                 // Parse model list
                 var json = await response.Content.ReadAsStringAsync();
-                var doc = System.Text.Json.JsonDocument.Parse(json);
+                var doc = JsonDocument.Parse(json);
 
                 if (doc.RootElement.TryGetProperty("models", out var models))
                 {
-                    var visionModels = new System.Collections.Generic.List<string>();
+                    var visionModels = new List<string>();
 
                     foreach (var model in models.EnumerateArray())
-                    {
                         if (model.TryGetProperty("name", out var nameEl))
                         {
                             var name = nameEl.GetString() ?? "";
@@ -296,14 +334,11 @@ public partial class MainViewModel : ObservableObject
                                 (model.TryGetProperty("details", out var details) &&
                                  details.TryGetProperty("families", out var families) &&
                                  families.GetRawText().Contains("vision")))
-                            {
                                 visionModels.Add(name);
-                            }
                         }
-                    }
 
                     // Update available models
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    Dispatcher.UIThread.Post(() =>
                     {
                         AvailableModels.Clear();
                         if (visionModels.Count > 0)
@@ -316,9 +351,9 @@ public partial class MainViewModel : ObservableObject
                             {
                                 // Prefer minicpm-v:8b > minicpm-v > llava > first available
                                 var preferred = visionModels.FirstOrDefault(m => m == "minicpm-v:8b")
-                                    ?? visionModels.FirstOrDefault(m => m.StartsWith("minicpm-v"))
-                                    ?? visionModels.FirstOrDefault(m => m.StartsWith("llava"))
-                                    ?? visionModels[0];
+                                                ?? visionModels.FirstOrDefault(m => m.StartsWith("minicpm-v"))
+                                                ?? visionModels.FirstOrDefault(m => m.StartsWith("llava"))
+                                                ?? visionModels[0];
                                 VisionModel = preferred;
                             }
 
@@ -353,7 +388,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Check ML model availability on disk.
+    ///     Check ML model availability on disk.
     /// </summary>
     private async Task CheckModelAvailabilityAsync()
     {
@@ -366,29 +401,29 @@ public partial class MainViewModel : ObservableObject
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "LucidRAG", "models");
 
-                var downloader = new Mostlylucid.DocSummarizer.Images.Services.Ocr.Models.ModelDownloader(
-                    modelsDir, autoDownload: false);
+                var downloader = new ModelDownloader(
+                    modelsDir, false);
 
                 var status = downloader.GetModelStatus();
 
                 // Check each model individually
                 var eastAvail = status.TryGetValue(
-                    Mostlylucid.DocSummarizer.Images.Services.Ocr.Models.ModelType.EAST, out var east) && east.Available;
+                    ModelType.EAST, out var east) && east.Available;
                 var craftAvail = status.TryGetValue(
-                    Mostlylucid.DocSummarizer.Images.Services.Ocr.Models.ModelType.CRAFT, out var craft) && craft.Available;
+                    ModelType.CRAFT, out var craft) && craft.Available;
                 var clipAvail = status.TryGetValue(
-                    Mostlylucid.DocSummarizer.Images.Services.Ocr.Models.ModelType.ClipVisual, out var clip) && clip.Available;
+                    ModelType.ClipVisual, out var clip) && clip.Available;
                 var esrganAvail = status.TryGetValue(
-                    Mostlylucid.DocSummarizer.Images.Services.Ocr.Models.ModelType.RealESRGAN, out var esrgan) && esrgan.Available;
+                    ModelType.RealESRGAN, out var esrgan) && esrgan.Available;
                 var tesseractAvail = status.TryGetValue(
-                    Mostlylucid.DocSummarizer.Images.Services.Ocr.Models.ModelType.TesseractEng, out var tess) && tess.Available;
+                    ModelType.TesseractEng, out var tess) && tess.Available;
 
                 // Check for Florence-2 models (separate location)
                 var florence2Dir = Path.Combine(modelsDir, "florence2");
                 var florence2Avail = Directory.Exists(florence2Dir) &&
-                    Directory.GetFiles(florence2Dir, "*.onnx").Length > 0;
+                                     Directory.GetFiles(florence2Dir, "*.onnx").Length > 0;
 
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     // Update availability flags
                     EastModelAvailable = eastAvail;
@@ -399,42 +434,33 @@ public partial class MainViewModel : ObservableObject
                     OcrAvailable = tesseractAvail;
 
                     // Log model status for debugging
-                    System.Diagnostics.Debug.WriteLine($"Model status: EAST={eastAvail}, CRAFT={craftAvail}, CLIP={clipAvail}, ESRGAN={esrganAvail}, Florence2={florence2Avail}, Tesseract={tesseractAvail}");
+                    Debug.WriteLine(
+                        $"Model status: EAST={eastAvail}, CRAFT={craftAvail}, CLIP={clipAvail}, ESRGAN={esrganAvail}, Florence2={florence2Avail}, Tesseract={tesseractAvail}");
                 });
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error checking models: {ex.Message}");
+                Debug.WriteLine($"Error checking models: {ex.Message}");
                 // Models not available - leave defaults (false)
             }
         });
     }
 
     /// <summary>
-    /// Update the fallback mode description based on available services.
+    ///     Update the fallback mode description based on available services.
     /// </summary>
     private void UpdateFallbackMode()
     {
         if (OllamaAvailable && OcrAvailable && OpenCvAvailable && Florence2Available)
-        {
             FallbackMode = "Full analysis (Vision LLM + Florence-2 + OCR + OpenCV)";
-        }
         else if (Florence2Available && OcrAvailable && OpenCvAvailable)
-        {
             FallbackMode = "Local mode (Florence-2 + OCR + OpenCV, no cloud LLM)";
-        }
         else if (OcrAvailable && OpenCvAvailable)
-        {
             FallbackMode = "Heuristic mode (OCR + OpenCV, no LLM)";
-        }
         else if (OcrAvailable)
-        {
             FallbackMode = "OCR only mode";
-        }
         else
-        {
             FallbackMode = "Minimal mode (basic signals only)";
-        }
     }
 
     [RelayCommand]
@@ -455,10 +481,7 @@ public partial class MainViewModel : ObservableObject
             }
         });
 
-        if (files.Count > 0)
-        {
-            await LoadImageAsync(files[0].Path.LocalPath);
-        }
+        if (files.Count > 0) await LoadImageAsync(files[0].Path.LocalPath);
     }
 
     public async Task LoadImageAsync(string path)
@@ -490,21 +513,18 @@ public partial class MainViewModel : ObservableObject
         }
 
         // If it's a GIF, set the path for potential animated playback
-        if (isGif)
-        {
-            GifPath = path;
-        }
+        if (isGif) GifPath = path;
 
         // Auto-analyze on load
         await AnalyzeAsync();
     }
 
     /// <summary>
-    /// Add a log entry to the signal log on the UI thread
+    ///     Add a log entry to the signal log on the UI thread
     /// </summary>
     private void AddLogEntry(string message, double? confidence = null)
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             SignalLog.Add(new SignalLogEntry
             {
@@ -517,11 +537,11 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Reset all model InUse states to false.
+    ///     Reset all model InUse states to false.
     /// </summary>
     private void ResetModelInUseStates()
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             EastModelInUse = false;
             CraftModelInUse = false;
@@ -533,8 +553,8 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Flash the appropriate model light based on signal key.
-    /// Creates a visual flicker effect to show model activity.
+    ///     Flash the appropriate model light based on signal key.
+    ///     Creates a visual flicker effect to show model activity.
     /// </summary>
     private async Task FlashModelLightForSignalAsync(string signalKey)
     {
@@ -552,16 +572,17 @@ public partial class MainViewModel : ObservableObject
             setInUse = v => EsrganModelInUse = v;
         else if (keyLower.StartsWith("florence2.") || keyLower.Contains("florence"))
             setInUse = v => Florence2InUse = v;
-        else if (keyLower.StartsWith("ocr.") || keyLower.StartsWith("tesseract.") || keyLower.Contains("text_detection"))
+        else if (keyLower.StartsWith("ocr.") || keyLower.StartsWith("tesseract.") ||
+                 keyLower.Contains("text_detection"))
             setInUse = v => TesseractInUse = v;
 
         if (setInUse == null)
             return;
 
         // Flash: on -> delay -> off
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => setInUse(true));
+        Dispatcher.UIThread.Post(() => setInUse(true));
         await Task.Delay(50); // Brief flash
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => setInUse(false));
+        Dispatcher.UIThread.Post(() => setInUse(false));
     }
 
     [RelayCommand]
@@ -578,7 +599,7 @@ public partial class MainViewModel : ObservableObject
         ResultText = "";
 
         // Clear signal log
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             SignalLog.Clear();
             SignalLogCount = 0;
@@ -639,6 +660,7 @@ public partial class MainViewModel : ObservableObject
                 // Flash model lights based on signal source
                 await FlashModelLightForSignalAsync(signal.Key);
             }
+
             ResetModelInUseStates(); // Reset after processing
 
             // Get escalation service for LLM caption
@@ -652,13 +674,13 @@ public partial class MainViewModel : ObservableObject
                 var reason = shouldEscalate ? "escalation triggered" : "pipeline requested";
                 StatusText = $"Calling Vision LLM ({VisionModel})...";
                 AddLogEntry($"🤖 Calling Vision LLM ({VisionModel}) - {reason}...");
-                var escalationService = provider.GetService<Mostlylucid.DocSummarizer.Images.Services.EscalationService>();
+                var escalationService = provider.GetService<EscalationService>();
                 if (escalationService != null)
                 {
                     var result = await escalationService.AnalyzeWithEscalationAsync(
                         ImagePath,
-                        forceEscalate: true,
-                        enableOcr: SelectedPipeline != "vision");
+                        true,
+                        SelectedPipeline != "vision");
                     llmCaption = result.LlmCaption;
                     if (!string.IsNullOrWhiteSpace(llmCaption))
                     {
@@ -705,7 +727,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private string FormatOutput(Mostlylucid.DocSummarizer.Images.Models.Dynamic.DynamicImageProfile profile, string? llmCaption)
+    private string FormatOutput(DynamicImageProfile profile, string? llmCaption)
     {
         var ledger = profile.GetLedger();
 
@@ -718,7 +740,7 @@ public partial class MainViewModel : ObservableObject
             "alttext" => GenerateAltText(profile, ledger, cleanCaption),
             "caption" => cleanCaption ?? profile.GetValue<string>("florence2.caption") ?? ledger.ToLlmSummary(),
             "text" => FormatTextOutput(profile, cleanCaption),
-            "json" => System.Text.Json.JsonSerializer.Serialize(new
+            "json" => JsonSerializer.Serialize(new
             {
                 image = profile.ImagePath,
                 duration_ms = profile.AnalysisDurationMs,
@@ -727,7 +749,7 @@ public partial class MainViewModel : ObservableObject
                 identity = ledger.Identity,
                 colors = ledger.Colors,
                 motion = ledger.Motion
-            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }),
+            }, new JsonSerializerOptions { WriteIndented = true }),
             "markdown" => GenerateMarkdown(profile, ledger, llmCaption),
             "signals" => string.Join("\n", profile.GetAllSignals()
                 .Select(s => $"{s.Key}: {FormatSignalValue(s.Value)} ({s.Confidence:P0})")),
@@ -736,11 +758,11 @@ public partial class MainViewModel : ObservableObject
     }
 
     private string GenerateAltText(
-        Mostlylucid.DocSummarizer.Images.Models.Dynamic.DynamicImageProfile profile,
-        Mostlylucid.DocSummarizer.Images.Models.Dynamic.ImageLedger ledger,
+        DynamicImageProfile profile,
+        ImageLedger ledger,
         string? llmCaption)
     {
-        var parts = new System.Collections.Generic.List<string>();
+        var parts = new List<string>();
 
         if (!string.IsNullOrWhiteSpace(llmCaption))
         {
@@ -754,6 +776,7 @@ public partial class MainViewModel : ObservableObject
                 if (lastPeriod > 0)
                     caption = caption[..(lastPeriod + 1)];
             }
+
             parts.Add(caption);
 
             // Only add animation context if LLM caption doesn't mention it
@@ -767,13 +790,9 @@ public partial class MainViewModel : ObservableObject
             if (ledger.Identity.IsAnimated && ledger.Motion != null && !mentionsAnimation)
             {
                 if (!string.IsNullOrWhiteSpace(ledger.Motion.Summary))
-                {
                     parts.Add($"Animated with {ledger.Motion.Summary.ToLowerInvariant()}");
-                }
                 else
-                {
                     parts.Add($"Animated GIF ({ledger.Motion.FrameCount} frames)");
-                }
             }
         }
         else
@@ -796,8 +815,8 @@ public partial class MainViewModel : ObservableObject
 
                 foreach (var pattern in prefixPatterns)
                 {
-                    var match = System.Text.RegularExpressions.Regex.Match(
-                        caption, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    var match = Regex.Match(
+                        caption, pattern, RegexOptions.IgnoreCase);
                     if (match.Success)
                     {
                         caption = caption.Substring(match.Length).TrimStart();
@@ -821,13 +840,9 @@ public partial class MainViewModel : ObservableObject
                 if (ledger.Identity.IsAnimated && ledger.Motion != null && !mentionsAnimation)
                 {
                     if (!string.IsNullOrWhiteSpace(ledger.Motion.Summary))
-                    {
                         parts.Add($"Animated with {ledger.Motion.Summary.ToLowerInvariant()}");
-                    }
                     else
-                    {
                         parts.Add($"Animated GIF ({ledger.Motion.FrameCount} frames)");
-                    }
                 }
             }
             else
@@ -843,7 +858,7 @@ public partial class MainViewModel : ObservableObject
         {
             // Check if LLM caption already includes the text
             var captionIncludesText = !string.IsNullOrWhiteSpace(llmCaption) &&
-                                       llmCaption.Contains(text.Trim()[..Math.Min(20, text.Trim().Length)]);
+                                      llmCaption.Contains(text.Trim()[..Math.Min(20, text.Trim().Length)]);
             if (!captionIncludesText)
             {
                 var truncated = text.Length > 80 ? text[..77] + "..." : text;
@@ -855,11 +870,11 @@ public partial class MainViewModel : ObservableObject
     }
 
     private string GenerateMarkdown(
-        Mostlylucid.DocSummarizer.Images.Models.Dynamic.DynamicImageProfile profile,
-        Mostlylucid.DocSummarizer.Images.Models.Dynamic.ImageLedger ledger,
+        DynamicImageProfile profile,
+        ImageLedger ledger,
         string? llmCaption)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine($"# {Path.GetFileName(profile.ImagePath)}");
         sb.AppendLine();
         sb.AppendLine($"**Dimensions:** {ledger.Identity.Width}x{ledger.Identity.Height}");
@@ -870,10 +885,9 @@ public partial class MainViewModel : ObservableObject
         {
             sb.AppendLine($"**Animation:** {ledger.Motion.FrameCount} frames");
             if (!string.IsNullOrWhiteSpace(ledger.Motion.Summary))
-            {
                 sb.AppendLine($"**Motion:** {ledger.Motion.Summary}");
-            }
         }
+
         sb.AppendLine();
 
         if (!string.IsNullOrWhiteSpace(llmCaption))
@@ -896,20 +910,20 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Generate an adaptive, detailed description based on image content.
-    /// Adapts the output style to the image type (animated, text-heavy, photo, etc.)
+    ///     Generate an adaptive, detailed description based on image content.
+    ///     Adapts the output style to the image type (animated, text-heavy, photo, etc.)
     /// </summary>
     private string GenerateAdaptiveDescription(
-        Mostlylucid.DocSummarizer.Images.Models.Dynamic.DynamicImageProfile profile,
-        Mostlylucid.DocSummarizer.Images.Models.Dynamic.ImageLedger ledger,
+        DynamicImageProfile profile,
+        ImageLedger ledger,
         string? llmCaption)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
 
         // Get the best caption
         var caption = llmCaption
-            ?? profile.GetValue<string>("florence2.caption")
-            ?? ledger.ToLlmSummary();
+                      ?? profile.GetValue<string>("florence2.caption")
+                      ?? ledger.ToLlmSummary();
 
         // Clean up the caption
         if (!string.IsNullOrWhiteSpace(caption))
@@ -927,8 +941,8 @@ public partial class MainViewModel : ObservableObject
 
             foreach (var pattern in prefixPatterns)
             {
-                var match = System.Text.RegularExpressions.Regex.Match(
-                    caption, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                var match = Regex.Match(
+                    caption, pattern, RegexOptions.IgnoreCase);
                 if (match.Success)
                 {
                     caption = caption.Substring(match.Length).TrimStart();
@@ -937,10 +951,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             // Capitalize first letter after cleanup
-            if (caption.Length > 0 && char.IsLower(caption[0]))
-            {
-                caption = char.ToUpper(caption[0]) + caption[1..];
-            }
+            if (caption.Length > 0 && char.IsLower(caption[0])) caption = char.ToUpper(caption[0]) + caption[1..];
         }
 
         // Check image characteristics
@@ -960,36 +971,27 @@ public partial class MainViewModel : ObservableObject
             var colors = ledger.Colors?.DominantColors?.Take(3)
                 .Select(c => c.Name)
                 .Where(n => !string.IsNullOrWhiteSpace(n))
-                .ToList() ?? new System.Collections.Generic.List<string>();
+                .ToList() ?? new List<string>();
 
             // Header line
             sb.AppendLine($"📽️ Animated {ledger.Identity.Format} ({frameCount} frames)");
             sb.AppendLine();
 
             // Build a rich paragraph description
-            var paragraphParts = new System.Collections.Generic.List<string>();
+            var paragraphParts = new List<string>();
 
             // Start with the main caption
-            if (!string.IsNullOrWhiteSpace(caption))
-            {
-                paragraphParts.Add(caption.TrimEnd('.'));
-            }
+            if (!string.IsNullOrWhiteSpace(caption)) paragraphParts.Add(caption.TrimEnd('.'));
 
             // Add animation/motion details
             if (!string.IsNullOrWhiteSpace(motionSummary))
-            {
                 paragraphParts.Add($"The animation shows {motionSummary.ToLowerInvariant()}");
-            }
             else if (hasMotion)
-            {
                 paragraphParts.Add($"The animation features {motionType} movement across {frameCount} frames");
-            }
 
             // Add scene context
             if (!string.IsNullOrWhiteSpace(scene))
-            {
                 paragraphParts.Add($"Set in a {scene.ToLowerInvariant()} environment");
-            }
 
             // Add color context for visual richness
             if (colors.Count > 0)
@@ -1049,73 +1051,57 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Format text output with route info, caption, and OCR text.
+    ///     Format text output with route info, caption, and OCR text.
     /// </summary>
     private string FormatTextOutput(
-        Mostlylucid.DocSummarizer.Images.Models.Dynamic.DynamicImageProfile profile,
+        DynamicImageProfile profile,
         string? llmCaption)
     {
-        var parts = new System.Collections.Generic.List<string>();
+        var parts = new List<string>();
 
         // Show route info if available (from auto pipeline)
         var route = profile.GetValue<string>("route.selected");
         var reason = profile.GetValue<string>("route.reason");
-        if (!string.IsNullOrEmpty(route))
-        {
-            parts.Add($"[{route.ToUpperInvariant()} route: {reason}]");
-        }
+        if (!string.IsNullOrEmpty(route)) parts.Add($"[{route.ToUpperInvariant()} route: {reason}]");
 
         // Show OCR text if found
         var ocrText = GetExtractedText(profile);
-        if (!string.IsNullOrWhiteSpace(ocrText))
-        {
-            parts.Add(ocrText.Trim());
-        }
+        if (!string.IsNullOrWhiteSpace(ocrText)) parts.Add(ocrText.Trim());
 
         // Show caption (prefer LLM, fallback to Florence2)
         var caption = llmCaption ?? profile.GetValue<string>("florence2.caption");
-        if (!string.IsNullOrWhiteSpace(caption))
-        {
-            parts.Add($"Caption: {caption}");
-        }
+        if (!string.IsNullOrWhiteSpace(caption)) parts.Add($"Caption: {caption}");
 
         // Show scene if available
         var scene = profile.GetValue<string>("vision.llm.scene");
-        if (!string.IsNullOrWhiteSpace(scene))
-        {
-            parts.Add($"Scene: {scene}");
-        }
+        if (!string.IsNullOrWhiteSpace(scene)) parts.Add($"Scene: {scene}");
 
         // Show motion info for animated images
         var motionSummary = profile.GetValue<string>("motion.summary");
-        if (!string.IsNullOrWhiteSpace(motionSummary))
-        {
-            parts.Add($"Motion: {motionSummary}");
-        }
+        if (!string.IsNullOrWhiteSpace(motionSummary)) parts.Add($"Motion: {motionSummary}");
 
         return parts.Count > 0 ? string.Join("\n", parts) : "No content extracted";
     }
 
-    private string? GetExtractedText(Mostlylucid.DocSummarizer.Images.Models.Dynamic.DynamicImageProfile profile)
+    private string? GetExtractedText(DynamicImageProfile profile)
     {
         // Check all possible OCR signal keys in priority order
         var signalKeys = new[]
         {
-            "vision.llm.text",           // Vision LLM extracted text (best quality)
-            "ocr.ml.fused_text",         // MlOcrWave fused text (OpenCV+Florence2)
-            "ocr.ml.text",               // MlOcrWave raw text
-            "ocr.final.corrected_text",  // Tier 2/3 corrections
-            "ocr.corrected.text",        // Legacy Tier 3 signal
+            "vision.llm.text", // Vision LLM extracted text (best quality)
+            "ocr.ml.fused_text", // MlOcrWave fused text (OpenCV+Florence2)
+            "ocr.ml.text", // MlOcrWave raw text
+            "ocr.final.corrected_text", // Tier 2/3 corrections
+            "ocr.corrected.text", // Legacy Tier 3 signal
             "ocr.voting.consensus_text", // Temporal voting
             "ocr.temporal_median.full_text", // Temporal median
-            "ocr.full_text",             // Full OCR text
-            "ocr.text",                  // Raw OCR
-            "florence2.ocr_text",        // Florence-2 OCR
-            "content.extracted_text"     // Generic extracted text
+            "ocr.full_text", // Full OCR text
+            "ocr.text", // Raw OCR
+            "florence2.ocr_text", // Florence-2 OCR
+            "content.extracted_text" // Generic extracted text
         };
 
         foreach (var key in signalKeys)
-        {
             if (profile.HasSignal(key))
             {
                 var text = profile.GetValue<string>(key);
@@ -1127,46 +1113,37 @@ public partial class MainViewModel : ObservableObject
                     return text;
                 }
             }
-        }
 
         // Check motion-detected text (e.g., "Text "Back of the net" moving along bottom edge")
         var movingObjects = profile.GetValue<string[]>("motion.moving_objects");
         if (movingObjects != null)
-        {
             foreach (var moving in movingObjects)
             {
                 // Look for text patterns like: Text "..." or text "..."
-                var match = System.Text.RegularExpressions.Regex.Match(
+                var match = Regex.Match(
                     moving ?? "",
                     @"[Tt]ext\s*[""']([^""']+)[""']",
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                if (match.Success && match.Groups[1].Value.Length > 2)
-                {
-                    return match.Groups[1].Value;
-                }
+                    RegexOptions.IgnoreCase);
+                if (match.Success && match.Groups[1].Value.Length > 2) return match.Groups[1].Value;
             }
-        }
 
         // Check for text in Florence2 caption (last resort - extract quoted text)
         var caption = profile.GetValue<string>("florence2.caption");
         if (!string.IsNullOrWhiteSpace(caption))
         {
             // Look for "caption" patterns like: caption "..." or "..." in caption
-            var captionMatch = System.Text.RegularExpressions.Regex.Match(
+            var captionMatch = Regex.Match(
                 caption,
                 @"caption\s*[""']([^""']+)[""']",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (captionMatch.Success && captionMatch.Groups[1].Value.Length > 2)
-            {
-                return captionMatch.Groups[1].Value;
-            }
+                RegexOptions.IgnoreCase);
+            if (captionMatch.Success && captionMatch.Groups[1].Value.Length > 2) return captionMatch.Groups[1].Value;
         }
 
         return null;
     }
 
     /// <summary>
-    /// Check if OCR text appears to be garbled/nonsense.
+    ///     Check if OCR text appears to be garbled/nonsense.
     /// </summary>
     private static bool IsGarbledText(string text)
     {
@@ -1177,7 +1154,7 @@ public partial class MainViewModel : ObservableObject
         var words = text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries);
         if (words.Length >= 3)
         {
-            var uniqueWords = new System.Collections.Generic.HashSet<string>(words, StringComparer.OrdinalIgnoreCase);
+            var uniqueWords = new HashSet<string>(words, StringComparer.OrdinalIgnoreCase);
             // If most words are nearly duplicates (edit distance 1-2), it's garbled
             if (uniqueWords.Count < words.Length / 2)
                 return true;
@@ -1188,7 +1165,6 @@ public partial class MainViewModel : ObservableObject
         var maxConsonantRun = 0;
         var vowels = "aeiouAEIOU";
         foreach (var c in text)
-        {
             if (char.IsLetter(c))
             {
                 if (vowels.Contains(c))
@@ -1197,7 +1173,7 @@ public partial class MainViewModel : ObservableObject
                     consonantRun++;
                 maxConsonantRun = Math.Max(maxConsonantRun, consonantRun);
             }
-        }
+
         if (maxConsonantRun >= 5) // 5+ consonants in a row is unusual in English
             return true;
 
@@ -1206,22 +1182,20 @@ public partial class MainViewModel : ObservableObject
         var garbledPatterns = new[]
         {
             // @"^[A-Z\s]{5,}$",  // REMOVED - subtitles are often all caps
-            @"(.{2,4})\s*\1",  // Repeated short patterns
-            @"[^\w\s]{3,}"     // 3+ special characters in a row
+            @"(.{2,4})\s*\1", // Repeated short patterns
+            @"[^\w\s]{3,}" // 3+ special characters in a row
         };
 
         foreach (var pattern in garbledPatterns)
-        {
-            if (System.Text.RegularExpressions.Regex.IsMatch(text, pattern))
+            if (Regex.IsMatch(text, pattern))
                 return true;
-        }
 
         return false;
     }
 
     /// <summary>
-    /// Extract clean caption from LLM response, handling JSON or verbose text.
-    /// Sanitizes to remove prompt leakage.
+    ///     Extract clean caption from LLM response, handling JSON or verbose text.
+    ///     Sanitizes to remove prompt leakage.
     /// </summary>
     private string? ExtractCleanCaption(string? response)
     {
@@ -1238,11 +1212,10 @@ public partial class MainViewModel : ObservableObject
             if (jsonStart >= 0 && jsonEnd > jsonStart)
             {
                 var jsonStr = response.Substring(jsonStart, jsonEnd - jsonStart + 1);
-                var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+                var doc = JsonDocument.Parse(jsonStr);
 
                 // Check multiple property names
                 foreach (var propName in new[] { "caption", "description", "scene", "summary" })
-                {
                     if (doc.RootElement.TryGetProperty(propName, out var prop))
                     {
                         var val = prop.GetString();
@@ -1252,7 +1225,6 @@ public partial class MainViewModel : ObservableObject
                             break;
                         }
                     }
-                }
             }
         }
         catch
@@ -1263,28 +1235,19 @@ public partial class MainViewModel : ObservableObject
         // Fallback: Try regex extraction for {"caption": "..."}
         if (rawCaption == null)
         {
-            var match = System.Text.RegularExpressions.Regex.Match(
+            var match = Regex.Match(
                 response, @"""(?:caption|description)""\s*:\s*""([^""]+)""");
-            if (match.Success && match.Groups.Count > 1)
-            {
-                rawCaption = match.Groups[1].Value;
-            }
+            if (match.Success && match.Groups.Count > 1) rawCaption = match.Groups[1].Value;
         }
 
         // If no JSON structure found, use plain text
-        if (rawCaption == null && !response.TrimStart().StartsWith("{"))
-        {
-            rawCaption = response.Trim();
-        }
+        if (rawCaption == null && !response.TrimStart().StartsWith("{")) rawCaption = response.Trim();
 
         // Last resort: Try to find any quoted string
         if (rawCaption == null)
         {
-            var quotedMatch = System.Text.RegularExpressions.Regex.Match(response, @"""([^""]{20,})""");
-            if (quotedMatch.Success)
-            {
-                rawCaption = quotedMatch.Groups[1].Value;
-            }
+            var quotedMatch = Regex.Match(response, @"""([^""]{20,})""");
+            if (quotedMatch.Success) rawCaption = quotedMatch.Groups[1].Value;
         }
 
         // Sanitize and return
@@ -1292,7 +1255,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Remove prompt leakage and instruction text from captions.
+    ///     Remove prompt leakage and instruction text from captions.
     /// </summary>
     private static string? SanitizeCaption(string? caption)
     {
@@ -1329,29 +1292,24 @@ public partial class MainViewModel : ObservableObject
             @"\s*```$", // Code block end
             @"^I (?:can )?see\s+",
             @"^(?:Looking at (?:the|this) image,?\s*)?",
-            @"^(?:Sure|Certainly|Of course)[!,.]?\s*",
+            @"^(?:Sure|Certainly|Of course)[!,.]?\s*"
         };
 
         foreach (var pattern in leakagePatterns)
-        {
-            result = System.Text.RegularExpressions.Regex.Replace(
-                result, pattern, "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        }
+            result = Regex.Replace(
+                result, pattern, "", RegexOptions.IgnoreCase);
 
         // Clean up quotes and whitespace
         result = result.Trim('"', '\'', ' ');
 
         // Capitalize first letter
-        if (result.Length > 0 && char.IsLower(result[0]))
-        {
-            result = char.ToUpper(result[0]) + result[1..];
-        }
+        if (result.Length > 0 && char.IsLower(result[0])) result = char.ToUpper(result[0]) + result[1..];
 
         return string.IsNullOrWhiteSpace(result) ? null : result;
     }
 
     /// <summary>
-    /// Format signal values for display, serializing complex types to JSON.
+    ///     Format signal values for display, serializing complex types to JSON.
     /// </summary>
     private static string FormatSignalValue(object? value)
     {
@@ -1375,7 +1333,7 @@ public partial class MainViewModel : ObservableObject
             return $"double[{doubleArray.Length}]";
 
         // Check if it's a collection
-        if (value is System.Collections.IEnumerable enumerable && value is not string)
+        if (value is IEnumerable enumerable && value is not string)
         {
             var items = enumerable.Cast<object>().ToList();
             if (items.Count == 0)
@@ -1383,17 +1341,15 @@ public partial class MainViewModel : ObservableObject
 
             // For small collections, try to serialize
             if (items.Count <= 5)
-            {
                 try
                 {
-                    return System.Text.Json.JsonSerializer.Serialize(value,
-                        new System.Text.Json.JsonSerializerOptions { WriteIndented = false });
+                    return JsonSerializer.Serialize(value,
+                        new JsonSerializerOptions { WriteIndented = false });
                 }
                 catch
                 {
                     return $"[{items.Count} items]";
                 }
-            }
 
             return $"[{items.Count} items]";
         }
@@ -1401,8 +1357,8 @@ public partial class MainViewModel : ObservableObject
         // Complex objects - try JSON serialization
         try
         {
-            var json = System.Text.Json.JsonSerializer.Serialize(value,
-                new System.Text.Json.JsonSerializerOptions { WriteIndented = false });
+            var json = JsonSerializer.Serialize(value,
+                new JsonSerializerOptions { WriteIndented = false });
             // Truncate very long JSON
             if (json.Length > 200)
                 return json[..197] + "...";
@@ -1415,7 +1371,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Format signal values compactly for the log (max 40 chars)
+    ///     Format signal values compactly for the log (max 40 chars)
     /// </summary>
     private static string FormatSignalValueCompact(object? value)
     {
@@ -1429,7 +1385,7 @@ public partial class MainViewModel : ObservableObject
             float[] fa => $"[{fa.Length} floats]",
             double[] da => $"[{da.Length} doubles]",
             int[] ia => $"[{ia.Length} ints]",
-            System.Collections.IEnumerable e when e is not string => $"[{e.Cast<object>().Count()} items]",
+            IEnumerable e when e is not string => $"[{e.Cast<object>().Count()} items]",
             _ => value.ToString() ?? "?"
         };
 
@@ -1437,7 +1393,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Truncate text to WCAG-compliant length (~125 chars max).
+    ///     Truncate text to WCAG-compliant length (~125 chars max).
     /// </summary>
     private static string TruncateForWcag(string text, int maxLength = 125)
     {
@@ -1452,23 +1408,17 @@ public partial class MainViewModel : ObservableObject
         // Find last sentence boundary within limit
         var truncated = text[..maxLength];
         var lastPeriod = truncated.LastIndexOf('.');
-        if (lastPeriod > 40)
-        {
-            return truncated[..(lastPeriod + 1)];
-        }
+        if (lastPeriod > 40) return truncated[..(lastPeriod + 1)];
 
         // No good sentence boundary, truncate at word boundary
         var lastSpace = truncated.LastIndexOf(' ');
-        if (lastSpace > 40)
-        {
-            return truncated[..lastSpace] + "...";
-        }
+        if (lastSpace > 40) return truncated[..lastSpace] + "...";
 
         return truncated[..(maxLength - 3)] + "...";
     }
 
     [RelayCommand]
-    private async Task CopyToClipboardAsync(Avalonia.Input.Platform.IClipboard? clipboard)
+    private async Task CopyToClipboardAsync(IClipboard? clipboard)
     {
         if (clipboard == null || string.IsNullOrEmpty(ResultText)) return;
 
@@ -1478,15 +1428,12 @@ public partial class MainViewModel : ObservableObject
 
     public async Task HandleDropAsync(string[] files)
     {
-        if (files.Length > 0)
-        {
-            await LoadImageAsync(files[0]);
-        }
+        if (files.Length > 0) await LoadImageAsync(files[0]);
     }
 
     /// <summary>
-    /// Generate a filmstrip thumbnail from an animated GIF.
-    /// Creates a horizontal strip of evenly-sampled frames.
+    ///     Generate a filmstrip thumbnail from an animated GIF.
+    ///     Creates a horizontal strip of evenly-sampled frames.
     /// </summary>
     private async Task<Bitmap?> GenerateFilmstripAsync(string imagePath, int totalFrames)
     {
@@ -1494,7 +1441,7 @@ public partial class MainViewModel : ObservableObject
         {
             try
             {
-                using var image = SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Rgba32>(imagePath);
+                using var image = Image.Load<Rgba32>(imagePath);
 
                 // Sample up to 6 frames evenly across the animation
                 var maxFrames = Math.Min(6, totalFrames);
@@ -1508,7 +1455,7 @@ public partial class MainViewModel : ObservableObject
 
                 // Create filmstrip image
                 var filmstripWidth = thumbWidth * maxFrames;
-                using var filmstrip = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(filmstripWidth, thumbHeight);
+                using var filmstrip = new Image<Rgba32>(filmstripWidth, thumbHeight);
 
                 var frameCollection = image.Frames;
                 for (var i = 0; i < frameIndices.Count; i++)
@@ -1524,12 +1471,10 @@ public partial class MainViewModel : ObservableObject
                     // Draw into filmstrip at the correct position
                     var xOffset = i * thumbWidth;
                     for (var y = 0; y < thumbHeight; y++)
+                    for (var x = 0; x < thumbWidth; x++)
                     {
-                        for (var x = 0; x < thumbWidth; x++)
-                        {
-                            var pixel = frameImage[x, y];
-                            filmstrip[xOffset + x, y] = pixel;
-                        }
+                        var pixel = frameImage[x, y];
+                        filmstrip[xOffset + x, y] = pixel;
                     }
                 }
 

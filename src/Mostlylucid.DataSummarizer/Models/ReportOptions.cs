@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-
 namespace Mostlylucid.DataSummarizer.Models;
 
 public class ReportOptions

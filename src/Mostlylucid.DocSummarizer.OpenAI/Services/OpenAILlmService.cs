@@ -9,14 +9,14 @@ using Mostlylucid.DocSummarizer.Services;
 namespace Mostlylucid.DocSummarizer.OpenAI.Services;
 
 /// <summary>
-/// OpenAI implementation of ILlmService
+///     OpenAI implementation of ILlmService
 /// </summary>
 public class OpenAILlmService : ILlmService
 {
     private readonly OpenAIConfig _config;
     private readonly HttpClient _httpClient;
-    private readonly ILogger<OpenAILlmService> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger<OpenAILlmService> _logger;
 
     public OpenAILlmService(
         IOptions<OpenAIConfig> config,
@@ -53,9 +53,7 @@ public class OpenAILlmService : ILlmService
 
         // Add system prompt if provided
         if (!string.IsNullOrEmpty(options?.SystemPrompt))
-        {
             messages.Add(new OpenAIMessage { Role = "system", Content = options.SystemPrompt });
-        }
 
         messages.Add(new OpenAIMessage { Role = "user", Content = prompt });
 
@@ -80,10 +78,7 @@ public class OpenAILlmService : ILlmService
 
             var result = await response.Content.ReadFromJsonAsync<OpenAIChatResponse>(_jsonOptions, ct);
 
-            if (result?.Choices is { Count: > 0 })
-            {
-                return result.Choices[0].Message?.Content ?? "";
-            }
+            if (result?.Choices is { Count: > 0 }) return result.Choices[0].Message?.Content ?? "";
 
             return "";
         }
@@ -95,7 +90,8 @@ public class OpenAILlmService : ILlmService
     }
 
     /// <inheritdoc />
-    public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null, CancellationToken ct = default)
+    public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null,
+        CancellationToken ct = default)
         where T : class
     {
         // Use JSON mode if model supports it
@@ -105,17 +101,15 @@ public class OpenAILlmService : ILlmService
         var jsonPrompt = supportsJsonMode
             ? prompt
             : $"""
-              {prompt}
+               {prompt}
 
-              Respond with valid JSON only. No markdown, no code blocks, just the JSON object.
-              """;
+               Respond with valid JSON only. No markdown, no code blocks, just the JSON object.
+               """;
 
         var messages = new List<OpenAIMessage>();
 
         if (!string.IsNullOrEmpty(options?.SystemPrompt))
-        {
             messages.Add(new OpenAIMessage { Role = "system", Content = options.SystemPrompt });
-        }
 
         messages.Add(new OpenAIMessage { Role = "user", Content = jsonPrompt });
 
@@ -204,6 +198,7 @@ public class OpenAILlmService : ILlmService
             var envVar = apiKey[2..^1];
             return Environment.GetEnvironmentVariable(envVar) ?? "";
         }
+
         return apiKey;
     }
 

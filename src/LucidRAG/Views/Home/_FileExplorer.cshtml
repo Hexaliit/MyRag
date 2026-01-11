@@ -31,8 +31,10 @@
                  @@click="navigateToFolder(null)"
                  @@dragover.prevent="dropTargetId = null"
                  @@drop.prevent="handleDrop($event, null)">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                 </svg>
                 <span class="text-sm">Root</span>
             </div>
@@ -46,8 +48,10 @@
                          @@dragover.prevent="dropTargetId = folder.id"
                          @@drop.prevent="handleDrop($event, folder.id)">
                         <!-- Folder icon -->
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning/70" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning/70" fill="currentColor"
+                             viewBox="0 0 24 24">
+                            <path
+                                d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                         </svg>
                         <!-- Folder name -->
                         <span class="text-sm truncate flex-1" x-text="folder.name"></span>
@@ -63,8 +67,9 @@
             <template x-if="canWrite && currentCollectionId">
                 <button class="btn btn-ghost btn-xs w-full justify-start mt-2 text-base-content/60"
                         @@click="createFolder()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
                     New Folder
                 </button>
@@ -76,8 +81,10 @@
             <div class="flex items-center justify-between mb-2 px-2">
                 <div class="text-xs text-base-content/50 uppercase tracking-wide">Communities</div>
                 <button class="btn btn-ghost btn-xs" @@click="communitiesExpanded = !communitiesExpanded">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform" :class="communitiesExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform"
+                         :class="communitiesExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
             </div>
@@ -105,15 +112,17 @@
             <div class="flex items-center justify-between mb-2 px-2">
                 <div class="text-xs text-base-content/50 uppercase tracking-wide">Entities</div>
                 <button class="btn btn-ghost btn-xs" @@click="entitiesExpanded = !entitiesExpanded">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform" :class="entitiesExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform"
+                         :class="entitiesExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
             </div>
             <div class="max-h-48 overflow-y-auto space-y-1" x-show="entitiesExpanded" x-collapse>
                 <template x-for="(entities, type) in entityGroups" :key="type">
                     <div class="collapse collapse-arrow bg-base-200/50 rounded-lg">
-                        <input type="checkbox" class="min-h-0" />
+                        <input type="checkbox" class="min-h-0"/>
                         <div class="collapse-title min-h-0 py-1 px-2 text-sm flex items-center gap-2">
                             <span x-html="getEntityIcon(type)"></span>
                             <span x-text="type" class="capitalize"></span>
@@ -121,9 +130,10 @@
                         </div>
                         <div class="collapse-content px-2 pb-2">
                             <template x-for="entity in entities.slice(0, 8)" :key="entity.id">
-                                <div class="flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer hover:bg-base-300 text-xs"
-                                     :class="selectedEntities.has(entity.id) ? 'bg-secondary/20' : ''"
-                                     @@click="toggleEntityFilter(entity.id, type)">
+                                <div
+                                    class="flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer hover:bg-base-300 text-xs"
+                                    :class="selectedEntities.has(entity.id) ? 'bg-secondary/20' : ''"
+                                    @@click="toggleEntityFilter(entity.id, type)">
                                     <span class="truncate flex-1" x-text="entity.name"></span>
                                     <span class="text-base-content/40" x-text="entity.mentionCount"></span>
                                 </div>
@@ -145,25 +155,29 @@
             <div class="flex items-center justify-between mb-2 px-2">
                 <div class="text-xs text-base-content/50 uppercase tracking-wide">Signals</div>
                 <button class="btn btn-ghost btn-xs" @@click="signalsExpanded = !signalsExpanded">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform" :class="signalsExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform"
+                         :class="signalsExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
             </div>
             <div class="space-y-2 px-2" x-show="signalsExpanded" x-collapse>
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" class="checkbox checkbox-xs checkbox-primary"
-                           :checked="signals.hasImages" @@change="signals.hasImages = !signals.hasImages; loadContents()" />
+                           :checked="signals.hasImages"
+                           @@change="signals.hasImages = !signals.hasImages; loadContents()"/>
                     <span class="text-sm">Has images</span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" class="checkbox checkbox-xs checkbox-primary"
-                           :checked="signals.hasTables" @@change="signals.hasTables = !signals.hasTables; loadContents()" />
+                           :checked="signals.hasTables"
+                           @@change="signals.hasTables = !signals.hasTables; loadContents()"/>
                     <span class="text-sm">Has tables</span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" class="checkbox checkbox-xs checkbox-primary"
-                           :checked="signals.hasCode" @@change="signals.hasCode = !signals.hasCode; loadContents()" />
+                           :checked="signals.hasCode" @@change="signals.hasCode = !signals.hasCode; loadContents()"/>
                     <span class="text-sm">Has code</span>
                 </label>
                 <div class="pt-1">
@@ -183,13 +197,16 @@
         <!-- Upload Button -->
         <div class="border-t border-base-300 p-3 mt-auto" x-show="canWrite">
             <button class="btn btn-primary btn-sm w-full gap-2" @@click="$refs.fileInput.click()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                 </svg>
                 Upload Files
             </button>
-            <input type="file" x-ref="fileInput" multiple accept=".pdf,.docx,.doc,.md,.html,.txt,.png,.jpg,.jpeg,.gif,.mp3,.wav,.m4a"
-                   class="hidden" @@change="uploadFiles($event.target.files); $event.target.value = ''" />
+            <input type="file" x-ref="fileInput" multiple
+                   accept=".pdf,.docx,.doc,.md,.html,.txt,.png,.jpg,.jpeg,.gif,.mp3,.wav,.m4a"
+                   class="hidden" @@change="uploadFiles($event.target.files); $event.target.value = ''"/>
         </div>
     </aside>
 
@@ -208,8 +225,10 @@
                 <span class="badge badge-sm badge-info gap-1">
                     <span x-text="type"></span>
                     <button class="hover:text-error" @@click="toggleFilter('type', type)">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </span>
@@ -220,8 +239,10 @@
                 <span class="badge badge-sm badge-warning gap-1">
                     <span x-text="status"></span>
                     <button class="hover:text-error" @@click="toggleFilter('status', status)">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </span>
@@ -232,8 +253,10 @@
                 <span class="badge badge-sm badge-success gap-1">
                     <span x-text="communities.find(c => c.id === currentCommunityId)?.name || 'Community'"></span>
                     <button class="hover:text-error" @@click="currentCommunityId = null; loadContents()">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </span>
@@ -243,9 +266,12 @@
             <template x-for="entityId in [...selectedEntities]" :key="'entity-' + entityId">
                 <span class="badge badge-sm badge-secondary gap-1">
                     <span x-text="getEntityName(entityId)"></span>
-                    <button class="hover:text-error" @@click="selectedEntities.delete(entityId); selectedEntities = new Set(selectedEntities); loadContents()">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    <button class="hover:text-error"
+                            @@click="selectedEntities.delete(entityId); selectedEntities = new Set(selectedEntities); loadContents()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </span>
@@ -256,8 +282,10 @@
                 <span class="badge badge-sm badge-accent gap-1">
                     Has images
                     <button class="hover:text-error" @@click="signals.hasImages = false; loadContents()">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </span>
@@ -266,8 +294,10 @@
                 <span class="badge badge-sm badge-accent gap-1">
                     Has tables
                     <button class="hover:text-error" @@click="signals.hasTables = false; loadContents()">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </span>
@@ -276,8 +306,10 @@
                 <span class="badge badge-sm badge-accent gap-1">
                     Has code
                     <button class="hover:text-error" @@click="signals.hasCode = false; loadContents()">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </span>
@@ -286,8 +318,10 @@
                 <span class="badge badge-sm badge-accent gap-1">
                     <span x-text="signals.dateRange"></span>
                     <button class="hover:text-error" @@click="signals.dateRange = ''; loadContents()">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </span>
@@ -295,8 +329,10 @@
 
             <!-- Clear all -->
             <button class="btn btn-ghost btn-xs gap-1" @@click="clearAllFilters()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                 </svg>
                 Clear all
             </button>
@@ -319,8 +355,10 @@
             <!-- Empty State -->
             <template x-if="!loading && folders.length === 0 && documents.length === 0">
                 <div class="flex flex-col items-center justify-center h-full text-base-content/50">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
                     </svg>
                     <p class="text-lg">No documents yet</p>
                     <p class="text-sm mt-1" x-show="canWrite">Drag & drop files here to upload</p>
@@ -351,8 +389,10 @@
             <div x-show="isDraggingFiles && canWrite"
                  class="absolute inset-0 flex items-center justify-center bg-primary/10 pointer-events-none">
                 <div class="text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-primary mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-primary mb-2" fill="none"
+                         viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                     </svg>
                     <p class="text-lg font-medium text-primary">Drop files to upload</p>
                 </div>
@@ -360,7 +400,8 @@
         </div>
 
         <!-- Status Bar -->
-        <div class="px-4 py-2 border-t border-base-300 text-xs text-base-content/60 flex items-center justify-between bg-base-200/30">
+        <div
+            class="px-4 py-2 border-t border-base-300 text-xs text-base-content/60 flex items-center justify-between bg-base-200/30">
             <div class="flex items-center gap-4">
                 <span x-text="`${stats.folders} folders, ${stats.documents} files`"></span>
                 <span x-show="stats.totalSizeBytes > 0" x-text="formatSize(stats.totalSizeBytes)"></span>
@@ -383,615 +424,620 @@
 </div>
 
 <script>
-function fileExplorer() {
-    return {
-        // Navigation state
-        currentCollectionId: null,
-        currentFolderId: null,
-        currentCommunityId: null,
-        breadcrumb: [],
+    function fileExplorer() {
+        return {
+            // Navigation state
+            currentCollectionId: null,
+            currentFolderId: null,
+            currentCommunityId: null,
+            breadcrumb: [],
 
-        // View state
-        viewMode: localStorage.getItem('explorer-view') || 'list',
-        explorerMode: 'browse', // 'browse' | 'search'
-        sortBy: localStorage.getItem('explorer-sort') || 'name',
-        sortOrder: localStorage.getItem('explorer-order') || 'asc',
+            // View state
+            viewMode: localStorage.getItem('explorer-view') || 'list',
+            explorerMode: 'browse', // 'browse' | 'search'
+            sortBy: localStorage.getItem('explorer-sort') || 'name',
+            sortOrder: localStorage.getItem('explorer-order') || 'asc',
 
-        // Filtering
-        filters: {
-            type: [],
-            status: []
-        },
-        globPattern: '',
+            // Filtering
+            filters: {
+                type: [],
+                status: []
+            },
+            globPattern: '',
 
-        // Signals filtering
-        signals: {
-            hasImages: false,
-            hasTables: false,
-            hasCode: false,
-            dateRange: ''
-        },
+            // Signals filtering
+            signals: {
+                hasImages: false,
+                hasTables: false,
+                hasCode: false,
+                dateRange: ''
+            },
 
-        // Entity filtering
-        selectedEntities: new Set(),
-        entityGroups: {},
-        allEntities: [],
+            // Entity filtering
+            selectedEntities: new Set(),
+            entityGroups: {},
+            allEntities: [],
 
-        // Sidebar expansion states
-        communitiesExpanded: true,
-        entitiesExpanded: true,
-        signalsExpanded: false,
+            // Sidebar expansion states
+            communitiesExpanded: true,
+            entitiesExpanded: true,
+            signalsExpanded: false,
 
-        // Data
-        collections: [],
-        communities: [],
-        folderTree: [],
-        folders: [],
-        documents: [],
-        expandedFolders: new Set(),
-        loading: false,
+            // Data
+            collections: [],
+            communities: [],
+            folderTree: [],
+            folders: [],
+            documents: [],
+            expandedFolders: new Set(),
+            loading: false,
 
-        // Search
-        searchQuery: '',
-        searchResults: [],
-        queryDecomposition: [],
-        showSearchHints: false,
+            // Search
+            searchQuery: '',
+            searchResults: [],
+            queryDecomposition: [],
+            showSearchHints: false,
 
-        // Selection (for chat scoping)
-        selectedItems: new Set(), // Set of "folder:{id}" or "doc:{id}"
-        lastSelectedIndex: null,
+            // Selection (for chat scoping)
+            selectedItems: new Set(), // Set of "folder:{id}" or "doc:{id}"
+            lastSelectedIndex: null,
 
-        // Drag & drop
-        isDraggingFiles: false,
-        isDraggingItem: false,
-        draggedItem: null,
-        dropTargetId: null,
+            // Drag & drop
+            isDraggingFiles: false,
+            isDraggingItem: false,
+            draggedItem: null,
+            dropTargetId: null,
 
-        // Context menu
-        contextMenu: { show: false, x: 0, y: 0, type: null, id: null },
+            // Context menu
+            contextMenu: {show: false, x: 0, y: 0, type: null, id: null},
 
-        // Stats
-        stats: { folders: 0, documents: 0, totalSizeBytes: 0 },
+            // Stats
+            stats: {folders: 0, documents: 0, totalSizeBytes: 0},
 
-        // Auth
-        canWrite: false,
+            // Auth
+            canWrite: false,
 
-        async init() {
-            // Check auth status
-            await this.checkAuthStatus();
+            async init() {
+                // Check auth status
+                await this.checkAuthStatus();
 
-            // Load collections
-            await this.loadCollections();
+                // Load collections
+                await this.loadCollections();
 
-            // Check URL for collection
-            this.checkUrlForCollection();
+                // Check URL for collection
+                this.checkUrlForCollection();
 
-            // Load initial contents
-            await this.loadContents();
-
-            // Load entities
-            await this.loadEntities();
-
-            // Setup keyboard shortcuts
-            this.setupKeyboardShortcuts();
-        },
-
-        setupKeyboardShortcuts() {
-            // Command+K or Ctrl+K to focus search
-            document.addEventListener('keydown', (e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-                    e.preventDefault();
-                    const searchInput = document.querySelector('[x-model="searchQuery"]');
-                    if (searchInput) searchInput.focus();
-                }
-            });
-        },
-
-        async checkAuthStatus() {
-            try {
-                const response = await fetch('/api/documents/demo-status');
-                const data = await response.json();
-                this.canWrite = !data.demoMode;
-            } catch (e) {
-                this.canWrite = false;
-            }
-        },
-
-        checkUrlForCollection() {
-            const pathMatch = window.location.pathname.match(/\/collection\/([^\/]+)/);
-            if (pathMatch) {
-                const slug = pathMatch[1];
-                const col = this.collections.find(c =>
-                    c.name.toLowerCase().replace(/\s+/g, '-') === slug.toLowerCase()
-                );
-                if (col) {
-                    this.currentCollectionId = col.id;
-                }
-            }
-        },
-
-        async loadCollections() {
-            try {
-                const response = await fetch('/api/collections');
-                const data = await response.json();
-                this.collections = data.collections || [];
-            } catch (e) {
-                console.error('Failed to load collections:', e);
-            }
-        },
-
-        async loadContents() {
-            this.loading = true;
-            try {
-                const params = new URLSearchParams();
-                if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
-                if (this.currentFolderId) params.append('folderId', this.currentFolderId);
-                if (this.currentCommunityId) params.append('communityId', this.currentCommunityId);
-                params.append('sort', this.sortBy);
-                params.append('order', this.sortOrder);
-                if (this.filters.type.length) params.append('filterType', this.filters.type.join(','));
-                if (this.filters.status.length) params.append('filterStatus', this.filters.status.join(','));
-                if (this.globPattern) params.append('glob', this.globPattern);
-
-                // Signal filters
-                if (this.signals.hasImages) params.append('hasImages', 'true');
-                if (this.signals.hasTables) params.append('hasTables', 'true');
-                if (this.signals.hasCode) params.append('hasCode', 'true');
-                if (this.signals.dateRange) params.append('dateRange', this.signals.dateRange);
-
-                // Entity filters
-                if (this.selectedEntities.size > 0) {
-                    params.append('entityIds', [...this.selectedEntities].join(','));
-                }
-
-                const response = await fetch(`/api/explorer?${params}`);
-                const data = await response.json();
-
-                this.breadcrumb = data.path || [];
-                this.folders = data.folders || [];
-                this.documents = data.documents || [];
-                this.communities = data.communities || [];
-                this.canWrite = data.canWrite;
-
-                // Load stats
-                await this.loadStats();
-
-                // Load folder tree if we have a collection
-                if (this.currentCollectionId) {
-                    await this.loadFolderTree();
-                }
-            } catch (e) {
-                console.error('Failed to load contents:', e);
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async loadStats() {
-            try {
-                const params = new URLSearchParams();
-                if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
-                if (this.currentFolderId) params.append('folderId', this.currentFolderId);
-
-                const response = await fetch(`/api/explorer/stats?${params}`);
-                this.stats = await response.json();
-            } catch (e) {
-                console.error('Failed to load stats:', e);
-            }
-        },
-
-        async loadFolderTree() {
-            try {
-                const response = await fetch(`/api/folders/tree?collectionId=${this.currentCollectionId}`);
-                const data = await response.json();
-                this.folderTree = data.folders || [];
-            } catch (e) {
-                console.error('Failed to load folder tree:', e);
-            }
-        },
-
-        async loadEntities() {
-            try {
-                const params = new URLSearchParams();
-                if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
-                params.append('limit', '100');
-
-                const response = await fetch(`/api/explorer/entities?${params}`);
-                const data = await response.json();
-
-                this.entityGroups = data.entities || {};
-                this.allEntities = [];
-
-                // Flatten for lookup
-                for (const [type, entities] of Object.entries(this.entityGroups)) {
-                    for (const entity of entities) {
-                        this.allEntities.push({ ...entity, type });
-                    }
-                }
-            } catch (e) {
-                console.error('Failed to load entities:', e);
-            }
-        },
-
-        // Filter helpers
-        hasActiveFilters() {
-            return this.filters.type.length > 0 ||
-                   this.filters.status.length > 0 ||
-                   this.currentCommunityId ||
-                   this.selectedEntities.size > 0 ||
-                   this.signals.hasImages ||
-                   this.signals.hasTables ||
-                   this.signals.hasCode ||
-                   this.signals.dateRange;
-        },
-
-        clearAllFilters() {
-            this.filters.type = [];
-            this.filters.status = [];
-            this.currentCommunityId = null;
-            this.selectedEntities.clear();
-            this.selectedEntities = new Set();
-            this.signals = { hasImages: false, hasTables: false, hasCode: false, dateRange: '' };
-            this.loadContents();
-        },
-
-        toggleEntityFilter(entityId, type) {
-            if (this.selectedEntities.has(entityId)) {
-                this.selectedEntities.delete(entityId);
-            } else {
-                this.selectedEntities.add(entityId);
-            }
-            this.selectedEntities = new Set(this.selectedEntities);
-            this.loadContents();
-        },
-
-        getEntityName(entityId) {
-            const entity = this.allEntities.find(e => e.id === entityId);
-            return entity?.name || 'Entity';
-        },
-
-        getEntityIcon(type) {
-            switch (type?.toLowerCase()) {
-                case 'person':
-                    return '<svg class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>';
-                case 'organization':
-                case 'org':
-                    return '<svg class="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>';
-                case 'location':
-                    return '<svg class="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>';
-                case 'concept':
-                    return '<svg class="h-4 w-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>';
-                case 'code':
-                case 'code_element':
-                    return '<svg class="h-4 w-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>';
-                default:
-                    return '<svg class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>';
-            }
-        },
-
-        showEntityModal(type) {
-            // TODO: Implement entity browser modal
-            console.log('Show all entities of type:', type);
-        },
-
-        navigateToCollection() {
-            this.currentFolderId = null;
-            this.selectedItems.clear();
-            this.loadContents();
-        },
-
-        navigateToFolder(folderId) {
-            this.currentFolderId = folderId;
-            this.selectedItems.clear();
-            this.loadContents();
-        },
-
-        // Selection
-        selectItem(type, id, event) {
-            const key = `${type}:${id}`;
-
-            if (event.ctrlKey || event.metaKey) {
-                // Toggle selection
-                if (this.selectedItems.has(key)) {
-                    this.selectedItems.delete(key);
-                } else {
-                    this.selectedItems.add(key);
-                }
-            } else if (event.shiftKey && this.lastSelectedIndex !== null) {
-                // Range selection would go here
-                this.selectedItems.add(key);
-            } else {
-                // Single selection
-                this.selectedItems.clear();
-                this.selectedItems.add(key);
-            }
-
-            this.selectedItems = new Set(this.selectedItems); // Trigger reactivity
-        },
-
-        isSelected(type, id) {
-            return this.selectedItems.has(`${type}:${id}`);
-        },
-
-        selectAll() {
-            this.folders.forEach(f => this.selectedItems.add(`folder:${f.id}`));
-            this.documents.forEach(d => this.selectedItems.add(`doc:${d.id}`));
-            this.selectedItems = new Set(this.selectedItems);
-        },
-
-        clearSelection() {
-            this.selectedItems.clear();
-            this.selectedItems = new Set();
-        },
-
-        // Chat scoping
-        scopeChatToSelection() {
-            const docIds = [...this.selectedItems]
-                .filter(k => k.startsWith('doc:'))
-                .map(k => k.replace('doc:', ''));
-
-            if (docIds.length > 0) {
-                // Dispatch event for chat component to pick up
-                window.dispatchEvent(new CustomEvent('scope-chat', {
-                    detail: { documentIds: docIds }
-                }));
-            }
-        },
-
-        // Search
-        async executeSearch() {
-            if (!this.searchQuery.trim()) {
-                this.explorerMode = 'browse';
-                return;
-            }
-
-            this.loading = true;
-            this.explorerMode = 'search';
-
-            try {
-                const response = await fetch('/api/explorer/search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        query: this.searchQuery,
-                        collectionId: this.currentCollectionId,
-                        communityId: this.currentCommunityId,
-                        contentTypes: ['document', 'image', 'audio'],
-                        topK: 50
-                    })
-                });
-
-                const data = await response.json();
-                this.searchResults = data.results || [];
-                this.queryDecomposition = data.queryDecomposition || [];
-            } catch (e) {
-                console.error('Search failed:', e);
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        clearSearch() {
-            this.searchQuery = '';
-            this.searchResults = [];
-            this.queryDecomposition = [];
-            this.explorerMode = 'browse';
-        },
-
-        // Folder operations
-        async createFolder() {
-            const name = prompt('Enter folder name:');
-            if (!name?.trim()) return;
-
-            try {
-                await fetch('/api/folders', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        collectionId: this.currentCollectionId,
-                        parentFolderId: this.currentFolderId,
-                        name: name.trim()
-                    })
-                });
+                // Load initial contents
                 await this.loadContents();
-            } catch (e) {
-                console.error('Failed to create folder:', e);
-                alert('Failed to create folder');
-            }
-        },
 
-        // File upload
-        handleDragOver(event) {
-            if (event.dataTransfer?.types.includes('Files')) {
-                this.isDraggingFiles = true;
-            }
-        },
+                // Load entities
+                await this.loadEntities();
 
-        handleDragLeave(event) {
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-                this.isDraggingFiles = false;
-            }
-        },
+                // Setup keyboard shortcuts
+                this.setupKeyboardShortcuts();
+            },
 
-        async handleFileDrop(event) {
-            this.isDraggingFiles = false;
-            if (!this.canWrite) return;
-
-            const files = event.dataTransfer?.files;
-            if (!files?.length) return;
-
-            await this.uploadFiles(files);
-        },
-
-        async uploadFiles(files) {
-            const formData = new FormData();
-            for (const file of files) {
-                formData.append('files', file);
-            }
-            if (this.currentCollectionId) {
-                formData.append('collectionId', this.currentCollectionId);
-            }
-            if (this.currentFolderId) {
-                formData.append('folderId', this.currentFolderId);
-            }
-
-            try {
-                const response = await fetch('/api/documents/upload-batch', {
-                    method: 'POST',
-                    body: formData
+            setupKeyboardShortcuts() {
+                // Command+K or Ctrl+K to focus search
+                document.addEventListener('keydown', (e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                        e.preventDefault();
+                        const searchInput = document.querySelector('[x-model="searchQuery"]');
+                        if (searchInput) searchInput.focus();
+                    }
                 });
+            },
 
-                if (response.ok) {
-                    htmx.trigger(document.body, 'documentUploaded');
-                    await this.loadContents();
-                }
-            } catch (e) {
-                console.error('Upload failed:', e);
-            }
-        },
-
-        // Context menu
-        showContextMenu(event, type, id) {
-            event.preventDefault();
-            this.contextMenu = {
-                show: true,
-                x: event.clientX,
-                y: event.clientY,
-                type,
-                id
-            };
-        },
-
-        hideContextMenu() {
-            this.contextMenu.show = false;
-        },
-
-        // Keyboard navigation
-        handleKeyDown(event) {
-            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
-
-            switch (event.key) {
-                case 'a':
-                    if (event.ctrlKey || event.metaKey) {
-                        event.preventDefault();
-                        this.selectAll();
-                    }
-                    break;
-                case 'Escape':
-                    this.clearSelection();
-                    this.hideContextMenu();
-                    break;
-                case 'Delete':
-                case 'Backspace':
-                    if (this.canWrite && this.selectedItems.size > 0) {
-                        this.deleteSelected();
-                    }
-                    break;
-            }
-        },
-
-        async deleteSelected() {
-            if (!confirm(`Delete ${this.selectedItems.size} item(s)?`)) return;
-
-            for (const key of this.selectedItems) {
-                const [type, id] = key.split(':');
+            async checkAuthStatus() {
                 try {
-                    if (type === 'doc') {
-                        await fetch(`/api/documents/${id}`, { method: 'DELETE' });
-                    } else if (type === 'folder') {
-                        await fetch(`/api/folders/${id}`, { method: 'DELETE' });
+                    const response = await fetch('/api/documents/demo-status');
+                    const data = await response.json();
+                    this.canWrite = !data.demoMode;
+                } catch (e) {
+                    this.canWrite = false;
+                }
+            },
+
+            checkUrlForCollection() {
+                const pathMatch = window.location.pathname.match(/\/collection\/([^\/]+)/);
+                if (pathMatch) {
+                    const slug = pathMatch[1];
+                    const col = this.collections.find(c =>
+                        c.name.toLowerCase().replace(/\s+/g, '-') === slug.toLowerCase()
+                    );
+                    if (col) {
+                        this.currentCollectionId = col.id;
+                    }
+                }
+            },
+
+            async loadCollections() {
+                try {
+                    const response = await fetch('/api/collections');
+                    const data = await response.json();
+                    this.collections = data.collections || [];
+                } catch (e) {
+                    console.error('Failed to load collections:', e);
+                }
+            },
+
+            async loadContents() {
+                this.loading = true;
+                try {
+                    const params = new URLSearchParams();
+                    if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
+                    if (this.currentFolderId) params.append('folderId', this.currentFolderId);
+                    if (this.currentCommunityId) params.append('communityId', this.currentCommunityId);
+                    params.append('sort', this.sortBy);
+                    params.append('order', this.sortOrder);
+                    if (this.filters.type.length) params.append('filterType', this.filters.type.join(','));
+                    if (this.filters.status.length) params.append('filterStatus', this.filters.status.join(','));
+                    if (this.globPattern) params.append('glob', this.globPattern);
+
+                    // Signal filters
+                    if (this.signals.hasImages) params.append('hasImages', 'true');
+                    if (this.signals.hasTables) params.append('hasTables', 'true');
+                    if (this.signals.hasCode) params.append('hasCode', 'true');
+                    if (this.signals.dateRange) params.append('dateRange', this.signals.dateRange);
+
+                    // Entity filters
+                    if (this.selectedEntities.size > 0) {
+                        params.append('entityIds', [...this.selectedEntities].join(','));
+                    }
+
+                    const response = await fetch(`/api/explorer?${params}`);
+                    const data = await response.json();
+
+                    this.breadcrumb = data.path || [];
+                    this.folders = data.folders || [];
+                    this.documents = data.documents || [];
+                    this.communities = data.communities || [];
+                    this.canWrite = data.canWrite;
+
+                    // Load stats
+                    await this.loadStats();
+
+                    // Load folder tree if we have a collection
+                    if (this.currentCollectionId) {
+                        await this.loadFolderTree();
                     }
                 } catch (e) {
-                    console.error(`Failed to delete ${type} ${id}:`, e);
+                    console.error('Failed to load contents:', e);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async loadStats() {
+                try {
+                    const params = new URLSearchParams();
+                    if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
+                    if (this.currentFolderId) params.append('folderId', this.currentFolderId);
+
+                    const response = await fetch(`/api/explorer/stats?${params}`);
+                    this.stats = await response.json();
+                } catch (e) {
+                    console.error('Failed to load stats:', e);
+                }
+            },
+
+            async loadFolderTree() {
+                try {
+                    const response = await fetch(`/api/folders/tree?collectionId=${this.currentCollectionId}`);
+                    const data = await response.json();
+                    this.folderTree = data.folders || [];
+                } catch (e) {
+                    console.error('Failed to load folder tree:', e);
+                }
+            },
+
+            async loadEntities() {
+                try {
+                    const params = new URLSearchParams();
+                    if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
+                    params.append('limit', '100');
+
+                    const response = await fetch(`/api/explorer/entities?${params}`);
+                    const data = await response.json();
+
+                    this.entityGroups = data.entities || {};
+                    this.allEntities = [];
+
+                    // Flatten for lookup
+                    for (const [type, entities] of Object.entries(this.entityGroups)) {
+                        for (const entity of entities) {
+                            this.allEntities.push({...entity, type});
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to load entities:', e);
+                }
+            },
+
+            // Filter helpers
+            hasActiveFilters() {
+                return this.filters.type.length > 0 ||
+                    this.filters.status.length > 0 ||
+                    this.currentCommunityId ||
+                    this.selectedEntities.size > 0 ||
+                    this.signals.hasImages ||
+                    this.signals.hasTables ||
+                    this.signals.hasCode ||
+                    this.signals.dateRange;
+            },
+
+            clearAllFilters() {
+                this.filters.type = [];
+                this.filters.status = [];
+                this.currentCommunityId = null;
+                this.selectedEntities.clear();
+                this.selectedEntities = new Set();
+                this.signals = {hasImages: false, hasTables: false, hasCode: false, dateRange: ''};
+                this.loadContents();
+            },
+
+            toggleEntityFilter(entityId, type) {
+                if (this.selectedEntities.has(entityId)) {
+                    this.selectedEntities.delete(entityId);
+                } else {
+                    this.selectedEntities.add(entityId);
+                }
+                this.selectedEntities = new Set(this.selectedEntities);
+                this.loadContents();
+            },
+
+            getEntityName(entityId) {
+                const entity = this.allEntities.find(e => e.id === entityId);
+                return entity?.name || 'Entity';
+            },
+
+            getEntityIcon(type) {
+                switch (type?.toLowerCase()) {
+                    case 'person':
+                        return '<svg class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>';
+                    case 'organization':
+                    case 'org':
+                        return '<svg class="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>';
+                    case 'location':
+                        return '<svg class="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>';
+                    case 'concept':
+                        return '<svg class="h-4 w-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>';
+                    case 'code':
+                    case 'code_element':
+                        return '<svg class="h-4 w-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>';
+                    default:
+                        return '<svg class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>';
+                }
+            },
+
+            showEntityModal(type) {
+                // TODO: Implement entity browser modal
+                console.log('Show all entities of type:', type);
+            },
+
+            navigateToCollection() {
+                this.currentFolderId = null;
+                this.selectedItems.clear();
+                this.loadContents();
+            },
+
+            navigateToFolder(folderId) {
+                this.currentFolderId = folderId;
+                this.selectedItems.clear();
+                this.loadContents();
+            },
+
+            // Selection
+            selectItem(type, id, event) {
+                const key = `${type}:${id}`;
+
+                if (event.ctrlKey || event.metaKey) {
+                    // Toggle selection
+                    if (this.selectedItems.has(key)) {
+                        this.selectedItems.delete(key);
+                    } else {
+                        this.selectedItems.add(key);
+                    }
+                } else if (event.shiftKey && this.lastSelectedIndex !== null) {
+                    // Range selection would go here
+                    this.selectedItems.add(key);
+                } else {
+                    // Single selection
+                    this.selectedItems.clear();
+                    this.selectedItems.add(key);
+                }
+
+                this.selectedItems = new Set(this.selectedItems); // Trigger reactivity
+            },
+
+            isSelected(type, id) {
+                return this.selectedItems.has(`${type}:${id}`);
+            },
+
+            selectAll() {
+                this.folders.forEach(f => this.selectedItems.add(`folder:${f.id}`));
+                this.documents.forEach(d => this.selectedItems.add(`doc:${d.id}`));
+                this.selectedItems = new Set(this.selectedItems);
+            },
+
+            clearSelection() {
+                this.selectedItems.clear();
+                this.selectedItems = new Set();
+            },
+
+            // Chat scoping
+            scopeChatToSelection() {
+                const docIds = [...this.selectedItems]
+                    .filter(k => k.startsWith('doc:'))
+                    .map(k => k.replace('doc:', ''));
+
+                if (docIds.length > 0) {
+                    // Dispatch event for chat component to pick up
+                    window.dispatchEvent(new CustomEvent('scope-chat', {
+                        detail: {documentIds: docIds}
+                    }));
+                }
+            },
+
+            // Search
+            async executeSearch() {
+                if (!this.searchQuery.trim()) {
+                    this.explorerMode = 'browse';
+                    return;
+                }
+
+                this.loading = true;
+                this.explorerMode = 'search';
+
+                try {
+                    const response = await fetch('/api/explorer/search', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            query: this.searchQuery,
+                            collectionId: this.currentCollectionId,
+                            communityId: this.currentCommunityId,
+                            contentTypes: ['document', 'image', 'audio'],
+                            topK: 50
+                        })
+                    });
+
+                    const data = await response.json();
+                    this.searchResults = data.results || [];
+                    this.queryDecomposition = data.queryDecomposition || [];
+                } catch (e) {
+                    console.error('Search failed:', e);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            clearSearch() {
+                this.searchQuery = '';
+                this.searchResults = [];
+                this.queryDecomposition = [];
+                this.explorerMode = 'browse';
+            },
+
+            // Folder operations
+            async createFolder() {
+                const name = prompt('Enter folder name:');
+                if (!name?.trim()) return;
+
+                try {
+                    await fetch('/api/folders', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            collectionId: this.currentCollectionId,
+                            parentFolderId: this.currentFolderId,
+                            name: name.trim()
+                        })
+                    });
+                    await this.loadContents();
+                } catch (e) {
+                    console.error('Failed to create folder:', e);
+                    alert('Failed to create folder');
+                }
+            },
+
+            // File upload
+            handleDragOver(event) {
+                if (event.dataTransfer?.types.includes('Files')) {
+                    this.isDraggingFiles = true;
+                }
+            },
+
+            handleDragLeave(event) {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                    this.isDraggingFiles = false;
+                }
+            },
+
+            async handleFileDrop(event) {
+                this.isDraggingFiles = false;
+                if (!this.canWrite) return;
+
+                const files = event.dataTransfer?.files;
+                if (!files?.length) return;
+
+                await this.uploadFiles(files);
+            },
+
+            async uploadFiles(files) {
+                const formData = new FormData();
+                for (const file of files) {
+                    formData.append('files', file);
+                }
+                if (this.currentCollectionId) {
+                    formData.append('collectionId', this.currentCollectionId);
+                }
+                if (this.currentFolderId) {
+                    formData.append('folderId', this.currentFolderId);
+                }
+
+                try {
+                    const response = await fetch('/api/documents/upload-batch', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        htmx.trigger(document.body, 'documentUploaded');
+                        await this.loadContents();
+                    }
+                } catch (e) {
+                    console.error('Upload failed:', e);
+                }
+            },
+
+            // Context menu
+            showContextMenu(event, type, id) {
+                event.preventDefault();
+                this.contextMenu = {
+                    show: true,
+                    x: event.clientX,
+                    y: event.clientY,
+                    type,
+                    id
+                };
+            },
+
+            hideContextMenu() {
+                this.contextMenu.show = false;
+            },
+
+            // Keyboard navigation
+            handleKeyDown(event) {
+                if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
+
+                switch (event.key) {
+                    case 'a':
+                        if (event.ctrlKey || event.metaKey) {
+                            event.preventDefault();
+                            this.selectAll();
+                        }
+                        break;
+                    case 'Escape':
+                        this.clearSelection();
+                        this.hideContextMenu();
+                        break;
+                    case 'Delete':
+                    case 'Backspace':
+                        if (this.canWrite && this.selectedItems.size > 0) {
+                            this.deleteSelected();
+                        }
+                        break;
+                }
+            },
+
+            async deleteSelected() {
+                if (!confirm(`Delete ${this.selectedItems.size} item(s)?`)) return;
+
+                for (const key of this.selectedItems) {
+                    const [type, id] = key.split(':');
+                    try {
+                        if (type === 'doc') {
+                            await fetch(`/api/documents/${id}`, {method: 'DELETE'});
+                        } else if (type === 'folder') {
+                            await fetch(`/api/folders/${id}`, {method: 'DELETE'});
+                        }
+                    } catch (e) {
+                        console.error(`Failed to delete ${type} ${id}:`, e);
+                    }
+                }
+
+                this.selectedItems.clear();
+                await this.loadContents();
+            },
+
+            // Open document details
+            openDocument(docId) {
+                // Dispatch event for parent component
+                window.dispatchEvent(new CustomEvent('show-document-details', {
+                    detail: {documentId: docId}
+                }));
+            },
+
+            // View controls
+            setViewMode(mode) {
+                this.viewMode = mode;
+                localStorage.setItem('explorer-view', mode);
+            },
+
+            setSortBy(field) {
+                if (this.sortBy === field) {
+                    this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+                } else {
+                    this.sortBy = field;
+                    this.sortOrder = 'asc';
+                }
+                localStorage.setItem('explorer-sort', this.sortBy);
+                localStorage.setItem('explorer-order', this.sortOrder);
+                this.loadContents();
+            },
+
+            toggleFilter(filterType, value) {
+                const arr = this.filters[filterType];
+                const idx = arr.indexOf(value);
+                if (idx >= 0) {
+                    arr.splice(idx, 1);
+                } else {
+                    arr.push(value);
+                }
+                this.loadContents();
+            },
+
+            // Utilities
+            formatSize(bytes) {
+                if (!bytes) return '';
+                const units = ['B', 'KB', 'MB', 'GB'];
+                let i = 0;
+                while (bytes >= 1024 && i < units.length - 1) {
+                    bytes /= 1024;
+                    i++;
+                }
+                return `${bytes.toFixed(1)} ${units[i]}`;
+            },
+
+            formatDate(dateStr) {
+                if (!dateStr) return '';
+                return new Date(dateStr).toLocaleDateString();
+            },
+
+            getFileIcon(doc) {
+                const type = doc.contentType || 'document';
+                switch (type) {
+                    case 'pdf':
+                        return '<svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="currentColor"><path d="M7 18H17V16H7V18ZM17 14H7V12H17V14ZM7 10H11V8H7V10ZM21 6V20C21 21.1 20.1 22 19 22H5C3.9 22 3 21.1 3 20V4C3 2.9 3.9 2 5 2H15L21 8V6ZM19 8L15 4H5V20H19V8Z"/></svg>';
+                    case 'docx':
+                    case 'doc':
+                        return '<svg class="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM16 18H8V16H16V18ZM16 14H8V12H16V14ZM13 9V3.5L18.5 9H13Z"/></svg>';
+                    case 'markdown':
+                        return '<svg class="h-5 w-5 text-gray-600" viewBox="0 0 24 24" fill="currentColor"><path d="M20.56 18H3.44C2.65 18 2 17.37 2 16.59V7.41C2 6.63 2.65 6 3.44 6H20.56C21.35 6 22 6.63 22 7.41V16.59C22 17.37 21.35 18 20.56 18ZM5 15V9H6.5L8 11L9.5 9H11V15H9.5V11.85L8 14L6.5 11.85V15H5ZM13.5 15V12H12L14.5 9L17 12H15.5V15H13.5Z"/></svg>';
+                    case 'image':
+                        return '<svg class="h-5 w-5 text-green-500" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
+                    case 'audio':
+                        return '<svg class="h-5 w-5 text-purple-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
+                    default:
+                        return '<svg class="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM13 9V3.5L18.5 9H13Z"/></svg>';
+                }
+            },
+
+            getStatusClass(status) {
+                switch (status) {
+                    case 'completed':
+                        return 'badge-success';
+                    case 'processing':
+                        return 'badge-warning';
+                    case 'pending':
+                        return 'badge-info';
+                    case 'failed':
+                        return 'badge-error';
+                    default:
+                        return 'badge-ghost';
                 }
             }
-
-            this.selectedItems.clear();
-            await this.loadContents();
-        },
-
-        // Open document details
-        openDocument(docId) {
-            // Dispatch event for parent component
-            window.dispatchEvent(new CustomEvent('show-document-details', {
-                detail: { documentId: docId }
-            }));
-        },
-
-        // View controls
-        setViewMode(mode) {
-            this.viewMode = mode;
-            localStorage.setItem('explorer-view', mode);
-        },
-
-        setSortBy(field) {
-            if (this.sortBy === field) {
-                this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
-            } else {
-                this.sortBy = field;
-                this.sortOrder = 'asc';
-            }
-            localStorage.setItem('explorer-sort', this.sortBy);
-            localStorage.setItem('explorer-order', this.sortOrder);
-            this.loadContents();
-        },
-
-        toggleFilter(filterType, value) {
-            const arr = this.filters[filterType];
-            const idx = arr.indexOf(value);
-            if (idx >= 0) {
-                arr.splice(idx, 1);
-            } else {
-                arr.push(value);
-            }
-            this.loadContents();
-        },
-
-        // Utilities
-        formatSize(bytes) {
-            if (!bytes) return '';
-            const units = ['B', 'KB', 'MB', 'GB'];
-            let i = 0;
-            while (bytes >= 1024 && i < units.length - 1) {
-                bytes /= 1024;
-                i++;
-            }
-            return `${bytes.toFixed(1)} ${units[i]}`;
-        },
-
-        formatDate(dateStr) {
-            if (!dateStr) return '';
-            return new Date(dateStr).toLocaleDateString();
-        },
-
-        getFileIcon(doc) {
-            const type = doc.contentType || 'document';
-            switch (type) {
-                case 'pdf':
-                    return '<svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="currentColor"><path d="M7 18H17V16H7V18ZM17 14H7V12H17V14ZM7 10H11V8H7V10ZM21 6V20C21 21.1 20.1 22 19 22H5C3.9 22 3 21.1 3 20V4C3 2.9 3.9 2 5 2H15L21 8V6ZM19 8L15 4H5V20H19V8Z"/></svg>';
-                case 'docx':
-                case 'doc':
-                    return '<svg class="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM16 18H8V16H16V18ZM16 14H8V12H16V14ZM13 9V3.5L18.5 9H13Z"/></svg>';
-                case 'markdown':
-                    return '<svg class="h-5 w-5 text-gray-600" viewBox="0 0 24 24" fill="currentColor"><path d="M20.56 18H3.44C2.65 18 2 17.37 2 16.59V7.41C2 6.63 2.65 6 3.44 6H20.56C21.35 6 22 6.63 22 7.41V16.59C22 17.37 21.35 18 20.56 18ZM5 15V9H6.5L8 11L9.5 9H11V15H9.5V11.85L8 14L6.5 11.85V15H5ZM13.5 15V12H12L14.5 9L17 12H15.5V15H13.5Z"/></svg>';
-                case 'image':
-                    return '<svg class="h-5 w-5 text-green-500" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
-                case 'audio':
-                    return '<svg class="h-5 w-5 text-purple-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
-                default:
-                    return '<svg class="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM13 9V3.5L18.5 9H13Z"/></svg>';
-            }
-        },
-
-        getStatusClass(status) {
-            switch (status) {
-                case 'completed': return 'badge-success';
-                case 'processing': return 'badge-warning';
-                case 'pending': return 'badge-info';
-                case 'failed': return 'badge-error';
-                default: return 'badge-ghost';
-            }
-        }
-    };
-}
+        };
+    }
 </script>

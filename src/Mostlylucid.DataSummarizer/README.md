@@ -1,10 +1,11 @@
- # DataSummarizer
+# DataSummarizer
 
 **Fast, local, deterministic data profiling with DuckDB + optional LLM narration.**
 
 **LLM reasons over profiles; DuckDB computes.**
 
-A .NET 10 CLI that turns any CSV/Excel/Parquet/JSON into a reproducible statistical profile. Built for **speed** (out-of-core analytics), **determinism** (computed facts, not guessed), and **privacy** (everything runs locally).
+A .NET 10 CLI that turns any CSV/Excel/Parquet/JSON into a reproducible statistical profile. Built for **speed** (
+out-of-core analytics), **determinism** (computed facts, not guessed), and **privacy** (everything runs locally).
 
 [![GitHub](https://img.shields.io/github/stars/scottgal/mostlylucidweb?style=social)](https://github.com/scottgal/mostlylucidweb/tree/main/Mostlylucid.DataSummarizer)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4)](https://dotnet.microsoft.com/)
@@ -80,9 +81,9 @@ datasummarizer tool -f /data/daily_export.csv --auto-drift --store
 
 1. Go to [GitHub Releases](https://github.com/scottgal/mostlylucidweb/releases)
 2. Download the latest `datasummarizer` release for your platform:
-   - **Windows**: `datasummarizer-win-x64.zip`
-   - **Linux**: `datasummarizer-linux-x64.tar.gz`
-   - **macOS**: `datasummarizer-osx-x64.tar.gz`
+    - **Windows**: `datasummarizer-win-x64.zip`
+    - **Linux**: `datasummarizer-linux-x64.tar.gz`
+    - **macOS**: `datasummarizer-osx-x64.tar.gz`
 3. Extract the archive
 4. Run the tool:
 
@@ -130,14 +131,14 @@ Then you can run `datasummarizer` from anywhere.
 
 ### Supported Formats
 
-| Format | Extensions | Notes |
-|--------|------------|-------|
-| **CSV/TSV** | `.csv`, `.tsv` | Auto-detected delimiter, header inference |
-| **Excel** | `.xlsx`, `.xls` | Multi-sheet support (`--sheet` option) |
-| **Parquet** | `.parquet` | Column-oriented, best for large files |
-| **JSON** | `.json`, `.ndjson`, `.jsonl` | Line-delimited and nested |
-| **SQLite** | `.sqlite`, `.db`, `.sqlite3` | All tables profiled |
-| **Log Files** | `.log` | Apache/IIS logs (see below) |
+| Format        | Extensions                   | Notes                                     |
+|---------------|------------------------------|-------------------------------------------|
+| **CSV/TSV**   | `.csv`, `.tsv`               | Auto-detected delimiter, header inference |
+| **Excel**     | `.xlsx`, `.xls`              | Multi-sheet support (`--sheet` option)    |
+| **Parquet**   | `.parquet`                   | Column-oriented, best for large files     |
+| **JSON**      | `.json`, `.ndjson`, `.jsonl` | Line-delimited and nested                 |
+| **SQLite**    | `.sqlite`, `.db`, `.sqlite3` | All tables profiled                       |
+| **Log Files** | `.log`                       | Apache/IIS logs (see below)               |
 
 #### Log File Support
 
@@ -156,11 +157,11 @@ datasummarizer -f C:\inetpub\logs\LogFiles\W3SVC1\u_ex240101.log --no-llm --fast
 
 **Supported log formats:**
 
-| Format | Detection | Extracted Columns |
-|--------|-----------|-------------------|
-| **Apache Error** | `[date] [level]` pattern | `timestamp`, `level`, `client_ip`, `message` |
+| Format                     | Detection                    | Extracted Columns                                                                     |
+|----------------------------|------------------------------|---------------------------------------------------------------------------------------|
+| **Apache Error**           | `[date] [level]` pattern     | `timestamp`, `level`, `client_ip`, `message`                                          |
 | **Apache Access/Combined** | IP + quoted request + status | `client_ip`, `timestamp`, `method`, `url`, `status`, `bytes`, `referer`, `user_agent` |
-| **IIS W3C** | `#Fields:` directive | All fields from header (date, time, cs-uri-stem, sc-status, etc.) |
+| **IIS W3C**                | `#Fields:` directive         | All fields from header (date, time, cs-uri-stem, sc-status, etc.)                     |
 
 **Example output (Apache error log):**
 
@@ -189,19 +190,21 @@ notice  ████████████ 13755
 
 A **profile** is a deterministic statistical snapshot of your data:
 
-| Category | Metrics |
-|----------|---------|
-| **Schema** | Row count, column count, inferred types (Numeric/Categorical/DateTime/Text/Id/Boolean) |
-| **Data Quality** | Null %, unique %, constants, zero counts, outliers (IQR) |
-| **Numeric Stats** | Min/max, mean/median, stddev, quantiles [Q25, Q50, Q75], skewness, kurtosis, MAD, CV, outlier count |
-| **Categorical Stats** | Unique count, top values, mode, imbalance ratio, entropy, cardinality |
-| **Relationships** | Pearson correlations (limited pairs), FK overlap hints, monotonic hints |
-| **Patterns** | Text formats (email/URL/UUID/phone/novel), distribution labels (normal/skewed/uniform/bimodal), trends, time-series gaps, seasonality |
-| **Alerts** | Leakage warnings, high nulls, extreme skew, ordinal hints, ID column detection |
+| Category              | Metrics                                                                                                                               |
+|-----------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| **Schema**            | Row count, column count, inferred types (Numeric/Categorical/DateTime/Text/Id/Boolean)                                                |
+| **Data Quality**      | Null %, unique %, constants, zero counts, outliers (IQR)                                                                              |
+| **Numeric Stats**     | Min/max, mean/median, stddev, quantiles [Q25, Q50, Q75], skewness, kurtosis, MAD, CV, outlier count                                   |
+| **Categorical Stats** | Unique count, top values, mode, imbalance ratio, entropy, cardinality                                                                 |
+| **Relationships**     | Pearson correlations (limited pairs), FK overlap hints, monotonic hints                                                               |
+| **Patterns**          | Text formats (email/URL/UUID/phone/novel), distribution labels (normal/skewed/uniform/bimodal), trends, time-series gaps, seasonality |
+| **Alerts**            | Leakage warnings, high nulls, extreme skew, ordinal hints, ID column detection                                                        |
 
-**Why it matters**: A profile is *computed facts*, not LLM guesses. You can version it, diff it, and use it for data contracts.
+**Why it matters**: A profile is *computed facts*, not LLM guesses. You can version it, diff it, and use it for data
+contracts.
 
 **Profile schema (minimal):**
+
 ```json
 {
   "RowCount": 10000,
@@ -233,6 +236,7 @@ A **profile** is a deterministic statistical snapshot of your data:
 - **Signature** (changes): Per-column statistical properties. Detects drift.
 
 When you profile data:
+
 1. Fingerprint identifies the dataset family (same schema)
 2. Signature detects distribution drift within that family
 3. Distance metrics (KS/JS) quantify how much drift occurred
@@ -245,6 +249,7 @@ When you profile data:
 - **Registry** = discovery + search + conversations (exploring many datasets, Q&A across data catalog)
 
 **Storage:**
+
 - **Registry** (`--vector-db`): Profiles + embeddings + conversation history (similarity index for semantic search)
 - **Store** (`--store-path`): Profiles + metadata + baseline pins (optimized for drift tracking)
 
@@ -255,23 +260,27 @@ Both are DuckDB files. The Registry includes a vector similarity index for cross
 DataSummarizer remembers datasets and questions separately:
 
 **1) Dataset Memory (Profile + Signature)**
+
 - **Schema fingerprint** (stable): Column names + types hash → identifies the dataset family
 - **Statistical signature** (changes): Per-column distributions → detects drift
 - **Use cases**: Drift detection, baselines, cohort comparison, "what changed since last run"
 
 **2) Question Memory (Question → SQL → Results)**
+
 - **SQL is the durable artifact**: Stored query templates bound to schema fingerprint
 - **Result summary** (optional): Cached for UX, but SQL is rerunnable
 - **Binding key**: Schema fingerprint + query template + parameters
 
 **Smart reuse:**
+
 - **Exact match** (content hash) → reuse cached answer safely
 - **Same schema, new data** → rerun SQL, detect answer drift
-  - "Top product changed from X to Y"
-  - "Conversion rate dropped 3.2pp"
-  - "Null% doubled in column Z, KPI Q now unreliable"
+    - "Top product changed from X to Y"
+    - "Conversion rate dropped 3.2pp"
+    - "Null% doubled in column Z, KPI Q now unreliable"
 
 **Cached queries include:**
+
 - Profile ID/hash used at time of query
 - Drift score at time of answer
 - Whether results were sampled/limited
@@ -333,6 +342,7 @@ var guid = ContentHasher.ComputeGuid(content);      // Stable GUID
 ```
 
 **Benefits:**
+
 - **Fast**: XxHash64 is 5-10× faster than SHA256
 - **Consistent**: Same hash algorithm across all LucidRAG components
 - **Deterministic**: Stable hashes for deduplication and caching
@@ -347,14 +357,14 @@ var guid = ContentHasher.ComputeGuid(content);      // Stable GUID
 
 Uses **ONNX-powered ensemble detection** (regex + machine learning) to identify:
 
-| PII Type | Example | Default Display |
-|----------|---------|-----------------|
-| **SSN** | `123-45-6789` | `***-**-6789` |
-| **Email** | `john@example.com` | `jo***@***.com` |
-| **Phone** | `555-123-4567` | `***-***-4567` |
+| PII Type        | Example               | Default Display       |
+|-----------------|-----------------------|-----------------------|
+| **SSN**         | `123-45-6789`         | `***-**-6789`         |
+| **Email**       | `john@example.com`    | `jo***@***.com`       |
+| **Phone**       | `555-123-4567`        | `***-***-4567`        |
 | **Credit Card** | `4111-1111-1111-1111` | `**** **** **** 1111` |
-| **Names** | `John Doe` | `<NAME> Jo****oe` |
-| **Addresses** | `123 Main St` | `<ADDR> 12*******St` |
+| **Names**       | `John Doe`            | `<NAME> Jo****oe`     |
+| **Addresses**   | `123 Main St`         | `<ADDR> 12*******St`  |
 
 ### Redaction Examples
 
@@ -408,15 +418,15 @@ Control PII display via `appsettings.json`:
 
 ### Privacy Guarantees
 
-| Concern | Default Policy |
-|---------|---------------|
-| **Console output** | PII redacted (hidden by default) |
-| **LLM context** | Profile-only (no row values) unless SQL-mode enabled |
+| Concern            | Default Policy                                       |
+|--------------------|------------------------------------------------------|
+| **Console output** | PII redacted (hidden by default)                     |
+| **LLM context**    | Profile-only (no row values) unless SQL-mode enabled |
 
 ✅ **Screenshot-safe** - Share profiling results without exposing PII  
 ✅ **CI/CD-safe** - Run in build pipelines without leaking sensitive data  
 ✅ **Demo-safe** - Show profiling capabilities on production-like data  
-✅ **Compliance-friendly** - GDPR/HIPAA-aware output redaction  
+✅ **Compliance-friendly** - GDPR/HIPAA-aware output redaction
 
 **Note:** PII detection runs locally using ONNX models. No data leaves your machine.
 
@@ -431,6 +441,7 @@ datasummarizer -f <file> [options]
 ```
 
 **Options:**
+
 - `-f, --file <path>`: CSV/Excel/Parquet/JSON file
 - `-s, --sheet <name>`: Excel sheet name
 - `-m, --model <ollama-model>`: Ollama model (default: `qwen2.5-coder:7b`)
@@ -442,6 +453,7 @@ datasummarizer -f <file> [options]
 - `-o, --output <path>`: Save output to file
 
 **Example:**
+
 ```bash
 # Pretty report with LLM insights
 datasummarizer -f sales.csv --model qwen2.5-coder:7b
@@ -464,12 +476,14 @@ datasummarizer profile -f <file> [--output <path>] [options]
 ```
 
 **Options:**
+
 - `--output, -o <path>`: Output file (default: `<filename>.profile.json`)
 - `--no-llm`: Skip LLM features
 - `--model <model>`: Ollama model
 - `--verbose`: Verbose logging
 
 **Example:**
+
 ```bash
 # Profile single file
 datasummarizer profile -f Bank_Churn.csv --output bank.profile.json --no-llm
@@ -486,19 +500,22 @@ datasummarizer profile -f Bank_Churn.csv --model qwen2.5-coder:7b
 
 Generate synthetic data that matches a profile's statistical properties.
 
-**What "statistically identical" means:** Matches per-column marginals (quantiles/top-k) and null/uniqueness rates. Does not preserve joint correlations unless explicitly enabled via conditional tables.
+**What "statistically identical" means:** Matches per-column marginals (quantiles/top-k) and null/uniqueness rates. Does
+not preserve joint correlations unless explicitly enabled via conditional tables.
 
 ```bash
 datasummarizer synth --profile <profile.json> --synthesize-to <output.csv> [--synthesize-rows N]
 ```
 
 **Options:**
+
 - `--profile <path>`: Input profile JSON (required)
 - `--synthesize-to <path>`: Output CSV path (required)
 - `--synthesize-rows <N>`: Number of rows to generate (default: 1000)
 - `--verbose`: Verbose logging
 
 **Example:**
+
 ```bash
 # Generate 1000 synthetic rows
 datasummarizer synth --profile bank.profile.json --synthesize-to synthetic.csv --synthesize-rows 1000
@@ -508,6 +525,7 @@ datasummarizer synth --profile bank.profile.json --synthesize-to synthetic_10k.c
 ```
 
 **Use cases:**
+
 - Testing data pipelines without real data
 - Privacy-safe data sharing (no real PII)
 - Synthetic training data generation
@@ -523,6 +541,7 @@ datasummarizer validate --source <file> --target <file> [options]
 ```
 
 **Options:**
+
 - `--source <path>`: Source/reference dataset (required)
 - `--target <path>`: Target dataset to validate (required)
 - `--constraints <path>`: Constraint suite JSON file
@@ -534,6 +553,7 @@ datasummarizer validate --source <file> --target <file> [options]
 - `--model <model>`: Ollama model for LLM-based insights
 
 **Example:**
+
 ```bash
 # Basic drift comparison (statistical differences)
 datasummarizer validate --source prod.csv --target new_batch.csv --no-llm
@@ -549,6 +569,7 @@ datasummarizer validate --source prod.csv --target new_batch.csv --constraints p
 ```
 
 **Constraint types:**
+
 - Row count range
 - Column count exact
 - Columns exist
@@ -571,6 +592,7 @@ datasummarizer segment --segment-a <path-or-id> --segment-b <path-or-id> [option
 ```
 
 **Options:**
+
 - `--segment-a <path>`: First dataset (file path or profile ID) (required)
 - `--segment-b <path>`: Second dataset (file path or profile ID) (required)
 - `--name-a <name>`: Display name for segment A
@@ -580,6 +602,7 @@ datasummarizer segment --segment-a <path-or-id> --segment-b <path-or-id> [option
 - `--store-path <path>`: Profile store path (if using profile IDs)
 
 **Example:**
+
 ```bash
 # Compare two files
 datasummarizer segment --segment-a prod.csv --segment-b synthetic.csv --format markdown
@@ -595,6 +618,7 @@ datasummarizer segment --segment-a prod.csv --segment-b staging.csv --output com
 ```
 
 **Output includes:**
+
 - Similarity score (0-1)
 - Anomaly scores for each segment
 - Column-by-column comparison (mean deltas, mode shifts, distribution distances)
@@ -613,6 +637,7 @@ datasummarizer tool -f <file> [options]
 ```
 
 **Options:**
+
 - `-f, --file <path>`: Data file (required)
 - `-s, --sheet <name>`: Excel sheet name
 - `--target <column>`: Target column for supervised analysis
@@ -632,6 +657,7 @@ datasummarizer tool -f <file> [options]
 - `--format <json|markdown|html>`: Output format (default: json)
 
 **Example:**
+
 ```bash
 # Basic tool output (JSON)
 datasummarizer tool -f data.csv --no-llm
@@ -647,6 +673,7 @@ datasummarizer tool -f data.csv --target Exited --no-llm
 ```
 
 **Output structure:**
+
 ```json
 {
   "Success": true,
@@ -688,6 +715,7 @@ datasummarizer store [subcommand] [options]
 ```
 
 **Subcommands:**
+
 - `list`: List all stored profiles
 - `clear`: Clear all stored profiles
 - `prune`: Remove old profiles (keep N most recent per schema)
@@ -695,11 +723,13 @@ datasummarizer store [subcommand] [options]
 - *(no subcommand)*: Interactive management menu
 
 **Options:**
+
 - `--store-path <path>`: Custom profile store directory
 - `--id <profile-id>`: Profile ID to delete (for default command)
 - `--keep, -k <N>`: Number of profiles to keep per schema (for `prune`, default: 5)
 
 **Example:**
+
 ```bash
 # Interactive menu (requires interactive terminal)
 datasummarizer store
@@ -724,6 +754,7 @@ datasummarizer store list --store-path /path/to/profiles.duckdb
 ```
 
 **Interactive menu features:**
+
 - 📋 List all profiles (with flags: 📌 pinned, 🚫 excluded, 🏷️ tagged)
 - 🔍 View detailed profile metadata
 - ⚖️ Compare two profiles interactively
@@ -752,23 +783,23 @@ Custom: Use `--store-path <path>` on any command.
 
 Each stored profile includes:
 
-| Field | Description |
-|-------|-------------|
-| **Id** | 12-character unique identifier |
-| **SourcePath** | Original file path |
-| **FileName** | File name |
-| **StoredAt** | Timestamp (UTC) |
-| **RowCount** | Number of rows profiled |
-| **ColumnCount** | Number of columns |
-| **ContentHash** | xxHash64 of file content (for exact match detection) |
-| **FileSize** | File size in bytes |
-| **SchemaHash** | Hash of column names + types (for schema matching) |
-| **StatisticalSignature** | Per-column stats for drift detection |
-| **ProfileTime** | Time taken to profile |
-| **IsPinnedBaseline** | Pinned as baseline (only one per schema) |
-| **ExcludeFromBaseline** | Excluded from auto-baseline selection |
-| **Tags** | Comma-separated tags (e.g., "production,validated,Q4-2024") |
-| **Notes** | User notes (e.g., "Known data quality issue") |
+| Field                    | Description                                                 |
+|--------------------------|-------------------------------------------------------------|
+| **Id**                   | 12-character unique identifier                              |
+| **SourcePath**           | Original file path                                          |
+| **FileName**             | File name                                                   |
+| **StoredAt**             | Timestamp (UTC)                                             |
+| **RowCount**             | Number of rows profiled                                     |
+| **ColumnCount**          | Number of columns                                           |
+| **ContentHash**          | xxHash64 of file content (for exact match detection)        |
+| **FileSize**             | File size in bytes                                          |
+| **SchemaHash**           | Hash of column names + types (for schema matching)          |
+| **StatisticalSignature** | Per-column stats for drift detection                        |
+| **ProfileTime**          | Time taken to profile                                       |
+| **IsPinnedBaseline**     | Pinned as baseline (only one per schema)                    |
+| **ExcludeFromBaseline**  | Excluded from auto-baseline selection                       |
+| **Tags**                 | Comma-separated tags (e.g., "production,validated,Q4-2024") |
+| **Notes**                | User notes (e.g., "Known data quality issue")               |
 
 ### Interactive Management
 
@@ -779,41 +810,41 @@ datasummarizer store
 **Menu options:**
 
 1. **List all profiles**: Shows all profiles with visual flags
-   - 📌 = Pinned baseline
-   - 🚫 = Excluded from baseline selection
-   - 🏷️ = Has tags
+    - 📌 = Pinned baseline
+    - 🚫 = Excluded from baseline selection
+    - 🏷️ = Has tags
 
 2. **View profile details**: Shows full metadata + statistics
 
 3. **Compare two profiles**: Interactive selection with drift visualization
-   - Drift score
-   - Per-column distances (KS/JS)
-   - Schema changes
-   - Recommendations
+    - Drift score
+    - Per-column distances (KS/JS)
+    - Schema changes
+    - Recommendations
 
 4. **Delete profile**: Remove profile from store
 
 5. **Pin as baseline**: Mark profile as baseline for drift comparison
-   - Only one profile per schema can be pinned
-   - Auto-unpins other baselines with same schema
+    - Only one profile per schema can be pinned
+    - Auto-unpins other baselines with same schema
 
 6. **Exclude from baseline**: Skip profile in auto-baseline selection
-   - Useful for known-bad batches or outliers
+    - Useful for known-bad batches or outliers
 
 7. **Add tags/notes**: Categorize and annotate profiles
-   - Tags: `production`, `staging`, `Q1-2024`, `validated`
-   - Notes: Free-form text for context
+    - Tags: `production`, `staging`, `Q1-2024`, `validated`
+    - Notes: Free-form text for context
 
 8. **Prune old profiles**: Keep N most recent per schema
-   - Respects pinned baselines (never pruned)
-   - Default: keep 5 per schema
+    - Respects pinned baselines (never pruned)
+    - Default: keep 5 per schema
 
 9. **Show statistics**: Store-wide metrics
-   - Total profiles
-   - Unique schemas
-   - Total rows profiled
-   - Total disk usage (MB)
-   - Oldest/newest profile timestamps
+    - Total profiles
+    - Unique schemas
+    - Total rows profiled
+    - Total disk usage (MB)
+    - Oldest/newest profile timestamps
 
 ### Programmatic Access
 
@@ -857,9 +888,11 @@ flowchart LR
 Every profile gets a **statistical signature**:
 
 - **Fingerprint** (stable): Schema hash (column names + types). Survives new batches.
-- **Signature** (changes): Per-column stats (mean/median/stddev/quantiles for numeric; top-K distribution/entropy for categorical). Detects drift.
+- **Signature** (changes): Per-column stats (mean/median/stddev/quantiles for numeric; top-K distribution/entropy for
+  categorical). Detects drift.
 
 **Baseline selection logic:**
+
 1. Find all profiles with matching schema (same fingerprint)
 2. If any profile is pinned (`IsPinnedBaseline=true`), use it
 3. Otherwise, use oldest profile with matching schema
@@ -868,24 +901,27 @@ Every profile gets a **statistical signature**:
 ### Distance Metrics
 
 **Numeric columns**: Approximate Kolmogorov-Smirnov
+
 - Uses quantiles [Q25, Q50, Q75] instead of raw data
 - IQR-normalized to prevent scale sensitivity
 - Range: [0, 1], threshold: 0.1
 
 **Categorical columns**: Jensen-Shannon Divergence
+
 - Symmetric [0, 1] metric (no baseline vs target asymmetry)
 - Handles missing categories gracefully (fills with zeros)
 - Uses top-K value distributions
 - Range: [0, 1], threshold: 0.1
 
 **Overall drift score**: Weighted rollup
+
 - Averages column-level distances
 - Excludes ID columns automatically
 - Range: [0, 1]
 - Thresholds:
-  - < 0.2: No significant drift
-  - 0.2-0.3: Moderate drift
-  - > 0.3: Significant drift (triggers constraint suggestions)
+    - < 0.2: No significant drift
+    - 0.2-0.3: Moderate drift
+    - > 0.3: Significant drift (triggers constraint suggestions)
 
 ### Cron Job Pattern
 
@@ -895,6 +931,7 @@ Every profile gets a **statistical signature**:
 ```
 
 **What happens:**
+
 1. Profile computed (row/column stats, alerts, patterns)
 2. Content hash checked (skip if file unchanged)
 3. Baseline auto-selected (oldest with same schema, or pinned)
@@ -903,6 +940,7 @@ Every profile gets a **statistical signature**:
 6. Profile stored for future comparisons
 
 **If drift > 0.3:**
+
 - Auto-generates `constraints.suggested.json`
 - User reviews before enforcement (not automatic)
 
@@ -977,7 +1015,8 @@ datasummarizer validate --source prod.csv --target prod.csv \
 }
 ```
 
-**Important:** Auto-generated constraints are **advisory** - review before enforcing in CI. Constraints like "100% uniqueness" may be too strict for production data.
+**Important:** Auto-generated constraints are **advisory** - review before enforcing in CI. Constraints like "100%
+uniqueness" may be too strict for production data.
 
 ### Validate Against Constraints
 
@@ -1021,26 +1060,26 @@ Pass Rate: 87.8% (36/41)
 
 ### Constraint Types
 
-| Type | Description | Parameters |
-|------|-------------|-----------|
-| **RowCount** | Row count range | MinValue, MaxValue |
-| **ColumnCount** | Exact column count | ExpectedValue |
-| **ColumnsExist** | Expected columns present | ExpectedColumns |
-| **NotNull** | Column has no nulls | ColumnName |
-| **ColumnType** | Column type matches | ColumnName, ExpectedType |
-| **ValueRange** | Numeric values in range (with tolerance) | ColumnName, MinValue, MaxValue |
-| **ValuesInSet** | Categorical values in allowed set | ColumnName, AllowedValues |
-| **Uniqueness** | Column uniqueness % | ColumnName, MinValue (0.0-1.0) |
+| Type             | Description                              | Parameters                     |
+|------------------|------------------------------------------|--------------------------------|
+| **RowCount**     | Row count range                          | MinValue, MaxValue             |
+| **ColumnCount**  | Exact column count                       | ExpectedValue                  |
+| **ColumnsExist** | Expected columns present                 | ExpectedColumns                |
+| **NotNull**      | Column has no nulls                      | ColumnName                     |
+| **ColumnType**   | Column type matches                      | ColumnName, ExpectedType       |
+| **ValueRange**   | Numeric values in range (with tolerance) | ColumnName, MinValue, MaxValue |
+| **ValuesInSet**  | Categorical values in allowed set        | ColumnName, AllowedValues      |
+| **Uniqueness**   | Column uniqueness %                      | ColumnName, MinValue (0.0-1.0) |
 
 ### Use Cases
 
-| Use Case | Command |
-|----------|---------|
-| **Synthetic data validation** | Compare generated vs source distribution |
-| **Data pipeline testing** | Ensure transformed data matches expected schema |
-| **Drift monitoring** | Track when new data violates expected bounds |
-| **CI/CD integration** | Use `--strict` to fail builds on violations |
-| **Data migration** | Verify old system vs new system data |
+| Use Case                      | Command                                         |
+|-------------------------------|-------------------------------------------------|
+| **Synthetic data validation** | Compare generated vs source distribution        |
+| **Data pipeline testing**     | Ensure transformed data matches expected schema |
+| **Drift monitoring**          | Track when new data violates expected bounds    |
+| **CI/CD integration**         | Use `--strict` to fail builds on violations     |
+| **Data migration**            | Verify old system vs new system data            |
 
 ---
 
@@ -1091,21 +1130,21 @@ Top Differences:
 
 ### Metrics Explained
 
-| Metric | Description | Range | Interpretation |
-|--------|-------------|-------|----------------|
-| **Similarity** | Overall distributional similarity | 0-1 | >0.9 = highly similar, <0.5 = substantially different |
-| **Anomaly Score** | Data quality/outlier measure | 0-1 | <0.1 = excellent, 0.1-0.2 = good, >0.3 = concerning |
-| **Distance** | Per-column distribution distance | 0-1 | <0.1 = minimal drift, >0.2 = notable difference |
+| Metric            | Description                       | Range | Interpretation                                        |
+|-------------------|-----------------------------------|-------|-------------------------------------------------------|
+| **Similarity**    | Overall distributional similarity | 0-1   | >0.9 = highly similar, <0.5 = substantially different |
+| **Anomaly Score** | Data quality/outlier measure      | 0-1   | <0.1 = excellent, 0.1-0.2 = good, >0.3 = concerning   |
+| **Distance**      | Per-column distribution distance  | 0-1   | <0.1 = minimal drift, >0.2 = notable difference       |
 
 ### Use Cases
 
-| Use Case | Example |
-|----------|---------|
-| **Synthetic validation** | Compare generated data vs source |
-| **Cohort analysis** | Compare customer segments, treatment vs control |
-| **Temporal drift** | Track data evolution over time (Q1 vs Q2) |
-| **A/B testing** | Compare metrics across variants |
-| **Data migration** | Verify old system vs new system |
+| Use Case                 | Example                                         |
+|--------------------------|-------------------------------------------------|
+| **Synthetic validation** | Compare generated data vs source                |
+| **Cohort analysis**      | Compare customer segments, treatment vs control |
+| **Temporal drift**       | Track data evolution over time (Q1 vs Q2)       |
+| **A/B testing**          | Compare metrics across variants                 |
+| **Data migration**       | Verify old system vs new system                 |
 
 ### Compare Stored Profiles
 
@@ -1145,6 +1184,7 @@ datasummarizer --ingest-dir sampledata/ --model qwen2.5-coder:7b --vector-db reg
 ```
 
 **What's stored:**
+
 - Computed profile JSON
 - Derived text embeddings (hash-based, 128d)
 - Conversation turns (for session-aware Q&A)
@@ -1164,14 +1204,15 @@ datasummarizer --registry-query "Key trends in emissions data?" \
 
 ### Registry vs Store
 
-| Feature | Registry (`--vector-db`) | Store (`--store-path`) |
-|---------|-------------------------|----------------------|
-| **Purpose** | Cross-dataset search & Q&A | Profile persistence & drift tracking |
-| **Contents** | Profiles + embeddings + conversations | Profiles + metadata + baseline pins |
-| **Index** | Similarity index (VSS or in-process) | Schema hash + content hash |
-| **Use case** | "Which dataset has X?" | "Has this data drifted since last week?" |
+| Feature      | Registry (`--vector-db`)              | Store (`--store-path`)                   |
+|--------------|---------------------------------------|------------------------------------------|
+| **Purpose**  | Cross-dataset search & Q&A            | Profile persistence & drift tracking     |
+| **Contents** | Profiles + embeddings + conversations | Profiles + metadata + baseline pins      |
+| **Index**    | Similarity index (VSS or in-process)  | Schema hash + content hash               |
+| **Use case** | "Which dataset has X?"                | "Has this data drifted since last week?" |
 
-**Implementation note:** If DuckDB `vss` extension is available, registry uses it. Otherwise falls back to in-process cosine distance over hash-based embeddings.
+**Implementation note:** If DuckDB `vss` extension is available, registry uses it. Otherwise falls back to in-process
+cosine distance over hash-based embeddings.
 
 ---
 
@@ -1182,11 +1223,13 @@ Ask questions about your data using natural language.
 ### Two Modes
 
 **1. Profile-only answers** (no SQL):
+
 - For broad questions like "tell me about this data"
 - LLM sees the computed profile and writes a narrative
 - No row-level data exposure to LLM
 
 **2. SQL-backed answers** (executes SQL locally):
+
 - For specific questions like "top 5 products"
 - LLM generates DuckDB SQL using profiled schema
 - DuckDB executes SQL locally
@@ -1214,6 +1257,7 @@ datasummarizer -f sales.csv --interactive --model qwen2.5-coder:7b
 ```
 
 **Benefits:**
+
 - Profile computed once, reused for all questions
 - Faster follow-up questions (no re-profiling)
 - Session context maintained across questions
@@ -1230,6 +1274,7 @@ datasummarizer -f sales.csv --query "show their revenue" --session-id sales-anal
 ```
 
 **How it works:**
+
 - Turns stored in Registry (`registry_conversations`)
 - Retrieved by similarity on follow-up questions
 - Provides conversational continuity
@@ -1246,11 +1291,11 @@ Generated SQL is executed in a **read-only, constrained context**:
 
 ### Data Exposure
 
-| Mode | LLM Sees |
-|------|----------|
-| `--no-llm` | Nothing (LLM disabled) |
-| Profile-only Q&A | Profile stats (schema, alerts, patterns) |
-| SQL-backed Q&A | Profile stats + query results (≤20 rows) |
+| Mode             | LLM Sees                                   |
+|------------------|--------------------------------------------|
+| `--no-llm`       | Nothing (LLM disabled)                     |
+| Profile-only Q&A | Profile stats (schema, alerts, patterns)   |
+| SQL-backed Q&A   | Profile stats + query results (≤20 rows)   |
 | Interactive mode | Profile stats + query results per question |
 
 ---
@@ -1268,12 +1313,14 @@ datasummarizer -f Bank_Churn.csv --target Exited --no-llm
 ### What You Get
 
 **1. Class distribution:**
+
 ```
 Target rate: 20.4% (2,037 churned, 7,963 retained)
 Class balance: 79.6% vs 20.4% (moderate imbalance)
 ```
 
 **2. Top drivers** (ranked by effect size):
+
 ```
 Target driver: NumOfProducts (score 0.86)
 NumOfProducts = 4 has 100% churn rate (Δ 79.6%)
@@ -1286,10 +1333,12 @@ Average Balance is $91,108 for 1 vs $72,745 for 0 (Δ +25.2%)
 ```
 
 **3. Segment effects:**
+
 - For categorical features: Rate delta per category
 - For numeric features: Mean/median delta, Cohen's d
 
 **4. Modeling recommendations:**
+
 ```
 💡 Modeling Recommendations (score 0.70)
 ℹ Good candidate for logistic regression or gradient boosting
@@ -1300,12 +1349,12 @@ Average Balance is $91,108 for 1 vs $72,745 for 0 (Δ +25.2%)
 
 ### Metrics Used
 
-| Metric | For | Interpretation |
-|--------|-----|----------------|
-| **Cohen's d** | Numeric features | Effect size (0.2=small, 0.5=medium, 0.8=large) |
-| **Rate delta** | Categorical features | Percentage point difference from baseline |
-| **Support** | All features | Fraction of data in segment |
-| **Chi-square** | Categorical features | Independence test (p < 0.05 = significant) |
+| Metric         | For                  | Interpretation                                 |
+|----------------|----------------------|------------------------------------------------|
+| **Cohen's d**  | Numeric features     | Effect size (0.2=small, 0.5=medium, 0.8=large) |
+| **Rate delta** | Categorical features | Percentage point difference from baseline      |
+| **Support**    | All features         | Fraction of data in segment                    |
+| **Chi-square** | Categorical features | Independence test (p < 0.05 = significant)     |
 
 ### Use Cases
 
@@ -1357,12 +1406,12 @@ datasummarizer -f messy.csv --ignore-errors --no-llm
 
 **.NET 10, M1 Mac, DuckDB embedded:**
 
-| Dataset | Rows | Columns | Command | Time |
-|---------|------|---------|---------|------|
-| Bank churn | 10,000 | 13 | `--fast --no-llm` | ~1s |
-| Sales synthetic | 100,000 | 14 | `--fast --no-llm` | ~2s |
-| Wide table | 50,000 | 200 | `--fast --no-llm --max-columns 50` | ~8s |
-| Time-series | 1,000,000 | 8 | `--fast --no-llm --skip-correlations` | ~12s |
+| Dataset         | Rows      | Columns | Command                               | Time |
+|-----------------|-----------|---------|---------------------------------------|------|
+| Bank churn      | 10,000    | 13      | `--fast --no-llm`                     | ~1s  |
+| Sales synthetic | 100,000   | 14      | `--fast --no-llm`                     | ~2s  |
+| Wide table      | 50,000    | 200     | `--fast --no-llm --max-columns 50`    | ~8s  |
+| Time-series     | 1,000,000 | 8       | `--fast --no-llm --skip-correlations` | ~12s |
 
 **Memory usage:** DuckDB uses out-of-core processing, so memory scales with result sets (aggregates), not raw data size.
 
@@ -1370,17 +1419,21 @@ datasummarizer -f messy.csv --ignore-errors --no-llm
 
 ## ONNX Integration
 
-DataSummarizer uses ONNX models for enhanced PII detection and semantic search capabilities. ONNX models run locally with optional GPU acceleration, providing fast and privacy-preserving classification.
+DataSummarizer uses ONNX models for enhanced PII detection and semantic search capabilities. ONNX models run locally
+with optional GPU acceleration, providing fast and privacy-preserving classification.
 
 ### PII Detection with ONNX Classifier
 
 The PII detector uses a two-stage ensemble approach:
+
 1. **Regex patterns** for structured PII (SSN, credit cards, emails, etc.) - fast and precise
 2. **ONNX classifier** for semantic PII detection (names, addresses, etc.) - catches subtle cases
 
-The ONNX classifier is **automatically enabled** when ONNX config is available in `appsettings.json`. It downloads a small model (~20-30MB) on first run and caches it locally.
+The ONNX classifier is **automatically enabled** when ONNX config is available in `appsettings.json`. It downloads a
+small model (~20-30MB) on first run and caches it locally.
 
 **Benefits:**
+
 - Improved detection of unstructured PII (person names, addresses)
 - Semantic understanding beyond regex patterns
 - Ensemble confidence scoring (regex + classifier agreement)
@@ -1426,31 +1479,35 @@ datasummarizer -f data.csv --onnx-model-dir /path/to/models --no-llm
 
 ### Available Models
 
-| Model | Size (Quantized) | Dimensions | Best For |
-|-------|-----------------|------------|----------|
-| **AllMiniLmL6V2** | ~23MB | 384 | General purpose (default) |
-| **BgeSmallEnV15** | ~34MB | 384 | Semantic search |
-| **GteSmall** | ~34MB | 384 | Diverse text types |
-| **MultiQaMiniLm** | ~23MB | 384 | Q&A retrieval |
-| **ParaphraseMiniLmL3** | ~17MB | 384 | Paraphrase detection (fastest) |
+| Model                  | Size (Quantized) | Dimensions | Best For                       |
+|------------------------|------------------|------------|--------------------------------|
+| **AllMiniLmL6V2**      | ~23MB            | 384        | General purpose (default)      |
+| **BgeSmallEnV15**      | ~34MB            | 384        | Semantic search                |
+| **GteSmall**           | ~34MB            | 384        | Diverse text types             |
+| **MultiQaMiniLm**      | ~23MB            | 384        | Q&A retrieval                  |
+| **ParaphraseMiniLmL3** | ~17MB            | 384        | Paraphrase detection (fastest) |
 
 ### GPU Acceleration
 
 ONNX supports GPU acceleration via:
+
 - **DirectML** (Windows - automatic)
 - **CUDA** (NVIDIA GPUs - requires CUDA toolkit)
 - **CPU** (fallback - always available)
 
 The `ExecutionProvider: Auto` setting automatically detects and uses the best available accelerator:
+
 1. DirectML (if on Windows with compatible GPU)
 2. CUDA (if CUDA toolkit detected)
 3. CPU (fallback)
 
 ### Model Download
 
-Models are **auto-downloaded** from HuggingFace on first use and cached locally in the `models/` directory (or custom path via `--onnx-model-dir`).
+Models are **auto-downloaded** from HuggingFace on first use and cached locally in the `models/` directory (or custom
+path via `--onnx-model-dir`).
 
 **First run:**
+
 ```
 [OnnxModelDownloader] Downloading all-MiniLM-L6-v2 (quantized) from HuggingFace...
 [OnnxModelDownloader] Model cached: models/all-MiniLM-L6-v2-quantized.onnx
@@ -1473,13 +1530,14 @@ datasummarizer -f data.csv --fast --no-llm
 
 ### Performance Impact
 
-| Mode | Speed | PII Detection Quality |
-|------|-------|----------------------|
-| **Fast (no PII)** | 100% | N/A |
-| **Regex only** | ~95% | Good for structured PII |
-| **Regex + ONNX** | ~85% | Excellent for all PII types |
+| Mode              | Speed | PII Detection Quality       |
+|-------------------|-------|-----------------------------|
+| **Fast (no PII)** | 100%  | N/A                         |
+| **Regex only**    | ~95%  | Good for structured PII     |
+| **Regex + ONNX**  | ~85%  | Excellent for all PII types |
 
 The ONNX classifier adds ~15% overhead but significantly improves detection of:
+
 - Person names (FIRST, LAST, FULLNAME)
 - Addresses (street addresses, locations)
 - Unstructured sensitive text
@@ -1491,6 +1549,7 @@ datasummarizer -f patients.csv --no-llm --verbose
 ```
 
 Output shows ensemble PII detection:
+
 ```
 [TinyClassifier] Initialized with pre-computed label embeddings
 [PiiDetector] Classifier enabled for ensemble detection
@@ -1505,12 +1564,14 @@ Output shows ensemble PII detection:
 ### Troubleshooting
 
 **Model download fails:**
+
 ```bash
 # Use different model directory with write permissions
 datasummarizer -f data.csv --onnx-model-dir ~/models --no-llm
 ```
 
 **GPU not detected:**
+
 ```bash
 # Check execution provider in verbose mode
 datasummarizer -f data.csv --verbose --no-llm
@@ -1518,6 +1579,7 @@ datasummarizer -f data.csv --verbose --no-llm
 ```
 
 **Disable ONNX completely:**
+
 ```bash
 # Via CLI
 datasummarizer -f data.csv --onnx-enabled false --no-llm
@@ -1534,7 +1596,8 @@ What's deterministic, heuristic, or LLM-generated?
 
 ### Deterministic (Computed Facts)
 
-- **Profiling**: Row/column counts, null %, unique %, min/max, mean/median/stddev, quantiles, skewness, kurtosis, MAD, CV
+- **Profiling**: Row/column counts, null %, unique %, min/max, mean/median/stddev, quantiles, skewness, kurtosis, MAD,
+  CV
 - **Alerts**: Outliers (IQR), leakage flags (100% unique), high nulls (>50%), extreme skew (|skewness| > 2)
 - **Target analysis**: Cohen's d, rate deltas, chi-square, segment effects
 - **Constraint validation**: Schema checks, type checks, range validation, set membership
@@ -1544,15 +1607,15 @@ What's deterministic, heuristic, or LLM-generated?
 
 Intentionally simple, documented thresholds (not formal statistical tests):
 
-| Pattern | Detection Logic | Threshold |
-|---------|----------------|-----------|
-| **Text formats** | Regex match rate | ≥10% of non-null values |
-| **Novel patterns** | Dominant char-class structure | ≥70% of distinct values |
-| **Distribution labels** | Skewness + kurtosis | Normal: \|s\|<0.5, k≈3; Skewed: \|s\|>0.5; Bimodal: ≥2 peaks in 10-bin histogram |
-| **FK overlap** | Value overlap | >90% between candidate columns |
-| **Monotonic hint** | Transition consistency | >95% increase/decrease (first 10k rows) |
-| **Seasonality** | Day-of-week variation | CV > 0.3 |
-| **Trends** | Linear fit | R² > 0.7 |
+| Pattern                 | Detection Logic               | Threshold                                                                        |
+|-------------------------|-------------------------------|----------------------------------------------------------------------------------|
+| **Text formats**        | Regex match rate              | ≥10% of non-null values                                                          |
+| **Novel patterns**      | Dominant char-class structure | ≥70% of distinct values                                                          |
+| **Distribution labels** | Skewness + kurtosis           | Normal: \|s\|<0.5, k≈3; Skewed: \|s\|>0.5; Bimodal: ≥2 peaks in 10-bin histogram |
+| **FK overlap**          | Value overlap                 | >90% between candidate columns                                                   |
+| **Monotonic hint**      | Transition consistency        | >95% increase/decrease (first 10k rows)                                          |
+| **Seasonality**         | Day-of-week variation         | CV > 0.3                                                                         |
+| **Trends**              | Linear fit                    | R² > 0.7                                                                         |
 
 **Why heuristics matter:** These are "check this" flags, not proofs. They're fast and good enough for a first pass.
 
@@ -1563,6 +1626,7 @@ Intentionally simple, documented thresholds (not formal statistical tests):
 - **Result summarization**: "The top 5 products are..." (based on query results)
 
 **What the LLM never sees** (unless you enable SQL mode):
+
 - Raw row-level data
 - Arbitrary file system access
 - Network access
@@ -1573,39 +1637,52 @@ See [SQL Safety](#sql-safety) section for execution constraints.
 
 ## LLM Integration (Latest)
 
-This section collects the newest LLM-related features and recommended usage patterns added recently. DataSummarizer aims to keep LLM usage powerful, local, and auditable.
+This section collects the newest LLM-related features and recommended usage patterns added recently. DataSummarizer aims
+to keep LLM usage powerful, local, and auditable.
 
-- Backends: DataSummarizer integrates with a local Ollama server (default: `http://localhost:11434`). The CLI exposes `--model` to select any Ollama-compatible model (default `qwen2.5-coder:7b`). Use `--no-llm` to disable all LLM features.
+- Backends: DataSummarizer integrates with a local Ollama server (default: `http://localhost:11434`). The CLI exposes
+  `--model` to select any Ollama-compatible model (default `qwen2.5-coder:7b`). Use `--no-llm` to disable all LLM
+  features.
 
 - Two interaction modes:
-  - **Profile-only narration** (default when asking broad questions): LLM is given the computed profile and writes a human-friendly narrative. No rows are shared.
-  - **SQL-backed Q&A**: LLM generates DuckDB SQL grounded in the profiled schema. SQL is executed locally in a read-only sandbox and returns at most 20 rows which the LLM can then summarize.
+    - **Profile-only narration** (default when asking broad questions): LLM is given the computed profile and writes a
+      human-friendly narrative. No rows are shared.
+    - **SQL-backed Q&A**: LLM generates DuckDB SQL grounded in the profiled schema. SQL is executed locally in a
+      read-only sandbox and returns at most 20 rows which the LLM can then summarize.
 
 - Session & Memory:
-  - Use `--session-id <id>` to tie multiple questions together into a single conversational context. Conversation turns are stored in the Registry (when `--vector-db` is used) and retrieved by semantic similarity for follow-ups.
-  - Registry conversation storage is optional and local; it enables session-aware answers across separate CLI invocations.
+    - Use `--session-id <id>` to tie multiple questions together into a single conversational context. Conversation
+      turns are stored in the Registry (when `--vector-db` is used) and retrieved by semantic similarity for follow-ups.
+    - Registry conversation storage is optional and local; it enables session-aware answers across separate CLI
+      invocations.
 
 - Registry & Vector DB:
-  - `--vector-db <path>` (default `.datasummarizer.vss.duckdb`) creates a local similarity index for cross-dataset search and conversation memory.
-  - Use `--ingest-dir` or `--ingest-files` to populate a registry with profiles and embeddings. Small, local embeddings are used by default; if DuckDB `vss` is available it will be preferred for performance.
-  - `--registry-query <text>` lets you ask across ingested datasets, e.g. `datasummarizer --registry-query "Which datasets have a churn target?" --vector-db registry.duckdb --model qwen2.5-coder:7b`.
+    - `--vector-db <path>` (default `.datasummarizer.vss.duckdb`) creates a local similarity index for cross-dataset
+      search and conversation memory.
+    - Use `--ingest-dir` or `--ingest-files` to populate a registry with profiles and embeddings. Small, local
+      embeddings are used by default; if DuckDB `vss` is available it will be preferred for performance.
+    - `--registry-query <text>` lets you ask across ingested datasets, e.g.
+      `datasummarizer --registry-query "Which datasets have a churn target?" --vector-db registry.duckdb --model qwen2.5-coder:7b`.
 
 - Tool mode for automation:
-  - The `tool` command produces a compact JSON schema optimized for LLM tool integration. Metadata includes `Model`, `UsedLlm`, `SessionId`, `ProfileId`, and `Drift` info to help automation pipelines track provenance.
+    - The `tool` command produces a compact JSON schema optimized for LLM tool integration. Metadata includes `Model`,
+      `UsedLlm`, `SessionId`, `ProfileId`, and `Drift` info to help automation pipelines track provenance.
 
 - Security & Trust:
-  - LLMs never get raw table dumps. Profile-only mode passes only computed facts. SQL-backed mode returns a tiny, local, read-only result set (≤20 rows).
-  - Execution is local (no outbound network) and forbidden SQL commands are blocked.
-  - Use `--no-llm` in CI or sensitive contexts to enforce deterministic-only runs.
+    - LLMs never get raw table dumps. Profile-only mode passes only computed facts. SQL-backed mode returns a tiny,
+      local, read-only result set (≤20 rows).
+    - Execution is local (no outbound network) and forbidden SQL commands are blocked.
+    - Use `--no-llm` in CI or sensitive contexts to enforce deterministic-only runs.
 
 - Recommended setup (local development):
-  1. Install Ollama (https://ollama.ai) and run the local service.
-  2. Pull a model you trust locally, for example `qwen2.5-coder:7b`.
-  3. Run `datasummarizer -f data.csv --model qwen2.5-coder:7b` or add your default model to appsettings.json.
+    1. Install Ollama (https://ollama.ai) and run the local service.
+    2. Pull a model you trust locally, for example `qwen2.5-coder:7b`.
+    3. Run `datasummarizer -f data.csv --model qwen2.5-coder:7b` or add your default model to appsettings.json.
 
 - Troubleshooting:
-  - If the CLI prints "LLM unavailable" or times out, check that the Ollama service is running at `http://localhost:11434` and that the chosen model is installed locally.
-  - Use `--no-llm` to continue profiling without LLM features while debugging model availability.
+    - If the CLI prints "LLM unavailable" or times out, check that the Ollama service is running at
+      `http://localhost:11434` and that the chosen model is installed locally.
+    - Use `--no-llm` to continue profiling without LLM features while debugging model availability.
 
 ---
 
@@ -1623,6 +1700,7 @@ datasummarizer validate --source a.csv --target b.csv --format json > validation
 ```
 
 **Use for:**
+
 - CI/CD pipelines
 - LLM tool integration (MCP servers)
 - Data catalogs
@@ -1638,6 +1716,7 @@ datasummarizer segment --segment-a a.csv --segment-b b.csv --format markdown > c
 ```
 
 **Use for:**
+
 - Documentation
 - Email reports
 - GitHub issues
@@ -1653,6 +1732,7 @@ datasummarizer segment --segment-a a.csv --segment-b b.csv --format html > compa
 ```
 
 **Use for:**
+
 - Shareable dashboards
 - Executive reports
 - Web-based catalogs
@@ -1770,6 +1850,7 @@ datasummarizer -f Bank_Churn.csv --no-llm --fast
 ```
 
 **Output:**
+
 ```
 ── Summary ─────────────────────────────────────────────────────────
 10,000 rows × 13 columns (5 numeric, 6 categorical, 2 ID)
@@ -1788,6 +1869,7 @@ datasummarizer -f Bank_Churn.csv --target Exited --no-llm
 ```
 
 **Output:**
+
 ```
 🎯 Exited Analysis (score 0.95)
    Target rate: 20.4%. Top drivers: NumOfProducts, Age, Balance
@@ -1832,6 +1914,7 @@ datasummarizer segment --segment-a q1_2024.csv --segment-b q2_2024.csv \
 ```
 
 **Output:**
+
 ```
 Similarity: 87.3%
 Anomaly Scores: A=0.12, B=0.15
@@ -1906,8 +1989,10 @@ Part of [mostlylucidweb](https://github.com/scottgal/mostlylucidweb) repository.
 
 ## Related Projects
 
-- [DocSummarizer](https://github.com/scottgal/mostlylucidweb/tree/main/Mostlylucid.DocSummarizer) - Same philosophy for documents (markdown/PDF profiling + Q&A)
-- [CSV analysis with local LLMs](https://www.mostlylucid.net/blog/analysing-large-csv-files-with-local-llms) - Foundational pattern (blog post)
+- [DocSummarizer](https://github.com/scottgal/mostlylucidweb/tree/main/Mostlylucid.DocSummarizer) - Same philosophy for
+  documents (markdown/PDF profiling + Q&A)
+- [CSV analysis with local LLMs](https://www.mostlylucid.net/blog/analysing-large-csv-files-with-local-llms) -
+  Foundational pattern (blog post)
 
 ---
 

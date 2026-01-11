@@ -34,7 +34,8 @@ public static class ValidationService
             var tCol = tgt.Columns.FirstOrDefault(c => c.Name.Equals(sCol.Name, StringComparison.OrdinalIgnoreCase));
             if (tCol == null)
             {
-                result.Columns.Add(new ColumnDelta { Name = sCol.Name, Type = sCol.InferredType, Note = "missing in target", NullDelta = null });
+                result.Columns.Add(new ColumnDelta
+                    { Name = sCol.Name, Type = sCol.InferredType, Note = "missing in target", NullDelta = null });
                 maxScore = Math.Max(maxScore, 1.0);
                 continue;
             }
@@ -73,7 +74,10 @@ public static class ValidationService
         return 1.0;
     }
 
-    private static double? SafeDiff(double? a, double? b) => (a.HasValue && b.HasValue) ? a.Value - b.Value : null;
+    private static double? SafeDiff(double? a, double? b)
+    {
+        return a.HasValue && b.HasValue ? a.Value - b.Value : null;
+    }
 
     private static double? TopOverlap(List<ValueCount>? a, List<ValueCount>? b)
     {

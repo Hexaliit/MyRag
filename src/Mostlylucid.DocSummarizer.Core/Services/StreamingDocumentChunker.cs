@@ -4,16 +4,16 @@ using Mostlylucid.DocSummarizer.Models;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Memory-efficient document chunker that processes markdown line-by-line
-/// without loading the entire document into memory.
+///     Memory-efficient document chunker that processes markdown line-by-line
+///     without loading the entire document into memory.
 /// </summary>
 public class StreamingDocumentChunker
 {
     private const int CharsPerToken = 4;
-    
+
     private readonly int _maxHeadingLevel;
-    private readonly int _targetChunkTokens;
     private readonly int _minChunkTokens;
+    private readonly int _targetChunkTokens;
 
     public StreamingDocumentChunker(
         int maxHeadingLevel = 2,
@@ -26,19 +26,19 @@ public class StreamingDocumentChunker
     }
 
     /// <summary>
-    /// Process a markdown file and stream chunks directly to a store
+    ///     Process a markdown file and stream chunks directly to a store
     /// </summary>
     public async Task ChunkFileToStoreAsync(
         string filePath,
         DiskBackedChunkStore store,
         CancellationToken cancellationToken = default)
     {
-        using var reader = new StreamReader(filePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        using var reader = new StreamReader(filePath, Encoding.UTF8, true);
         await ChunkStreamToStoreAsync(reader, store, cancellationToken);
     }
 
     /// <summary>
-    /// Process markdown from a stream and add chunks directly to store
+    ///     Process markdown from a stream and add chunks directly to store
     /// </summary>
     public async Task ChunkStreamToStoreAsync(
         TextReader reader,
@@ -55,7 +55,7 @@ public class StreamingDocumentChunker
         while ((line = await reader.ReadLineAsync(cancellationToken)) != null)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            
+
             var headingLevel = GetHeadingLevel(line);
 
             if (headingLevel > 0 && headingLevel <= _maxHeadingLevel)
@@ -63,11 +63,9 @@ public class StreamingDocumentChunker
                 // New section - flush previous if it has content
                 if (currentContent.Length > 0 || !string.IsNullOrEmpty(currentHeading))
                 {
-                    var chunk = CreateChunk(chunkIndex++, currentHeading, currentLevel, currentContent.ToString().Trim());
-                    if (!string.IsNullOrWhiteSpace(chunk.Content))
-                    {
-                        store.Add(chunk);
-                    }
+                    var chunk = CreateChunk(chunkIndex++, currentHeading, currentLevel,
+                        currentContent.ToString().Trim());
+                    if (!string.IsNullOrWhiteSpace(chunk.Content)) store.Add(chunk);
                     currentContent.Clear();
                     currentTokens = 0;
                 }
@@ -79,25 +77,21 @@ public class StreamingDocumentChunker
             {
                 // Check if adding this line would exceed target
                 var lineTokens = EstimateTokens(line);
-                
-                if (currentContent.Length > 0 && 
+
+                if (currentContent.Length > 0 &&
                     currentTokens + lineTokens > _targetChunkTokens &&
                     currentTokens >= _minChunkTokens)
                 {
                     // Flush current chunk and start new one (keeping same heading context)
-                    var chunk = CreateChunk(chunkIndex++, currentHeading, currentLevel, currentContent.ToString().Trim());
-                    if (!string.IsNullOrWhiteSpace(chunk.Content))
-                    {
-                        store.Add(chunk);
-                    }
+                    var chunk = CreateChunk(chunkIndex++, currentHeading, currentLevel,
+                        currentContent.ToString().Trim());
+                    if (!string.IsNullOrWhiteSpace(chunk.Content)) store.Add(chunk);
                     currentContent.Clear();
                     currentTokens = 0;
-                    
+
                     // Continue with same heading but mark as continuation
                     if (!string.IsNullOrEmpty(currentHeading) && !currentHeading.EndsWith(" (cont.)"))
-                    {
                         currentHeading += " (cont.)";
-                    }
                 }
 
                 currentContent.AppendLine(line);
@@ -109,15 +103,12 @@ public class StreamingDocumentChunker
         if (currentContent.Length > 0 || !string.IsNullOrEmpty(currentHeading))
         {
             var finalChunk = CreateChunk(chunkIndex, currentHeading, currentLevel, currentContent.ToString().Trim());
-            if (!string.IsNullOrWhiteSpace(finalChunk.Content))
-            {
-                store.Add(finalChunk);
-            }
+            if (!string.IsNullOrWhiteSpace(finalChunk.Content)) store.Add(finalChunk);
         }
     }
 
     /// <summary>
-    /// Process markdown string in a streaming fashion (reads line by line)
+    ///     Process markdown string in a streaming fashion (reads line by line)
     /// </summary>
     public async Task ChunkStringToStoreAsync(
         string markdown,
@@ -129,9 +120,9 @@ public class StreamingDocumentChunker
     }
 
     /// <summary>
-    /// Process large markdown by writing to temp file first, then streaming
-    /// This is useful when the markdown string is very large and we want to
-    /// release the string memory before processing
+    ///     Process large markdown by writing to temp file first, then streaming
+    ///     This is useful when the markdown string is very large and we want to
+    ///     release the string memory before processing
     /// </summary>
     public async Task ChunkLargeStringToStoreAsync(
         string markdown,
@@ -140,14 +131,14 @@ public class StreamingDocumentChunker
     {
         // Write to temp file to release the string from memory
         var tempPath = Path.Combine(Path.GetTempPath(), $"docsummarizer_temp_{Guid.NewGuid():N}.md");
-        
+
         try
         {
             await File.WriteAllTextAsync(tempPath, markdown, cancellationToken);
-            
+
             // Release the string reference - caller should set their reference to null
             // The GC can now reclaim the string memory
-            
+
             // Process from file
             await ChunkFileToStoreAsync(tempPath, store, cancellationToken);
         }
@@ -167,7 +158,7 @@ public class StreamingDocumentChunker
     }
 
     /// <summary>
-    /// Estimate total chunks without creating them (for progress reporting)
+    ///     Estimate total chunks without creating them (for progress reporting)
     /// </summary>
     public int EstimateChunkCount(long fileSizeBytes)
     {
@@ -193,10 +184,8 @@ public class StreamingDocumentChunker
 
         var level = 0;
         foreach (var c in line)
-        {
             if (c == '#') level++;
             else break;
-        }
 
         // Must have space after # marks to be a valid heading
         return line.Length > level && line[level] == ' ' ? level : 0;

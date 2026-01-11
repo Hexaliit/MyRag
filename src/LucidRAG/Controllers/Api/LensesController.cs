@@ -1,20 +1,21 @@
+using LucidRAG.Lenses;
+using LucidRAG.Services.Lenses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using LucidRAG.Services.Lenses;
 
 namespace LucidRAG.Controllers.Api;
 
 /// <summary>
-/// API endpoints for listing and retrieving lens packages.
+///     API endpoints for listing and retrieving lens packages.
 /// </summary>
 [ApiController]
 [Route("api/lenses")]
-[AllowAnonymous]  // Lenses are public metadata
+[AllowAnonymous] // Lenses are public metadata
 public class LensesController : ControllerBase
 {
-    private readonly ILensRegistry _lensRegistry;
     private readonly IConfiguration _config;
+    private readonly ILensRegistry _lensRegistry;
     private readonly ILogger<LensesController> _logger;
 
     public LensesController(
@@ -28,8 +29,8 @@ public class LensesController : ControllerBase
     }
 
     /// <summary>
-    /// Lists all available lens packages.
-    /// Returns basic metadata for each lens including styles.
+    ///     Lists all available lens packages.
+    ///     Returns basic metadata for each lens including styles.
     /// </summary>
     [HttpGet]
     public Ok<List<LensListItem>> List()
@@ -38,12 +39,12 @@ public class LensesController : ControllerBase
 
         var lenses = _lensRegistry.AvailableLenses
             .Select(l => new LensListItem(
-                Id: l.Manifest.Id,
-                Name: l.Manifest.Name,
-                Description: l.Manifest.Description,
-                Version: l.Manifest.Version,
-                Styles: l.Styles,
-                IsDefault: l.Manifest.Id == defaultLensId
+                l.Manifest.Id,
+                l.Manifest.Name,
+                l.Manifest.Description,
+                l.Manifest.Version,
+                l.Styles,
+                l.Manifest.Id == defaultLensId
             ))
             .ToList();
 
@@ -53,7 +54,7 @@ public class LensesController : ControllerBase
     }
 
     /// <summary>
-    /// Gets detailed information about a specific lens.
+    ///     Gets detailed information about a specific lens.
     /// </summary>
     [HttpGet("{id}")]
     public Results<Ok<LensDetailItem>, NotFound> Get(string id)
@@ -67,22 +68,22 @@ public class LensesController : ControllerBase
         }
 
         var detail = new LensDetailItem(
-            Id: lens.Manifest.Id,
-            Name: lens.Manifest.Name,
-            Description: lens.Manifest.Description,
-            Version: lens.Manifest.Version,
-            Author: lens.Manifest.Author,
-            Priority: lens.Manifest.Priority,
-            Scoring: lens.Manifest.Scoring,
-            Styles: lens.Styles,
-            Settings: lens.Manifest.Settings
+            lens.Manifest.Id,
+            lens.Manifest.Name,
+            lens.Manifest.Description,
+            lens.Manifest.Version,
+            lens.Manifest.Author,
+            lens.Manifest.Priority,
+            lens.Manifest.Scoring,
+            lens.Styles,
+            lens.Manifest.Settings
         );
 
         return TypedResults.Ok(detail);
     }
 
     /// <summary>
-    /// Gets the default lens ID from configuration.
+    ///     Gets the default lens ID from configuration.
     /// </summary>
     private string GetDefaultLensId()
     {
@@ -97,8 +98,8 @@ public class LensesController : ControllerBase
 }
 
 /// <summary>
-/// List item for available lenses.
-/// Includes basic metadata and styles for frontend rendering.
+///     List item for available lenses.
+///     Includes basic metadata and styles for frontend rendering.
 /// </summary>
 public record LensListItem(
     string Id,
@@ -110,7 +111,7 @@ public record LensListItem(
 );
 
 /// <summary>
-/// Detailed information about a specific lens.
+///     Detailed information about a specific lens.
 /// </summary>
 public record LensDetailItem(
     string Id,
@@ -119,7 +120,7 @@ public record LensDetailItem(
     string Version,
     string? Author,
     int Priority,
-    LucidRAG.Lenses.LensScoringConfig Scoring,
+    LensScoringConfig Scoring,
     string? Styles,
     Dictionary<string, object>? Settings
 );

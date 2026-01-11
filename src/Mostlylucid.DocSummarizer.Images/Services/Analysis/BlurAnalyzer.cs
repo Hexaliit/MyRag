@@ -6,14 +6,14 @@ using SixLabors.ImageSharp.Processing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzer for blur/sharpness detection using Laplacian variance.
-/// Higher values indicate sharper images.
+///     Analyzer for blur/sharpness detection using Laplacian variance.
+///     Higher values indicate sharper images.
 /// </summary>
 public class BlurAnalyzer
 {
     /// <summary>
-    /// Calculate Laplacian variance (sharpness measure).
-    /// Higher values = sharper image. Typical range: 0-5000+
+    ///     Calculate Laplacian variance (sharpness measure).
+    ///     Higher values = sharper image. Typical range: 0-5000+
     /// </summary>
     /// <param name="image">Image to analyze</param>
     /// <returns>Laplacian variance (higher = sharper)</returns>
@@ -70,7 +70,7 @@ public class BlurAnalyzer
     }
 
     /// <summary>
-    /// Categorize blur level
+    ///     Categorize blur level
     /// </summary>
     public BlurLevel CategorizeBlur(double laplacianVariance)
     {
@@ -86,7 +86,7 @@ public class BlurAnalyzer
 }
 
 /// <summary>
-/// Categorized blur levels
+///     Categorized blur levels
 /// </summary>
 public enum BlurLevel
 {

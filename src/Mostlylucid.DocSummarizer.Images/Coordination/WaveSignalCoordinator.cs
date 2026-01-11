@@ -1,11 +1,5 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Mostlylucid.DocSummarizer.Images.Models;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 // Orchestration types (using aliases to avoid conflict with Signal class)
@@ -16,19 +10,16 @@ using EscalationCondition = Mostlylucid.DocSummarizer.Images.Orchestration.Escal
 namespace Mostlylucid.DocSummarizer.Images.Coordination;
 
 /// <summary>
-/// Coordinates wave execution based on YAML manifests and signal dependencies.
-/// Integrates with ephemeral patterns for signal emission and subscription.
+///     Coordinates wave execution based on YAML manifests and signal dependencies.
+///     Integrates with ephemeral patterns for signal emission and subscription.
 /// </summary>
 public sealed class WaveSignalCoordinator : IDisposable
 {
-    private readonly WaveManifestLoader _manifestLoader;
-    private readonly ILogger<WaveSignalCoordinator>? _logger;
-    private readonly ConcurrentDictionary<string, IAnalysisWave> _waves = new();
-    private readonly List<Signal> _signals = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _laneSemaphores = new();
-
-    // Signal event for reactive composition
-    public event Action<SignalEvent>? OnSignalEmitted;
+    private readonly ILogger<WaveSignalCoordinator>? _logger;
+    private readonly WaveManifestLoader _manifestLoader;
+    private readonly List<Signal> _signals = new();
+    private readonly ConcurrentDictionary<string, IAnalysisWave> _waves = new();
 
     public WaveSignalCoordinator(
         WaveManifestLoader manifestLoader,
@@ -38,8 +29,17 @@ public sealed class WaveSignalCoordinator : IDisposable
         _logger = logger;
     }
 
+    public void Dispose()
+    {
+        foreach (var semaphore in _laneSemaphores.Values) semaphore.Dispose();
+        _laneSemaphores.Clear();
+    }
+
+    // Signal event for reactive composition
+    public event Action<SignalEvent>? OnSignalEmitted;
+
     /// <summary>
-    /// Register a wave implementation with the coordinator.
+    ///     Register a wave implementation with the coordinator.
     /// </summary>
     public void RegisterWave(IAnalysisWave wave)
     {
@@ -48,7 +48,7 @@ public sealed class WaveSignalCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Execute waves based on manifest declarations and signal dependencies.
+    ///     Execute waves based on manifest declarations and signal dependencies.
     /// </summary>
     public async Task<IReadOnlyList<Signal>> ExecuteAsync(
         string imagePath,
@@ -90,10 +90,7 @@ public sealed class WaveSignalCoordinator : IDisposable
                 await semaphore.WaitAsync(ct);
 
                 // Emit start signal
-                foreach (var startSignal in manifest.Emits.OnStart)
-                {
-                    EmitSignal(startSignal, true, manifest.Name);
-                }
+                foreach (var startSignal in manifest.Emits.OnStart) EmitSignal(startSignal, true, manifest.Name);
 
                 var startTime = DateTime.UtcNow;
 
@@ -112,11 +109,11 @@ public sealed class WaveSignalCoordinator : IDisposable
 
                     // Notify subscribers
                     OnSignalEmitted?.Invoke(new SignalEvent(
-                        Signal: signal.Key,
-                        Value: signal.Value,
-                        Source: signal.Source,
-                        Confidence: signal.Confidence,
-                        Timestamp: DateTimeOffset.UtcNow
+                        signal.Key,
+                        signal.Value,
+                        signal.Source,
+                        signal.Confidence,
+                        DateTimeOffset.UtcNow
                     ));
                 }
 
@@ -131,10 +128,7 @@ public sealed class WaveSignalCoordinator : IDisposable
                 _logger?.LogError(ex, "Wave {Wave} failed", manifest.Name);
 
                 // Emit failure signals
-                foreach (var failSignal in manifest.Emits.OnFailure)
-                {
-                    EmitSignal(failSignal, true, manifest.Name);
-                }
+                foreach (var failSignal in manifest.Emits.OnFailure) EmitSignal(failSignal, true, manifest.Name);
             }
             finally
             {
@@ -153,8 +147,8 @@ public sealed class WaveSignalCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Get waves that would run given current signals.
-    /// Useful for planning/visualization.
+    ///     Get waves that would run given current signals.
+    ///     Useful for planning/visualization.
     /// </summary>
     public IReadOnlyList<WaveManifest> GetPendingWaves(IReadOnlySet<string> availableSignals)
     {
@@ -162,7 +156,7 @@ public sealed class WaveSignalCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Get the dependency graph for visualization.
+    ///     Get the dependency graph for visualization.
     /// </summary>
     public Dictionary<string, HashSet<string>> GetDependencyGraph()
     {
@@ -170,7 +164,7 @@ public sealed class WaveSignalCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Check if a specific escalation should occur based on signals.
+    ///     Check if a specific escalation should occur based on signals.
     /// </summary>
     public bool ShouldEscalate(WaveManifest manifest, string escalationType, AnalysisContext context)
     {
@@ -184,17 +178,13 @@ public sealed class WaveSignalCoordinator : IDisposable
 
         // Check skip conditions first
         foreach (var skipCondition in rule.SkipWhen)
-        {
             if (EvaluateCondition(skipCondition, context))
                 return false;
-        }
 
         // Check trigger conditions - any match triggers escalation
         foreach (var condition in rule.When)
-        {
             if (EvaluateCondition(condition, context))
                 return true;
-        }
 
         return false;
     }
@@ -203,13 +193,9 @@ public sealed class WaveSignalCoordinator : IDisposable
     {
         var signalValue = context.GetValue<object>(condition.Signal);
 
-        if (condition.Value != null)
-        {
-            return Equals(signalValue, condition.Value);
-        }
+        if (condition.Value != null) return Equals(signalValue, condition.Value);
 
         if (condition.Condition != null)
-        {
             return condition.Condition switch
             {
                 "IsNullOrWhiteSpace" => signalValue == null || string.IsNullOrWhiteSpace(signalValue.ToString()),
@@ -217,7 +203,6 @@ public sealed class WaveSignalCoordinator : IDisposable
                 "> 0" => signalValue is int i && i > 0,
                 _ => false
             };
-        }
 
         return signalValue != null;
     }
@@ -225,13 +210,12 @@ public sealed class WaveSignalCoordinator : IDisposable
     private bool CheckConfigBindings(WaveManifest manifest, AnalysisContext context)
     {
         foreach (var binding in manifest.Config.Bindings)
-        {
             if (binding.SkipIfFalse)
             {
                 var value = context.GetValue<bool>($"config.{binding.ConfigKey}");
                 if (!value) return false;
             }
-        }
+
         return true;
     }
 
@@ -249,11 +233,11 @@ public sealed class WaveSignalCoordinator : IDisposable
         _signals.Add(signal);
 
         OnSignalEmitted?.Invoke(new SignalEvent(
-            Signal: key,
-            Value: value,
-            Source: source,
-            Confidence: 1.0,
-            Timestamp: DateTimeOffset.UtcNow
+            key,
+            value,
+            source,
+            1.0,
+            DateTimeOffset.UtcNow
         ));
     }
 
@@ -264,19 +248,10 @@ public sealed class WaveSignalCoordinator : IDisposable
             _ => new SemaphoreSlim(lane.MaxConcurrency, lane.MaxConcurrency)
         );
     }
-
-    public void Dispose()
-    {
-        foreach (var semaphore in _laneSemaphores.Values)
-        {
-            semaphore.Dispose();
-        }
-        _laneSemaphores.Clear();
-    }
 }
 
 /// <summary>
-/// Signal event for reactive composition.
+///     Signal event for reactive composition.
 /// </summary>
 public readonly record struct SignalEvent(
     string Signal,
@@ -286,6 +261,13 @@ public readonly record struct SignalEvent(
     DateTimeOffset Timestamp
 )
 {
-    public bool Is(string name) => Signal.Equals(name, StringComparison.OrdinalIgnoreCase);
-    public bool StartsWith(string prefix) => Signal.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    public bool Is(string name)
+    {
+        return Signal.Equals(name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool StartsWith(string prefix)
+    {
+        return Signal.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
 }

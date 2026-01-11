@@ -1,27 +1,26 @@
 using System.Diagnostics;
 using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using LucidRAG.Core.Services;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Tests.Integration;
-using StyloFlow.Retrieval;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LucidRAG.Tests.Benchmarks;
 
 /// <summary>
-/// Performance benchmarks comparing C# BM25 vs PostgreSQL FTS.
-/// Demonstrates the 10-25x performance improvement from moving BM25 to database.
+///     Performance benchmarks comparing C# BM25 vs PostgreSQL FTS.
+///     Demonstrates the 10-25x performance improvement from moving BM25 to database.
 /// </summary>
 [Collection("Integration")]
 public class BM25PerformanceTests : IAsyncLifetime
 {
     private readonly TestWebApplicationFactory _factory;
-    private PostgresBM25Service _postgresBM25 = null!;
+    private readonly List<EvidenceArtifact> _testEvidence = new();
     private RagDocumentsDbContext _db = null!;
+    private PostgresBM25Service _postgresBM25 = null!;
     private IServiceScope _scope = null!;
-    private List<EvidenceArtifact> _testEvidence = new();
 
     public BM25PerformanceTests(TestWebApplicationFactory factory)
     {
@@ -74,7 +73,7 @@ public class BM25PerformanceTests : IAsyncLifetime
         var verbs = new[] { "uses", "applies", "implements", "leverages", "employs", "utilizes" };
         var objects = new[] { "algorithms", "techniques", "methods", "approaches", "strategies", "models" };
 
-        for (int i = 0; i < 500; i++)
+        for (var i = 0; i < 500; i++)
         {
             var topic1 = topics[i % topics.Length];
             var topic2 = topics[(i + 7) % topics.Length];
@@ -82,8 +81,8 @@ public class BM25PerformanceTests : IAsyncLifetime
             var obj = objects[i % objects.Length];
 
             var content = $"{topic1} {verb} advanced {obj} to solve complex problems. " +
-                         $"This approach combines {topic2} with traditional statistical methods. " +
-                         $"The system achieves state-of-the-art results on benchmark datasets.";
+                          $"This approach combines {topic2} with traditional statistical methods. " +
+                          $"The system achieves state-of-the-art results on benchmark datasets.";
 
             var evidence = new EvidenceArtifact
             {
@@ -95,7 +94,7 @@ public class BM25PerformanceTests : IAsyncLifetime
                 StoragePath = "inline:segment_text",
                 Content = content,
                 SegmentHash = $"hash-{i}",
-                Metadata = $"{{\"salience_score\": {0.5 + (i % 50) * 0.01}}}"
+                Metadata = $"{{\"salience_score\": {0.5 + i % 50 * 0.01}}}"
             };
 
             _testEvidence.Add(evidence);
@@ -113,7 +112,7 @@ public class BM25PerformanceTests : IAsyncLifetime
         var topK = 25;
 
         // Warm up
-        await _postgresBM25.SearchWithScoresAsync(query, topK: 5);
+        await _postgresBM25.SearchWithScoresAsync(query, 5);
 
         // Benchmark PostgreSQL FTS
         var pgStopwatch = Stopwatch.StartNew();
@@ -178,7 +177,7 @@ public class BM25PerformanceTests : IAsyncLifetime
             var query = queries[measurements.Count % queries.Length];
 
             var sw = Stopwatch.StartNew();
-            var results = await _postgresBM25.SearchWithScoresAsync(query, topK: 25);
+            var results = await _postgresBM25.SearchWithScoresAsync(query);
             sw.Stop();
 
             measurements.Add((segmentCount, sw.ElapsedMilliseconds));
@@ -186,10 +185,7 @@ public class BM25PerformanceTests : IAsyncLifetime
 
         // Assert
         Console.WriteLine("Scalability test:");
-        foreach (var (count, time) in measurements)
-        {
-            Console.WriteLine($"  {count} segments: {time}ms");
-        }
+        foreach (var (count, time) in measurements) Console.WriteLine($"  {count} segments: {time}ms");
 
         // Query time should NOT double when segment count doubles (logarithmic scaling)
         // This is the key advantage of GIN indexes over linear in-memory search
@@ -219,7 +215,7 @@ public class BM25PerformanceTests : IAsyncLifetime
         var query = "machine learning";
 
         // Measure C# BM25 memory usage (approximation)
-        var beforeMemory = GC.GetTotalMemory(forceFullCollection: true);
+        var beforeMemory = GC.GetTotalMemory(true);
 
         // C# approach: Load everything into memory
         var allSegments = await _db.EvidenceArtifacts
@@ -234,7 +230,7 @@ public class BM25PerformanceTests : IAsyncLifetime
             .Take(25)
             .ToList();
 
-        var afterMemoryCS = GC.GetTotalMemory(forceFullCollection: false);
+        var afterMemoryCS = GC.GetTotalMemory(false);
         var csMemoryUsage = afterMemoryCS - beforeMemory;
 
         // Clear C# data
@@ -243,18 +239,18 @@ public class BM25PerformanceTests : IAsyncLifetime
         GC.Collect();
 
         // Measure PostgreSQL FTS memory usage
-        var beforeMemoryPG = GC.GetTotalMemory(forceFullCollection: true);
+        var beforeMemoryPG = GC.GetTotalMemory(true);
 
         // PostgreSQL approach: Only load top-K results
-        var pgResults = await _postgresBM25.SearchWithScoresAsync(query, topK: 25);
+        var pgResults = await _postgresBM25.SearchWithScoresAsync(query);
 
-        var afterMemoryPG = GC.GetTotalMemory(forceFullCollection: false);
+        var afterMemoryPG = GC.GetTotalMemory(false);
         var pgMemoryUsage = afterMemoryPG - beforeMemoryPG;
 
         // Assert
         Console.WriteLine($"C# BM25 memory:       {csMemoryUsage / 1024:N0} KB");
         Console.WriteLine($"PostgreSQL memory:    {pgMemoryUsage / 1024:N0} KB");
-        Console.WriteLine($"Memory reduction:     {100 - (pgMemoryUsage * 100.0 / csMemoryUsage):F1}%");
+        Console.WriteLine($"Memory reduction:     {100 - pgMemoryUsage * 100.0 / csMemoryUsage:F1}%");
 
         pgResults.Should().NotBeEmpty();
 
@@ -277,13 +273,13 @@ public class BM25PerformanceTests : IAsyncLifetime
         var csTransferSize = allSegments.Sum(s => s.Content!.Length);
 
         // PostgreSQL FTS: Only transfer top-K results
-        var pgResults = await _postgresBM25.SearchWithScoresAsync(query, topK: 25);
+        var pgResults = await _postgresBM25.SearchWithScoresAsync(query);
         var pgTransferSize = pgResults.Sum(r => r.artifact.Content?.Length ?? 0);
 
         // Assert
         Console.WriteLine($"C# BM25 transfer:       {csTransferSize / 1024:N0} KB ({allSegments.Count} segments)");
         Console.WriteLine($"PostgreSQL transfer:    {pgTransferSize / 1024:N0} KB ({pgResults.Count} segments)");
-        Console.WriteLine($"Transfer reduction:     {100 - (pgTransferSize * 100.0 / csTransferSize):F1}%");
+        Console.WriteLine($"Transfer reduction:     {100 - pgTransferSize * 100.0 / csTransferSize:F1}%");
 
         pgResults.Should().NotBeEmpty();
 
@@ -292,7 +288,7 @@ public class BM25PerformanceTests : IAsyncLifetime
             "PostgreSQL FTS should transfer less data");
 
         // Should reduce network transfer by at least 90%
-        var reduction = 100 - (pgTransferSize * 100.0 / csTransferSize);
+        var reduction = 100 - pgTransferSize * 100.0 / csTransferSize;
         reduction.Should().BeGreaterThan(80,
             "PostgreSQL FTS should reduce network transfer by >80%");
     }
@@ -314,7 +310,7 @@ public class BM25PerformanceTests : IAsyncLifetime
         var sw = Stopwatch.StartNew();
 
         var tasks = queries.Select(q =>
-            _postgresBM25.SearchWithScoresAsync(q, topK: 25)
+            _postgresBM25.SearchWithScoresAsync(q)
         ).ToArray();
 
         var results = await Task.WhenAll(tasks);

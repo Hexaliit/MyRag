@@ -1,24 +1,33 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
+using System.Text;
+using System.Text.Json;
+using LucidRAG.Cli.Services;
+using LucidRAG.Data;
+using LucidRAG.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Mostlylucid.DocSummarizer.Services;
-using LucidRAG.Cli.Services;
-using LucidRAG.Data;
 using Spectre.Console;
 
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// Interactive chat with documents
+///     Interactive chat with documents
 /// </summary>
 public static class ChatCommand
 {
-    private static readonly Option<string?> CollectionOpt = new("-c", "--collection") { Description = "Collection to chat with" };
+    private static readonly Option<string?> CollectionOpt = new("-c", "--collection")
+        { Description = "Collection to chat with" };
+
     private static readonly Option<string?> ModelOpt = new("--model") { Description = "Ollama model to use" };
-    private static readonly Option<int> TopKOpt = new("-k", "--top") { Description = "Number of context segments", DefaultValueFactory = _ => 5 };
+
+    private static readonly Option<int> TopKOpt = new("-k", "--top")
+        { Description = "Number of context segments", DefaultValueFactory = _ => 5 };
+
     private static readonly Option<string?> DataDirOpt = new("--data-dir") { Description = "Data directory" };
-    private static readonly Option<bool> VerboseOpt = new("-v", "--verbose") { Description = "Verbose output", DefaultValueFactory = _ => false };
+
+    private static readonly Option<bool> VerboseOpt = new("-v", "--verbose")
+        { Description = "Verbose output", DefaultValueFactory = _ => false };
 
     public static Command Create()
     {
@@ -59,7 +68,7 @@ public static class ChatCommand
             var embedder = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
 
             // Check for documents
-            var docCount = await db.Documents.CountAsync(d => d.Status == LucidRAG.Entities.DocumentStatus.Completed, ct);
+            var docCount = await db.Documents.CountAsync(d => d.Status == DocumentStatus.Completed, ct);
             if (docCount == 0)
             {
                 AnsiConsole.MarkupLine("[yellow]No documents indexed yet. Use 'lucidrag index' first.[/]");
@@ -76,7 +85,9 @@ public static class ChatCommand
                 var response = await http.GetAsync($"{config.OllamaUrl}/api/tags", ct);
                 ollamaAvailable = response.IsSuccessStatusCode;
             }
-            catch { }
+            catch
+            {
+            }
 
             if (!ollamaAvailable)
             {
@@ -107,7 +118,7 @@ public static class ChatCommand
                     "ragdocuments",
                     queryEmbedding,
                     topK,
-                    docId: null,
+                    null,
                     ct);
 
                 if (segments.Count == 0)
@@ -123,17 +134,17 @@ public static class ChatCommand
                         $"[Source {i + 1}]: {s.Text}"));
 
                     var prompt = $"""
-                        Based on the following context from the documents, answer the user's question.
-                        If the answer isn't in the context, say you don't have enough information.
-                        Always cite which source(s) you used.
+                                  Based on the following context from the documents, answer the user's question.
+                                  If the answer isn't in the context, say you don't have enough information.
+                                  Always cite which source(s) you used.
 
-                        Context:
-                        {context}
+                                  Context:
+                                  {context}
 
-                        Question: {input}
+                                  Question: {input}
 
-                        Answer:
-                        """;
+                                  Answer:
+                                  """;
 
                     await AnsiConsole.Status()
                         .Spinner(Spinner.Known.Dots)
@@ -143,7 +154,7 @@ public static class ChatCommand
                             try
                             {
                                 using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-                                var requestBody = System.Text.Json.JsonSerializer.Serialize(new
+                                var requestBody = JsonSerializer.Serialize(new
                                 {
                                     model = config.OllamaModel,
                                     prompt,
@@ -152,16 +163,17 @@ public static class ChatCommand
 
                                 var response = await http.PostAsync(
                                     $"{config.OllamaUrl}/api/generate",
-                                    new StringContent(requestBody, System.Text.Encoding.UTF8, "application/json"),
+                                    new StringContent(requestBody, Encoding.UTF8, "application/json"),
                                     ct);
 
                                 if (response.IsSuccessStatusCode)
                                 {
                                     var json = await response.Content.ReadAsStringAsync(ct);
-                                    var result = System.Text.Json.JsonDocument.Parse(json);
+                                    var result = JsonDocument.Parse(json);
                                     var answer = result.RootElement.GetProperty("response").GetString();
 
-                                    AnsiConsole.MarkupLine($"\n[green]Assistant:[/] {Markup.Escape(answer ?? "No response")}");
+                                    AnsiConsole.MarkupLine(
+                                        $"\n[green]Assistant:[/] {Markup.Escape(answer ?? "No response")}");
                                 }
                                 else
                                 {
@@ -182,8 +194,10 @@ public static class ChatCommand
                     {
                         var s = segments[i];
                         var section = s.SectionTitle ?? s.HeadingPath ?? "Document";
-                        AnsiConsole.MarkupLine($"\n[cyan][{i + 1}][/] [dim]{Markup.Escape(section)}[/] (score: {s.QuerySimilarity:F3})");
-                        AnsiConsole.MarkupLine($"[dim]{Markup.Escape(s.Text.Length > 200 ? s.Text[..197] + "..." : s.Text)}[/]");
+                        AnsiConsole.MarkupLine(
+                            $"\n[cyan][{i + 1}][/] [dim]{Markup.Escape(section)}[/] (score: {s.QuerySimilarity:F3})");
+                        AnsiConsole.MarkupLine(
+                            $"[dim]{Markup.Escape(s.Text.Length > 200 ? s.Text[..197] + "..." : s.Text)}[/]");
                     }
                 }
 

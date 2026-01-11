@@ -1,20 +1,23 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 using LucidRAG.Cli.Services;
 using LucidRAG.Data;
+using LucidRAG.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// Check service availability and status
+///     Check service availability and status
 /// </summary>
 public static class CheckCommand
 {
     private static readonly Option<string?> DataDirOpt = new("--data-dir") { Description = "Data directory" };
-    private static readonly Option<bool> VerboseOpt = new("-v", "--verbose") { Description = "Verbose output", DefaultValueFactory = _ => false };
+
+    private static readonly Option<bool> VerboseOpt = new("-v", "--verbose")
+        { Description = "Verbose output", DefaultValueFactory = _ => false };
 
     public static Command Create()
     {
@@ -83,7 +86,7 @@ public static class CheckCommand
                 {
                     ollamaStatus = "[green]OK[/]";
                     var json = await response.Content.ReadAsStringAsync(ct);
-                    var models = System.Text.Json.JsonDocument.Parse(json);
+                    var models = JsonDocument.Parse(json);
                     var modelCount = models.RootElement.GetProperty("models").GetArrayLength();
                     ollamaDetails = $"{modelCount} models available";
                 }
@@ -101,15 +104,16 @@ public static class CheckCommand
             // Stats table
             if (dbExists)
             {
-                await using var services = CliServiceRegistration.BuildServiceProvider(config, false);
+                await using var services = CliServiceRegistration.BuildServiceProvider(config);
                 await CliServiceRegistration.EnsureDatabaseAsync(services);
 
                 using var scope = services.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
 
                 var docCount = await db.Documents.CountAsync(ct);
-                var completedCount = await db.Documents.CountAsync(d => d.Status == LucidRAG.Entities.DocumentStatus.Completed, ct);
-                var segmentCount = await db.Documents.Where(d => d.Status == LucidRAG.Entities.DocumentStatus.Completed).SumAsync(d => d.SegmentCount, ct);
+                var completedCount = await db.Documents.CountAsync(d => d.Status == DocumentStatus.Completed, ct);
+                var segmentCount = await db.Documents.Where(d => d.Status == DocumentStatus.Completed)
+                    .SumAsync(d => d.SegmentCount, ct);
                 var collectionCount = await db.Collections.CountAsync(ct);
 
                 var statsTable = new Table()

@@ -2,7 +2,6 @@
 
 public class SmtpSettings : IConfigSection
 {
-    public static string Section => "SmtpSettings";
     public string Server { get; set; }
     public int Port { get; set; }
     public string SenderName { get; set; }
@@ -12,6 +11,7 @@ public class SmtpSettings : IConfigSection
     public int EmailSendTry { get; set; }
     public bool EmailSendFailed { get; set; }
     public bool EnableSSL { get; set; }
-    
-    public string ToMail  { get; set; }
+
+    public string ToMail { get; set; }
+    public static string Section => "SmtpSettings";
 }

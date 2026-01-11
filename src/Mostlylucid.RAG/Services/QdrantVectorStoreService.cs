@@ -1,3 +1,5 @@
+using System.IO.Hashing;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.RAG.Config;
 using Mostlylucid.RAG.Models;
@@ -7,13 +9,13 @@ using Qdrant.Client.Grpc;
 namespace Mostlylucid.RAG.Services;
 
 /// <summary>
-/// Qdrant-based vector store service for semantic search
+///     Qdrant-based vector store service for semantic search
 /// </summary>
 public class QdrantVectorStoreService : IVectorStoreService
 {
-    private readonly ILogger<QdrantVectorStoreService> _logger;
-    private readonly SemanticSearchConfig _config;
     private readonly QdrantClient? _client;
+    private readonly SemanticSearchConfig _config;
+    private readonly ILogger<QdrantVectorStoreService> _logger;
     private bool _collectionInitialized;
 
     public QdrantVectorStoreService(
@@ -50,7 +52,7 @@ public class QdrantVectorStoreService : IVectorStoreService
                 ? _config.WriteApiKey
                 : _config.ReadApiKey;
 
-            _client = new QdrantClient(host, port, https: uri.Scheme == "https", apiKey: apiKey);
+            _client = new QdrantClient(host, port, uri.Scheme == "https", apiKey);
 
             _logger.LogInformation("Connected to Qdrant at {Host}:{Port} (gRPC), API key: {HasKey}",
                 host, port, !string.IsNullOrEmpty(apiKey) ? "configured" : "not set");
@@ -78,8 +80,8 @@ public class QdrantVectorStoreService : IVectorStoreService
 
                 // Create collection with cosine similarity
                 await _client.CreateCollectionAsync(
-                    collectionName: _config.CollectionName,
-                    vectorsConfig: new VectorParams
+                    _config.CollectionName,
+                    new VectorParams
                     {
                         Size = (ulong)_config.VectorSize,
                         Distance = Distance.Cosine
@@ -103,7 +105,8 @@ public class QdrantVectorStoreService : IVectorStoreService
         }
     }
 
-    public async Task IndexDocumentAsync(BlogPostDocument document, float[] embedding, CancellationToken cancellationToken = default)
+    public async Task IndexDocumentAsync(BlogPostDocument document, float[] embedding,
+        CancellationToken cancellationToken = default)
     {
         if (_client == null || !_config.Enabled)
             return;
@@ -120,14 +123,14 @@ public class QdrantVectorStoreService : IVectorStoreService
                 ["slug"] = document.Slug,
                 ["content_hash"] = document.ContentHash ?? "",
                 ["published_date"] = document.PublishedDate.ToUnixTimeSeconds(),
-                ["languages"] = new Value
+                ["languages"] = new()
                 {
                     ListValue = new ListValue
                     {
                         Values = { document.Languages.Select(lang => new Value { StringValue = lang }) }
                     }
                 },
-                ["categories"] = new Value
+                ["categories"] = new()
                 {
                     ListValue = new ListValue
                     {
@@ -144,8 +147,8 @@ public class QdrantVectorStoreService : IVectorStoreService
             };
 
             await _client.UpsertAsync(
-                collectionName: _config.CollectionName,
-                points: new[] { point },
+                _config.CollectionName,
+                new[] { point },
                 cancellationToken: cancellationToken
             );
 
@@ -158,7 +161,8 @@ public class QdrantVectorStoreService : IVectorStoreService
         }
     }
 
-    public async Task IndexDocumentsAsync(IEnumerable<(BlogPostDocument Document, float[] Embedding)> documents, CancellationToken cancellationToken = default)
+    public async Task IndexDocumentsAsync(IEnumerable<(BlogPostDocument Document, float[] Embedding)> documents,
+        CancellationToken cancellationToken = default)
     {
         if (_client == null || !_config.Enabled)
             return;
@@ -178,14 +182,14 @@ public class QdrantVectorStoreService : IVectorStoreService
                     ["slug"] = doc.Document.Slug,
                     ["content_hash"] = doc.Document.ContentHash ?? "",
                     ["published_date"] = doc.Document.PublishedDate.ToUnixTimeSeconds(),
-                    ["languages"] = new Value
+                    ["languages"] = new()
                     {
                         ListValue = new ListValue
                         {
                             Values = { doc.Document.Languages.Select(lang => new Value { StringValue = lang }) }
                         }
                     },
-                    ["categories"] = new Value
+                    ["categories"] = new()
                     {
                         ListValue = new ListValue
                         {
@@ -204,8 +208,8 @@ public class QdrantVectorStoreService : IVectorStoreService
             }).ToList();
 
             await _client.UpsertAsync(
-                collectionName: _config.CollectionName,
-                points: points,
+                _config.CollectionName,
+                points,
                 cancellationToken: cancellationToken
             );
 
@@ -218,7 +222,8 @@ public class QdrantVectorStoreService : IVectorStoreService
         }
     }
 
-    public async Task<List<SearchResult>> SearchAsync(float[] queryEmbedding, int limit = 10, float scoreThreshold = 0.5f, CancellationToken cancellationToken = default)
+    public async Task<List<SearchResult>> SearchAsync(float[] queryEmbedding, int limit = 10,
+        float scoreThreshold = 0.5f, CancellationToken cancellationToken = default)
     {
         if (_client == null || !_config.Enabled)
             return new List<SearchResult>();
@@ -226,8 +231,8 @@ public class QdrantVectorStoreService : IVectorStoreService
         try
         {
             var searchResults = await _client.SearchAsync(
-                collectionName: _config.CollectionName,
-                vector: queryEmbedding,
+                _config.CollectionName,
+                queryEmbedding,
                 limit: (ulong)limit,
                 scoreThreshold: scoreThreshold,
                 cancellationToken: cancellationToken
@@ -246,7 +251,8 @@ public class QdrantVectorStoreService : IVectorStoreService
         }
     }
 
-    public async Task<List<SearchResult>> FindRelatedPostsAsync(string slug, int limit = 5, CancellationToken cancellationToken = default)
+    public async Task<List<SearchResult>> FindRelatedPostsAsync(string slug, int limit = 5,
+        CancellationToken cancellationToken = default)
     {
         if (_client == null || !_config.Enabled)
             return new List<SearchResult>();
@@ -255,8 +261,8 @@ public class QdrantVectorStoreService : IVectorStoreService
         {
             // Find the document by slug
             var scrollResults = await _client.ScrollAsync(
-                collectionName: _config.CollectionName,
-                filter: new Filter
+                _config.CollectionName,
+                new Filter
                 {
                     Must =
                     {
@@ -270,7 +276,7 @@ public class QdrantVectorStoreService : IVectorStoreService
                         }
                     }
                 },
-                limit: 1,
+                1,
                 cancellationToken: cancellationToken
             );
 
@@ -283,8 +289,8 @@ public class QdrantVectorStoreService : IVectorStoreService
 
             // Use the document's vector to find similar posts
             var searchResults = await _client.SearchAsync(
-                collectionName: _config.CollectionName,
-                vector: point.Vectors.Vector.Data.ToArray(),
+                _config.CollectionName,
+                point.Vectors.Vector.Data.ToArray(),
                 limit: (ulong)(limit + 1), // +1 because the first result will be the post itself
                 scoreThreshold: _config.MinimumSimilarityScore,
                 cancellationToken: cancellationToken
@@ -317,8 +323,8 @@ public class QdrantVectorStoreService : IVectorStoreService
         {
             // Note: 'id' parameter is actually the slug (see SemanticSearchService.DeletePostAsync)
             await _client.DeleteAsync(
-                collectionName: _config.CollectionName,
-                filter: new Filter
+                _config.CollectionName,
+                new Filter
                 {
                     Must =
                     {
@@ -352,8 +358,8 @@ public class QdrantVectorStoreService : IVectorStoreService
         {
             // Note: 'id' parameter is actually the slug (see SemanticSearchService.NeedsReindexingAsync)
             var scrollResults = await _client.ScrollAsync(
-                collectionName: _config.CollectionName,
-                filter: new Filter
+                _config.CollectionName,
+                new Filter
                 {
                     Must =
                     {
@@ -367,7 +373,7 @@ public class QdrantVectorStoreService : IVectorStoreService
                         }
                     }
                 },
-                limit: 1,
+                1,
                 cancellationToken: cancellationToken
             );
 
@@ -383,7 +389,8 @@ public class QdrantVectorStoreService : IVectorStoreService
         }
     }
 
-    public async Task UpdateLanguagesAsync(string slug, string[] languages, CancellationToken cancellationToken = default)
+    public async Task UpdateLanguagesAsync(string slug, string[] languages,
+        CancellationToken cancellationToken = default)
     {
         if (_client == null || !_config.Enabled)
             return;
@@ -394,10 +401,10 @@ public class QdrantVectorStoreService : IVectorStoreService
         {
             // Update the payload for documents matching this slug
             await _client.SetPayloadAsync(
-                collectionName: _config.CollectionName,
-                payload: new Dictionary<string, Value>
+                _config.CollectionName,
+                new Dictionary<string, Value>
                 {
-                    ["languages"] = new Value
+                    ["languages"] = new()
                     {
                         ListValue = new ListValue
                         {
@@ -405,7 +412,7 @@ public class QdrantVectorStoreService : IVectorStoreService
                         }
                     }
                 },
-                filter: new Filter
+                new Filter
                 {
                     Must =
                     {
@@ -441,8 +448,8 @@ public class QdrantVectorStoreService : IVectorStoreService
         {
             // First, get the current languages array
             var scrollResults = await _client.ScrollAsync(
-                collectionName: _config.CollectionName,
-                filter: new Filter
+                _config.CollectionName,
+                new Filter
                 {
                     Must =
                     {
@@ -456,7 +463,7 @@ public class QdrantVectorStoreService : IVectorStoreService
                         }
                     }
                 },
-                limit: 1,
+                1,
                 cancellationToken: cancellationToken
             );
 
@@ -470,11 +477,9 @@ public class QdrantVectorStoreService : IVectorStoreService
             // Get existing languages
             var existingLanguages = new List<string>();
             if (point.Payload.TryGetValue("languages", out var langValue) && langValue.ListValue != null)
-            {
                 existingLanguages = langValue.ListValue.Values
                     .Select(v => v.StringValue)
                     .ToList();
-            }
 
             // Add new language if not already present
             if (existingLanguages.Contains(language))
@@ -488,10 +493,10 @@ public class QdrantVectorStoreService : IVectorStoreService
 
             // Update with new languages array
             await _client.SetPayloadAsync(
-                collectionName: _config.CollectionName,
-                payload: new Dictionary<string, Value>
+                _config.CollectionName,
+                new Dictionary<string, Value>
                 {
-                    ["languages"] = new Value
+                    ["languages"] = new()
                     {
                         ListValue = new ListValue
                         {
@@ -499,7 +504,7 @@ public class QdrantVectorStoreService : IVectorStoreService
                         }
                     }
                 },
-                filter: new Filter
+                new Filter
                 {
                     Must =
                     {
@@ -535,7 +540,8 @@ public class QdrantVectorStoreService : IVectorStoreService
             var collections = await _client.ListCollectionsAsync(cancellationToken);
             if (!collections.Contains(_config.CollectionName))
             {
-                _logger.LogInformation("Collection {CollectionName} does not exist, nothing to clear", _config.CollectionName);
+                _logger.LogInformation("Collection {CollectionName} does not exist, nothing to clear",
+                    _config.CollectionName);
                 return;
             }
 
@@ -558,11 +564,11 @@ public class QdrantVectorStoreService : IVectorStoreService
     }
 
     /// <summary>
-    /// Generate a deterministic ulong from a string ID using xxHash64.
-    /// This ensures the same document ID always gets the same point ID for proper upsert behavior.
+    ///     Generate a deterministic ulong from a string ID using xxHash64.
+    ///     This ensures the same document ID always gets the same point ID for proper upsert behavior.
     /// </summary>
     private static ulong GenerateDeterministicId(string id)
     {
-        return System.IO.Hashing.XxHash64.HashToUInt64(System.Text.Encoding.UTF8.GetBytes(id));
+        return XxHash64.HashToUInt64(Encoding.UTF8.GetBytes(id));
     }
 }

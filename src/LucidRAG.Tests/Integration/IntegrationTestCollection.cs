@@ -1,8 +1,8 @@
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Collection definition for integration tests.
-/// Tests in this collection run sequentially to avoid race conditions.
+///     Collection definition for integration tests.
+///     Tests in this collection run sequentially to avoid race conditions.
 /// </summary>
 [CollectionDefinition("Integration")]
 public class IntegrationTestCollection : ICollectionFixture<TestWebApplicationFactory>

@@ -5,20 +5,20 @@ using Xunit;
 namespace Mostlylucid.DocSummarizer.Tests.Services;
 
 /// <summary>
-/// Unit tests for WebFetcher - tests security validation without network calls
+///     Unit tests for WebFetcher - tests security validation without network calls
 /// </summary>
 public class WebFetcherTests
 {
+    private readonly WebFetchConfig _disabledConfig = new()
+    {
+        Enabled = false
+    };
+
     private readonly WebFetchConfig _enabledConfig = new()
     {
         Enabled = true,
         Mode = WebFetchMode.Simple,
         TimeoutSeconds = 30
-    };
-
-    private readonly WebFetchConfig _disabledConfig = new()
-    {
-        Enabled = false
     };
 
     [Fact]
@@ -28,9 +28,9 @@ public class WebFetcherTests
         var fetcher = new WebFetcher(_disabledConfig);
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => fetcher.FetchAsync("https://example.com", WebFetchMode.Simple));
-        
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fetcher.FetchAsync("https://example.com", WebFetchMode.Simple));
+
         Assert.Contains("not enabled", ex.Message);
     }
 
@@ -45,9 +45,8 @@ public class WebFetcherTests
         var fetcher = new WebFetcher(_enabledConfig);
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<SecurityException>(
-            () => fetcher.FetchAsync(url, WebFetchMode.Simple));
-        
+        var ex = await Assert.ThrowsAsync<SecurityException>(() => fetcher.FetchAsync(url, WebFetchMode.Simple));
+
         Assert.Contains("scheme", ex.Message.ToLower());
     }
 
@@ -58,8 +57,7 @@ public class WebFetcherTests
         var fetcher = new WebFetcher(_enabledConfig);
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => fetcher.FetchAsync("not-a-valid-url", WebFetchMode.Simple));
+        await Assert.ThrowsAsync<ArgumentException>(() => fetcher.FetchAsync("not-a-valid-url", WebFetchMode.Simple));
     }
 
     [Theory]
@@ -75,9 +73,8 @@ public class WebFetcherTests
         var fetcher = new WebFetcher(_enabledConfig);
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<SecurityException>(
-            () => fetcher.FetchAsync(url, WebFetchMode.Simple));
-        
+        var ex = await Assert.ThrowsAsync<SecurityException>(() => fetcher.FetchAsync(url, WebFetchMode.Simple));
+
         Assert.True(
             ex.Message.Contains("private", StringComparison.OrdinalIgnoreCase) ||
             ex.Message.Contains("blocked", StringComparison.OrdinalIgnoreCase) ||

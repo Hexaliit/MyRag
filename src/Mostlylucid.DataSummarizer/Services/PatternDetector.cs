@@ -1,11 +1,12 @@
+using System.Text;
 using DuckDB.NET.Data;
 using Mostlylucid.DataSummarizer.Models;
 
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Detects patterns in data using DuckDB SQL queries.
-/// Patterns are used to guide LLM analysis and provide statistical insights.
+///     Detects patterns in data using DuckDB SQL queries.
+///     Patterns are used to guide LLM analysis and provide statistical insights.
 /// </summary>
 public class PatternDetector
 {
@@ -21,7 +22,7 @@ public class PatternDetector
     }
 
     /// <summary>
-    /// Detect all patterns for a column based on its type
+    ///     Detect all patterns for a column based on its type
     /// </summary>
     public async Task<ColumnProfile> EnrichWithPatternsAsync(ColumnProfile column, DataProfile profile)
     {
@@ -36,14 +37,12 @@ public class PatternDetector
                 case ColumnType.Numeric:
                     column.Distribution = await ClassifyDistributionAsync(column);
                     column.Trend = await DetectTrendAsync(column, profile);
-                    
+
                     // Detect periodicity if there's a date column for ordering
                     var dateColumn = profile.Columns
                         .FirstOrDefault(c => c.InferredType == ColumnType.DateTime);
                     if (dateColumn != null)
-                    {
                         column.Periodicity = await AnalyzePeriodicityAsync(column.Name, dateColumn.Name);
-                    }
                     break;
 
                 case ColumnType.DateTime:
@@ -60,7 +59,7 @@ public class PatternDetector
     }
 
     /// <summary>
-    /// Detect dataset-level patterns (relationships between columns)
+    ///     Detect dataset-level patterns (relationships between columns)
     /// </summary>
     public async Task<List<DetectedPattern>> DetectDatasetPatternsAsync(DataProfile profile)
     {
@@ -82,10 +81,26 @@ public class PatternDetector
         return patterns;
     }
 
+    #region Helpers
+
+    private async Task<T> ExecuteScalarAsync<T>(string sql)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = sql;
+        var result = await cmd.ExecuteScalarAsync();
+
+        if (result == null || result == DBNull.Value)
+            return default!;
+
+        return (T)Convert.ChangeType(result, Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T));
+    }
+
+    #endregion
+
     #region Text Pattern Detection
 
     /// <summary>
-    /// Detect text patterns using regex in DuckDB
+    ///     Detect text patterns using regex in DuckDB
     /// </summary>
     private async Task<List<TextPatternMatch>> DetectTextPatternsAsync(string column)
     {
@@ -96,25 +111,26 @@ public class PatternDetector
         {
             // Email: simple pattern that catches most emails
             [TextPatternType.Email] = @"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
-            
+
             // URL: http(s) URLs
             [TextPatternType.Url] = @"^https?://[^\s]+$",
-            
+
             // UUID: standard format with hyphens
             [TextPatternType.Uuid] = @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            
+
             // Phone: various formats (US-centric but catches many)
             [TextPatternType.Phone] = @"^[\+]?[(]?[0-9]{1,3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$",
-            
+
             // IP Address: IPv4
-            [TextPatternType.IpAddress] = @"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
-            
+            [TextPatternType.IpAddress] =
+                @"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+
             // Credit Card: 13-19 digits with optional separators
             [TextPatternType.CreditCard] = @"^[0-9]{4}[-\s]?[0-9]{4}[-\s]?[0-9]{4}[-\s]?[0-9]{1,7}$",
-            
+
             // Percentage: number with % sign
             [TextPatternType.Percentage] = @"^-?[0-9]+\.?[0-9]*\s*%$",
-            
+
             // Currency: common formats
             [TextPatternType.Currency] = @"^[$\u00a3\u20ac\u00a5][0-9,]+\.?[0-9]*$"
         };
@@ -124,9 +140,8 @@ public class PatternDetector
 
         if (totalNonNull == 0) return patterns;
 
-        bool foundKnownPattern = false;
+        var foundKnownPattern = false;
         foreach (var (patternType, regex) in regexPatterns)
-        {
             try
             {
                 var sql = $@"
@@ -135,11 +150,11 @@ public class PatternDetector
                     AND regexp_matches(""{column}""::VARCHAR, '{regex}')";
 
                 var matchCount = await ExecuteScalarAsync<long>(sql);
-                
+
                 if (matchCount > 0)
                 {
                     var matchPercent = matchCount * 100.0 / totalNonNull;
-                    
+
                     // Only report if significant portion matches (>10%)
                     if (matchPercent >= 10)
                     {
@@ -157,24 +172,20 @@ public class PatternDetector
             {
                 // Skip patterns that fail (regex might not be compatible)
             }
-        }
-        
+
         // If no known pattern found and column has consistent structure, try to detect novel patterns
         if (!foundKnownPattern && totalNonNull >= 10)
         {
             var novelPattern = await DetectNovelPatternAsync(column, totalNonNull);
-            if (novelPattern != null)
-            {
-                patterns.Add(novelPattern);
-            }
+            if (novelPattern != null) patterns.Add(novelPattern);
         }
 
         return patterns.OrderByDescending(p => p.MatchPercent).ToList();
     }
 
     /// <summary>
-    /// Detect novel patterns by analyzing character class structure of column values.
-    /// Returns a pattern if >70% of values share a similar structure.
+    ///     Detect novel patterns by analyzing character class structure of column values.
+    ///     Returns a pattern if >70% of values share a similar structure.
     /// </summary>
     private async Task<TextPatternMatch?> DetectNovelPatternAsync(string column, long totalNonNull)
     {
@@ -231,7 +242,7 @@ public class PatternDetector
 
             // Get more examples for this pattern
             var examples = await GetPatternExamplesAsync(column, 5);
-            
+
             // Generate a regex from the character class pattern
             var inferredRegex = CharPatternToRegex(topPattern.Pattern);
 
@@ -253,7 +264,7 @@ public class PatternDetector
     }
 
     /// <summary>
-    /// Get example values from a column
+    ///     Get example values from a column
     /// </summary>
     private async Task<List<string>> GetPatternExamplesAsync(string column, int count)
     {
@@ -271,29 +282,25 @@ public class PatternDetector
             using var reader = await cmd.ExecuteReaderAsync();
 
             while (await reader.ReadAsync())
-            {
                 if (!reader.IsDBNull(0))
-                {
                     examples.Add(reader.GetString(0));
-                }
-            }
         }
         catch
         {
             // Ignore errors
         }
+
         return examples;
     }
 
     /// <summary>
-    /// Convert character class pattern (ANSW) to a basic regex
+    ///     Convert character class pattern (ANSW) to a basic regex
     /// </summary>
     private static string CharPatternToRegex(string charPattern)
     {
-        var regex = new System.Text.StringBuilder("^");
-        
+        var regex = new StringBuilder("^");
+
         foreach (var c in charPattern)
-        {
             regex.Append(c switch
             {
                 'A' => "[a-zA-Z]+",
@@ -302,19 +309,18 @@ public class PatternDetector
                 'W' => "\\s+",
                 _ => "."
             });
-        }
-        
+
         regex.Append('$');
         return regex.ToString();
     }
 
     /// <summary>
-    /// Generate human-readable description of character class pattern
+    ///     Generate human-readable description of character class pattern
     /// </summary>
     private static string DescribeCharPattern(string charPattern)
     {
         var parts = new List<string>();
-        
+
         foreach (var c in charPattern)
         {
             var desc = c switch
@@ -325,13 +331,10 @@ public class PatternDetector
                 'W' => "space",
                 _ => "?"
             };
-            
-            if (parts.Count == 0 || parts[^1] != desc)
-            {
-                parts.Add(desc);
-            }
+
+            if (parts.Count == 0 || parts[^1] != desc) parts.Add(desc);
         }
-        
+
         return string.Join(" + ", parts);
     }
 
@@ -340,7 +343,7 @@ public class PatternDetector
     #region Distribution Classification
 
     /// <summary>
-    /// Classify the distribution type of a numeric column
+    ///     Classify the distribution type of a numeric column
     /// </summary>
     private async Task<DistributionType> ClassifyDistributionAsync(ColumnProfile column)
     {
@@ -366,15 +369,11 @@ public class PatternDetector
         // Classification logic
         // Normal: skewness near 0, kurtosis near 3 (excess kurtosis near 0)
         if (Math.Abs(skewness) < 0.5 && kurtosis.HasValue && Math.Abs(kurtosis.Value - 3) < 1)
-        {
             return DistributionType.Normal;
-        }
 
         // Uniform: very low kurtosis, IQR is about half the range
         if (kurtosis.HasValue && kurtosis < 2 && iqrRatio.HasValue && iqrRatio > 0.4 && iqrRatio < 0.6)
-        {
             return DistributionType.Uniform;
-        }
 
         // Skewed distributions
         if (skewness > 1)
@@ -383,16 +382,10 @@ public class PatternDetector
             return DistributionType.LeftSkewed;
 
         // Exponential: right-skewed with high kurtosis
-        if (skewness > 0.5 && kurtosis.HasValue && kurtosis > 6)
-        {
-            return DistributionType.Exponential;
-        }
+        if (skewness > 0.5 && kurtosis.HasValue && kurtosis > 6) return DistributionType.Exponential;
 
         // Power law: very high skewness and kurtosis
-        if (skewness > 2 && kurtosis.HasValue && kurtosis > 10)
-        {
-            return DistributionType.PowerLaw;
-        }
+        if (skewness > 2 && kurtosis.HasValue && kurtosis > 10) return DistributionType.PowerLaw;
 
         // Bimodal detection: check if there are two peaks
         var isBimodal = await DetectBimodalityAsync(column.Name);
@@ -466,7 +459,7 @@ public class PatternDetector
     #region Trend Detection
 
     /// <summary>
-    /// Detect trends in numeric columns relative to date columns
+    ///     Detect trends in numeric columns relative to date columns
     /// </summary>
     private async Task<TrendInfo?> DetectTrendAsync(ColumnProfile numericColumn, DataProfile profile)
     {
@@ -475,10 +468,8 @@ public class PatternDetector
             .FirstOrDefault(c => c.InferredType == ColumnType.DateTime);
 
         if (dateColumn == null)
-        {
             // Try to detect trend using row order
             return await DetectTrendByRowOrderAsync(numericColumn.Name);
-        }
 
         return await DetectTrendByDateAsync(numericColumn.Name, dateColumn.Name);
     }
@@ -523,17 +514,15 @@ public class PatternDetector
 
                 // Only report if there's a meaningful correlation (R^2 > 0.3)
                 if (rSquared > 0.3 || Math.Abs(slope) > 0.001)
-                {
                     return new TrendInfo
                     {
-                        Direction = slope > 0.001 ? TrendDirection.Increasing 
-                                  : slope < -0.001 ? TrendDirection.Decreasing 
-                                  : TrendDirection.None,
+                        Direction = slope > 0.001 ? TrendDirection.Increasing
+                            : slope < -0.001 ? TrendDirection.Decreasing
+                            : TrendDirection.None,
                         Slope = Math.Round(slope, 4),
                         RSquared = Math.Round(rSquared, 3),
                         RelatedDateColumn = dateColumn
                     };
-                }
             }
         }
         catch (Exception ex)
@@ -582,17 +571,15 @@ public class PatternDetector
                 var rSquared = reader.IsDBNull(1) ? 0 : Math.Max(0, Math.Min(1, reader.GetDouble(1)));
 
                 if (rSquared > 0.5) // Only report strong trends without date context
-                {
                     return new TrendInfo
                     {
-                        Direction = slope > 0 ? TrendDirection.Increasing 
-                                  : slope < 0 ? TrendDirection.Decreasing 
-                                  : TrendDirection.None,
+                        Direction = slope > 0 ? TrendDirection.Increasing
+                            : slope < 0 ? TrendDirection.Decreasing
+                            : TrendDirection.None,
                         Slope = Math.Round(slope, 4),
                         RSquared = Math.Round(rSquared, 3),
                         RelatedDateColumn = null
                     };
-                }
             }
         }
         catch
@@ -608,7 +595,7 @@ public class PatternDetector
     #region Time Series Analysis
 
     /// <summary>
-    /// Analyze time series characteristics of a date column
+    ///     Analyze time series characteristics of a date column
     /// </summary>
     private async Task<TimeSeriesInfo?> AnalyzeTimeSeriesAsync(string column, long totalRows)
     {
@@ -628,15 +615,13 @@ public class PatternDetector
             // Detect seasonality (simplified - check for weekly/monthly patterns)
             info.HasSeasonality = await DetectSeasonalityAsync(column);
             if (info.HasSeasonality)
-            {
                 info.SeasonalPeriod = info.Granularity switch
                 {
-                    TimeGranularity.Daily => 7,    // Weekly
-                    TimeGranularity.Weekly => 52,  // Yearly
+                    TimeGranularity.Daily => 7, // Weekly
+                    TimeGranularity.Weekly => 52, // Yearly
                     TimeGranularity.Monthly => 12, // Yearly
                     _ => null
                 };
-            }
 
             return info;
         }
@@ -666,7 +651,7 @@ public class PatternDetector
         try
         {
             var medianDiffSeconds = await ExecuteScalarAsync<double?>(sql);
-            
+
             if (!medianDiffSeconds.HasValue || medianDiffSeconds <= 0)
                 return TimeGranularity.Unknown;
 
@@ -676,9 +661,9 @@ public class PatternDetector
             {
                 < 120 => TimeGranularity.Minute,
                 < 7200 => TimeGranularity.Hourly,
-                < 172800 => TimeGranularity.Daily,      // < 2 days
-                < 864000 => TimeGranularity.Weekly,     // < 10 days
-                < 5184000 => TimeGranularity.Monthly,   // < 60 days
+                < 172800 => TimeGranularity.Daily, // < 2 days
+                < 864000 => TimeGranularity.Weekly, // < 10 days
+                < 5184000 => TimeGranularity.Monthly, // < 60 days
                 < 15552000 => TimeGranularity.Quarterly, // < 180 days
                 _ => TimeGranularity.Yearly
             };
@@ -770,12 +755,12 @@ public class PatternDetector
     }
 
     /// <summary>
-    /// Detect dominant period in a numeric column using autocorrelation.
-    /// Uses DuckDB window functions for efficient lag computation.
-    /// Returns (hasPeriodicity, dominantPeriod, confidence)
+    ///     Detect dominant period in a numeric column using autocorrelation.
+    ///     Uses DuckDB window functions for efficient lag computation.
+    ///     Returns (hasPeriodicity, dominantPeriod, confidence)
     /// </summary>
     public async Task<(bool HasPeriodicity, int? DominantPeriod, double Confidence)> DetectPeriodicityAsync(
-        string numericColumn, 
+        string numericColumn,
         string? orderByColumn = null,
         int maxLag = 50,
         int sampleSize = 1000)
@@ -784,10 +769,10 @@ public class PatternDetector
         {
             // Compute autocorrelation at various lags using DuckDB
             // ACF(k) = Σ((x_t - μ)(x_{t-k} - μ)) / Σ(x_t - μ)²
-            var orderClause = string.IsNullOrEmpty(orderByColumn) 
-                ? $"\"{numericColumn}\"" 
+            var orderClause = string.IsNullOrEmpty(orderByColumn)
+                ? $"\"{numericColumn}\""
                 : $"\"{orderByColumn}\"";
-            
+
             var sql = $@"
                 WITH sampled AS (
                     SELECT 
@@ -826,11 +811,11 @@ public class PatternDetector
                 ORDER BY lag_val";
 
             var acfValues = new List<(int Lag, double Acf)>();
-            
+
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = sql;
             using var reader = await cmd.ExecuteReaderAsync();
-            
+
             while (await reader.ReadAsync())
             {
                 var lag = reader.GetInt32(0);
@@ -843,16 +828,16 @@ public class PatternDetector
 
             // Find peaks in ACF (local maxima that are significant)
             var peaks = FindAcfPeaks(acfValues);
-            
+
             if (peaks.Count == 0)
                 return (false, null, 0);
 
             // The first significant peak indicates the dominant period
             var dominantPeak = peaks.First();
-            
+
             // Confidence is the ACF value at the peak (0-1 range, higher = stronger periodicity)
             var confidence = Math.Max(0, Math.Min(1, dominantPeak.Acf));
-            
+
             // Only report if confidence is reasonable
             if (confidence < 0.2)
                 return (false, null, 0);
@@ -867,38 +852,35 @@ public class PatternDetector
     }
 
     /// <summary>
-    /// Find peaks in autocorrelation function (local maxima above threshold)
+    ///     Find peaks in autocorrelation function (local maxima above threshold)
     /// </summary>
     private List<(int Lag, double Acf)> FindAcfPeaks(List<(int Lag, double Acf)> acfValues, double threshold = 0.2)
     {
         var peaks = new List<(int Lag, double Acf)>();
-        
-        for (int i = 1; i < acfValues.Count - 1; i++)
+
+        for (var i = 1; i < acfValues.Count - 1; i++)
         {
             var prev = acfValues[i - 1].Acf;
             var curr = acfValues[i].Acf;
             var next = acfValues[i + 1].Acf;
-            
+
             // Local maximum above threshold
-            if (curr > prev && curr > next && curr > threshold)
-            {
-                peaks.Add(acfValues[i]);
-            }
+            if (curr > prev && curr > next && curr > threshold) peaks.Add(acfValues[i]);
         }
-        
+
         return peaks.OrderByDescending(p => p.Acf).ToList();
     }
 
     /// <summary>
-    /// Quick periodicity check for numeric time series - uses sampled autocorrelation
+    ///     Quick periodicity check for numeric time series - uses sampled autocorrelation
     /// </summary>
     public async Task<PeriodicityInfo?> AnalyzePeriodicityAsync(string numericColumn, string? dateColumn = null)
     {
         var (hasPeriodicity, period, confidence) = await DetectPeriodicityAsync(
-            numericColumn, 
+            numericColumn,
             dateColumn,
-            maxLag: 60,  // Check up to 60 lags (e.g., 60 days, weeks, etc.)
-            sampleSize: 500);
+            60, // Check up to 60 lags (e.g., 60 days, weeks, etc.)
+            500);
 
         if (!hasPeriodicity || !period.HasValue)
             return null;
@@ -912,26 +894,29 @@ public class PatternDetector
         };
     }
 
-    private string InterpretPeriod(int period) => period switch
+    private string InterpretPeriod(int period)
     {
-        7 => "Weekly cycle (7 periods)",
-        12 => "Monthly cycle (12 periods) - possibly yearly pattern in monthly data",
-        14 => "Bi-weekly cycle (14 periods)",
-        24 => "Daily cycle (24 periods) - possibly hourly data",
-        30 or 31 => "Monthly cycle (~30 periods)",
-        52 => "Yearly cycle (52 periods) - possibly weekly data",
-        365 or 366 => "Yearly cycle (365 periods) - possibly daily data",
-        _ when period <= 3 => $"Short cycle ({period} periods)",
-        _ when period <= 10 => $"Short-term cycle ({period} periods)",
-        _ => $"Cycle detected ({period} periods)"
-    };
+        return period switch
+        {
+            7 => "Weekly cycle (7 periods)",
+            12 => "Monthly cycle (12 periods) - possibly yearly pattern in monthly data",
+            14 => "Bi-weekly cycle (14 periods)",
+            24 => "Daily cycle (24 periods) - possibly hourly data",
+            30 or 31 => "Monthly cycle (~30 periods)",
+            52 => "Yearly cycle (52 periods) - possibly weekly data",
+            365 or 366 => "Yearly cycle (365 periods) - possibly daily data",
+            _ when period <= 3 => $"Short cycle ({period} periods)",
+            _ when period <= 10 => $"Short-term cycle ({period} periods)",
+            _ => $"Cycle detected ({period} periods)"
+        };
+    }
 
     #endregion
 
     #region Relationship Detection
 
     /// <summary>
-    /// Detect potential foreign key relationships
+    ///     Detect potential foreign key relationships
     /// </summary>
     private async Task<List<DetectedPattern>> DetectForeignKeyPatternsAsync(DataProfile profile)
     {
@@ -939,48 +924,45 @@ public class PatternDetector
 
         // Look for ID columns and their potential references
         var idColumns = profile.Columns
-            .Where(c => c.InferredType == ColumnType.Id || 
-                       c.Name.ToLowerInvariant().EndsWith("_id") ||
-                       c.Name.ToLowerInvariant().EndsWith("id"))
+            .Where(c => c.InferredType == ColumnType.Id ||
+                        c.Name.ToLowerInvariant().EndsWith("_id") ||
+                        c.Name.ToLowerInvariant().EndsWith("id"))
             .ToList();
 
         var categoricalColumns = profile.Columns
-            .Where(c => c.InferredType == ColumnType.Categorical && 
-                       c.UniqueCount > 1 && c.UniqueCount <= 1000)
+            .Where(c => c.InferredType == ColumnType.Categorical &&
+                        c.UniqueCount > 1 && c.UniqueCount <= 1000)
             .ToList();
 
         // Check if categorical column values are subset of another column
         foreach (var catCol in categoricalColumns)
+        foreach (var idCol in idColumns)
         {
-            foreach (var idCol in idColumns)
-            {
-                if (catCol.Name == idCol.Name) continue;
+            if (catCol.Name == idCol.Name) continue;
 
-                try
-                {
-                    var overlap = await CalculateValueOverlapAsync(catCol.Name, idCol.Name);
-                    
-                    if (overlap > 0.9) // 90%+ overlap suggests FK relationship
+            try
+            {
+                var overlap = await CalculateValueOverlapAsync(catCol.Name, idCol.Name);
+
+                if (overlap > 0.9) // 90%+ overlap suggests FK relationship
+                    patterns.Add(new DetectedPattern
                     {
-                        patterns.Add(new DetectedPattern
+                        Type = PatternType.ForeignKey,
+                        Description =
+                            $"'{catCol.Name}' values are likely references to '{idCol.Name}' ({overlap:P0} overlap)",
+                        RelatedColumns = [catCol.Name, idCol.Name],
+                        Confidence = overlap,
+                        Details = new Dictionary<string, object>
                         {
-                            Type = PatternType.ForeignKey,
-                            Description = $"'{catCol.Name}' values are likely references to '{idCol.Name}' ({overlap:P0} overlap)",
-                            RelatedColumns = [catCol.Name, idCol.Name],
-                            Confidence = overlap,
-                            Details = new Dictionary<string, object>
-                            {
-                                ["source_column"] = catCol.Name,
-                                ["target_column"] = idCol.Name,
-                                ["overlap_percent"] = overlap * 100
-                            }
-                        });
-                    }
-                }
-                catch
-                {
-                    // Skip if comparison fails
-                }
+                            ["source_column"] = catCol.Name,
+                            ["target_column"] = idCol.Name,
+                            ["overlap_percent"] = overlap * 100
+                        }
+                    });
+            }
+            catch
+            {
+                // Skip if comparison fails
             }
         }
 
@@ -1004,14 +986,14 @@ public class PatternDetector
     }
 
     /// <summary>
-    /// Detect monotonic (strictly increasing/decreasing) columns
+    ///     Detect monotonic (strictly increasing/decreasing) columns
     /// </summary>
     private async Task<List<DetectedPattern>> DetectMonotonicPatternsAsync(DataProfile profile)
     {
         var patterns = new List<DetectedPattern>();
 
-        foreach (var col in profile.Columns.Where(c => c.InferredType == ColumnType.Numeric || c.InferredType == ColumnType.Id))
-        {
+        foreach (var col in profile.Columns.Where(c =>
+                     c.InferredType == ColumnType.Numeric || c.InferredType == ColumnType.Id))
             try
             {
                 var sql = $@"
@@ -1046,11 +1028,11 @@ public class PatternDetector
                         var decRatio = (double)decreasing / total;
 
                         if (incRatio > 0.95)
-                        {
                             patterns.Add(new DetectedPattern
                             {
                                 Type = PatternType.Monotonic,
-                                Description = $"'{col.Name}' is monotonically increasing ({incRatio:P0} of transitions)",
+                                Description =
+                                    $"'{col.Name}' is monotonically increasing ({incRatio:P0} of transitions)",
                                 RelatedColumns = [col.Name],
                                 Confidence = incRatio,
                                 Details = new Dictionary<string, object>
@@ -1059,13 +1041,12 @@ public class PatternDetector
                                     ["ratio"] = incRatio
                                 }
                             });
-                        }
                         else if (decRatio > 0.95)
-                        {
                             patterns.Add(new DetectedPattern
                             {
                                 Type = PatternType.Monotonic,
-                                Description = $"'{col.Name}' is monotonically decreasing ({decRatio:P0} of transitions)",
+                                Description =
+                                    $"'{col.Name}' is monotonically decreasing ({decRatio:P0} of transitions)",
                                 RelatedColumns = [col.Name],
                                 Confidence = decRatio,
                                 Details = new Dictionary<string, object>
@@ -1074,7 +1055,6 @@ public class PatternDetector
                                     ["ratio"] = decRatio
                                 }
                             });
-                        }
                     }
                 }
             }
@@ -1082,7 +1062,6 @@ public class PatternDetector
             {
                 // Skip if detection fails
             }
-        }
 
         return patterns;
     }
@@ -1093,13 +1072,13 @@ public class PatternDetector
         if (dateCol?.TimeSeries == null) return null;
 
         var ts = dateCol.TimeSeries;
-        
+
         return new DetectedPattern
         {
             Type = PatternType.TimeSeries,
             Description = $"Data appears to be a {ts.Granularity} time series indexed by '{dateCol.Name}'" +
-                         (ts.HasSeasonality ? $" with potential seasonality (period: {ts.SeasonalPeriod})" : "") +
-                         (ts.IsContiguous ? " (contiguous)" : $" ({ts.GapCount} gaps detected)"),
+                          (ts.HasSeasonality ? $" with potential seasonality (period: {ts.SeasonalPeriod})" : "") +
+                          (ts.IsContiguous ? " (contiguous)" : $" ({ts.GapCount} gaps detected)"),
             RelatedColumns = [dateCol.Name],
             Confidence = ts.IsContiguous ? 0.9 : 0.7,
             Details = new Dictionary<string, object>
@@ -1110,22 +1089,6 @@ public class PatternDetector
                 ["is_contiguous"] = ts.IsContiguous
             }
         };
-    }
-
-    #endregion
-
-    #region Helpers
-
-    private async Task<T> ExecuteScalarAsync<T>(string sql)
-    {
-        using var cmd = _connection.CreateCommand();
-        cmd.CommandText = sql;
-        var result = await cmd.ExecuteScalarAsync();
-
-        if (result == null || result == DBNull.Value)
-            return default!;
-
-        return (T)Convert.ChangeType(result, Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T));
     }
 
     #endregion

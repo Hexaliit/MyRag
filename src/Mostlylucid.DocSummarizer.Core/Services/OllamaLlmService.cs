@@ -4,12 +4,12 @@ using Mostlylucid.DocSummarizer.Config;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// ILlmService implementation that wraps OllamaService for text generation.
+///     ILlmService implementation that wraps OllamaService for text generation.
 /// </summary>
 public class OllamaLlmService : ILlmService
 {
-    private readonly OllamaService _ollamaService;
     private readonly OllamaConfig _config;
+    private readonly OllamaService _ollamaService;
 
     public OllamaLlmService(OllamaService ollamaService, OllamaConfig config)
     {
@@ -29,16 +29,14 @@ public class OllamaLlmService : ILlmService
 
         // If a system prompt is provided, prepend it
         var fullPrompt = prompt;
-        if (!string.IsNullOrEmpty(options.SystemPrompt))
-        {
-            fullPrompt = $"{options.SystemPrompt}\n\n{prompt}";
-        }
+        if (!string.IsNullOrEmpty(options.SystemPrompt)) fullPrompt = $"{options.SystemPrompt}\n\n{prompt}";
 
         return await _ollamaService.GenerateWithModelAsync(model, fullPrompt, temperature, ct);
     }
 
     /// <inheritdoc />
-    public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null, CancellationToken ct = default) where T : class
+    public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null,
+        CancellationToken ct = default) where T : class
     {
         // Add JSON instruction to prompt
         var jsonPrompt = $"{prompt}\n\nRespond with valid JSON only, no markdown formatting or explanation.";
@@ -81,7 +79,7 @@ public class OllamaLlmService : ILlmService
     }
 
     /// <summary>
-    /// Clean JSON response by removing markdown code blocks
+    ///     Clean JSON response by removing markdown code blocks
     /// </summary>
     private static string CleanJsonResponse(string response)
     {
@@ -89,18 +87,10 @@ public class OllamaLlmService : ILlmService
 
         // Remove ```json ... ``` wrapper
         if (response.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
-        {
             response = response[7..]; // Remove ```json
-        }
-        else if (response.StartsWith("```"))
-        {
-            response = response[3..]; // Remove ```
-        }
+        else if (response.StartsWith("```")) response = response[3..]; // Remove ```
 
-        if (response.EndsWith("```"))
-        {
-            response = response[..^3]; // Remove trailing ```
-        }
+        if (response.EndsWith("```")) response = response[..^3]; // Remove trailing ```
 
         return response.Trim();
     }

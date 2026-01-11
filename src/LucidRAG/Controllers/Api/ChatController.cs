@@ -1,6 +1,7 @@
-using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 using LucidRAG.Filters;
 using LucidRAG.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LucidRAG.Controllers.Api;
 
@@ -14,28 +15,25 @@ public class ChatController(
     [HttpPost]
     public async Task<IActionResult> Chat([FromBody] ChatApiRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Query))
-        {
-            return BadRequest(new { error = "Query is required" });
-        }
+        if (string.IsNullOrWhiteSpace(request.Query)) return BadRequest(new { error = "Query is required" });
 
         try
         {
             // Parse search mode from string (default to Hybrid)
             var searchMode = request.SearchMode?.ToLowerInvariant() switch
             {
-                "semantic" => Services.SearchMode.Semantic,
-                "keyword" => Services.SearchMode.Keyword,
-                _ => Services.SearchMode.Hybrid
+                "semantic" => SearchMode.Semantic,
+                "keyword" => SearchMode.Keyword,
+                _ => SearchMode.Hybrid
             };
 
             var chatRequest = new ChatRequest(
-                Query: request.Query,
-                ConversationId: request.ConversationId,
-                CollectionId: request.CollectionId,
-                DocumentIds: request.DocumentIds,
-                SystemPrompt: request.SystemPrompt,
-                SearchMode: searchMode);
+                request.Query,
+                request.ConversationId,
+                request.CollectionId,
+                request.DocumentIds,
+                request.SystemPrompt,
+                searchMode);
 
             var response = await searchService.ChatAsync(chatRequest, ct);
 
@@ -56,17 +54,19 @@ public class ChatController(
                 isOffTopic = response.IsOffTopic,
                 timestamp = response.Timestamp,
                 // Query decomposition for UI display
-                decomposition = response.Decomposition != null ? new
-                {
-                    confidence = response.Decomposition.Confidence,
-                    needsApproval = response.Decomposition.NeedsApproval,
-                    subQueries = response.Decomposition.SubQueries.Select(sq => new
+                decomposition = response.Decomposition != null
+                    ? new
                     {
-                        query = sq.Query,
-                        purpose = sq.Purpose,
-                        priority = sq.Priority
-                    })
-                } : null
+                        confidence = response.Decomposition.Confidence,
+                        needsApproval = response.Decomposition.NeedsApproval,
+                        subQueries = response.Decomposition.SubQueries.Select(sq => new
+                        {
+                            query = sq.Query,
+                            purpose = sq.Purpose,
+                            priority = sq.Priority
+                        })
+                    }
+                    : null
             });
         }
         catch (Exception ex)
@@ -86,22 +86,22 @@ public class ChatController(
         // Parse search mode from string (default to Hybrid)
         var searchMode = request.SearchMode?.ToLowerInvariant() switch
         {
-            "semantic" => Services.SearchMode.Semantic,
-            "keyword" => Services.SearchMode.Keyword,
-            _ => Services.SearchMode.Hybrid
+            "semantic" => SearchMode.Semantic,
+            "keyword" => SearchMode.Keyword,
+            _ => SearchMode.Hybrid
         };
 
         var chatRequest = new ChatRequest(
-            Query: request.Query,
-            ConversationId: request.ConversationId,
-            CollectionId: request.CollectionId,
-            DocumentIds: request.DocumentIds,
-            SystemPrompt: request.SystemPrompt,
-            SearchMode: searchMode);
+            request.Query,
+            request.ConversationId,
+            request.CollectionId,
+            request.DocumentIds,
+            request.SystemPrompt,
+            searchMode);
 
         await foreach (var chunk in searchService.ChatStreamAsync(chatRequest, ct))
         {
-            var data = System.Text.Json.JsonSerializer.Serialize(new { text = chunk });
+            var data = JsonSerializer.Serialize(new { text = chunk });
             await Response.WriteAsync($"data: {data}\n\n", ct);
             await Response.Body.FlushAsync(ct);
         }
@@ -111,7 +111,8 @@ public class ChatController(
     }
 
     [HttpGet("conversations")]
-    public async Task<IActionResult> GetConversations([FromQuery] Guid? collectionId = null, CancellationToken ct = default)
+    public async Task<IActionResult> GetConversations([FromQuery] Guid? collectionId = null,
+        CancellationToken ct = default)
     {
         var conversations = await conversationService.GetConversationsAsync(collectionId, ct);
 
@@ -134,10 +135,7 @@ public class ChatController(
     public async Task<IActionResult> GetConversation(Guid id, CancellationToken ct = default)
     {
         var conversation = await conversationService.GetConversationAsync(id, ct);
-        if (conversation is null)
-        {
-            return NotFound(new { error = "Conversation not found" });
-        }
+        if (conversation is null) return NotFound(new { error = "Conversation not found" });
 
         return Ok(new
         {
@@ -171,4 +169,4 @@ public record ChatApiRequest(
     Guid? CollectionId = null,
     Guid[]? DocumentIds = null,
     string? SystemPrompt = null,
-    string? SearchMode = null);  // "semantic", "keyword", or "hybrid" (default)
+    string? SearchMode = null); // "semantic", "keyword", or "hybrid" (default)

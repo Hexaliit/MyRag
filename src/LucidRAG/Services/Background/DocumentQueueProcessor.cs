@@ -1,15 +1,13 @@
 using System.Text;
-using System.Text.Json;
+using LucidRAG.Core.Services;
+using LucidRAG.Data;
+using LucidRAG.Entities;
+using LucidRAG.Hubs;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.Summarizer.Core.Pipeline;
-using LucidRAG.Config;
-using LucidRAG.Data;
-using LucidRAG.Entities;
-using LucidRAG.Hubs;
 
 namespace LucidRAG.Services.Background;
 
@@ -38,7 +36,6 @@ public class DocumentQueueProcessor(
         _ = RunCleanupLoopAsync(cleanupTimer, stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
-        {
             try
             {
                 var job = await queue.DequeueAsync(stoppingToken);
@@ -68,7 +65,6 @@ public class DocumentQueueProcessor(
             {
                 logger.LogError(ex, "Error processing document from queue");
             }
-        }
 
         cleanupTimer.Dispose();
         logger.LogInformation("Document queue processor stopped");
@@ -81,10 +77,7 @@ public class DocumentQueueProcessor(
             while (await timer.WaitForNextTickAsync(ct))
             {
                 var cleaned = queue.CleanupAbandonedProgressChannels();
-                if (cleaned > 0)
-                {
-                    logger.LogInformation("Cleaned up {Count} abandoned progress channels", cleaned);
-                }
+                if (cleaned > 0) logger.LogInformation("Cleaned up {Count} abandoned progress channels", cleaned);
 
                 // Log queue stats periodically
                 logger.LogDebug("Queue stats: {QueueDepth} documents queued, {ActiveChannels} active progress channels",
@@ -119,7 +112,7 @@ public class DocumentQueueProcessor(
     }
 
     /// <summary>
-    /// Clean up failed and stuck documents on startup
+    ///     Clean up failed and stuck documents on startup
     /// </summary>
     private async Task CleanupFailedDocumentsAsync(CancellationToken ct)
     {
@@ -133,7 +126,7 @@ public class DocumentQueueProcessor(
             var cutoffTime = DateTimeOffset.UtcNow.AddHours(-1);
             var failedDocs = await db.Documents
                 .Where(d => d.Status == DocumentStatus.Failed ||
-                           (d.Status == DocumentStatus.Processing && d.CreatedAt < cutoffTime))
+                            (d.Status == DocumentStatus.Processing && d.CreatedAt < cutoffTime))
                 .ToListAsync(ct);
 
             if (failedDocs.Count == 0)
@@ -145,7 +138,6 @@ public class DocumentQueueProcessor(
             logger.LogInformation("Cleaning up {Count} failed/stuck documents on startup", failedDocs.Count);
 
             foreach (var doc in failedDocs)
-            {
                 try
                 {
                     // Delete the uploaded file if it exists
@@ -154,7 +146,7 @@ public class DocumentQueueProcessor(
                         var directory = Path.GetDirectoryName(doc.FilePath);
                         if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
                         {
-                            Directory.Delete(directory, recursive: true);
+                            Directory.Delete(directory, true);
                             logger.LogDebug("Deleted upload directory for document {DocumentId}", doc.Id);
                         }
                     }
@@ -166,7 +158,6 @@ public class DocumentQueueProcessor(
                 {
                     logger.LogWarning(ex, "Failed to clean up document {DocumentId}", doc.Id);
                 }
-            }
 
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Cleaned up {Count} failed documents", failedDocs.Count);
@@ -208,12 +199,12 @@ public class DocumentQueueProcessor(
 
             // Report start
             await progressChannel.Writer.WriteAsync(
-                ProgressUpdates.Stage("Processing", "Starting document processing...", 0, 0), ct);
+                ProgressUpdates.Stage("Processing", "Starting document processing..."), ct);
 
             // Check if file should use pipeline (images/GIFs) or document summarizer
             var pipeline = pipelineRegistry.FindForFile(job.FilePath);
             DocumentSummary? result = null;
-            List<Mostlylucid.DocSummarizer.Models.Segment>? imageSegments = null; // Store segments for images
+            List<Segment>? imageSegments = null; // Store segments for images
 
             if (pipeline != null)
             {
@@ -224,15 +215,13 @@ public class DocumentQueueProcessor(
                 var pipelineProgress = new Progress<PipelineProgress>(p =>
                 {
                     progressChannel.Writer.TryWrite(
-                        ProgressUpdates.Stage(p.Stage, p.Message, 0, 0));
+                        ProgressUpdates.Stage(p.Stage, p.Message));
                 });
 
                 var pipelineResult = await pipeline.ProcessAsync(job.FilePath, null, pipelineProgress, ct);
 
                 if (!pipelineResult.Success)
-                {
                     throw new InvalidOperationException($"Pipeline processing failed: {pipelineResult.Error}");
-                }
 
                 // Update document with pipeline results
                 document.SegmentCount = pipelineResult.Chunks.Count;
@@ -261,17 +250,17 @@ public class DocumentQueueProcessor(
 
                 // Create a minimal DocumentSummary for compatibility with downstream code
                 result = new DocumentSummary(
-                    ExecutiveSummary: $"Image processed with {pipelineResult.Chunks.Count} chunks",
-                    TopicSummaries: new List<TopicSummary>(),
-                    OpenQuestions: new List<string>(),
-                    Trace: new SummarizationTrace(
-                        DocumentId: document.VectorStoreDocId,
-                        TotalChunks: imageSegments.Count,
-                        ChunksProcessed: imageSegments.Count,
-                        Topics: new List<string>(),
-                        TotalTime: pipelineResult.ProcessingTime,
-                        CoverageScore: 1.0,
-                        CitationRate: 0.0
+                    $"Image processed with {pipelineResult.Chunks.Count} chunks",
+                    new List<TopicSummary>(),
+                    new List<string>(),
+                    new SummarizationTrace(
+                        document.VectorStoreDocId,
+                        imageSegments.Count,
+                        imageSegments.Count,
+                        new List<string>(),
+                        pipelineResult.ProcessingTime,
+                        1.0,
+                        0.0
                     )
                 );
             }
@@ -291,13 +280,14 @@ public class DocumentQueueProcessor(
             }
 
             // Notify progress via SignalR
-            await notifications.NotifyDocumentProgress(document.Id, document.Name, 60, "Table extraction", document.CollectionId);
+            await notifications.NotifyDocumentProgress(document.Id, document.Name, 60, "Table extraction",
+                document.CollectionId);
 
             // Extract tables from document (if supported)
             try
             {
                 progressChannel.Writer.TryWrite(
-                    ProgressUpdates.Stage("Tables", "Extracting tables...", 0, 0));
+                    ProgressUpdates.Stage("Tables", "Extracting tables..."));
 
                 var tableProcessingService = scope.ServiceProvider.GetService<TableProcessingService>();
                 if (tableProcessingService != null)
@@ -331,15 +321,16 @@ public class DocumentQueueProcessor(
             await db.SaveChangesAsync(ct);
 
             // Notify progress via SignalR
-            await notifications.NotifyDocumentProgress(document.Id, document.Name, 80, "Entity extraction", document.CollectionId);
+            await notifications.NotifyDocumentProgress(document.Id, document.Name, 80, "Entity extraction",
+                document.CollectionId);
 
             // Report entity extraction starting
             progressChannel.Writer.TryWrite(
-                ProgressUpdates.Stage("Entities", "Extracting entities...", 0, 0));
+                ProgressUpdates.Stage("Entities", "Extracting entities..."));
 
             // Get segments from vector store and extract entities
             // Fetch segments - needed for both entity extraction and evidence storage
-            List<Mostlylucid.DocSummarizer.Models.Segment> segments;
+            List<Segment> segments;
             try
             {
                 logger.LogDebug("Fetching segments for VectorStoreDocId: {DocId}", result.Trace.DocumentId);
@@ -362,8 +353,10 @@ public class DocumentQueueProcessor(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to fetch segments for document {DocumentId}, continuing without evidence storage", job.DocumentId);
-                segments = new List<Mostlylucid.DocSummarizer.Models.Segment>();
+                logger.LogWarning(ex,
+                    "Failed to fetch segments for document {DocumentId}, continuing without evidence storage",
+                    job.DocumentId);
+                segments = new List<Segment>();
             }
 
             // Entity extraction - optional, failures don't block document completion
@@ -384,14 +377,15 @@ public class DocumentQueueProcessor(
                 catch (Exception ex)
                 {
                     // Entity extraction failure shouldn't fail the whole document processing
-                    logger.LogWarning(ex, "Entity extraction failed for document {DocumentId}, continuing", job.DocumentId);
+                    logger.LogWarning(ex, "Entity extraction failed for document {DocumentId}, continuing",
+                        job.DocumentId);
                 }
 
                 // Store as unified RetrievalEntity and evidence - independent of entity extraction
                 try
                 {
                     progressChannel.Writer.TryWrite(
-                        ProgressUpdates.Stage("Indexing", "Indexing for cross-modal search...", 0, 0));
+                        ProgressUpdates.Stage("Indexing", "Indexing for cross-modal search..."));
 
                     var extractedEntities = await db.DocumentEntityLinks
                         .Where(del => del.DocumentId == job.DocumentId)
@@ -399,18 +393,23 @@ public class DocumentQueueProcessor(
                         .Select(del => del.Entity!)
                         .ToListAsync(ct);
 
-                    var retrievalEntity = await retrievalEntityService.StoreDocumentAsync(document, segments, extractedEntities, result, ct);
-                    logger.LogInformation("Stored document {DocumentId} as RetrievalEntity with summary for cross-modal search", job.DocumentId);
+                    var retrievalEntity =
+                        await retrievalEntityService.StoreDocumentAsync(document, segments, extractedEntities, result,
+                            ct);
+                    logger.LogInformation(
+                        "Stored document {DocumentId} as RetrievalEntity with summary for cross-modal search",
+                        job.DocumentId);
 
                     // Store each segment as evidence artifact
                     progressChannel.Writer.TryWrite(
-                        ProgressUpdates.Stage("Evidence", $"Storing {segments.Count} segment evidence artifacts...", 0, 0));
+                        ProgressUpdates.Stage("Evidence", $"Storing {segments.Count} segment evidence artifacts..."));
 
                     await StoreSegmentEvidenceAsync(evidenceRepository, retrievalEntity, segments, logger, ct);
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "Failed to store document {DocumentId} as RetrievalEntity, continuing", job.DocumentId);
+                    logger.LogWarning(ex, "Failed to store document {DocumentId} as RetrievalEntity, continuing",
+                        job.DocumentId);
                 }
             }
 
@@ -421,13 +420,17 @@ public class DocumentQueueProcessor(
             await db.SaveChangesAsync(ct);
 
             // Notify completion via SignalR
-            await notifications.NotifyDocumentCompleted(document.Id, document.Name, document.SegmentCount, document.EntityCount, document.TableCount, document.CollectionId);
+            await notifications.NotifyDocumentCompleted(document.Id, document.Name, document.SegmentCount,
+                document.EntityCount, document.TableCount, document.CollectionId);
 
             // Report completion (channel may already be completed by summarizer)
             progressChannel.Writer.TryWrite(
-                ProgressUpdates.Completed($"Completed! {document.SegmentCount} segments, {document.EntityCount} entities, {document.TableCount} tables.", 0));
+                ProgressUpdates.Completed(
+                    $"Completed! {document.SegmentCount} segments, {document.EntityCount} entities, {document.TableCount} tables.",
+                    0));
 
-            logger.LogInformation("Document {DocumentId} processed successfully with {SegmentCount} segments, {EntityCount} entities, {TableCount} tables",
+            logger.LogInformation(
+                "Document {DocumentId} processed successfully with {SegmentCount} segments, {EntityCount} entities, {TableCount} tables",
                 job.DocumentId, document.SegmentCount, document.EntityCount, document.TableCount);
         }
         catch (Exception ex)
@@ -443,7 +446,7 @@ public class DocumentQueueProcessor(
 
             // Channel may already be completed
             progressChannel.Writer.TryWrite(
-                ProgressUpdates.Error("Processing", $"Failed: {ex.Message}", 0));
+                ProgressUpdates.Error("Processing", $"Failed: {ex.Message}"));
         }
         finally
         {
@@ -452,9 +455,9 @@ public class DocumentQueueProcessor(
     }
 
     /// <summary>
-    /// Convert ContentChunks from ImagePipeline to Segments with embeddings and index in vector store.
+    ///     Convert ContentChunks from ImagePipeline to Segments with embeddings and index in vector store.
     /// </summary>
-    private static async Task<List<Mostlylucid.DocSummarizer.Models.Segment>> ConvertAndIndexImageChunksAsync(
+    private static async Task<List<Segment>> ConvertAndIndexImageChunksAsync(
         IReadOnlyList<Mostlylucid.Summarizer.Core.Pipeline.ContentChunk> chunks,
         string docId,
         IVectorStore vectorStore,
@@ -462,7 +465,7 @@ public class DocumentQueueProcessor(
         ILogger logger,
         CancellationToken ct)
     {
-        var segments = new List<Mostlylucid.DocSummarizer.Models.Segment>();
+        var segments = new List<Segment>();
 
         // Initialize embedding service if needed
         Console.WriteLine($"[DEBUG] Initializing embedding service for {chunks.Count} chunks");
@@ -470,20 +473,22 @@ public class DocumentQueueProcessor(
 
         // Collect all texts for batch embedding
         var texts = chunks.Select(c => c.Text).ToList();
-        Console.WriteLine($"[DEBUG] Generating embeddings for {texts.Count} texts, first text: {texts.FirstOrDefault()?.Substring(0, Math.Min(50, texts.FirstOrDefault()?.Length ?? 0))}");
+        Console.WriteLine(
+            $"[DEBUG] Generating embeddings for {texts.Count} texts, first text: {texts.FirstOrDefault()?.Substring(0, Math.Min(50, texts.FirstOrDefault()?.Length ?? 0))}");
 
         // Generate embeddings for all caption texts in batch
         var embeddings = await embeddingService.EmbedBatchAsync(texts, ct);
-        Console.WriteLine($"[DEBUG] Generated {embeddings?.Length ?? 0} embeddings, first embedding dim: {embeddings?.FirstOrDefault()?.Length ?? 0}");
+        Console.WriteLine(
+            $"[DEBUG] Generated {embeddings?.Length ?? 0} embeddings, first embedding dim: {embeddings?.FirstOrDefault()?.Length ?? 0}");
 
-        for (int i = 0; i < chunks.Count; i++)
+        for (var i = 0; i < chunks.Count; i++)
         {
             var chunk = chunks[i];
-            var contentHash = Mostlylucid.DocSummarizer.Models.HashHelper.ComputeHash(chunk.Text);
-            var segment = new Mostlylucid.DocSummarizer.Models.Segment(
+            var contentHash = HashHelper.ComputeHash(chunk.Text);
+            var segment = new Segment(
                 docId,
                 chunk.Text,
-                Mostlylucid.DocSummarizer.Models.SegmentType.Caption,
+                SegmentType.Caption,
                 i,
                 0,
                 chunk.Text.Length,
@@ -501,10 +506,10 @@ public class DocumentQueueProcessor(
 
         // Apply segment selection BEFORE indexing - only index segments that will have evidence
         // This ensures every Qdrant result has corresponding text in evidence repository
-        var selector = new LucidRAG.Core.Services.SegmentSelector(
-            salienceThreshold: 0.05,
-            similarityThreshold: 0.80,
-            maxSegmentsPerDocument: 250
+        var selector = new SegmentSelector(
+            0.05,
+            0.80,
+            250
         );
         var selectedSegments = selector.SelectForEvidence(segments);
 
@@ -512,7 +517,8 @@ public class DocumentQueueProcessor(
             selectedSegments.Count, segments.Count);
 
         // Index ONLY selected segments in vector store
-        Console.WriteLine($"[DEBUG] Upserting {selectedSegments.Count} selected segments to vector store (from {segments.Count} total)");
+        Console.WriteLine(
+            $"[DEBUG] Upserting {selectedSegments.Count} selected segments to vector store (from {segments.Count} total)");
         if (selectedSegments.Count > 0)
         {
             await vectorStore.UpsertSegmentsAsync("ragdocs", selectedSegments, ct);
@@ -524,22 +530,20 @@ public class DocumentQueueProcessor(
     }
 
     /// <summary>
-    /// Store segment text as evidence artifacts.
-    /// Each segment becomes an evidence artifact linked to the RetrievalEntity.
-    /// Evidence type: segment_text - the actual content extracted from document.
-    ///
-    /// This allows the RAG vector store to contain only embeddings,
-    /// with all plaintext stored securely in the evidence repository.
-    ///
-    /// OPTIMIZATION: Uses SegmentSelector to reduce storage by:
-    /// - Filtering by salience threshold (skip low-value segments)
-    /// - Deduplicating semantically similar segments
-    /// - Prioritizing segments with unique entities for coverage
+    ///     Store segment text as evidence artifacts.
+    ///     Each segment becomes an evidence artifact linked to the RetrievalEntity.
+    ///     Evidence type: segment_text - the actual content extracted from document.
+    ///     This allows the RAG vector store to contain only embeddings,
+    ///     with all plaintext stored securely in the evidence repository.
+    ///     OPTIMIZATION: Uses SegmentSelector to reduce storage by:
+    ///     - Filtering by salience threshold (skip low-value segments)
+    ///     - Deduplicating semantically similar segments
+    ///     - Prioritizing segments with unique entities for coverage
     /// </summary>
     private static async Task StoreSegmentEvidenceAsync(
         IEvidenceRepository evidenceRepository,
         StyloFlow.Retrieval.Entities.RetrievalEntity entity,
-        IReadOnlyList<Mostlylucid.DocSummarizer.Models.Segment> segments,
+        IReadOnlyList<Segment> segments,
         ILogger logger,
         CancellationToken ct)
     {
@@ -557,7 +561,6 @@ public class DocumentQueueProcessor(
 
         var stored = 0;
         foreach (var segment in segments)
-        {
             try
             {
                 // Create segment evidence with full metadata
@@ -582,14 +585,14 @@ public class DocumentQueueProcessor(
                 using var textStream = new MemoryStream(Encoding.UTF8.GetBytes(segment.Text));
 
                 await evidenceRepository.StoreAsync(
-                    entityId: entityId,
-                    artifactType: EvidenceTypes.SegmentText,
-                    content: textStream,
-                    mimeType: "text/plain",
-                    producerSource: "BertRAG",
+                    entityId,
+                    EvidenceTypes.SegmentText,
+                    textStream,
+                    "text/plain",
+                    "BertRAG",
                     confidence: segment.SalienceScore,
                     metadata: metadata,
-                    segmentHash: segment.ContentHash,  // For RAG text hydration lookups
+                    segmentHash: segment.ContentHash, // For RAG text hydration lookups
                     ct: ct);
 
                 stored++;
@@ -598,7 +601,6 @@ public class DocumentQueueProcessor(
             {
                 logger.LogWarning(ex, "Failed to store segment evidence for segment {SegmentId}", segment.Id);
             }
-        }
 
         logger.LogInformation("Stored {Count}/{Total} segment evidence artifacts for entity {EntityId}",
             stored, segments.Count, entityId);

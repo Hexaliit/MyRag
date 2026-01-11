@@ -1,4 +1,3 @@
-using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Mostlylucid.DocSummarizer;
@@ -24,10 +23,10 @@ builder.Services.AddDocSummarizer(options =>
 {
     // Use local ONNX embeddings (default, no external services)
     options.EmbeddingBackend = EmbeddingBackend.Onnx;
-    
+
     // Use in-memory vector store for testing
     options.BertRag.VectorStore = VectorStoreBackend.InMemory;
-    
+
     // Keep test output clean
     options.Output.Verbose = false;
 });
@@ -48,28 +47,28 @@ Console.WriteLine("Test 2: Segment Extraction");
 Console.WriteLine("-".PadRight(40, '-'));
 
 var testMarkdown = """
-# Test Document
+                   # Test Document
 
-This is a test document for validating the DocSummarizer Core library.
+                   This is a test document for validating the DocSummarizer Core library.
 
-## Key Features
+                   ## Key Features
 
-The library provides several important capabilities:
+                   The library provides several important capabilities:
 
-- Local-first processing with ONNX models
-- Citation grounding for every claim
-- Multiple summarization modes
+                   - Local-first processing with ONNX models
+                   - Citation grounding for every claim
+                   - Multiple summarization modes
 
-## Technical Details
+                   ## Technical Details
 
-The system uses BERT embeddings to understand document semantics.
-This enables accurate retrieval and summarization.
-""";
+                   The system uses BERT embeddings to understand document semantics.
+                   This enables accurate retrieval and summarization.
+                   """;
 
 // This is from README.md Segment Extraction section
 var extraction = await summarizer.ExtractSegmentsAsync(testMarkdown);
 
-Console.WriteLine($"✓ ExtractSegmentsAsync completed");
+Console.WriteLine("✓ ExtractSegmentsAsync completed");
 Console.WriteLine($"  Total segments: {extraction.AllSegments.Count}");
 Console.WriteLine($"  Top by salience: {extraction.TopBySalience.Count}");
 Console.WriteLine($"  Content type: {extraction.ContentType}");
@@ -80,12 +79,13 @@ Console.WriteLine();
 Console.WriteLine("Top segments by salience:");
 foreach (var segment in extraction.TopBySalience.Take(3))
 {
-    var preview = segment.Text.Length > 60 
-        ? segment.Text[..60].Replace("\n", " ") + "..." 
+    var preview = segment.Text.Length > 60
+        ? segment.Text[..60].Replace("\n", " ") + "..."
         : segment.Text.Replace("\n", " ");
     Console.WriteLine($"  [{segment.Type}] Score: {segment.SalienceScore:F2}");
     Console.WriteLine($"    {preview}");
 }
+
 Console.WriteLine();
 
 // ============================================
@@ -100,7 +100,7 @@ var summary = await summarizer.SummarizeMarkdownAsync(
     testMarkdown,
     mode: SummarizationMode.Bert);
 
-Console.WriteLine($"✓ SummarizeMarkdownAsync with Bert mode completed");
+Console.WriteLine("✓ SummarizeMarkdownAsync with Bert mode completed");
 Console.WriteLine($"  Executive summary length: {summary.ExecutiveSummary.Length} chars");
 Console.WriteLine($"  Topics: {summary.TopicSummaries?.Count ?? 0}");
 Console.WriteLine();
@@ -141,14 +141,14 @@ var progressTask = Task.Run(async () =>
 
 // Extract with progress reporting
 var progressExtraction = await summarizer.ExtractSegmentsAsync(
-    testMarkdown, 
-    channel.Writer, 
+    testMarkdown,
+    channel.Writer,
     "progress-test");
 
 // Wait for progress consumer to finish
 await progressTask;
 
-Console.WriteLine($"✓ Progress channel working - received updates");
+Console.WriteLine("✓ Progress channel working - received updates");
 Console.WriteLine();
 
 // ============================================
@@ -164,16 +164,17 @@ if (File.Exists(testFile))
 {
     var blogMarkdown = await File.ReadAllTextAsync(testFile);
     var blogExtraction = await summarizer.ExtractSegmentsAsync(blogMarkdown, "tencommandments");
-    
-    Console.WriteLine($"✓ Extracted from: tencommandments.md");
+
+    Console.WriteLine("✓ Extracted from: tencommandments.md");
     Console.WriteLine($"  Segments: {blogExtraction.AllSegments.Count}");
     Console.WriteLine($"  Top salient: {blogExtraction.TopBySalience.Count}");
     Console.WriteLine($"  Time: {blogExtraction.ExtractionTime.TotalSeconds:F2}s");
 }
 else
 {
-    Console.WriteLine($"  Skipped (file not found)");
+    Console.WriteLine("  Skipped (file not found)");
 }
+
 Console.WriteLine();
 
 // ============================================

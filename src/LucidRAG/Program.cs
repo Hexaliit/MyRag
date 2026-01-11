@@ -1,30 +1,31 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Http.Resilience;
-using Mostlylucid.DocSummarizer.Extensions;
-using Mostlylucid.DocSummarizer.Images.Extensions;
-using Mostlylucid.DocSummarizer.Anthropic.Extensions;
-using Mostlylucid.DocSummarizer.OpenAI.Extensions;
-using VideoSummarizer.Core.Extensions;
-using Mostlylucid.DocSummarizer.Config;
-using Mostlylucid.Summarizer.Core.Extensions;
+using LucidRAG.Authorization;
 using LucidRAG.Config;
 using LucidRAG.Core.Services;
 using LucidRAG.Core.Services.Caching;
 using LucidRAG.Data;
 using LucidRAG.Extensions;
+using LucidRAG.GraphQL;
+using LucidRAG.Hubs;
+using LucidRAG.Identity;
+using LucidRAG.Middleware;
 using LucidRAG.Multitenancy;
 using LucidRAG.Services;
 using LucidRAG.Services.Background;
 using LucidRAG.Services.Sentinel;
 using LucidRAG.Services.Storage;
-using LucidRAG.Middleware;
-using LucidRAG.Authorization;
-using LucidRAG.Hubs;
+using LucidRAG.Web.Services;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Mostlylucid.DocSummarizer.Anthropic.Extensions;
+using Mostlylucid.DocSummarizer.Core.Services;
+using Mostlylucid.DocSummarizer.Extensions;
+using Mostlylucid.DocSummarizer.OpenAI.Extensions;
 using Scalar.AspNetCore;
 using Serilog;
+using VideoSummarizer.Core.Extensions;
 
 // Parse command line arguments for standalone mode
 var standaloneMode = args.Contains("--standalone") || args.Contains("-s");
@@ -37,12 +38,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configure Kestrel for standalone mode
 if (standaloneMode)
-{
-    builder.WebHost.ConfigureKestrel(options =>
-    {
-        options.ListenLocalhost(port);
-    });
-}
+    builder.WebHost.ConfigureKestrel(options => { options.ListenLocalhost(port); });
 
 // Serilog
 builder.Host.UseSerilog((context, config) =>
@@ -57,19 +53,15 @@ builder.Services.Configure<PromptsConfig>(
 
 var ragConfig = builder.Configuration
     .GetSection(RagDocumentsConfig.SectionName)
-    .Get<RagDocumentsConfig>() ?? new();
+    .Get<RagDocumentsConfig>() ?? new RagDocumentsConfig();
 
 // Multi-tenancy services (register before DbContext to make dependencies clear)
 var multitenancyEnabled = builder.Configuration.GetValue<bool>("Multitenancy:Enabled");
 if (!standaloneMode)
-{
     builder.Services.AddMultitenancy(builder.Configuration);
-}
 else
-{
     // Standalone mode: register null tenant accessor for compatibility
     builder.Services.AddScoped<ITenantAccessor, TenantAccessor>();
-}
 
 // Database - use SQLite in standalone mode, PostgreSQL otherwise
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -94,14 +86,14 @@ else if (multitenancyEnabled)
     {
         var interceptor = sp.GetRequiredService<TenantSchemaInterceptor>();
         options.UseNpgsql(connectionString, npgsqlOptions =>
-               {
-                   npgsqlOptions.UseVector();
-                   npgsqlOptions.EnableRetryOnFailure(
-                       maxRetryCount: 5,
-                       maxRetryDelay: TimeSpan.FromSeconds(30),
-                       errorCodesToAdd: null);
-               })
-               .AddInterceptors(interceptor);
+            {
+                npgsqlOptions.UseVector();
+                npgsqlOptions.EnableRetryOnFailure(
+                    5,
+                    TimeSpan.FromSeconds(30),
+                    null);
+            })
+            .AddInterceptors(interceptor);
     });
 }
 else
@@ -112,9 +104,9 @@ else
         {
             npgsqlOptions.UseVector();
             npgsqlOptions.EnableRetryOnFailure(
-                maxRetryCount: 5,
-                maxRetryDelay: TimeSpan.FromSeconds(30),
-                errorCodesToAdd: null);
+                5,
+                TimeSpan.FromSeconds(30),
+                null);
         }));
 }
 
@@ -162,26 +154,22 @@ builder.Services.AddSingleton<IIngestionService, IngestionService>();
 
 // File explorer services
 builder.Services.AddScoped<IFolderService, FolderService>();
-builder.Services.AddScoped<LucidRAG.Web.Services.IExplorerSearchService, LucidRAG.Web.Services.ExplorerSearchService>();
+builder.Services.AddScoped<IExplorerSearchService, ExplorerSearchService>();
 
 // YAML manifest-based lens system for customizable response formatting
-builder.Services.AddYamlLenses(builder.Configuration, useEmbedded: false);
+builder.Services.AddYamlLenses(builder.Configuration);
 
 // PostgreSQL full-text search service (10-25x faster than C# BM25)
 // Only register for PostgreSQL databases (not SQLite)
 if (!standaloneMode && connectionString?.Contains("Host=") == true)
-{
     builder.Services.AddScoped<PostgresBM25Service>();
-}
 else
-{
     // Standalone/SQLite mode: register null for optional injection
     builder.Services.AddScoped<PostgresBM25Service>(sp => null!);
-}
 
 // Table extraction services
-builder.Services.AddScoped<Mostlylucid.DocSummarizer.Core.Services.ITableExtractorFactory,
-    Mostlylucid.DocSummarizer.Core.Services.TableExtractorFactory>();
+builder.Services.AddScoped<ITableExtractorFactory,
+    TableExtractorFactory>();
 builder.Services.AddScoped<TableProcessingService>();
 
 // Sentinel query decomposition service
@@ -221,41 +209,37 @@ builder.Services.AddOpenApi();
 // GraphQL for knowledge graph queries
 builder.Services
     .AddGraphQLServer()
-    .AddQueryType<LucidRAG.GraphQL.KnowledgeGraphQuery>()
+    .AddQueryType<KnowledgeGraphQuery>()
     .AddFiltering()
     .AddSorting()
     .ModifyRequestOptions(opt => opt.IncludeExceptionDetails = builder.Environment.IsDevelopment());
 
 // Health checks
 if (!string.IsNullOrEmpty(connectionString) && !connectionString.StartsWith("Data Source="))
-{
     builder.Services.AddHealthChecks()
         .AddNpgSql(connectionString);
-}
 else
-{
     builder.Services.AddHealthChecks();
-}
 
 // ASP.NET Core Identity
-builder.Services.AddIdentity<LucidRAG.Identity.ApplicationUser, Microsoft.AspNetCore.Identity.IdentityRole>(options =>
-{
-    // Password settings
-    options.Password.RequireDigit = true;
-    options.Password.RequireLowercase = true;
-    options.Password.RequireUppercase = false;
-    options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequiredLength = 8;
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+    {
+        // Password settings
+        options.Password.RequireDigit = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequiredLength = 8;
 
-    // Lockout settings
-    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-    options.Lockout.MaxFailedAccessAttempts = 5;
+        // Lockout settings
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        options.Lockout.MaxFailedAccessAttempts = 5;
 
-    // User settings
-    options.User.RequireUniqueEmail = true;
-})
-.AddRoles<Microsoft.AspNetCore.Identity.IdentityRole>()
-.AddEntityFrameworkStores<RagDocumentsDbContext>();
+        // User settings
+        options.User.RequireUniqueEmail = true;
+    })
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<RagDocumentsDbContext>();
 
 // Demo admin seeder for development mode
 builder.Services.AddHostedService<DemoAdminSeeder>();
@@ -317,10 +301,7 @@ app.UseAuthorization();
 app.UseDevAutoLogin();
 
 // Multi-tenancy middleware (if enabled)
-if (multitenancyEnabled)
-{
-    app.UseMultitenancy();
-}
+if (multitenancyEnabled) app.UseMultitenancy();
 
 // Antiforgery
 app.UseAntiforgery();
@@ -339,13 +320,13 @@ app.MapControllers();
 
 // Tenant-scoped routes: /t/{tenantId}/...
 app.MapControllerRoute(
-    name: "tenant-default",
-    pattern: "t/{tenantId}/{controller=Home}/{action=Index}/{id?}");
+    "tenant-default",
+    "t/{tenantId}/{controller=Home}/{action=Index}/{id?}");
 
 // Default route
 app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+    "default",
+    "{controller=Home}/{action=Index}/{id?}");
 
 // Database setup - use EnsureCreated for development simplicity
 Log.Information("Setting up database...");
@@ -377,6 +358,7 @@ try
             Log.Information("Database schema verified");
         }
     }
+
     Log.Information("Database setup complete");
 }
 catch (Exception ex)
@@ -396,9 +378,9 @@ var evidenceConfig = builder.Configuration
     .GetSection(EvidenceStorageOptions.SectionName)
     .Get<EvidenceStorageOptions>() ?? new EvidenceStorageOptions();
 var evidencePath = evidenceConfig.BasePath
-    ?? (standaloneMode
-        ? Path.Combine(AppContext.BaseDirectory, "evidence")
-        : Path.Combine(uploadPath, "evidence"));
+                   ?? (standaloneMode
+                       ? Path.Combine(AppContext.BaseDirectory, "evidence")
+                       : Path.Combine(uploadPath, "evidence"));
 Directory.CreateDirectory(evidencePath);
 
 // Open browser in standalone mode
@@ -432,18 +414,13 @@ app.Run();
 static void OpenBrowser(string url)
 {
     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-    {
         Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-    }
     else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-    {
         Process.Start("xdg-open", url);
-    }
-    else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-    {
-        Process.Start("open", url);
-    }
+    else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) Process.Start("open", url);
 }
 
 // Make Program accessible for WebApplicationFactory in tests
-public partial class Program { }
+public partial class Program
+{
+}

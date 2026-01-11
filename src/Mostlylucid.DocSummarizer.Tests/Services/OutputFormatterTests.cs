@@ -1,7 +1,7 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Config;
-using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Services;
 
@@ -19,7 +19,7 @@ public class OutputFormatterTests
                 new("Topic 2", "Summary for topic 2 [chunk-1]", new List<string> { "chunk-1" })
             },
             new List<string> { "Open question 1?", "Open question 2?" },
-            new SummarizationTrace("test.pdf", 5, 5, new List<string> { "Topic 1", "Topic 2" }, 
+            new SummarizationTrace("test.pdf", 5, 5, new List<string> { "Topic 1", "Topic 2" },
                 TimeSpan.FromSeconds(10), 1.0, 0.8));
     }
 

@@ -1,10 +1,10 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Models;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Models;
 
 /// <summary>
-/// Tests for ExtractedEntities record
+///     Tests for ExtractedEntities record
 /// </summary>
 public class ExtractedEntitiesTests
 {
@@ -67,9 +67,9 @@ public class ExtractedEntitiesTests
         var entities = ExtractedEntities.Empty;
 
         // Act
-        var isEmpty = entities.Characters.Count == 0 
-                   && entities.Locations.Count == 0 
-                   && entities.Dates.Count == 0;
+        var isEmpty = entities.Characters.Count == 0
+                      && entities.Locations.Count == 0
+                      && entities.Dates.Count == 0;
 
         // Assert
         Assert.True(isEmpty);
@@ -80,11 +80,11 @@ public class ExtractedEntitiesTests
     {
         // Arrange
         var entities = new ExtractedEntities(
-            Characters: new List<string> { "Character" },
-            Locations: new List<string>(),
-            Dates: new List<string>(),
-            Events: new List<string>(),
-            Organizations: new List<string>());
+            new List<string> { "Character" },
+            new List<string>(),
+            new List<string>(),
+            new List<string>(),
+            new List<string>());
 
         // Act
         var isEmpty = entities.Characters.Count == 0;

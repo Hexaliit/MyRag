@@ -2,6 +2,7 @@ using AudioSummarizer.Core.Services.Analysis;
 using Microsoft.Extensions.DependencyInjection;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Mostlylucid.Summarizer.Core.Pipeline;
+using VideoSummarizer.Core.Coordination;
 using VideoSummarizer.Core.Pipeline;
 using VideoSummarizer.Core.Services;
 using VideoSummarizer.Core.Waves;
@@ -21,6 +22,14 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddVideoSummarizer(this IServiceCollection services)
     {
+        // Register YAML manifest loader (reads waves.yaml configuration)
+        services.AddSingleton<VideoWaveManifestLoader>(sp =>
+        {
+            var loader = new VideoWaveManifestLoader();
+            loader.LoadFromEmbedded();
+            return loader;
+        });
+
         // Register FFmpeg analysis service
         services.AddSingleton<FFmpegAnalysisService>();
 
@@ -28,25 +37,48 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<KeyframeDeduplicationService>();
         services.AddSingleton<BatchClipEmbeddingService>();
 
-        // Register video waves in priority order
-        services.AddTransient<IVideoWave, NormalizeWave>();           // Priority 1000
-        services.AddTransient<IVideoWave, ShotDetectionWave>();       // Priority 900
-        services.AddTransient<IVideoWave, KeyframeExtractionWave>();  // Priority 800
-        services.AddTransient<IVideoWave, ShotThumbnailWave>();       // Priority 790
-        services.AddTransient<IVideoWave, TitleCreditsDetectionWave>(); // Priority 785
-        services.AddTransient<IVideoWave, EnhancedCreditsOcrWave>();   // Priority 780
-        services.AddTransient<IVideoWave, SubtitleExtractionWave>();  // Priority 750
-        services.AddTransient<IVideoWave, ChapterExtractionWave>();   // Priority 740
-        services.AddTransient<IVideoWave, TranscriptionWave>();       // Priority 500
-        services.AddTransient<IVideoWave, SceneClusteringWave>();     // Priority 400
-        services.AddTransient<IVideoWave, EvidenceGenerationWave>();  // Priority 300
+        // Register video waves - NEW SIGNAL-BASED ARCHITECTURE
+        // Phase 1: Normalization (Priority 1000)
+        services.AddTransient<IVideoWave, NormalizeWave>();
 
-        // Register wave coordinator
-        services.AddTransient<VideoWaveCoordinator>();
+        // Phase 2: Shot Detection (Priority 900)
+        services.AddTransient<IVideoWave, FFmpegShotDetectionWave>(); // GPU-accelerated
 
-        // Register pipeline
-        services.AddTransient<VideoPipeline>();
-        services.AddTransient<IPipeline>(sp => sp.GetRequiredService<VideoPipeline>());
+        // Phase 3: Keyframe Pipeline - SIGNAL-BASED DECOMPOSITION (Priority 850-790)
+        services.AddTransient<IVideoWave, IFrameDetectionWave>();      // Priority 850 - emits: keyframes.iframes_detected
+        services.AddTransient<IVideoWave, KeyframeSelectionWave>();    // Priority 840 - requires: shots.detected, iframes
+        services.AddTransient<IVideoWave, ThumbnailExtractionWave>();  // Priority 830 - requires: keyframes.selected
+        services.AddTransient<IVideoWave, DeduplicationWave>();        // Priority 820 - requires: thumbnails
+        services.AddTransient<IVideoWave, FullResExtractionWave>();    // Priority 810 - requires: deduplicated
+        services.AddTransient<IVideoWave, ClipEmbeddingWave>();        // Priority 800 - requires: extracted
+        services.AddTransient<IVideoWave, ImageAnalysisWave>();        // Priority 790 - requires: extracted
+
+        // Legacy monolithic wave (deprecated, kept for compatibility)
+        // services.AddTransient<IVideoWave, KeyframeExtractionWave>();
+
+        // Phase 4: Additional Visual Processing (Priority 790-740)
+        services.AddTransient<IVideoWave, ShotThumbnailWave>();
+        services.AddTransient<IVideoWave, TitleCreditsDetectionWave>();
+        services.AddTransient<IVideoWave, EnhancedCreditsOcrWave>();
+        services.AddTransient<IVideoWave, SubtitleExtractionWave>();
+        services.AddTransient<IVideoWave, ChapterExtractionWave>();
+
+        // Phase 5: Audio Processing (Priority 500)
+        services.AddTransient<IVideoWave, TranscriptionWave>();
+
+        // Phase 6: Semantic Analysis (Priority 400)
+        services.AddTransient<IVideoWave, SceneClusteringWave>();
+
+        // Phase 7: Evidence Generation (Priority 300)
+        services.AddTransient<IVideoWave, EvidenceGenerationWave>();
+
+        // Register wave coordinators
+        services.AddTransient<VideoWaveCoordinator>();           // Legacy priority-based (for backward compat)
+        services.AddScoped<SignalAwareWaveCoordinator>();        // Signal-based coordination (default)
+
+        // Register pipeline (uses signal-aware coordinator by default)
+        services.AddScoped<VideoPipeline>();
+        services.AddScoped<IPipeline>(sp => sp.GetRequiredService<VideoPipeline>());
 
         return services;
     }
@@ -116,4 +148,17 @@ public class VideoSummarizerOptions
     /// FFprobe executable path. Null = auto-detect.
     /// </summary>
     public string? FFprobePath { get; set; }
+
+    /// <summary>
+    /// Use FFmpeg GPU-accelerated shot detection (NVDEC) instead of OpenCV.
+    /// Much faster on NVIDIA GPUs (5-10x speedup).
+    /// Default: true (use GPU when available)
+    /// </summary>
+    public bool UseGpuShotDetection { get; set; } = true;
+
+    /// <summary>
+    /// Enable hardware acceleration for video decoding (NVDEC/VAAPI/D3D11VA).
+    /// Default: true
+    /// </summary>
+    public bool UseHardwareAcceleration { get; set; } = true;
 }

@@ -1,31 +1,37 @@
+using System.Collections.Concurrent;
 using System.IO.Hashing;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Models;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
+using Mostlylucid.DocSummarizer.Images.Services.Ocr;
 using Mostlylucid.DocSummarizer.Images.Services.Storage;
 using Mostlylucid.DocSummarizer.Images.Services.Vision;
+using SixLabors.ImageSharp;
+using EvidenceClaim = Mostlylucid.DocSummarizer.Images.Services.Vision.Clients.EvidenceClaim;
 
 namespace Mostlylucid.DocSummarizer.Images.Services;
 
 /// <summary>
-/// Service for managing escalation of image analysis to vision LLMs.
-/// Supports auto-escalation, user-triggered escalation, and feedback loops.
-/// Includes content-based caching with xxhash64 for fast lookups.
-/// Uses PromptTemplateService for weighted signal-based prompt building.
+///     Service for managing escalation of image analysis to vision LLMs.
+///     Supports auto-escalation, user-triggered escalation, and feedback loops.
+///     Includes content-based caching with xxhash64 for fast lookups.
+///     Uses PromptTemplateService for weighted signal-based prompt building.
 /// </summary>
 public class EscalationService
 {
-    private readonly IImageAnalyzer _imageAnalyzer;
-    private readonly VisionLlmService _visionLlmService;
-    private readonly UnifiedVisionService? _unifiedVisionService;
-    private readonly ISignalDatabase? _signalDatabase;
-    private readonly ILogger<EscalationService> _logger;
     private readonly EscalationConfig _config;
-    private readonly PromptTemplateService _promptTemplateService;
     private readonly Florence2CaptionService? _florence2Service;
+    private readonly IImageAnalyzer _imageAnalyzer;
+    private readonly ILogger<EscalationService> _logger;
+    private readonly PromptTemplateService _promptTemplateService;
+    private readonly ISignalDatabase? _signalDatabase;
+    private readonly UnifiedVisionService? _unifiedVisionService;
+    private readonly VisionLlmService _visionLlmService;
 
     public EscalationService(
         IImageAnalyzer imageAnalyzer,
@@ -59,8 +65,8 @@ public class EscalationService
     }
 
     /// <summary>
-    /// Analyze an image with optional auto-escalation to vision LLM.
-    /// Uses content-based caching (xxhash64) to avoid reprocessing identical files.
+    ///     Analyze an image with optional auto-escalation to vision LLM.
+    ///     Uses content-based caching (xxhash64) to avoid reprocessing identical files.
     /// </summary>
     public async Task<EscalationResult> AnalyzeWithEscalationAsync(
         string imagePath,
@@ -94,9 +100,7 @@ public class EscalationService
                 var extractedTextFromCache = cachedProfile.GetValue<string>("content.extracted_text");
 
                 if (!string.IsNullOrWhiteSpace(llmCaptionFromCache))
-                {
                     _logger.LogDebug("Loaded cached LLM caption for {ImagePath}", imagePath);
-                }
 
                 // Try to load GIF motion data from cache
                 GifMotionProfile? cachedGifMotion = null;
@@ -110,17 +114,13 @@ public class EscalationService
                     if (motionSignal?.Metadata != null)
                     {
                         if (motionSignal.Metadata.TryGetValue("frame_count", out var fcObj))
-                        {
-                            frameCount = fcObj is System.Text.Json.JsonElement fcJson
+                            frameCount = fcObj is JsonElement fcJson
                                 ? fcJson.GetInt32()
                                 : Convert.ToInt32(fcObj);
-                        }
                         if (motionSignal.Metadata.TryGetValue("fps", out var fpsObj))
-                        {
-                            fps = fpsObj is System.Text.Json.JsonElement fpsJson
+                            fps = fpsObj is JsonElement fpsJson
                                 ? fpsJson.GetDouble()
                                 : Convert.ToDouble(fpsObj);
-                        }
                     }
 
                     // Try to load complexity data if available
@@ -136,23 +136,17 @@ public class EscalationService
                         if (complexitySignal?.Metadata != null)
                         {
                             if (complexitySignal.Metadata.TryGetValue("scene_changes", out var scObj))
-                            {
-                                sceneChangeCount = scObj is System.Text.Json.JsonElement scJson
+                                sceneChangeCount = scObj is JsonElement scJson
                                     ? scJson.GetInt32()
                                     : Convert.ToInt32(scObj);
-                            }
                             if (complexitySignal.Metadata.TryGetValue("avg_frame_diff", out var avgObj))
-                            {
-                                avgFrameDiff = avgObj is System.Text.Json.JsonElement avgJson
+                                avgFrameDiff = avgObj is JsonElement avgJson
                                     ? avgJson.GetDouble()
                                     : Convert.ToDouble(avgObj);
-                            }
                             if (complexitySignal.Metadata.TryGetValue("max_frame_diff", out var maxObj))
-                            {
-                                maxFrameDiff = maxObj is System.Text.Json.JsonElement maxJson
+                                maxFrameDiff = maxObj is JsonElement maxJson
                                     ? maxJson.GetDouble()
                                     : Convert.ToDouble(maxObj);
-                            }
                         }
 
                         cachedComplexity = new GifComplexityProfile
@@ -186,16 +180,16 @@ public class EscalationService
                 // Note: Evidence claims are not cached currently, only caption
                 // Future: Store claims as signals and reconstruct here
                 return new EscalationResult(
-                    FilePath: imagePath,
-                    Profile: profile,
-                    LlmCaption: llmCaptionFromCache,
-                    ExtractedText: extractedTextFromCache,
-                    WasEscalated: !string.IsNullOrWhiteSpace(llmCaptionFromCache), // If we have caption, it was escalated
-                    EscalationReason: null,
-                    FromCache: true,
-                    GifMotion: cachedGifMotion,
-                    EvidenceClaims: null, // Not cached yet
-                    OcrConfidence: 0.0); // Not cached yet
+                    imagePath,
+                    profile,
+                    llmCaptionFromCache,
+                    extractedTextFromCache,
+                    !string.IsNullOrWhiteSpace(llmCaptionFromCache), // If we have caption, it was escalated
+                    null,
+                    true,
+                    cachedGifMotion,
+                    null, // Not cached yet
+                    0.0); // Not cached yet
             }
 
             _logger.LogDebug("Cache miss for {ImagePath} (hash: {Hash})", imagePath, xxhash);
@@ -208,12 +202,12 @@ public class EscalationService
         GifMotionProfile? gifMotionProfile = null;
         if (analyzedProfile.Format?.Equals("GIF", StringComparison.OrdinalIgnoreCase) == true ||
             analyzedProfile.Format?.Equals("WEBP", StringComparison.OrdinalIgnoreCase) == true)
-        {
             try
             {
                 using var gifAnalyzer = new GifMotionAnalyzer(_logger as ILogger<GifMotionAnalyzer>);
                 gifMotionProfile = await gifAnalyzer.AnalyzeAsync(imagePath, ct);
-                _logger.LogInformation("{Format} motion analysis: {Direction} ({Magnitude:F2} px/frame, {Confidence:P0} confidence)",
+                _logger.LogInformation(
+                    "{Format} motion analysis: {Direction} ({Magnitude:F2} px/frame, {Confidence:P0} confidence)",
                     analyzedProfile.Format,
                     gifMotionProfile.MotionDirection,
                     gifMotionProfile.MotionMagnitude,
@@ -224,11 +218,10 @@ public class EscalationService
                 _logger.LogWarning(ex, "Failed to analyze {Format} motion for {ImagePath}",
                     analyzedProfile.Format, imagePath);
             }
-        }
 
         // Step 2: Run OCR early if text detected (before escalation decision)
         string? extractedText = null;
-        double ocrConfidence = 0.0;
+        var ocrConfidence = 0.0;
 
         // Check if this is an animated image (GIF/WebP) - these often have subtitles
         var isAnimatedForOcr = analyzedProfile.Format?.Equals("GIF", StringComparison.OrdinalIgnoreCase) == true ||
@@ -244,7 +237,8 @@ public class EscalationService
 
         if (shouldRunOcr)
         {
-            _logger.LogInformation("Image {ImagePath} - performing OCR (text_likeliness={Score:F3}, animated={IsAnimated})",
+            _logger.LogInformation(
+                "Image {ImagePath} - performing OCR (text_likeliness={Score:F3}, animated={IsAnimated})",
                 imagePath, analyzedProfile.TextLikeliness, isAnimatedForOcr);
 
             try
@@ -254,20 +248,20 @@ public class EscalationService
                     // Use multi-frame text extraction for animated images
                     _logger.LogDebug("Using multi-frame text extraction for {Format}", analyzedProfile.Format);
 
-                    var ocrEngine = new Mostlylucid.DocSummarizer.Images.Services.Ocr.TesseractOcrEngine();
-                    var imageConfig = new Mostlylucid.DocSummarizer.Images.Config.ImageConfig();
-                    var gifExtractor = new Mostlylucid.DocSummarizer.Images.Services.Ocr.GifTextExtractor(
+                    var ocrEngine = new TesseractOcrEngine();
+                    var imageConfig = new ImageConfig();
+                    var gifExtractor = new GifTextExtractor(
                         ocrEngine,
                         imageConfig,
-                        advancedOcrService: null,
-                        logger: _logger as ILogger<Mostlylucid.DocSummarizer.Images.Services.Ocr.GifTextExtractor>);
+                        null,
+                        _logger as ILogger<GifTextExtractor>);
 
                     var result = await gifExtractor.ExtractTextAsync(imagePath, ct);
 
                     extractedText = result.CombinedText;
                     // Estimate confidence based on how many frames had text
                     ocrConfidence = result.TotalFrames > 0
-                        ? Math.Min(0.95, 0.7 + (0.25 * result.FramesWithText / result.TotalFrames))
+                        ? Math.Min(0.95, 0.7 + 0.25 * result.FramesWithText / result.TotalFrames)
                         : 0.0;
 
                     _logger.LogInformation("Tesseract extracted text from {Frames} frames: {Preview}",
@@ -292,14 +286,15 @@ public class EscalationService
                         }
                         catch (Exception florenceEx)
                         {
-                            _logger.LogWarning(florenceEx, "Florence-2 text extraction failed for {ImagePath}", imagePath);
+                            _logger.LogWarning(florenceEx, "Florence-2 text extraction failed for {ImagePath}",
+                                imagePath);
                         }
                     }
                 }
                 else
                 {
                     // Use standard single-frame OCR for static images
-                    var ocrEngine = new Mostlylucid.DocSummarizer.Images.Services.Ocr.TesseractOcrEngine();
+                    var ocrEngine = new TesseractOcrEngine();
                     var regions = ocrEngine.ExtractTextWithCoordinates(imagePath);
 
                     extractedText = string.Join(" ", regions.Select(r => r.Text));
@@ -339,7 +334,7 @@ public class EscalationService
         }
 
         string? llmCaption = null;
-        List<Vision.Clients.EvidenceClaim>? evidenceClaims = null;
+        List<EvidenceClaim>? evidenceClaims = null;
         var escalationReason = forceEscalate ? "User requested" :
             skippedDueToOcr ? $"Skipped - OCR confidence {ocrConfidence:P0}" : null;
 
@@ -355,9 +350,8 @@ public class EscalationService
             // Build prompt using template service with weighted signals
             var customPrompt = _promptTemplateService.BuildPrompt(
                 analyzedProfile,
-                outputFormat: "alttext",
-                motion: gifMotionProfile,
-                extractedText: null); // OCR not available yet
+                "alttext",
+                gifMotionProfile); // OCR not available yet
 
             _logger.LogDebug("Built prompt for {ImagePath}: {PromptLength} chars", imagePath, customPrompt.Length);
 
@@ -366,13 +360,15 @@ public class EscalationService
             {
                 // Use UnifiedVisionService for provider:model format
                 var (provider, model) = _unifiedVisionService.ParseModelSpec(visionModel);
-                var visionResult = await _unifiedVisionService.AnalyzeImageAsync(imagePath, customPrompt, provider, model, temperature: null, ct);
+                var visionResult =
+                    await _unifiedVisionService.AnalyzeImageAsync(imagePath, customPrompt, provider, model, null, ct);
 
                 if (visionResult.Success)
                 {
                     llmCaption = visionResult.Caption;
                     evidenceClaims = visionResult.Claims;
-                    _logger.LogInformation("Vision analysis completed with {Provider}:{Model}", provider ?? "default", model);
+                    _logger.LogInformation("Vision analysis completed with {Provider}:{Model}", provider ?? "default",
+                        model);
                 }
                 else
                 {
@@ -537,14 +533,15 @@ public class EscalationService
                         Tags = new List<string> { "complexity", "gif", "score" }
                     });
 
-                    _logger.LogDebug("Added GIF complexity signals for {ImagePath}: {Type} (stability={Stability:F2}, overall={Overall:F2})",
+                    _logger.LogDebug(
+                        "Added GIF complexity signals for {ImagePath}: {Type} (stability={Stability:F2}, overall={Overall:F2})",
                         imagePath, complexity.AnimationType, complexity.VisualStability, complexity.OverallComplexity);
                 }
             }
 
             // Store with filename metadata (allows tracking renames)
             using var imageStream = File.OpenRead(imagePath);
-            using var image = await SixLabors.ImageSharp.Image.LoadAsync(imagePath, ct);
+            using var image = await Image.LoadAsync(imagePath, ct);
 
             await _signalDatabase.StoreProfileAsync(
                 dynamicProfile,
@@ -559,20 +556,20 @@ public class EscalationService
         }
 
         return new EscalationResult(
-            FilePath: imagePath,
-            Profile: analyzedProfile,
-            LlmCaption: llmCaption,
-            ExtractedText: extractedText,
-            WasEscalated: shouldEscalate,
-            EscalationReason: escalationReason,
-            FromCache: false,
-            GifMotion: gifMotionProfile,
-            EvidenceClaims: evidenceClaims,
-            OcrConfidence: ocrConfidence);
+            imagePath,
+            analyzedProfile,
+            llmCaption,
+            extractedText,
+            shouldEscalate,
+            escalationReason,
+            false,
+            gifMotionProfile,
+            evidenceClaims,
+            ocrConfidence);
     }
 
     /// <summary>
-    /// Batch analyze images with parallel processing and escalation.
+    ///     Batch analyze images with parallel processing and escalation.
     /// </summary>
     public async Task<List<EscalationResult>> AnalyzeBatchAsync(
         IEnumerable<string> imagePaths,
@@ -582,7 +579,7 @@ public class EscalationService
         IProgress<BatchProgress>? progress = null,
         CancellationToken ct = default)
     {
-        var results = new System.Collections.Concurrent.ConcurrentBag<EscalationResult>();
+        var results = new ConcurrentBag<EscalationResult>();
         var imagePathsList = imagePaths.ToList();
         var totalCount = imagePathsList.Count;
         var processedCount = 0;
@@ -595,17 +592,17 @@ public class EscalationService
             {
                 var result = await AnalyzeWithEscalationAsync(
                     imagePath,
-                    forceEscalate: false,
-                    enableOcr: enableOcr,
+                    false,
+                    enableOcr,
                     ct: ct);
 
                 results.Add(result);
 
                 var processed = Interlocked.Increment(ref processedCount);
                 progress?.Report(new BatchProgress(
-                    WorkerId: index % maxParallel,
-                    FilePath: imagePath,
-                    Success: true,
+                    index % maxParallel,
+                    imagePath,
+                    true,
                     Processed: processed,
                     Total: totalCount));
             }
@@ -613,12 +610,12 @@ public class EscalationService
             {
                 _logger.LogError(ex, "Failed to analyze {ImagePath}", imagePath);
                 progress?.Report(new BatchProgress(
-                    WorkerId: index % maxParallel,
-                    FilePath: imagePath,
-                    Success: false,
-                    Error: ex.Message,
-                    Processed: Interlocked.Increment(ref processedCount),
-                    Total: totalCount));
+                    index % maxParallel,
+                    imagePath,
+                    false,
+                    ex.Message,
+                    Interlocked.Increment(ref processedCount),
+                    totalCount));
             }
             finally
             {
@@ -632,7 +629,7 @@ public class EscalationService
     }
 
     /// <summary>
-    /// Determine if an image should be auto-escalated to vision LLM.
+    ///     Determine if an image should be auto-escalated to vision LLM.
     /// </summary>
     private bool ShouldAutoEscalate(ImageProfile profile)
     {
@@ -640,65 +637,45 @@ public class EscalationService
             return false;
 
         // Escalate if type detection confidence is low
-        if (profile.TypeConfidence < _config.ConfidenceThreshold)
-        {
-            return true;
-        }
+        if (profile.TypeConfidence < _config.ConfidenceThreshold) return true;
 
         // Escalate if image is blurry (might need better description)
-        if (profile.LaplacianVariance < _config.BlurThreshold)
-        {
-            return true;
-        }
+        if (profile.LaplacianVariance < _config.BlurThreshold) return true;
 
         // Escalate if image has high text content (for better OCR/description)
-        if (profile.TextLikeliness >= _config.TextLikelinessThreshold)
-        {
-            return true;
-        }
+        if (profile.TextLikeliness >= _config.TextLikelinessThreshold) return true;
 
         // Escalate for complex diagrams or charts
-        if (profile.DetectedType is ImageType.Diagram or ImageType.Chart)
-        {
-            return true;
-        }
+        if (profile.DetectedType is ImageType.Diagram or ImageType.Chart) return true;
 
         return false;
     }
 
     /// <summary>
-    /// Determine the reason for escalation.
+    ///     Determine the reason for escalation.
     /// </summary>
     private string DetermineEscalationReason(ImageProfile profile)
     {
         var reasons = new List<string>();
 
         if (profile.TypeConfidence < _config.ConfidenceThreshold)
-        {
             reasons.Add($"Low type confidence ({profile.TypeConfidence:P0})");
-        }
 
         if (profile.LaplacianVariance < _config.BlurThreshold)
-        {
             reasons.Add($"Blurry image (sharpness: {profile.LaplacianVariance:F0})");
-        }
 
         if (profile.TextLikeliness >= _config.TextLikelinessThreshold)
-        {
             reasons.Add($"High text content (score: {profile.TextLikeliness:F2})");
-        }
 
         if (profile.DetectedType is ImageType.Diagram or ImageType.Chart)
-        {
             reasons.Add($"Complex {profile.DetectedType.ToString().ToLower()}");
-        }
 
         return string.Join(", ", reasons);
     }
 
     /// <summary>
-    /// Build a vision LLM prompt tailored to the detected image type.
-    /// Only passes relevant context signals to reduce hallucination.
+    ///     Build a vision LLM prompt tailored to the detected image type.
+    ///     Only passes relevant context signals to reduce hallucination.
     /// </summary>
     private static string BuildVisionPrompt(ImageProfile profile)
     {
@@ -718,7 +695,8 @@ public class EscalationService
         {
             prompt.AppendLine("This is an ANIMATED image (GIF/WebP).");
             prompt.AppendLine("Focus on: the action/movement, what is happening.");
-            prompt.AppendLine("IMPORTANT: If there is ANY visible text, subtitles, or captions in ANY frame, quote the text EXACTLY.");
+            prompt.AppendLine(
+                "IMPORTANT: If there is ANY visible text, subtitles, or captions in ANY frame, quote the text EXACTLY.");
             prompt.AppendLine("The image shows a filmstrip of frames - describe the animation.");
         }
         else
@@ -746,7 +724,8 @@ public class EscalationService
 
                 case ImageType.Meme:
                     prompt.AppendLine("This appears to be a MEME image.");
-                    prompt.AppendLine("Focus on: the visual content. QUOTE any visible text/captions EXACTLY as written.");
+                    prompt.AppendLine(
+                        "Focus on: the visual content. QUOTE any visible text/captions EXACTLY as written.");
                     break;
 
                 case ImageType.ScannedDocument:
@@ -779,12 +758,12 @@ public class EscalationService
     }
 
     /// <summary>
-    /// Store feedback for learning/improvement.
-    /// Uses ISignalDatabase for persistent storage when available.
-    /// Feedback is used for:
-    /// 1. Improving auto-escalation thresholds
-    /// 2. Training/fine-tuning models
-    /// 3. Building a knowledge base
+    ///     Store feedback for learning/improvement.
+    ///     Uses ISignalDatabase for persistent storage when available.
+    ///     Feedback is used for:
+    ///     1. Improving auto-escalation thresholds
+    ///     2. Training/fine-tuning models
+    ///     3. Building a knowledge base
     /// </summary>
     public async Task StoreFeedbackAsync(
         string imagePath,
@@ -800,19 +779,18 @@ public class EscalationService
 
         // Store to SignalDatabase if available
         if (_signalDatabase != null)
-        {
             try
             {
                 var sha256 = await ComputeSha256Async(imagePath, ct);
                 var feedbackType = wasCorrect ? "caption_correct" : "caption_incorrect";
 
                 await _signalDatabase.StoreFeedbackAsync(
-                    sha256: sha256,
-                    feedbackType: feedbackType,
-                    originalValue: llmCaption,
-                    correctedValue: userCorrection,
-                    confidenceAdjustment: wasCorrect ? 0.1 : -0.1,
-                    notes: $"Source: {Path.GetFileName(imagePath)}",
+                    sha256,
+                    feedbackType,
+                    llmCaption,
+                    userCorrection,
+                    wasCorrect ? 0.1 : -0.1,
+                    $"Source: {Path.GetFileName(imagePath)}",
                     ct: ct);
 
                 _logger.LogDebug("Feedback stored to SignalDatabase for {Hash}", sha256.Substring(0, 8));
@@ -821,12 +799,11 @@ public class EscalationService
             {
                 _logger.LogWarning(ex, "Failed to store feedback to SignalDatabase for {Path}", imagePath);
             }
-        }
     }
 
     /// <summary>
-    /// Compute xxhash64 for fast content-based cache lookups.
-    /// Fast (10x+ faster than SHA256) but not cryptographically secure.
+    ///     Compute xxhash64 for fast content-based cache lookups.
+    ///     Fast (10x+ faster than SHA256) but not cryptographically secure.
     /// </summary>
     private static async Task<string> ComputeXxHash64Async(string filePath, CancellationToken ct)
     {
@@ -836,8 +813,8 @@ public class EscalationService
     }
 
     /// <summary>
-    /// Compute SHA256 for secure content identification and deduplication.
-    /// Slower than xxhash64 but collision-resistant.
+    ///     Compute SHA256 for secure content identification and deduplication.
+    ///     Slower than xxhash64 but collision-resistant.
     /// </summary>
     private static async Task<string> ComputeSha256Async(string filePath, CancellationToken ct)
     {
@@ -847,7 +824,7 @@ public class EscalationService
     }
 
     /// <summary>
-    /// Convert DynamicImageProfile to ImageProfile for compatibility.
+    ///     Convert DynamicImageProfile to ImageProfile for compatibility.
     /// </summary>
     private static ImageProfile ConvertToImageProfile(DynamicImageProfile dynamicProfile)
     {
@@ -855,12 +832,11 @@ public class EscalationService
         var dominantColorsList = new List<DominantColor>();
         var colorNames = dynamicProfile.GetValue<List<string>>("color.dominant_color_names") ?? new List<string>();
         var colorHexes = dynamicProfile.GetValue<List<string>>("color.dominant_color_hexes") ?? new List<string>();
-        var colorPercentages = dynamicProfile.GetValue<List<double>>("color.dominant_color_percentages") ?? new List<double>();
+        var colorPercentages = dynamicProfile.GetValue<List<double>>("color.dominant_color_percentages") ??
+                               new List<double>();
 
-        for (int i = 0; i < Math.Min(colorHexes.Count, Math.Min(colorNames.Count, colorPercentages.Count)); i++)
-        {
+        for (var i = 0; i < Math.Min(colorHexes.Count, Math.Min(colorNames.Count, colorPercentages.Count)); i++)
             dominantColorsList.Add(new DominantColor(colorHexes[i], colorPercentages[i], colorNames[i]));
-        }
 
         return new ImageProfile
         {
@@ -886,101 +862,151 @@ public class EscalationService
     }
 
     /// <summary>
-    /// Convert ImageProfile to DynamicImageProfile for storage.
+    ///     Convert ImageProfile to DynamicImageProfile for storage.
     /// </summary>
     private static DynamicImageProfile ConvertToDynamicProfile(ImageProfile profile)
     {
         var dynamicProfile = new DynamicImageProfile();
 
         // Identity signals
-        dynamicProfile.AddSignal(new Signal { Key = "identity.sha256", Value = profile.Sha256, Confidence = 1.0, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "identity.format", Value = profile.Format, Confidence = 1.0, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "identity.width", Value = profile.Width, Confidence = 1.0, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "identity.height", Value = profile.Height, Confidence = 1.0, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "identity.aspect_ratio", Value = profile.AspectRatio, Confidence = 1.0, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+            { Key = "identity.sha256", Value = profile.Sha256, Confidence = 1.0, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+            { Key = "identity.format", Value = profile.Format, Confidence = 1.0, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+            { Key = "identity.width", Value = profile.Width, Confidence = 1.0, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+            { Key = "identity.height", Value = profile.Height, Confidence = 1.0, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+            { Key = "identity.aspect_ratio", Value = profile.AspectRatio, Confidence = 1.0, Source = "ImageAnalyzer" });
 
         // Content signals
-        dynamicProfile.AddSignal(new Signal { Key = "content.type", Value = profile.DetectedType, Confidence = profile.TypeConfidence, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "content.type_confidence", Value = profile.TypeConfidence, Confidence = 1.0, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "content.text_likeliness", Value = profile.TextLikeliness, Confidence = 0.7, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "content.type", Value = profile.DetectedType, Confidence = profile.TypeConfidence,
+            Source = "ImageAnalyzer"
+        });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "content.type_confidence", Value = profile.TypeConfidence, Confidence = 1.0, Source = "ImageAnalyzer"
+        });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "content.text_likeliness", Value = profile.TextLikeliness, Confidence = 0.7, Source = "ImageAnalyzer"
+        });
 
         // Quality signals
-        dynamicProfile.AddSignal(new Signal { Key = "quality.edge_density", Value = profile.EdgeDensity, Confidence = 0.9, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "quality.luminance_entropy", Value = profile.LuminanceEntropy, Confidence = 0.9, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "quality.sharpness", Value = profile.LaplacianVariance, Confidence = 0.8, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+            { Key = "quality.edge_density", Value = profile.EdgeDensity, Confidence = 0.9, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "quality.luminance_entropy", Value = profile.LuminanceEntropy, Confidence = 0.9,
+            Source = "ImageAnalyzer"
+        });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "quality.sharpness", Value = profile.LaplacianVariance, Confidence = 0.8, Source = "ImageAnalyzer"
+        });
 
         // Color signals
-        dynamicProfile.AddSignal(new Signal { Key = "color.mean_luminance", Value = profile.MeanLuminance, Confidence = 1.0, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "color.luminance_stddev", Value = profile.LuminanceStdDev, Confidence = 1.0, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "color.clipped_blacks_percent", Value = profile.ClippedBlacksPercent, Confidence = 1.0, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "color.clipped_whites_percent", Value = profile.ClippedWhitesPercent, Confidence = 1.0, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "color.mean_saturation", Value = profile.MeanSaturation, Confidence = 1.0, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "color.is_mostly_grayscale", Value = profile.IsMostlyGrayscale, Confidence = 1.0, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "color.mean_luminance", Value = profile.MeanLuminance, Confidence = 1.0, Source = "ImageAnalyzer"
+        });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "color.luminance_stddev", Value = profile.LuminanceStdDev, Confidence = 1.0, Source = "ImageAnalyzer"
+        });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "color.clipped_blacks_percent", Value = profile.ClippedBlacksPercent, Confidence = 1.0,
+            Source = "ImageAnalyzer"
+        });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "color.clipped_whites_percent", Value = profile.ClippedWhitesPercent, Confidence = 1.0,
+            Source = "ImageAnalyzer"
+        });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "color.mean_saturation", Value = profile.MeanSaturation, Confidence = 1.0, Source = "ImageAnalyzer"
+        });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "color.is_mostly_grayscale", Value = profile.IsMostlyGrayscale, Confidence = 1.0,
+            Source = "ImageAnalyzer"
+        });
 
         // Store dominant colors as separate signals for easier querying
         var colorNames = profile.DominantColors.Select(c => c.Name).ToList();
         var colorHexes = profile.DominantColors.Select(c => c.Hex).ToList();
         var colorPercentages = profile.DominantColors.Select(c => c.Percentage).ToList();
 
-        dynamicProfile.AddSignal(new Signal { Key = "color.dominant_color_names", Value = colorNames, Confidence = 0.9, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "color.dominant_color_hexes", Value = colorHexes, Confidence = 0.9, Source = "ImageAnalyzer" });
-        dynamicProfile.AddSignal(new Signal { Key = "color.dominant_color_percentages", Value = colorPercentages, Confidence = 0.9, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+            { Key = "color.dominant_color_names", Value = colorNames, Confidence = 0.9, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+            { Key = "color.dominant_color_hexes", Value = colorHexes, Confidence = 0.9, Source = "ImageAnalyzer" });
+        dynamicProfile.AddSignal(new Signal
+        {
+            Key = "color.dominant_color_percentages", Value = colorPercentages, Confidence = 0.9,
+            Source = "ImageAnalyzer"
+        });
 
         return dynamicProfile;
     }
 }
 
 /// <summary>
-/// Configuration for escalation behavior.
+///     Configuration for escalation behavior.
 /// </summary>
 public class EscalationConfig
 {
     /// <summary>
-    /// Enable automatic escalation based on confidence/quality thresholds.
+    ///     Enable automatic escalation based on confidence/quality thresholds.
     /// </summary>
     public bool AutoEscalateEnabled { get; set; } = true;
 
     /// <summary>
-    /// Type detection confidence threshold (0.0-1.0). Below this triggers escalation.
+    ///     Type detection confidence threshold (0.0-1.0). Below this triggers escalation.
     /// </summary>
     public double ConfidenceThreshold { get; set; } = 0.7;
 
     /// <summary>
-    /// Text likeliness threshold. Above this triggers escalation for better OCR.
+    ///     Text likeliness threshold. Above this triggers escalation for better OCR.
     /// </summary>
     public double TextLikelinessThreshold { get; set; } = 0.4;
 
     /// <summary>
-    /// Blur threshold (Laplacian variance). Below this triggers escalation.
+    ///     Blur threshold (Laplacian variance). Below this triggers escalation.
     /// </summary>
     public double BlurThreshold { get; set; } = 300;
 
     /// <summary>
-    /// Enable feedback loop to learn from escalations.
+    ///     Enable feedback loop to learn from escalations.
     /// </summary>
     public bool EnableFeedbackLoop { get; set; } = true;
 
     /// <summary>
-    /// Enable content-based caching with xxhash64/SHA256.
-    /// Caches analysis results to avoid reprocessing identical files (even if renamed).
+    ///     Enable content-based caching with xxhash64/SHA256.
+    ///     Caches analysis results to avoid reprocessing identical files (even if renamed).
     /// </summary>
     public bool EnableCaching { get; set; } = true;
 
     /// <summary>
-    /// OCR confidence threshold (0.0-1.0). If OCR confidence is above this,
-    /// skip LLM escalation for text-heavy images (documents, memes, etc).
+    ///     OCR confidence threshold (0.0-1.0). If OCR confidence is above this,
+    ///     skip LLM escalation for text-heavy images (documents, memes, etc).
     /// </summary>
     public double OcrConfidenceThreshold { get; set; } = 0.85;
 
     /// <summary>
-    /// If true, skip LLM escalation when OCR returns high-confidence text.
-    /// This prevents unnecessary LLM calls for clear text like documents.
+    ///     If true, skip LLM escalation when OCR returns high-confidence text.
+    ///     This prevents unnecessary LLM calls for clear text like documents.
     /// </summary>
     public bool SkipLlmIfOcrHighConfidence { get; set; } = true;
 }
 
 /// <summary>
-/// Result of an analysis with potential escalation.
+///     Result of an analysis with potential escalation.
 /// </summary>
 public record EscalationResult(
     string FilePath,
@@ -991,11 +1017,11 @@ public record EscalationResult(
     string? EscalationReason,
     bool FromCache = false,
     GifMotionProfile? GifMotion = null,
-    List<Vision.Clients.EvidenceClaim>? EvidenceClaims = null,
+    List<EvidenceClaim>? EvidenceClaims = null,
     double OcrConfidence = 0.0);
 
 /// <summary>
-/// Progress report for batch processing.
+///     Progress report for batch processing.
 /// </summary>
 public record BatchProgress(
     int WorkerId,

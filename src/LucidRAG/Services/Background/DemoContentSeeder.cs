@@ -1,23 +1,23 @@
 using System.Collections.Concurrent;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using LucidRAG.Config;
 using LucidRAG.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace LucidRAG.Services.Background;
 
 /// <summary>
-/// Seeds demo content on startup and watches for new files when demo mode is enabled.
-/// Drop files into the demo content directory and they'll be processed automatically.
+///     Seeds demo content on startup and watches for new files when demo mode is enabled.
+///     Drop files into the demo content directory and they'll be processed automatically.
 /// </summary>
 public class DemoContentSeeder : BackgroundService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly string[] _allowedExtensions = [".md", ".txt", ".pdf", ".docx", ".html"];
     private readonly RagDocumentsConfig _config;
     private readonly ILogger<DemoContentSeeder> _logger;
-    private FileSystemWatcher? _watcher;
     private readonly ConcurrentDictionary<string, DateTime> _recentlyProcessed = new();
-    private readonly string[] _allowedExtensions = [".md", ".txt", ".pdf", ".docx", ".html"];
+    private readonly IServiceScopeFactory _scopeFactory;
+    private FileSystemWatcher? _watcher;
 
     public DemoContentSeeder(
         IServiceScopeFactory scopeFactory,
@@ -84,16 +84,14 @@ public class DemoContentSeeder : BackgroundService
 
         if (files.Count == 0)
         {
-            _logger.LogInformation("No demo content files found in {Path}. Drop files there to add demo content.", contentPath);
+            _logger.LogInformation("No demo content files found in {Path}. Drop files there to add demo content.",
+                contentPath);
             return;
         }
 
         _logger.LogInformation("Found {Count} files in demo content directory", files.Count);
 
-        foreach (var filePath in files)
-        {
-            await ProcessFileAsync(filePath, existingHashes, ct);
-        }
+        foreach (var filePath in files) await ProcessFileAsync(filePath, existingHashes, ct);
     }
 
     private void StartFileWatcher(string contentPath)
@@ -105,10 +103,7 @@ public class DemoContentSeeder : BackgroundService
         };
 
         // Watch for all allowed extensions
-        foreach (var ext in _allowedExtensions)
-        {
-            _watcher.Filters.Add($"*{ext}");
-        }
+        foreach (var ext in _allowedExtensions) _watcher.Filters.Add($"*{ext}");
 
         _watcher.Created += OnFileCreated;
         _watcher.Changed += OnFileChanged;
@@ -130,9 +125,7 @@ public class DemoContentSeeder : BackgroundService
     private void OnFileRenamed(object sender, RenamedEventArgs e)
     {
         if (_allowedExtensions.Contains(Path.GetExtension(e.FullPath).ToLowerInvariant()))
-        {
             _ = ProcessFileWithDelayAsync(e.FullPath);
-        }
     }
 
     private async Task ProcessFileWithDelayAsync(string filePath)
@@ -140,22 +133,16 @@ public class DemoContentSeeder : BackgroundService
         // Debounce - file events can fire multiple times
         var now = DateTime.UtcNow;
         if (_recentlyProcessed.TryGetValue(filePath, out var lastProcessed))
-        {
             if ((now - lastProcessed).TotalSeconds < 5)
-            {
                 return; // Skip if processed in last 5 seconds
-            }
-        }
+
         _recentlyProcessed[filePath] = now;
 
         // Wait for file to be fully written
         await Task.Delay(1000);
 
         // Verify file still exists (might have been temp file)
-        if (!File.Exists(filePath))
-        {
-            return;
-        }
+        if (!File.Exists(filePath)) return;
 
         _logger.LogInformation("New demo file detected: {FileName}", Path.GetFileName(filePath));
 
@@ -182,7 +169,7 @@ public class DemoContentSeeder : BackgroundService
             var documentId = await processingService.QueueDocumentAsync(
                 fileStream,
                 fileName,
-                collectionId: null,
+                null,
                 ct);
 
             _logger.LogInformation("Queued demo document: {FileName} -> {DocumentId}", fileName, documentId);

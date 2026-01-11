@@ -1,11 +1,11 @@
-using Xunit;
-using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Config;
+using Mostlylucid.DocSummarizer.Models;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Models;
 
 /// <summary>
-/// Unit tests for adaptive retrieval configuration and calculations
+///     Unit tests for adaptive retrieval configuration and calculations
 /// </summary>
 public class AdaptiveRetrievalTests
 {
@@ -66,16 +66,16 @@ public class AdaptiveRetrievalTests
     }
 
     [Theory]
-    [InlineData(100, 5.0, 1.0, 15, 100, 15)]  // Small doc, use MinTopK
-    [InlineData(500, 5.0, 1.0, 15, 100, 25)]  // 500 * 5% = 25
+    [InlineData(100, 5.0, 1.0, 15, 100, 15)] // Small doc, use MinTopK
+    [InlineData(500, 5.0, 1.0, 15, 100, 25)] // 500 * 5% = 25
     [InlineData(1000, 5.0, 1.0, 15, 100, 50)] // 1000 * 5% = 50
     [InlineData(2000, 5.0, 1.0, 15, 100, 100)] // 2000 * 5% = 100, capped at MaxTopK
     [InlineData(3000, 5.0, 1.0, 15, 100, 100)] // Capped at MaxTopK
     public void CalculateAdaptiveTopK_NonNarrative_ReturnsExpected(
-        int segmentCount, 
-        double minCoverage, 
-        double narrativeBoost, 
-        int minTopK, 
+        int segmentCount,
+        double minCoverage,
+        double narrativeBoost,
+        int minTopK,
         int maxTopK,
         int expectedTopK)
     {
@@ -87,9 +87,9 @@ public class AdaptiveRetrievalTests
     }
 
     [Theory]
-    [InlineData(1000, 5.0, 1.5, 15, 100, 75)]  // 1000 * 5% * 1.5 = 75
+    [InlineData(1000, 5.0, 1.5, 15, 100, 75)] // 1000 * 5% * 1.5 = 75
     [InlineData(2000, 5.0, 1.5, 15, 100, 100)] // 2000 * 5% * 1.5 = 150, capped at 100
-    [InlineData(500, 5.0, 1.5, 15, 100, 38)]   // 500 * 5% * 1.5 = 37.5 -> 38
+    [InlineData(500, 5.0, 1.5, 15, 100, 38)] // 500 * 5% * 1.5 = 37.5 -> 38
     public void CalculateAdaptiveTopK_Narrative_AppliesBoost(
         int segmentCount,
         double minCoverage,

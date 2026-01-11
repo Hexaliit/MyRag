@@ -1,13 +1,12 @@
-using DuckDB.NET.Data;
-using MathNet.Numerics.Statistics;
-using Mostlylucid.DataSummarizer.Models;
 using System.Text;
+using DuckDB.NET.Data;
+using Mostlylucid.DataSummarizer.Models;
 
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Executes analytics tools invoked by the LLM.
-/// Provides capabilities beyond SQL: segmentation, anomaly detection, statistical tests, etc.
+///     Executes analytics tools invoked by the LLM.
+///     Provides capabilities beyond SQL: segmentation, anomaly detection, statistical tests, etc.
 /// </summary>
 public class ToolExecutor
 {
@@ -25,7 +24,7 @@ public class ToolExecutor
     }
 
     /// <summary>
-    /// Execute a tool invocation and return the result.
+    ///     Execute a tool invocation and return the result.
     /// </summary>
     public async Task<ToolResult> ExecuteAsync(ToolInvocation invocation)
     {
@@ -64,16 +63,16 @@ public class ToolExecutor
     }
 
     /// <summary>
-    /// K-Means style clustering using DuckDB aggregations.
-    /// Uses iterative refinement with SQL to avoid loading all data into memory.
+    ///     K-Means style clustering using DuckDB aggregations.
+    ///     Uses iterative refinement with SQL to avoid loading all data into memory.
     /// </summary>
     private async Task<ToolResult> ExecuteSegmentationAsync(ToolInvocation invocation)
     {
-        var numSegments = GetParam<int>(invocation, "num_segments", 4);
+        var numSegments = GetParam(invocation, "num_segments", 4);
         numSegments = Math.Clamp(numSegments, 2, 10);
 
         var featuresParam = GetParam<string>(invocation, "features", "auto");
-        
+
         // Get numeric columns for clustering
         var numericCols = _profile.Columns
             .Where(c => c.InferredType == ColumnType.Numeric && c.StdDev > 0)
@@ -87,14 +86,12 @@ public class ToolExecutor
         }
 
         if (numericCols.Count < 2)
-        {
             return new ToolResult
             {
                 ToolId = "segment_audience",
                 Success = false,
                 Error = "Need at least 2 numeric columns with variance for segmentation"
             };
-        }
 
         // Limit to first 5 numeric columns for performance
         numericCols = numericCols.Take(5).ToList();
@@ -102,14 +99,14 @@ public class ToolExecutor
         // Use percentile-based segmentation (more robust than k-means without iteration)
         // Create segments based on composite score
         var colList = string.Join(", ", numericCols.Select(c => $"\"{c}\""));
-        
+
         // Normalize each column and create composite score using NTILE
-        var normalizedCols = numericCols.Select((c, i) => 
+        var normalizedCols = numericCols.Select((c, i) =>
             $"((\"{c}\" - (SELECT MIN(\"{c}\") FROM {_readExpr})) / " +
             $"NULLIF((SELECT MAX(\"{c}\") FROM {_readExpr}) - (SELECT MIN(\"{c}\") FROM {_readExpr}), 0))").ToList();
 
         var compositeExpr = string.Join(" + ", normalizedCols);
-        
+
         // Get segment statistics
         var sql = $@"
             WITH scored AS (
@@ -134,7 +131,7 @@ public class ToolExecutor
 
         var segments = new List<Dictionary<string, object>>();
         using var reader = await cmd.ExecuteReaderAsync();
-        
+
         while (await reader.ReadAsync())
         {
             var segment = new Dictionary<string, object>
@@ -143,7 +140,7 @@ public class ToolExecutor
                 ["count"] = reader.GetInt64(1)
             };
 
-            for (int i = 0; i < numericCols.Count; i++)
+            for (var i = 0; i < numericCols.Count; i++)
             {
                 var val = reader.IsDBNull(i + 2) ? 0 : reader.GetDouble(i + 2);
                 segment[$"avg_{numericCols[i]}"] = Math.Round(val, 2);
@@ -163,15 +160,13 @@ public class ToolExecutor
             var segNum = seg["segment"];
             var count = seg["count"];
             sb.AppendLine($"**Segment {segNum}** ({count} records):");
-            
+
             foreach (var col in numericCols)
             {
                 var key = $"avg_{col}";
-                if (seg.TryGetValue(key, out var val))
-                {
-                    sb.AppendLine($"  - Avg {col}: {val}");
-                }
+                if (seg.TryGetValue(key, out var val)) sb.AppendLine($"  - Avg {col}: {val}");
             }
+
             sb.AppendLine();
         }
 
@@ -192,12 +187,12 @@ public class ToolExecutor
     }
 
     /// <summary>
-    /// Anomaly detection using IQR or Z-score method.
+    ///     Anomaly detection using IQR or Z-score method.
     /// </summary>
     private async Task<ToolResult> ExecuteAnomalyDetectionAsync(ToolInvocation invocation)
     {
         var method = GetParam<string>(invocation, "method", "zscore");
-        var threshold = GetParam<double>(invocation, "threshold", 3.0);
+        var threshold = GetParam(invocation, "threshold", 3.0);
 
         var numericCols = _profile.Columns
             .Where(c => c.InferredType == ColumnType.Numeric && c.StdDev > 0)
@@ -205,14 +200,12 @@ public class ToolExecutor
             .ToList();
 
         if (numericCols.Count == 0)
-        {
             return new ToolResult
             {
                 ToolId = "detect_anomalies",
                 Success = false,
                 Error = "No numeric columns with variance found for anomaly detection"
             };
-        }
 
         var anomalies = new List<Dictionary<string, object>>();
         var sb = new StringBuilder();
@@ -229,8 +222,8 @@ public class ToolExecutor
             if (method.ToLowerInvariant() == "iqr")
             {
                 // IQR method: outliers outside 1.5*IQR
-                var q1 = col.Q25 ?? (median - stdDev);
-                var q3 = col.Q75 ?? (median + stdDev);
+                var q1 = col.Q25 ?? median - stdDev;
+                var q3 = col.Q75 ?? median + stdDev;
                 var iqr = q3 - q1;
                 var lower = q1 - threshold * iqr;
                 var upper = q3 + threshold * iqr;
@@ -262,8 +255,8 @@ public class ToolExecutor
                     var minOutlier = reader.IsDBNull(1) ? 0 : reader.GetDouble(1);
                     var maxOutlier = reader.IsDBNull(2) ? 0 : reader.GetDouble(2);
 
-                    var pct = _profile.RowCount > 0 ? (count * 100.0 / _profile.RowCount) : 0;
-                    
+                    var pct = _profile.RowCount > 0 ? count * 100.0 / _profile.RowCount : 0;
+
                     anomalies.Add(new Dictionary<string, object>
                     {
                         ["column"] = col.Name,
@@ -283,10 +276,7 @@ public class ToolExecutor
             }
         }
 
-        if (anomalies.Count == 0)
-        {
-            sb.AppendLine("No significant anomalies detected at the specified threshold.");
-        }
+        if (anomalies.Count == 0) sb.AppendLine("No significant anomalies detected at the specified threshold.");
 
         return new ToolResult
         {
@@ -305,7 +295,7 @@ public class ToolExecutor
     }
 
     /// <summary>
-    /// Compare statistics between groups.
+    ///     Compare statistics between groups.
     /// </summary>
     private async Task<ToolResult> ExecuteGroupComparisonAsync(ToolInvocation invocation)
     {
@@ -318,14 +308,13 @@ public class ToolExecutor
             c.InferredType == ColumnType.Categorical);
 
         if (groupCol == null)
-        {
             return new ToolResult
             {
                 ToolId = "compare_groups",
                 Success = false,
-                Error = $"No categorical column found for grouping. Available: {string.Join(", ", _profile.Columns.Where(c => c.InferredType == ColumnType.Categorical).Select(c => c.Name))}"
+                Error =
+                    $"No categorical column found for grouping. Available: {string.Join(", ", _profile.Columns.Where(c => c.InferredType == ColumnType.Categorical).Select(c => c.Name))}"
             };
-        }
 
         var numericCols = _profile.Columns
             .Where(c => c.InferredType == ColumnType.Numeric)
@@ -341,14 +330,12 @@ public class ToolExecutor
         numericCols = numericCols.Take(5).ToList(); // Limit for readability
 
         if (numericCols.Count == 0)
-        {
             return new ToolResult
             {
                 ToolId = "compare_groups",
                 Success = false,
                 Error = "No numeric columns found for comparison"
             };
-        }
 
         var metrics = string.Join(",\n            ", numericCols.SelectMany(c => new[]
         {
@@ -380,12 +367,14 @@ public class ToolExecutor
                 ["count"] = reader.GetInt64(1)
             };
 
-            int colIndex = 2;
+            var colIndex = 2;
             foreach (var numCol in numericCols)
             {
                 group[$"avg_{numCol}"] = reader.IsDBNull(colIndex) ? null : Math.Round(reader.GetDouble(colIndex), 2);
-                group[$"min_{numCol}"] = reader.IsDBNull(colIndex + 1) ? null : Math.Round(reader.GetDouble(colIndex + 1), 2);
-                group[$"max_{numCol}"] = reader.IsDBNull(colIndex + 2) ? null : Math.Round(reader.GetDouble(colIndex + 2), 2);
+                group[$"min_{numCol}"] =
+                    reader.IsDBNull(colIndex + 1) ? null : Math.Round(reader.GetDouble(colIndex + 1), 2);
+                group[$"max_{numCol}"] =
+                    reader.IsDBNull(colIndex + 2) ? null : Math.Round(reader.GetDouble(colIndex + 2), 2);
                 colIndex += 3;
             }
 
@@ -406,6 +395,7 @@ public class ToolExecutor
                 var avg = group[$"avg_{numCol}"];
                 sb.AppendLine($"  - {numCol}: avg={avg}");
             }
+
             sb.AppendLine();
         }
 
@@ -426,11 +416,11 @@ public class ToolExecutor
     }
 
     /// <summary>
-    /// Correlation analysis using pre-computed profile data.
+    ///     Correlation analysis using pre-computed profile data.
     /// </summary>
     private async Task<ToolResult> ExecuteCorrelationAnalysisAsync(ToolInvocation invocation)
     {
-        var minCorr = GetParam<double>(invocation, "min_correlation", 0.3);
+        var minCorr = GetParam(invocation, "min_correlation", 0.3);
 
         // Use pre-computed correlations from profile if available
         if (_profile.Correlations != null && _profile.Correlations.Count > 0)
@@ -445,11 +435,8 @@ public class ToolExecutor
             sb.AppendLine();
 
             if (significantCorrs.Count == 0)
-            {
                 sb.AppendLine($"No correlations above {minCorr} threshold found.");
-            }
             else
-            {
                 foreach (var corr in significantCorrs.Take(10))
                 {
                     var strength = Math.Abs(corr.Correlation) switch
@@ -460,9 +447,9 @@ public class ToolExecutor
                         _ => "Weak"
                     };
                     var direction = corr.Correlation > 0 ? "positive" : "negative";
-                    sb.AppendLine($"- **{corr.Column1}** vs **{corr.Column2}**: {corr.Correlation:F3} ({strength} {direction})");
+                    sb.AppendLine(
+                        $"- **{corr.Column1}** vs **{corr.Column2}**: {corr.Correlation:F3} ({strength} {direction})");
                 }
-            }
 
             return new ToolResult
             {
@@ -494,7 +481,7 @@ public class ToolExecutor
     }
 
     /// <summary>
-    /// Generate data quality report from profile.
+    ///     Generate data quality report from profile.
     /// </summary>
     private ToolResult ExecuteDataQualityReport(ToolInvocation invocation)
     {
@@ -513,7 +500,7 @@ public class ToolExecutor
             // Missing values
             if (col.NullCount > 0)
             {
-                var nullPct = (col.NullCount * 100.0) / _profile.RowCount;
+                var nullPct = col.NullCount * 100.0 / _profile.RowCount;
                 if (nullPct > 50)
                 {
                     colIssues.Add($"High missing rate ({nullPct:F1}%)");
@@ -540,7 +527,7 @@ public class ToolExecutor
             }
 
             // Outliers (OutlierCount is count, not percentage)
-            var outlierPct = _profile.RowCount > 0 ? (col.OutlierCount * 100.0 / _profile.RowCount) : 0;
+            var outlierPct = _profile.RowCount > 0 ? col.OutlierCount * 100.0 / _profile.RowCount : 0;
             if (outlierPct > 10)
             {
                 colIssues.Add($"High outlier rate ({outlierPct:F1}%)");
@@ -548,13 +535,11 @@ public class ToolExecutor
             }
 
             if (colIssues.Count > 0)
-            {
                 issues.Add(new Dictionary<string, object>
                 {
                     ["column"] = col.Name,
                     ["issues"] = colIssues
                 });
-            }
         }
 
         overallScore = Math.Max(0, overallScore);
@@ -574,10 +559,7 @@ public class ToolExecutor
             foreach (var issue in issues)
             {
                 sb.AppendLine($"\n**{issue["column"]}**:");
-                foreach (var i in (List<string>)issue["issues"])
-                {
-                    sb.AppendLine($"  - {i}");
-                }
+                foreach (var i in (List<string>)issue["issues"]) sb.AppendLine($"  - {i}");
             }
         }
 
@@ -599,7 +581,7 @@ public class ToolExecutor
     }
 
     /// <summary>
-    /// Execute statistical significance tests.
+    ///     Execute statistical significance tests.
     /// </summary>
     private async Task<ToolResult> ExecuteStatisticalTestAsync(ToolInvocation invocation)
     {
@@ -608,14 +590,12 @@ public class ToolExecutor
         var column2 = GetParam<string>(invocation, "column2", "");
 
         if (string.IsNullOrEmpty(column1))
-        {
             return new ToolResult
             {
                 ToolId = "statistical_test",
                 Success = false,
                 Error = "column1 parameter is required"
             };
-        }
 
         var sb = new StringBuilder();
 
@@ -623,10 +603,10 @@ public class ToolExecutor
         {
             case "correlation":
                 return await ExecuteCorrelationTestAsync(column1, column2, sb);
-            
+
             case "ttest":
                 return await ExecuteTTestAsync(column1, column2, sb);
-            
+
             default:
                 return new ToolResult
                 {
@@ -640,14 +620,12 @@ public class ToolExecutor
     private async Task<ToolResult> ExecuteCorrelationTestAsync(string col1, string col2, StringBuilder sb)
     {
         if (string.IsNullOrEmpty(col2))
-        {
             return new ToolResult
             {
                 ToolId = "statistical_test",
                 Success = false,
                 Error = "column2 parameter required for correlation test"
             };
-        }
 
         // Calculate correlation using DuckDB
         var sql = $@"
@@ -722,27 +700,25 @@ public class ToolExecutor
         if (string.IsNullOrEmpty(groupCol))
         {
             // One-sample t-test against 0
-            var col = _profile.Columns.FirstOrDefault(c => 
+            var col = _profile.Columns.FirstOrDefault(c =>
                 c.Name.Equals(numericCol, StringComparison.OrdinalIgnoreCase));
-            
+
             if (col == null || !col.Mean.HasValue)
-            {
                 return new ToolResult
                 {
                     ToolId = "statistical_test",
                     Success = false,
                     Error = $"Column {numericCol} not found or has no statistics"
                 };
-            }
 
             var mean = col.Mean.Value;
             var stdDev = col.StdDev ?? 1;
             var n = _profile.RowCount - col.NullCount;
             var se = stdDev / Math.Sqrt(n);
             var tStat = mean / se;
-            
+
             sb.AppendLine($"**One-Sample T-Test: {numericCol}**");
-            sb.AppendLine($"- Testing if mean differs from 0");
+            sb.AppendLine("- Testing if mean differs from 0");
             sb.AppendLine($"- Mean: {mean:F4}");
             sb.AppendLine($"- Std Dev: {stdDev:F4}");
             sb.AppendLine($"- n: {n}");
@@ -784,24 +760,20 @@ public class ToolExecutor
         using var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
-        {
             groups.Add((
                 reader.GetValue(0)?.ToString() ?? "(null)",
                 reader.IsDBNull(1) ? 0 : reader.GetDouble(1),
                 reader.IsDBNull(2) ? 0 : reader.GetDouble(2),
                 reader.GetInt64(3)
             ));
-        }
 
         if (groups.Count < 2)
-        {
             return new ToolResult
             {
                 ToolId = "statistical_test",
                 Success = false,
                 Error = "Need at least 2 groups for two-sample t-test"
             };
-        }
 
         var g1 = groups[0];
         var g2 = groups[1];
@@ -844,21 +816,19 @@ public class ToolExecutor
     }
 
     /// <summary>
-    /// Feature importance based on correlation with target.
+    ///     Feature importance based on correlation with target.
     /// </summary>
     private async Task<ToolResult> ExecuteFeatureImportanceAsync(ToolInvocation invocation)
     {
         var method = GetParam<string>(invocation, "method", "correlation");
 
         if (_profile.Target == null)
-        {
             return new ToolResult
             {
                 ToolId = "feature_importance",
                 Success = false,
                 Error = "No target column specified. Use --target=<column> when profiling."
             };
-        }
 
         var targetCol = _profile.Target.ColumnName;
         var numericCols = _profile.Columns
@@ -868,14 +838,12 @@ public class ToolExecutor
             .ToList();
 
         if (numericCols.Count == 0)
-        {
             return new ToolResult
             {
                 ToolId = "feature_importance",
                 Success = false,
                 Error = "No numeric feature columns found"
             };
-        }
 
         var featureCorrelations = new List<(string Column, double Correlation)>();
 
@@ -891,9 +859,7 @@ public class ToolExecutor
             using var reader = await cmd.ExecuteReaderAsync();
 
             if (await reader.ReadAsync() && !reader.IsDBNull(0))
-            {
                 featureCorrelations.Add((colName, reader.GetDouble(0)));
-            }
         }
 
         // Sort by absolute correlation
@@ -933,7 +899,7 @@ public class ToolExecutor
     }
 
     /// <summary>
-    /// Time series decomposition - trend extraction.
+    ///     Time series decomposition - trend extraction.
     /// </summary>
     private async Task<ToolResult> ExecuteTimeSeriesDecomposeAsync(ToolInvocation invocation)
     {
@@ -946,14 +912,12 @@ public class ToolExecutor
             : dateColParam;
 
         if (string.IsNullOrEmpty(dateCol))
-        {
             return new ToolResult
             {
                 ToolId = "decompose_timeseries",
                 Success = false,
                 Error = "No date column found. Specify with date_column parameter."
             };
-        }
 
         // Find value column
         var valueCol = valueColParam == "auto"
@@ -961,14 +925,12 @@ public class ToolExecutor
             : valueColParam;
 
         if (string.IsNullOrEmpty(valueCol))
-        {
             return new ToolResult
             {
                 ToolId = "decompose_timeseries",
                 Success = false,
                 Error = "No numeric column found for time series analysis."
             };
-        }
 
         // Get monthly aggregations for trend
         var sql = $@"
@@ -988,37 +950,34 @@ public class ToolExecutor
         using var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
-        {
             periods.Add(new Dictionary<string, object>
             {
                 ["period"] = reader.GetValue(0)?.ToString() ?? "",
                 ["value"] = reader.IsDBNull(1) ? 0 : Math.Round(reader.GetDouble(1), 2),
                 ["count"] = reader.GetInt64(2)
             });
-        }
 
         if (periods.Count < 3)
-        {
             return new ToolResult
             {
                 ToolId = "decompose_timeseries",
                 Success = false,
                 Error = "Not enough data points for time series analysis (need at least 3 periods)"
             };
-        }
 
         // Calculate simple trend (linear regression slope)
         var values = periods.Select(p => (double)p["value"]).ToArray();
         var n = values.Length;
         var xMean = (n - 1) / 2.0;
         var yMean = values.Average();
-        
+
         double sumXY = 0, sumXX = 0;
-        for (int i = 0; i < n; i++)
+        for (var i = 0; i < n; i++)
         {
             sumXY += (i - xMean) * (values[i] - yMean);
             sumXX += (i - xMean) * (i - xMean);
         }
+
         var slope = sumXX != 0 ? sumXY / sumXX : 0;
         var trendDirection = slope > 0 ? "increasing" : slope < 0 ? "decreasing" : "flat";
 

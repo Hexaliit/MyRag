@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.DependencyInjection;
-using SignSummarizer.Pipelines;
 using SignSummarizer.Models;
+using SignSummarizer.Pipelines;
 
 namespace SignSummarizer.Services;
 
@@ -14,17 +13,17 @@ public interface ISignPipelineRegistry
 public sealed class SignPipelineRegistry : ISignPipelineRegistry
 {
     private readonly ConcurrentDictionary<string, ISignProcessingPipeline> _pipelines;
-    
+
     public SignPipelineRegistry()
     {
         _pipelines = new ConcurrentDictionary<string, ISignProcessingPipeline>();
     }
-    
+
     public ISignProcessingPipeline? GetStandardPipeline()
     {
         return _pipelines.TryGetValue("standard", out var pipeline) ? pipeline : null;
     }
-    
+
     public void RegisterPipeline(ISignProcessingPipeline pipeline)
     {
         _pipelines.TryAdd("standard", pipeline);
@@ -41,20 +40,20 @@ public interface ISignProcessingPipeline
 
 public sealed class SignProcessingPipeline : ISignProcessingPipeline
 {
-    private readonly ISignWaveCoordinator _waveCoordinator;
     private readonly ISignVectorStore _vectorStore;
-    
+    private readonly ISignWaveCoordinator _waveCoordinator;
+
     public SignProcessingPipeline(
         ISignWaveCoordinator waveCoordinator,
         ISignVectorStore vectorStore)
     {
         _waveCoordinator = waveCoordinator;
         _vectorStore = vectorStore;
-        
+
         var registry = new SignPipelineRegistry();
         registry.RegisterPipeline(this);
     }
-    
+
     public async IAsyncEnumerable<SignAtom> ProcessVideoAsync(
         string videoPath,
         string? signerId = null,
@@ -63,7 +62,7 @@ public sealed class SignProcessingPipeline : ISignProcessingPipeline
         var atoms = await _waveCoordinator.ProcessVideoAsync(
             videoPath,
             cancellationToken: cancellationToken);
-        
+
         foreach (var atom in atoms)
         {
             await _vectorStore.StoreAsync(atom, signerId, cancellationToken);

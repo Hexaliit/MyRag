@@ -4,7 +4,7 @@ using Avalonia.Markup.Xaml;
 
 namespace Mostlylucid.ImageSummarizer.Desktop;
 
-public partial class App : Application
+public class App : Application
 {
     public override void Initialize()
     {
@@ -19,10 +19,7 @@ public partial class App : Application
             desktop.MainWindow = mainWindow;
 
             // Load image from command-line if provided (for shell integration)
-            if (Program.Args.Length > 0)
-            {
-                mainWindow.LoadFromArgs(Program.Args);
-            }
+            if (Program.Args.Length > 0) mainWindow.LoadFromArgs(Program.Args);
         }
 
         base.OnFrameworkInitializationCompleted();

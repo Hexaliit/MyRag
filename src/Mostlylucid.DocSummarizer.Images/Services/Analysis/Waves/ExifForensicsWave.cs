@@ -5,8 +5,8 @@ using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Forensics wave for EXIF metadata analysis and tampering detection.
-/// Extracts and validates EXIF data to detect manipulation indicators.
+///     Forensics wave for EXIF metadata analysis and tampering detection.
+///     Extracts and validates EXIF data to detect manipulation indicators.
 /// </summary>
 public class ExifForensicsWave : IAnalysisWave
 {
@@ -36,27 +36,17 @@ public class ExifForensicsWave : IAnalysisWave
             Tags = new List<string> { SignalTags.Metadata }
         });
 
-        if (exifProfile == null)
-        {
-            return signals;
-        }
+        if (exifProfile == null) return signals;
 
         // Extract camera information
         string? make = null;
         string? model = null;
 
-        if (exifProfile.TryGetValue(ExifTag.Make, out var makeValue))
-        {
-            make = makeValue?.Value?.Trim();
-        }
+        if (exifProfile.TryGetValue(ExifTag.Make, out var makeValue)) make = makeValue?.Value?.Trim();
 
-        if (exifProfile.TryGetValue(ExifTag.Model, out var modelValue))
-        {
-            model = modelValue?.Value?.Trim();
-        }
+        if (exifProfile.TryGetValue(ExifTag.Model, out var modelValue)) model = modelValue?.Value?.Trim();
 
         if (!string.IsNullOrWhiteSpace(make) && !string.IsNullOrWhiteSpace(model))
-        {
             signals.Add(new Signal
             {
                 Key = "metadata.camera_info",
@@ -70,7 +60,6 @@ public class ExifForensicsWave : IAnalysisWave
                     ["model"] = model
                 }
             });
-        }
 
         // Original capture timestamp
         string? dateTimeOriginal = null;
@@ -78,22 +67,14 @@ public class ExifForensicsWave : IAnalysisWave
         string? dateTime = null;
 
         if (exifProfile.TryGetValue(ExifTag.DateTimeOriginal, out var dateTimeOrigValue))
-        {
             dateTimeOriginal = dateTimeOrigValue?.Value;
-        }
 
         if (exifProfile.TryGetValue(ExifTag.DateTimeDigitized, out var dateTimeDigValue))
-        {
             dateTimeDigitized = dateTimeDigValue?.Value;
-        }
 
-        if (exifProfile.TryGetValue(ExifTag.DateTime, out var dateTimeValue))
-        {
-            dateTime = dateTimeValue?.Value;
-        }
+        if (exifProfile.TryGetValue(ExifTag.DateTime, out var dateTimeValue)) dateTime = dateTimeValue?.Value;
 
         if (!string.IsNullOrWhiteSpace(dateTimeOriginal))
-        {
             signals.Add(new Signal
             {
                 Key = "metadata.datetime_original",
@@ -102,21 +83,14 @@ public class ExifForensicsWave : IAnalysisWave
                 Source = Name,
                 Tags = new List<string> { SignalTags.Metadata }
             });
-        }
 
         // GPS coordinates
         Rational[]? gpsLat = null;
         Rational[]? gpsLon = null;
 
-        if (exifProfile.TryGetValue(ExifTag.GPSLatitude, out var gpsLatValue))
-        {
-            gpsLat = gpsLatValue?.Value;
-        }
+        if (exifProfile.TryGetValue(ExifTag.GPSLatitude, out var gpsLatValue)) gpsLat = gpsLatValue?.Value;
 
-        if (exifProfile.TryGetValue(ExifTag.GPSLongitude, out var gpsLonValue))
-        {
-            gpsLon = gpsLonValue?.Value;
-        }
+        if (exifProfile.TryGetValue(ExifTag.GPSLongitude, out var gpsLonValue)) gpsLon = gpsLonValue?.Value;
 
         if (gpsLat != null && gpsLon != null)
         {
@@ -139,10 +113,7 @@ public class ExifForensicsWave : IAnalysisWave
 
         // Software used (editing detection)
         string? software = null;
-        if (exifProfile.TryGetValue(ExifTag.Software, out var softwareValue))
-        {
-            software = softwareValue?.Value?.Trim();
-        }
+        if (exifProfile.TryGetValue(ExifTag.Software, out var softwareValue)) software = softwareValue?.Value?.Trim();
 
         if (!string.IsNullOrWhiteSpace(software))
         {
@@ -162,7 +133,6 @@ public class ExifForensicsWave : IAnalysisWave
             });
 
             if (isEditingSoftware)
-            {
                 signals.Add(new Signal
                 {
                     Key = "forensics.possibly_edited",
@@ -176,7 +146,6 @@ public class ExifForensicsWave : IAnalysisWave
                         ["software"] = software
                     }
                 });
-            }
         }
 
         // Tampering detection: Check for timestamp inconsistencies
@@ -192,7 +161,6 @@ public class ExifForensicsWave : IAnalysisWave
         {
             var orientation = orientationValue?.Value;
             if (orientation.HasValue)
-            {
                 signals.Add(new Signal
                 {
                     Key = "metadata.orientation",
@@ -201,22 +169,16 @@ public class ExifForensicsWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { SignalTags.Metadata }
                 });
-            }
         }
 
         // Image dimensions from EXIF (for comparison with actual)
         uint? exifWidth = null;
         uint? exifHeight = null;
 
-        if (exifProfile.TryGetValue(ExifTag.PixelXDimension, out var widthValue))
-        {
-            exifWidth = (uint?)widthValue?.Value;
-        }
+        if (exifProfile.TryGetValue(ExifTag.PixelXDimension, out var widthValue)) exifWidth = (uint?)widthValue?.Value;
 
         if (exifProfile.TryGetValue(ExifTag.PixelYDimension, out var heightValue))
-        {
             exifHeight = (uint?)heightValue?.Value;
-        }
 
         if (exifWidth.HasValue && exifHeight.HasValue)
         {
@@ -224,9 +186,7 @@ public class ExifForensicsWave : IAnalysisWave
             var actualHeight = context.GetValue<int>("identity.height");
 
             if (actualWidth > 0 && actualHeight > 0)
-            {
                 if (exifWidth.Value != actualWidth || exifHeight.Value != actualHeight)
-                {
                     signals.Add(new Signal
                     {
                         Key = "forensics.dimension_mismatch",
@@ -241,8 +201,6 @@ public class ExifForensicsWave : IAnalysisWave
                             ["reason"] = "Image may have been resized without updating EXIF"
                         }
                     });
-                }
-            }
         }
 
         return signals;
@@ -256,7 +214,7 @@ public class ExifForensicsWave : IAnalysisWave
         var minutes = coordinates[1].ToDouble();
         var seconds = coordinates[2].ToDouble();
 
-        return degrees + (minutes / 60.0) + (seconds / 3600.0);
+        return degrees + minutes / 60.0 + seconds / 3600.0;
     }
 
     private static bool IsKnownEditingSoftware(string software)
@@ -279,9 +237,7 @@ public class ExifForensicsWave : IAnalysisWave
 
         if (string.IsNullOrWhiteSpace(dateTimeOriginal) ||
             string.IsNullOrWhiteSpace(dateTimeDigitized))
-        {
             return signals;
-        }
 
         try
         {
@@ -291,7 +247,6 @@ public class ExifForensicsWave : IAnalysisWave
 
             // Original should be <= Digitized (capture before digital conversion)
             if (original > digitized)
-            {
                 signals.Add(new Signal
                 {
                     Key = "forensics.timestamp_tampering",
@@ -306,11 +261,9 @@ public class ExifForensicsWave : IAnalysisWave
                         ["datetime_digitized"] = dateTimeDigitized
                     }
                 });
-            }
 
             // Check if timestamps are in the future
             if (original > DateTime.Now || digitized > DateTime.Now)
-            {
                 signals.Add(new Signal
                 {
                     Key = "forensics.future_timestamp",
@@ -323,11 +276,9 @@ public class ExifForensicsWave : IAnalysisWave
                         ["reason"] = "Timestamp is in the future"
                     }
                 });
-            }
 
             // Check for suspiciously round timestamps (00:00:00)
             if (original.Hour == 0 && original.Minute == 0 && original.Second == 0)
-            {
                 signals.Add(new Signal
                 {
                     Key = "forensics.suspicious_timestamp",
@@ -340,7 +291,6 @@ public class ExifForensicsWave : IAnalysisWave
                         ["reason"] = "Timestamp is exactly midnight (possibly fabricated)"
                     }
                 });
-            }
         }
         catch
         {

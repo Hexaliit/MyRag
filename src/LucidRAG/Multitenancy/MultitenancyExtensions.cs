@@ -3,12 +3,12 @@ using Microsoft.EntityFrameworkCore;
 namespace LucidRAG.Multitenancy;
 
 /// <summary>
-/// Extension methods for configuring multi-tenancy.
+///     Extension methods for configuring multi-tenancy.
 /// </summary>
 public static class MultitenancyExtensions
 {
     /// <summary>
-    /// Add multi-tenancy services to the service collection.
+    ///     Add multi-tenancy services to the service collection.
     /// </summary>
     public static IServiceCollection AddMultitenancy(
         this IServiceCollection services,
@@ -42,7 +42,7 @@ public static class MultitenancyExtensions
     }
 
     /// <summary>
-    /// Ensure tenant management tables are created/migrated.
+    ///     Ensure tenant management tables are created/migrated.
     /// </summary>
     public static async Task EnsureTenantTablesAsync(this IServiceProvider services)
     {

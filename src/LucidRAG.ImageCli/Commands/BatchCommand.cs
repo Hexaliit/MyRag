@@ -1,11 +1,12 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using LucidRAG.ImageCli.Services;
-using Mostlylucid.DocSummarizer.Images.Services;
-using Mostlylucid.DocSummarizer.Images.Services.Vision;
 using LucidRAG.ImageCli.Services.OutputFormatters;
 using Microsoft.Extensions.Configuration;
 using Mostlylucid.DocSummarizer.Images.Models;
+using Mostlylucid.DocSummarizer.Images.Services;
+using Mostlylucid.DocSummarizer.Images.Services.Vision;
 using Spectre.Console;
 using EscalationResult = Mostlylucid.DocSummarizer.Images.Services.EscalationResult;
 using ImageFilter = Mostlylucid.DocSummarizer.Images.Services.Vision.ImageFilter;
@@ -13,43 +14,64 @@ using ImageFilter = Mostlylucid.DocSummarizer.Images.Services.Vision.ImageFilter
 namespace LucidRAG.ImageCli.Commands;
 
 /// <summary>
-/// Command for batch processing images in a directory.
+///     Command for batch processing images in a directory.
 /// </summary>
 public static class BatchCommand
 {
-    private static readonly Argument<string> DirectoryArg = new("directory") { Description = "Directory containing images to process" };
+    private static readonly Argument<string> DirectoryArg = new("directory")
+        { Description = "Directory containing images to process" };
 
-    private static readonly Option<string> PatternOpt = new("--pattern", "-p") { Description = "Glob pattern for filtering files (e.g., **/*.jpg, photos/**/*.png)", DefaultValueFactory = _ => "**/*" };
+    private static readonly Option<string> PatternOpt = new("--pattern", "-p")
+    {
+        Description = "Glob pattern for filtering files (e.g., **/*.jpg, photos/**/*.png)",
+        DefaultValueFactory = _ => "**/*"
+    };
 
-    private static readonly Option<bool> RecursiveOpt = new("--recursive", "-r") { Description = "Process subdirectories recursively", DefaultValueFactory = _ => true };
+    private static readonly Option<bool> RecursiveOpt = new("--recursive", "-r")
+        { Description = "Process subdirectories recursively", DefaultValueFactory = _ => true };
 
-    private static readonly Option<int> MaxParallelOpt = new("--max-parallel") { Description = "Maximum parallel workers (0 = auto-detect based on CPU cores)", DefaultValueFactory = _ => 0 };
+    private static readonly Option<int> MaxParallelOpt = new("--max-parallel")
+        { Description = "Maximum parallel workers (0 = auto-detect based on CPU cores)", DefaultValueFactory = _ => 0 };
 
-    private static readonly Option<OutputFormat> FormatOpt = new("--format", "-f") { Description = "Output format", DefaultValueFactory = _ => OutputFormat.Table };
+    private static readonly Option<OutputFormat> FormatOpt = new("--format", "-f")
+        { Description = "Output format", DefaultValueFactory = _ => OutputFormat.Table };
 
     private static readonly Option<string?> OutputOpt = new("--output", "-o") { Description = "Save output to file" };
 
-    private static readonly Option<string?> ExportCsvOpt = new("--export-csv") { Description = "Export summary as CSV" };
+    private static readonly Option<string?> ExportCsvOpt = new("--export-csv")
+        { Description = "Export summary as CSV" };
 
-    private static readonly Option<string?> ExportJsonLdOpt = new("--export-jsonld") { Description = "Export fingerprints as JSON-LD for inspection" };
+    private static readonly Option<string?> ExportJsonLdOpt = new("--export-jsonld")
+        { Description = "Export fingerprints as JSON-LD for inspection" };
 
-    private static readonly Option<ImageType?> FilterTypeOpt = new("--filter-type") { Description = "Filter by detected image type" };
+    private static readonly Option<ImageType?> FilterTypeOpt = new("--filter-type")
+        { Description = "Filter by detected image type" };
 
-    private static readonly Option<double?> MinTextScoreOpt = new("--min-text-score") { Description = "Minimum text-likeliness score (0.0-1.0)" };
+    private static readonly Option<double?> MinTextScoreOpt = new("--min-text-score")
+        { Description = "Minimum text-likeliness score (0.0-1.0)" };
 
-    private static readonly Option<double?> MinSharpnessOpt = new("--min-sharpness") { Description = "Minimum sharpness (Laplacian variance)" };
+    private static readonly Option<double?> MinSharpnessOpt = new("--min-sharpness")
+        { Description = "Minimum sharpness (Laplacian variance)" };
 
-    private static readonly Option<string?> FilterQueryOpt = new("--filter", "-q") { Description = "Natural language filter query (e.g., 'country:UK resolution:high has_text:true')" };
+    private static readonly Option<string?> FilterQueryOpt = new("--filter", "-q")
+        { Description = "Natural language filter query (e.g., 'country:UK resolution:high has_text:true')" };
 
-    private static readonly Option<bool> EnableEscalationOpt = new("--enable-escalation") { Description = "Enable auto-escalation to vision LLM for uncertain cases", DefaultValueFactory = _ => false };
+    private static readonly Option<bool> EnableEscalationOpt = new("--enable-escalation")
+        { Description = "Enable auto-escalation to vision LLM for uncertain cases", DefaultValueFactory = _ => false };
 
-    private static readonly Option<bool> IncludeOcrOpt = new("--include-ocr") { Description = "Extract text using OCR for images with text", DefaultValueFactory = _ => false };
+    private static readonly Option<bool> IncludeOcrOpt = new("--include-ocr")
+        { Description = "Extract text using OCR for images with text", DefaultValueFactory = _ => false };
 
-    private static readonly Option<bool> ProgressOpt = new("--progress") { Description = "Show progress bars", DefaultValueFactory = _ => true };
+    private static readonly Option<bool> ProgressOpt = new("--progress")
+        { Description = "Show progress bars", DefaultValueFactory = _ => true };
 
-    private static readonly Option<string?> OrderByOpt = new("--order-by") { Description = "Sort results by property: color, resolution, sharpness, brightness, saturation, type, text-score" };
+    private static readonly Option<string?> OrderByOpt = new("--order-by")
+    {
+        Description = "Sort results by property: color, resolution, sharpness, brightness, saturation, type, text-score"
+    };
 
-    private static readonly Option<bool> DescendingOpt = new("--descending") { Description = "Sort in descending order", DefaultValueFactory = _ => false };
+    private static readonly Option<bool> DescendingOpt = new("--descending")
+        { Description = "Sort in descending order", DefaultValueFactory = _ => false };
 
     public static Command Create()
     {
@@ -109,7 +131,7 @@ public static class BatchCommand
             // Build service provider
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                .AddJsonFile("appsettings.json", optional: true)
+                .AddJsonFile("appsettings.json", true)
                 .Build();
 
             var services = Program.BuildServiceProvider(configuration);
@@ -133,8 +155,10 @@ public static class BatchCommand
                     var (available, message) = await visionLlmService.CheckAvailabilityAsync(ct);
                     if (!available)
                     {
-                        AnsiConsole.MarkupLine($"[yellow]⚠ Warning:[/] {Markup.Escape(message ?? "Ollama not available")}");
-                        AnsiConsole.MarkupLine("[dim]Escalation disabled, continuing with deterministic analysis...[/]");
+                        AnsiConsole.MarkupLine(
+                            $"[yellow]⚠ Warning:[/] {Markup.Escape(message ?? "Ollama not available")}");
+                        AnsiConsole.MarkupLine(
+                            "[dim]Escalation disabled, continuing with deterministic analysis...[/]");
                         enableEscalation = false;
                     }
                 }
@@ -157,7 +181,6 @@ public static class BatchCommand
                 BatchProcessingResult? batchResult = null;
 
                 if (showProgress)
-                {
                     await AnsiConsole.Progress()
                         .AutoClear(false)
                         .HideCompleted(false)
@@ -170,15 +193,13 @@ public static class BatchCommand
                         .StartAsync(async ctx =>
                         {
                             var tasks = new List<ProgressTask>();
-                            for (int i = 0; i < maxParallel; i++)
-                            {
-                                tasks.Add(ctx.AddTask($"[cyan]Worker {i + 1}[/]"));
-                            }
+                            for (var i = 0; i < maxParallel; i++) tasks.Add(ctx.AddTask($"[cyan]Worker {i + 1}[/]"));
 
                             var progress = new Progress<BatchProgress>(p =>
                             {
                                 var task = tasks[p.WorkerId];
-                                task.Description = $"[cyan]Worker {p.WorkerId + 1}:[/] {Markup.Escape(Path.GetFileName(p.FilePath))}";
+                                task.Description =
+                                    $"[cyan]Worker {p.WorkerId + 1}:[/] {Markup.Escape(Path.GetFileName(p.FilePath))}";
 
                                 if (p.Total > 0)
                                 {
@@ -191,13 +212,8 @@ public static class BatchCommand
                                 }
 
                                 if (p.Success)
-                                {
                                     task.Description += " [green]✓[/]";
-                                }
-                                else if (p.Error != null)
-                                {
-                                    task.Description += $" [red]✗ {Markup.Escape(p.Error)}[/]";
-                                }
+                                else if (p.Error != null) task.Description += $" [red]✗ {Markup.Escape(p.Error)}[/]";
                             });
 
                             batchResult = await batchProcessor.ProcessBatchAsync(
@@ -211,9 +227,7 @@ public static class BatchCommand
                                 progress,
                                 ct);
                         });
-                }
                 else
-                {
                     batchResult = await batchProcessor.ProcessBatchAsync(
                         directory,
                         pattern,
@@ -224,7 +238,6 @@ public static class BatchCommand
                         filter,
                         null,
                         ct);
-                }
 
                 if (batchResult == null)
                 {
@@ -236,14 +249,12 @@ public static class BatchCommand
                 if (!string.IsNullOrWhiteSpace(orderBy))
                 {
                     batchResult = SortResults(batchResult, orderBy, descending);
-                    AnsiConsole.MarkupLine($"[dim]Sorted by {orderBy} ({(descending ? "descending" : "ascending")})[/]");
+                    AnsiConsole.MarkupLine(
+                        $"[dim]Sorted by {orderBy} ({(descending ? "descending" : "ascending")})[/]");
                 }
 
                 // Export CSV if requested
-                if (!string.IsNullOrEmpty(exportCsv))
-                {
-                    await batchProcessor.ExportToCsvAsync(batchResult, exportCsv, ct);
-                }
+                if (!string.IsNullOrEmpty(exportCsv)) await batchProcessor.ExportToCsvAsync(batchResult, exportCsv, ct);
 
                 // Export JSON-LD if requested
                 if (!string.IsNullOrEmpty(exportJsonLd))
@@ -297,10 +308,8 @@ public static class BatchCommand
             return false;
 
         foreach (var filter in filters)
-        {
             if (!ApplySingleFilter(result.Profile, filter))
                 return false;
-        }
 
         return true;
     }
@@ -314,7 +323,7 @@ public static class BatchCommand
             "text_score" => CompareNumeric(profile.TextLikeliness, filter.Operator, double.Parse(filter.Value)),
             "sharpness" => MatchSharpness(profile, filter.Value),
             "is_grayscale" => profile.IsMostlyGrayscale == bool.Parse(filter.Value),
-            "has_text" => (profile.TextLikeliness > 0.4) == bool.Parse(filter.Value),
+            "has_text" => profile.TextLikeliness > 0.4 == bool.Parse(filter.Value),
             "orientation" => MatchOrientation(profile, filter.Value),
             _ => true // Unknown filter, ignore
         };
@@ -431,13 +440,13 @@ public static class BatchCommand
     }
 
     /// <summary>
-    /// Export batch results to JSON-LD format for semantic web compatibility.
+    ///     Export batch results to JSON-LD format for semantic web compatibility.
     /// </summary>
     private static async Task ExportToJsonLd(BatchProcessingResult batchResult, string outputPath, CancellationToken ct)
     {
         var jsonLd = new
         {
-            @context = new
+            context = new
             {
                 schema = "https://schema.org/",
                 lucidrag = "https://lucidrag.dev/schema/",
@@ -459,14 +468,14 @@ public static class BatchCommand
                 llmCaption = "schema:caption",
                 extractedText = "schema:text"
             },
-            @type = "lucidrag:ImageFingerprintCollection",
+            type = "lucidrag:ImageFingerprintCollection",
             dateGenerated = DateTime.UtcNow.ToString("O"),
             directory = batchResult.Directory,
             pattern = batchResult.Pattern,
             totalImages = batchResult.Results.Count,
             fingerprints = batchResult.Results.Select(r => new
             {
-                @type = "ImageFingerprint",
+                type = "ImageFingerprint",
                 contentUrl = r.FilePath,
                 sha256 = r.Profile?.Sha256,
                 format = r.Profile?.Format,
@@ -483,7 +492,7 @@ public static class BatchCommand
                 isMostlyGrayscale = r.Profile?.IsMostlyGrayscale,
                 dominantColors = r.Profile?.DominantColors.Select(c => new
                 {
-                    @type = "lucidrag:DominantColor",
+                    type = "lucidrag:DominantColor",
                     hex = c.Hex,
                     percentage = c.Percentage,
                     name = c.Name
@@ -494,10 +503,10 @@ public static class BatchCommand
             }).ToList()
         };
 
-        var json = System.Text.Json.JsonSerializer.Serialize(jsonLd, new System.Text.Json.JsonSerializerOptions
+        var json = JsonSerializer.Serialize(jsonLd, new JsonSerializerOptions
         {
             WriteIndented = true,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         });
 
         await File.WriteAllTextAsync(outputPath, json, ct);
@@ -509,6 +518,6 @@ file static class ServiceProviderExtensions
     public static T GetRequiredService<T>(this IServiceProvider services) where T : notnull
     {
         return (T)(services.GetService(typeof(T)) ??
-            throw new InvalidOperationException($"Service of type {typeof(T)} not found"));
+                   throw new InvalidOperationException($"Service of type {typeof(T)} not found"));
     }
 }

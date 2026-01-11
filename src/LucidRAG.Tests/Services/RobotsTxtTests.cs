@@ -32,10 +32,10 @@ public class RobotsTxtTests
     {
         // Arrange
         var content = """
-            User-agent: *
-            Disallow: /admin
-            Disallow: /private/
-            """;
+                      User-agent: *
+                      Disallow: /admin
+                      Disallow: /private/
+                      """;
         var robots = RobotsTxt.Parse(content);
 
         // Act & Assert
@@ -52,12 +52,12 @@ public class RobotsTxtTests
     {
         // Arrange
         var content = """
-            User-agent: LucidRAG
-            Disallow: /secret
+                      User-agent: LucidRAG
+                      Disallow: /secret
 
-            User-agent: Googlebot
-            Disallow: /google-only
-            """;
+                      User-agent: Googlebot
+                      Disallow: /google-only
+                      """;
         var robots = RobotsTxt.Parse(content);
 
         // Act & Assert
@@ -72,10 +72,10 @@ public class RobotsTxtTests
     {
         // Arrange
         var content = """
-            User-agent: *
-            Disallow: /docs/
-            Allow: /docs/public
-            """;
+                      User-agent: *
+                      Disallow: /docs/
+                      Allow: /docs/public
+                      """;
         var robots = RobotsTxt.Parse(content);
 
         // Act & Assert
@@ -88,9 +88,9 @@ public class RobotsTxtTests
     {
         // Arrange
         var content = """
-            User-agent: *
-            Disallow: /api/*
-            """;
+                      User-agent: *
+                      Disallow: /api/*
+                      """;
         var robots = RobotsTxt.Parse(content);
 
         // Act & Assert
@@ -104,11 +104,11 @@ public class RobotsTxtTests
     {
         // Arrange
         var content = """
-            # This is a comment
-            User-agent: *
-            # Another comment
-            Disallow: /blocked
-            """;
+                      # This is a comment
+                      User-agent: *
+                      # Another comment
+                      Disallow: /blocked
+                      """;
         var robots = RobotsTxt.Parse(content);
 
         // Act & Assert
@@ -121,9 +121,9 @@ public class RobotsTxtTests
     {
         // Arrange - empty Disallow means allow all
         var content = """
-            User-agent: *
-            Disallow:
-            """;
+                      User-agent: *
+                      Disallow:
+                      """;
         var robots = RobotsTxt.Parse(content);
 
         // Act & Assert
@@ -135,9 +135,9 @@ public class RobotsTxtTests
     {
         // Arrange
         var content = """
-            User-agent: lucidrag
-            Disallow: /secret
-            """;
+                      User-agent: lucidrag
+                      Disallow: /secret
+                      """;
         var robots = RobotsTxt.Parse(content);
 
         // Act & Assert
@@ -149,11 +149,11 @@ public class RobotsTxtTests
     {
         // Arrange
         var content = """
-            User-agent: *
-            This is not a valid directive
-            NoColon
-            Disallow: /blocked
-            """;
+                      User-agent: *
+                      This is not a valid directive
+                      NoColon
+                      Disallow: /blocked
+                      """;
         var robots = RobotsTxt.Parse(content);
 
         // Act & Assert
@@ -166,14 +166,14 @@ public class RobotsTxtTests
     {
         // Arrange - typical WordPress robots.txt
         var content = """
-            User-agent: *
-            Disallow: /wp-admin/
-            Allow: /wp-admin/admin-ajax.php
-            Disallow: /wp-includes/
-            Disallow: /xmlrpc.php
+                      User-agent: *
+                      Disallow: /wp-admin/
+                      Allow: /wp-admin/admin-ajax.php
+                      Disallow: /wp-includes/
+                      Disallow: /xmlrpc.php
 
-            Sitemap: https://example.com/sitemap.xml
-            """;
+                      Sitemap: https://example.com/sitemap.xml
+                      """;
         var robots = RobotsTxt.Parse(content);
 
         // Act & Assert
@@ -190,9 +190,9 @@ public class RobotsTxtTests
     {
         // Arrange
         var content = """
-            User-agent: *
-            Disallow: /
-            """;
+                      User-agent: *
+                      Disallow: /
+                      """;
         var robots = RobotsTxt.Parse(content);
 
         // Act & Assert

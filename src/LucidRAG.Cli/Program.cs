@@ -1,10 +1,7 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
 using System.Runtime.InteropServices;
-using Microsoft.Extensions.DependencyInjection;
 using LucidRAG.Cli.Services;
 using Spectre.Console;
-
 // Use alias to avoid conflict with GraphRag.IndexCommand
 using CliCommands = LucidRAG.Cli.Commands;
 
@@ -19,31 +16,30 @@ namespace LucidRAG.Cli;
 internal static class Program
 {
     // Global options
-    private static readonly Option<string?> DataDirOption = new("--data-dir") { Description = "Data directory (default: ~/.lucidrag or %APPDATA%/lucidrag)" };
-    private static readonly Option<bool> VerboseOption = new("--verbose", "-v") { Description = "Show detailed output", DefaultValueFactory = _ => false };
-    private static readonly Option<string?> ConfigOption = new("--config") { Description = "Path to configuration file" };
+    private static readonly Option<string?> DataDirOption = new("--data-dir")
+        { Description = "Data directory (default: ~/.lucidrag or %APPDATA%/lucidrag)" };
+
+    private static readonly Option<bool> VerboseOption = new("--verbose", "-v")
+        { Description = "Show detailed output", DefaultValueFactory = _ => false };
+
+    private static readonly Option<string?> ConfigOption = new("--config")
+        { Description = "Path to configuration file" };
 
     public static async Task<int> Main(string[] args)
     {
         // If no arguments provided, try to start conversational mode
-        if (args.Length == 0)
-        {
-            return await TryStartConversationalModeAsync();
-        }
+        if (args.Length == 0) return await TryStartConversationalModeAsync();
 
         // Show banner for help
-        if (args.Contains("--help") || args.Contains("-h"))
-        {
-            ShowBanner();
-        }
+        if (args.Contains("--help") || args.Contains("-h")) ShowBanner();
 
         var rootCommand = BuildRootCommand();
         return rootCommand.Parse(args).Invoke();
     }
 
     /// <summary>
-    /// Try to start conversational mode if Ollama is available
-    /// Falls back to showing help if not available
+    ///     Try to start conversational mode if Ollama is available
+    ///     Falls back to showing help if not available
     /// </summary>
     private static async Task<int> TryStartConversationalModeAsync()
     {
@@ -59,23 +55,21 @@ internal static class Program
                 Verbose = false
             };
 
-            await Commands.ConversationalCommand.RunConversationalModeAsync(config, verbose: false, CancellationToken.None);
+            await CliCommands.ConversationalCommand.RunConversationalModeAsync(config, false, CancellationToken.None);
             return 0;
         }
-        else
-        {
-            // Show banner and help
-            ShowBanner();
-            AnsiConsole.MarkupLine("[yellow]⚠[/]  Conversational mode requires Ollama");
-            AnsiConsole.MarkupLine("[dim]Start Ollama with:[/] [green]ollama serve[/]");
-            AnsiConsole.MarkupLine("[dim]Or run a specific command:[/] [green]lucidrag-cli --help[/]");
-            AnsiConsole.WriteLine();
-            return 0;
-        }
+
+        // Show banner and help
+        ShowBanner();
+        AnsiConsole.MarkupLine("[yellow]⚠[/]  Conversational mode requires Ollama");
+        AnsiConsole.MarkupLine("[dim]Start Ollama with:[/] [green]ollama serve[/]");
+        AnsiConsole.MarkupLine("[dim]Or run a specific command:[/] [green]lucidrag-cli --help[/]");
+        AnsiConsole.WriteLine();
+        return 0;
     }
 
     /// <summary>
-    /// Quick check if Ollama is available
+    ///     Quick check if Ollama is available
     /// </summary>
     private static async Task<bool> CheckOllamaAvailableAsync()
     {
@@ -109,7 +103,7 @@ internal static class Program
         rootCommand.Options.Add(ConfigOption);
 
         // Add subcommands
-        rootCommand.Subcommands.Add(CliCommands.ProcessCommand.Create());  // Unified ingestion pipeline
+        rootCommand.Subcommands.Add(CliCommands.ProcessCommand.Create()); // Unified ingestion pipeline
         rootCommand.Subcommands.Add(CliCommands.ConversationalCommand.Create());
         rootCommand.Subcommands.Add(CliCommands.IndexCommand.Create());
         rootCommand.Subcommands.Add(CliCommands.SearchCommand.Create());
@@ -125,7 +119,7 @@ internal static class Program
     }
 
     /// <summary>
-    /// Get the default data directory for LucidRAG
+    ///     Get the default data directory for LucidRAG
     /// </summary>
     public static string GetDefaultDataDirectory()
     {
@@ -134,15 +128,13 @@ internal static class Program
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             return Path.Combine(appData, "lucidrag");
         }
-        else
-        {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            return Path.Combine(home, ".lucidrag");
-        }
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return Path.Combine(home, ".lucidrag");
     }
 
     /// <summary>
-    /// Ensure the data directory exists and return its path
+    ///     Ensure the data directory exists and return its path
     /// </summary>
     public static string EnsureDataDirectory(string? customPath = null)
     {

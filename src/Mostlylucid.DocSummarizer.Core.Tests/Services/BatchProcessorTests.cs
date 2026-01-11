@@ -1,7 +1,6 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Config;
-using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Models;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Services;
 
@@ -89,7 +88,7 @@ public class BatchProcessorTests
         Assert.Equal(3, summary.TotalFiles);
         Assert.Equal(2, summary.SuccessCount);
         Assert.Equal(1, summary.FailureCount);
-        Assert.Equal(2.0 / 3.0, summary.SuccessRate, precision: 2);
+        Assert.Equal(2.0 / 3.0, summary.SuccessRate, 2);
     }
 
     [Fact]

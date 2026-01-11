@@ -5,7 +5,7 @@ namespace LucidRAG.Models;
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// Standard API response envelope for single items.
+///     Standard API response envelope for single items.
 /// </summary>
 public record ApiResponse<T>(
     T Data,
@@ -13,7 +13,7 @@ public record ApiResponse<T>(
     Dictionary<string, string>? Links = null);
 
 /// <summary>
-/// Standard API response envelope for paginated lists.
+///     Standard API response envelope for paginated lists.
 /// </summary>
 public record PagedResponse<T>(
     IEnumerable<T> Data,
@@ -21,7 +21,7 @@ public record PagedResponse<T>(
     Dictionary<string, string>? Links = null);
 
 /// <summary>
-/// Standard API error response.
+///     Standard API error response.
 /// </summary>
 public record ApiError(
     string Error,
@@ -29,7 +29,7 @@ public record ApiError(
     Dictionary<string, string[]>? Validation = null);
 
 /// <summary>
-/// Metadata for API responses.
+///     Metadata for API responses.
 /// </summary>
 public record ApiMeta(
     DateTimeOffset Timestamp,
@@ -37,7 +37,7 @@ public record ApiMeta(
     string? RequestId = null);
 
 /// <summary>
-/// Pagination metadata for list responses.
+///     Pagination metadata for list responses.
 /// </summary>
 public record PaginationMeta(
     int Page,
@@ -50,7 +50,7 @@ public record PaginationMeta(
 }
 
 /// <summary>
-/// Standard async job response for long-running operations.
+///     Standard async job response for long-running operations.
 /// </summary>
 public record JobResponse(
     Guid JobId,
@@ -59,12 +59,14 @@ public record JobResponse(
     string? StatusUrl = null);
 
 /// <summary>
-/// API response helpers for controllers.
+///     API response helpers for controllers.
 /// </summary>
 public static class ApiResponseHelpers
 {
     public static ApiResponse<T> Success<T>(T data, double? durationMs = null)
-        => new(data, new ApiMeta(DateTimeOffset.UtcNow, durationMs));
+    {
+        return new ApiResponse<T>(data, new ApiMeta(DateTimeOffset.UtcNow, durationMs));
+    }
 
     public static PagedResponse<T> Paged<T>(
         IEnumerable<T> items,
@@ -95,7 +97,9 @@ public static class ApiResponseHelpers
     }
 
     public static JobResponse Job(Guid jobId, string status, string? message = null, string? baseUrl = null)
-        => new(jobId, status, message, baseUrl != null ? $"{baseUrl}/{jobId}" : null);
+    {
+        return new JobResponse(jobId, status, message, baseUrl != null ? $"{baseUrl}/{jobId}" : null);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -121,7 +125,7 @@ public record RemoveDocumentsRequest(Guid[] DocumentIds);
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// Search API request model.
+///     Search API request model.
 /// </summary>
 /// <param name="Query">The search query text</param>
 /// <param name="CollectionId">Optional: limit search to a specific collection</param>

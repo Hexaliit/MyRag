@@ -3,39 +3,42 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Interface for pluggable image analysis components that contribute signals to a dynamic profile.
-/// Each wave is an independent analyzer that produces signals about different aspects of an image.
+///     Interface for pluggable image analysis components that contribute signals to a dynamic profile.
+///     Each wave is an independent analyzer that produces signals about different aspects of an image.
 /// </summary>
 public interface IAnalysisWave
 {
     /// <summary>
-    /// Unique name identifying this analysis wave.
+    ///     Unique name identifying this analysis wave.
     /// </summary>
     string Name { get; }
 
     /// <summary>
-    /// Priority for execution order. Higher priority waves run first.
-    /// Allows dependencies between waves (e.g., forensics wave may depend on color wave results).
+    ///     Priority for execution order. Higher priority waves run first.
+    ///     Allows dependencies between waves (e.g., forensics wave may depend on color wave results).
     /// </summary>
     int Priority { get; }
 
     /// <summary>
-    /// Tags describing what category of analysis this wave provides.
+    ///     Tags describing what category of analysis this wave provides.
     /// </summary>
     IReadOnlyList<string> Tags { get; }
 
     /// <summary>
-    /// Check if this wave should run based on cheap preconditions.
-    /// Expensive waves can override this to skip processing when preconditions aren't met.
-    /// Default implementation always returns true.
+    ///     Check if this wave should run based on cheap preconditions.
+    ///     Expensive waves can override this to skip processing when preconditions aren't met.
+    ///     Default implementation always returns true.
     /// </summary>
     /// <param name="imagePath">Path to the image file</param>
     /// <param name="context">Shared context with results from previously executed waves</param>
     /// <returns>True if the wave should execute, false to skip</returns>
-    bool ShouldRun(string imagePath, AnalysisContext context) => true;
+    bool ShouldRun(string imagePath, AnalysisContext context)
+    {
+        return true;
+    }
 
     /// <summary>
-    /// Analyze an image and produce signals.
+    ///     Analyze an image and produce signals.
     /// </summary>
     /// <param name="imagePath">Path to the image file</param>
     /// <param name="context">Shared context with results from previously executed waves</param>
@@ -45,39 +48,43 @@ public interface IAnalysisWave
 }
 
 /// <summary>
-/// Shared context passed between analysis waves.
-/// Allows waves to access results from higher-priority waves.
+///     Shared context passed between analysis waves.
+///     Allows waves to access results from higher-priority waves.
 /// </summary>
 public class AnalysisContext
 {
-    private readonly Dictionary<string, List<Signal>> _signals = new();
     private readonly Dictionary<string, object> _cache = new();
+    private readonly Dictionary<string, List<Signal>> _signals = new();
 
     /// <summary>
-    /// Add a signal to the context.
+    ///     Check if we're in fast mode (skip expensive operations).
+    /// </summary>
+    public bool IsFastRoute => GetSelectedRoute() == "fast";
+
+    /// <summary>
+    ///     Check if we're in quality mode (run everything).
+    /// </summary>
+    public bool IsQualityRoute => GetSelectedRoute() == "quality";
+
+    /// <summary>
+    ///     Add a signal to the context.
     /// </summary>
     public void AddSignal(Signal signal)
     {
-        if (!_signals.ContainsKey(signal.Key))
-        {
-            _signals[signal.Key] = new List<Signal>();
-        }
+        if (!_signals.ContainsKey(signal.Key)) _signals[signal.Key] = new List<Signal>();
         _signals[signal.Key].Add(signal);
     }
 
     /// <summary>
-    /// Add multiple signals to the context.
+    ///     Add multiple signals to the context.
     /// </summary>
     public void AddSignals(IEnumerable<Signal> signals)
     {
-        foreach (var signal in signals)
-        {
-            AddSignal(signal);
-        }
+        foreach (var signal in signals) AddSignal(signal);
     }
 
     /// <summary>
-    /// Get all signals for a given key.
+    ///     Get all signals for a given key.
     /// </summary>
     public IEnumerable<Signal> GetSignals(string key)
     {
@@ -85,7 +92,7 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Get the most confident signal for a key.
+    ///     Get the most confident signal for a key.
     /// </summary>
     public Signal? GetBestSignal(string key)
     {
@@ -93,7 +100,7 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Get value from the most confident signal.
+    ///     Get value from the most confident signal.
     /// </summary>
     public T? GetValue<T>(string key)
     {
@@ -102,7 +109,7 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Check if a signal exists for a key.
+    ///     Check if a signal exists for a key.
     /// </summary>
     public bool HasSignal(string key)
     {
@@ -110,7 +117,7 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Get all signals.
+    ///     Get all signals.
     /// </summary>
     public IEnumerable<Signal> GetAllSignals()
     {
@@ -118,7 +125,7 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Cache arbitrary data for sharing between waves.
+    ///     Cache arbitrary data for sharing between waves.
     /// </summary>
     public void SetCached<T>(string key, T value)
     {
@@ -126,7 +133,7 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Retrieve cached data.
+    ///     Retrieve cached data.
     /// </summary>
     public T? GetCached<T>(string key)
     {
@@ -134,7 +141,7 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Clear all cached data (useful for freeing memory after analysis).
+    ///     Clear all cached data (useful for freeing memory after analysis).
     /// </summary>
     public void ClearCache()
     {
@@ -142,8 +149,8 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Check if a wave is skipped by auto-routing.
-    /// Waves should call this in ShouldRun() to respect routing decisions.
+    ///     Check if a wave is skipped by auto-routing.
+    ///     Waves should call this in ShouldRun() to respect routing decisions.
     /// </summary>
     /// <param name="waveName">Name of the wave to check</param>
     /// <returns>True if the wave should be skipped</returns>
@@ -153,20 +160,10 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Get the selected route (fast/balanced/quality).
+    ///     Get the selected route (fast/balanced/quality).
     /// </summary>
     public string? GetSelectedRoute()
     {
         return GetValue<string>("route.selected");
     }
-
-    /// <summary>
-    /// Check if we're in fast mode (skip expensive operations).
-    /// </summary>
-    public bool IsFastRoute => GetSelectedRoute() == "fast";
-
-    /// <summary>
-    /// Check if we're in quality mode (run everything).
-    /// </summary>
-    public bool IsQualityRoute => GetSelectedRoute() == "quality";
 }

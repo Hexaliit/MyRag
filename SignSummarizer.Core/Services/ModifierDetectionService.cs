@@ -6,17 +6,19 @@ namespace SignSummarizer.Services;
 
 public interface IModifierDetectionService
 {
-    NonManualModifiers? DetectModifiers(OpenCvSharp.Mat frame, TimeSpan timestamp);
-    Task<NonManualModifiers?> DetectModifiersAsync(OpenCvSharp.Mat frame, TimeSpan timestamp, CancellationToken cancellationToken = default);
+    NonManualModifiers? DetectModifiers(Mat frame, TimeSpan timestamp);
+
+    Task<NonManualModifiers?> DetectModifiersAsync(Mat frame, TimeSpan timestamp,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ModifierDetectionService : IModifierDetectionService
 {
-    private readonly ILogger<ModifierDetectionService> _logger;
-    private readonly OnnxRunner? _faceRunner;
-    private readonly OnnxRunner? _poseRunner;
     private readonly float _confidenceThreshold;
-    
+    private readonly OnnxRunner? _faceRunner;
+    private readonly ILogger<ModifierDetectionService> _logger;
+    private readonly OnnxRunner? _poseRunner;
+
     public ModifierDetectionService(
         IModelLoader modelLoader,
         ILogger<ModifierDetectionService> logger,
@@ -26,7 +28,7 @@ public sealed class ModifierDetectionService : IModifierDetectionService
     {
         _logger = logger;
         _confidenceThreshold = confidenceThreshold;
-        
+
         try
         {
             if (modelLoader.IsModelAvailable(faceModelName))
@@ -38,7 +40,7 @@ public sealed class ModifierDetectionService : IModifierDetectionService
                     "output",
                     new[] { 1, 3, 256, 256 });
             }
-            
+
             if (modelLoader.IsModelAvailable(poseModelName))
             {
                 var poseModelPath = modelLoader.LoadModelAsync(poseModelName).GetAwaiter().GetResult();
@@ -54,8 +56,8 @@ public sealed class ModifierDetectionService : IModifierDetectionService
             _logger.LogWarning(ex, "Failed to initialize modifier detection models");
         }
     }
-    
-    public NonManualModifiers? DetectModifiers(OpenCvSharp.Mat frame, TimeSpan timestamp)
+
+    public NonManualModifiers? DetectModifiers(Mat frame, TimeSpan timestamp)
     {
         try
         {
@@ -63,7 +65,7 @@ public sealed class ModifierDetectionService : IModifierDetectionService
             var headMotion = HeadMotion.None;
             var mouthShape = DetectMouthShape(frame);
             var torsoShift = DetectTorsoShift(frame);
-            
+
             var modifiers = new NonManualModifiers
             {
                 BrowPosition = browPosition,
@@ -73,7 +75,7 @@ public sealed class ModifierDetectionService : IModifierDetectionService
                 Timestamp = timestamp,
                 Confidence = 0.7f
             };
-            
+
             return modifiers.HasModifiers ? modifiers : null;
         }
         catch (Exception ex)
@@ -82,31 +84,31 @@ public sealed class ModifierDetectionService : IModifierDetectionService
             return null;
         }
     }
-    
+
     public Task<NonManualModifiers?> DetectModifiersAsync(
-        OpenCvSharp.Mat frame,
+        Mat frame,
         TimeSpan timestamp,
         CancellationToken cancellationToken = default)
     {
         return Task.FromResult(DetectModifiers(frame, timestamp));
     }
-    
-    private BrowPosition DetectBrowPosition(OpenCvSharp.Mat frame)
+
+    private BrowPosition DetectBrowPosition(Mat frame)
     {
         if (_faceRunner == null)
             return BrowPosition.Neutral;
-        
+
         try
         {
             var input = PreprocessFrame(frame);
             var output = _faceRunner.Run(input);
-            
+
             if (output.Length >= 2)
             {
                 var leftBrowY = output[0];
                 var rightBrowY = output[1];
                 var avgBrowY = (leftBrowY + rightBrowY) / 2;
-                
+
                 if (avgBrowY < 0.4f)
                     return BrowPosition.Raised;
                 if (avgBrowY > 0.6f)
@@ -117,26 +119,26 @@ public sealed class ModifierDetectionService : IModifierDetectionService
         {
             _logger.LogWarning(ex, "Error detecting brow position");
         }
-        
+
         return BrowPosition.Neutral;
     }
-    
-    private MouthShape DetectMouthShape(OpenCvSharp.Mat frame)
+
+    private MouthShape DetectMouthShape(Mat frame)
     {
         if (_faceRunner == null)
             return MouthShape.Unknown;
-        
+
         try
         {
             var input = PreprocessFrame(frame);
             var output = _faceRunner.Run(input);
-            
+
             if (output.Length >= 4)
             {
                 var upperLipY = output[2];
                 var lowerLipY = output[3];
                 var mouthHeight = Math.Abs(lowerLipY - upperLipY);
-                
+
                 if (mouthHeight > 0.1f)
                     return MouthShape.Open;
                 if (mouthHeight < 0.02f)
@@ -147,47 +149,42 @@ public sealed class ModifierDetectionService : IModifierDetectionService
         {
             _logger.LogWarning(ex, "Error detecting mouth shape");
         }
-        
+
         return MouthShape.Neutral;
     }
-    
-    private float DetectTorsoShift(OpenCvSharp.Mat frame)
+
+    private float DetectTorsoShift(Mat frame)
     {
         if (_poseRunner == null)
             return 0f;
-        
+
         try
         {
             var input = PreprocessFrame(frame);
             var output = _poseRunner.Run(input);
-            
-            if (output.Length >= 1)
-            {
-                return output[0] - 0.5f;
-            }
+
+            if (output.Length >= 1) return output[0] - 0.5f;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error detecting torso shift");
         }
-        
+
         return 0f;
     }
-    
-    private float[] PreprocessFrame(OpenCvSharp.Mat frame)
+
+    private float[] PreprocessFrame(Mat frame)
     {
-        var resized = frame.Resize(new OpenCvSharp.Size(256, 256));
+        var resized = frame.Resize(new Size(256, 256));
         var normalized = new float[3 * 256 * 256];
-        
-        for (int c = 0; c < 3; c++)
+
+        for (var c = 0; c < 3; c++)
+        for (var i = 0; i < 256 * 256; i++)
         {
-            for (int i = 0; i < 256 * 256; i++)
-            {
-                var val = resized.At<Vec3b>(i / 256, i % 256)[2 - c];
-                normalized[c * 256 * 256 + i] = val / 255.0f;
-            }
+            var val = resized.At<Vec3b>(i / 256, i % 256)[2 - c];
+            normalized[c * 256 * 256 + i] = val / 255.0f;
         }
-        
+
         resized.Dispose();
         return normalized;
     }

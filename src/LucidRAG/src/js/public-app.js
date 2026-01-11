@@ -10,7 +10,7 @@ export function publicApp(tenantName) {
         selectedCollection: null,
         communities: [],
         selectedCommunity: null,
-        stats: { totalDocuments: 0, totalEntities: 0 },
+        stats: {totalDocuments: 0, totalEntities: 0},
         theme: localStorage.getItem('lucidrag-theme') || 'light',
         conversationId: null,
         messages: [],
@@ -155,7 +155,7 @@ export function publicApp(tenantName) {
             this.currentMessage = '';
 
             // Add user message
-            this.messages.push({ role: 'user', content: userMessage });
+            this.messages.push({role: 'user', content: userMessage});
             this.isTyping = true;
 
             // Scroll to bottom to show user message
@@ -185,7 +185,7 @@ export function publicApp(tenantName) {
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+                    const errorData = await response.json().catch(() => ({message: 'Unknown error'}));
                     console.error('Chat API error:', errorData);
                     throw new Error(errorData.message || `HTTP ${response.status}`);
                 }

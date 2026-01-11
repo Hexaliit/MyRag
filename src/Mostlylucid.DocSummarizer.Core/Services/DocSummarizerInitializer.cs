@@ -6,18 +6,18 @@ using Mostlylucid.DocSummarizer.Config;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Background service that initializes DocSummarizer on application startup.
-/// Handles embedding service initialization and optional reindexing.
+///     Background service that initializes DocSummarizer on application startup.
+///     Handles embedding service initialization and optional reindexing.
 /// </summary>
 public class DocSummarizerInitializer : IHostedService
 {
-    private readonly IEmbeddingService _embeddingService;
-    private readonly IVectorStore _vectorStore;
     private readonly DocSummarizerConfig _config;
+    private readonly IEmbeddingService _embeddingService;
     private readonly ILogger<DocSummarizerInitializer>? _logger;
+    private readonly IVectorStore _vectorStore;
 
     /// <summary>
-    /// Creates a new instance of the DocSummarizer initializer.
+    ///     Creates a new instance of the DocSummarizer initializer.
     /// </summary>
     public DocSummarizerInitializer(
         IEmbeddingService embeddingService,
@@ -53,7 +53,7 @@ public class DocSummarizerInitializer : IHostedService
                     _config.BertRag.CollectionName);
 
                 await ClearVectorStoreAsync(cancellationToken);
-                
+
                 _logger?.LogInformation("Vector store cleared. Documents will be re-indexed on first access.");
             }
             else
@@ -96,10 +96,7 @@ public class DocSummarizerInitializer : IHostedService
                 cancellationToken);
 
             // Delete the collection if it supports it
-            if (_vectorStore is IAsyncDisposable disposable)
-            {
-                await disposable.DisposeAsync();
-            }
+            if (_vectorStore is IAsyncDisposable disposable) await disposable.DisposeAsync();
 
             _logger?.LogDebug("Vector store collection cleared");
         }

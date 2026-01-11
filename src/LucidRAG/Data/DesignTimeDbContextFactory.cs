@@ -4,8 +4,8 @@ using Microsoft.EntityFrameworkCore.Design;
 namespace LucidRAG.Data;
 
 /// <summary>
-/// Design-time factory for creating DbContext during migrations.
-/// Uses PostgreSQL for design-time to match production migrations.
+///     Design-time factory for creating DbContext during migrations.
+///     Uses PostgreSQL for design-time to match production migrations.
 /// </summary>
 public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<RagDocumentsDbContext>
 {

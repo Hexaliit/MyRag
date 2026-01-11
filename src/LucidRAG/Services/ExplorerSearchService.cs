@@ -1,15 +1,15 @@
+using System.Diagnostics;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Services;
 using LucidRAG.Services.Sentinel;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace LucidRAG.Web.Services;
 
 /// <summary>
-/// Explorer search service for semantic document search without LLM chat synthesis.
-/// Uses Sentinel for query decomposition, returns ranked document results.
+///     Explorer search service for semantic document search without LLM chat synthesis.
+///     Uses Sentinel for query decomposition, returns ranked document results.
 /// </summary>
 public class ExplorerSearchService(
     ISentinelService sentinel,
@@ -21,7 +21,7 @@ public class ExplorerSearchService(
         ExplorerSearchRequest request,
         CancellationToken ct = default)
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         // Build schema context for Sentinel
         var schema = await sentinel.BuildSchemaContextAsync(request.CollectionId, ct);
@@ -43,10 +43,7 @@ public class ExplorerSearchService(
             queryPlan = await sentinel.DecomposeAsync(request.Query, schema, options, ct);
 
             // Extract sub-queries from the plan
-            if (queryPlan.SubQueries.Count > 0)
-            {
-                subQueries = queryPlan.SubQueries.Select(sq => sq.Query).ToList();
-            }
+            if (queryPlan.SubQueries.Count > 0) subQueries = queryPlan.SubQueries.Select(sq => sq.Query).ToList();
         }
         catch (Exception ex)
         {
@@ -60,17 +57,15 @@ public class ExplorerSearchService(
         foreach (var subQuery in subQueries)
         {
             var searchRequest = new SearchRequest(
-                Query: subQuery,
-                CollectionId: request.CollectionId,
+                subQuery,
+                request.CollectionId,
                 TopK: request.TopK,
                 SearchMode: SearchMode.Hybrid);
 
             var searchResult = await searchService.SearchAsync(searchRequest, ct);
 
             foreach (var item in searchResult.Results)
-            {
                 if (seenDocIds.Add(item.DocumentId))
-                {
                     allResults.Add(new ExplorerSearchResultItem
                     {
                         Id = item.DocumentId,
@@ -81,17 +76,13 @@ public class ExplorerSearchService(
                         SegmentId = item.SegmentId,
                         SectionTitle = item.SectionTitle
                     });
-                }
-            }
         }
 
         // Filter by content types if specified
         if (request.ContentTypes?.Length > 0)
-        {
             allResults = allResults
                 .Where(r => request.ContentTypes.Contains(r.Type))
                 .ToList();
-        }
 
         // Filter by community if specified
         if (request.CommunityId.HasValue)
@@ -109,7 +100,6 @@ public class ExplorerSearchService(
             .ToDictionaryAsync(d => d.Id, ct);
 
         foreach (var result in allResults)
-        {
             if (documents.TryGetValue(result.Id, out var doc))
             {
                 result.MimeType = doc.MimeType;
@@ -117,7 +107,6 @@ public class ExplorerSearchService(
                 result.Status = doc.Status.ToString().ToLowerInvariant();
                 result.CreatedAt = doc.CreatedAt;
             }
-        }
 
         // Extract highlights from query decomposition
         var highlights = queryPlan?.SubQueries

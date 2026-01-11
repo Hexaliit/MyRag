@@ -2,26 +2,26 @@ using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using Size = OpenCvSharp.Size;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.Preprocessing;
 
 /// <summary>
-/// Removes static background from animated images to isolate text/foreground content.
-/// Uses MOG2 (Mixture of Gaussians) background subtraction for robust foreground detection.
-///
-/// Algorithm:
-/// 1. Build background model from all frames using MOG2
-/// 2. Apply background subtraction to each frame
-/// 3. Generate binary foreground masks
-/// 4. Optionally apply morphological operations to clean up masks
+///     Removes static background from animated images to isolate text/foreground content.
+///     Uses MOG2 (Mixture of Gaussians) background subtraction for robust foreground detection.
+///     Algorithm:
+///     1. Build background model from all frames using MOG2
+///     2. Apply background subtraction to each frame
+///     3. Generate binary foreground masks
+///     4. Optionally apply morphological operations to clean up masks
 /// </summary>
 public class BackgroundSubtractor
 {
-    private readonly ILogger<BackgroundSubtractor>? _logger;
-    private readonly bool _verbose;
-    private readonly int _history;
-    private readonly double _varThreshold;
     private readonly bool _detectShadows;
+    private readonly int _history;
+    private readonly ILogger<BackgroundSubtractor>? _logger;
+    private readonly double _varThreshold;
+    private readonly bool _verbose;
 
     public BackgroundSubtractor(
         int history = 500,
@@ -38,15 +38,12 @@ public class BackgroundSubtractor
     }
 
     /// <summary>
-    /// Subtract background from a sequence of frames.
-    /// Returns foreground masks for each frame.
+    ///     Subtract background from a sequence of frames.
+    ///     Returns foreground masks for each frame.
     /// </summary>
     public BackgroundSubtractionResult SubtractBackground(List<Image<Rgba32>> frames)
     {
-        if (frames.Count == 0)
-        {
-            throw new ArgumentException("No frames provided", nameof(frames));
-        }
+        if (frames.Count == 0) throw new ArgumentException("No frames provided", nameof(frames));
 
         if (frames.Count == 1)
         {
@@ -63,9 +60,9 @@ public class BackgroundSubtractor
 
         // Create MOG2 background subtractor
         using var mog2 = BackgroundSubtractorMOG2.Create(
-            history: _history,
-            varThreshold: _varThreshold,
-            detectShadows: _detectShadows);
+            _history,
+            _varThreshold,
+            _detectShadows);
 
         var foregroundMasks = new List<Image<L8>>();
 
@@ -81,19 +78,16 @@ public class BackgroundSubtractor
             mog2.Apply(mat, tempMask);
         }
 
-        if (_verbose)
-        {
-            _logger?.LogDebug("Background model built from {Count} frames", frames.Count);
-        }
+        if (_verbose) _logger?.LogDebug("Background model built from {Count} frames", frames.Count);
 
         // Second pass: Generate foreground masks
-        for (int i = 0; i < openCvFrames.Count; i++)
+        for (var i = 0; i < openCvFrames.Count; i++)
         {
             using var fgMask = new Mat();
-            mog2.Apply(openCvFrames[i], fgMask, learningRate: 0); // No learning, just extract mask
+            mog2.Apply(openCvFrames[i], fgMask, 0); // No learning, just extract mask
 
             // Apply morphological operations to clean up mask
-            using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new OpenCvSharp.Size(3, 3));
+            using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(3, 3));
             using var cleaned = new Mat();
 
             // Opening: erosion followed by dilation (removes small noise)
@@ -120,12 +114,10 @@ public class BackgroundSubtractor
         var backgroundImage = backgroundModel.Empty() ? null : ConvertFromOpenCv(backgroundModel);
 
         // Clean up OpenCV mats
-        foreach (var mat in openCvFrames)
-        {
-            mat.Dispose();
-        }
+        foreach (var mat in openCvFrames) mat.Dispose();
 
-        _logger?.LogInformation("Background subtraction complete: generated {Count} foreground masks", foregroundMasks.Count);
+        _logger?.LogInformation("Background subtraction complete: generated {Count} foreground masks",
+            foregroundMasks.Count);
 
         return new BackgroundSubtractionResult
         {
@@ -135,7 +127,7 @@ public class BackgroundSubtractor
     }
 
     /// <summary>
-    /// Calculate the ratio of foreground pixels in a binary mask (0-1).
+    ///     Calculate the ratio of foreground pixels in a binary mask (0-1).
     /// </summary>
     private double CalculateForegroundRatio(Mat mask)
     {
@@ -147,14 +139,14 @@ public class BackgroundSubtractor
     }
 
     /// <summary>
-    /// Create a full white mask (everything is foreground).
+    ///     Create a full white mask (everything is foreground).
     /// </summary>
     private Image<L8> CreateFullMask(int width, int height)
     {
         var mask = new Image<L8>(width, height);
         mask.ProcessPixelRows(accessor =>
         {
-            for (int y = 0; y < height; y++)
+            for (var y = 0; y < height; y++)
             {
                 var row = accessor.GetRowSpan(y);
                 row.Fill(new L8(255));
@@ -164,7 +156,7 @@ public class BackgroundSubtractor
     }
 
     /// <summary>
-    /// Convert ImageSharp Image to OpenCV Mat (BGR format).
+    ///     Convert ImageSharp Image to OpenCV Mat (BGR format).
     /// </summary>
     private Mat ConvertToOpenCv(Image<Rgba32> image)
     {
@@ -172,10 +164,10 @@ public class BackgroundSubtractor
 
         image.ProcessPixelRows(accessor =>
         {
-            for (int y = 0; y < image.Height; y++)
+            for (var y = 0; y < image.Height; y++)
             {
                 var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < image.Width; x++)
+                for (var x = 0; x < image.Width; x++)
                 {
                     var pixel = row[x];
                     // OpenCV uses BGR order
@@ -188,7 +180,7 @@ public class BackgroundSubtractor
     }
 
     /// <summary>
-    /// Convert OpenCV Mat (BGR format) to ImageSharp Image.
+    ///     Convert OpenCV Mat (BGR format) to ImageSharp Image.
     /// </summary>
     private Image<Rgba32> ConvertFromOpenCv(Mat mat)
     {
@@ -196,10 +188,10 @@ public class BackgroundSubtractor
 
         image.ProcessPixelRows(accessor =>
         {
-            for (int y = 0; y < mat.Height; y++)
+            for (var y = 0; y < mat.Height; y++)
             {
                 var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < mat.Width; x++)
+                for (var x = 0; x < mat.Width; x++)
                 {
                     var bgr = mat.At<Vec3b>(y, x);
                     // Convert BGR to RGBA
@@ -212,7 +204,7 @@ public class BackgroundSubtractor
     }
 
     /// <summary>
-    /// Convert OpenCV grayscale mask Mat to ImageSharp L8 Image.
+    ///     Convert OpenCV grayscale mask Mat to ImageSharp L8 Image.
     /// </summary>
     private Image<L8> ConvertMaskFromOpenCv(Mat mask)
     {
@@ -220,10 +212,10 @@ public class BackgroundSubtractor
 
         image.ProcessPixelRows(accessor =>
         {
-            for (int y = 0; y < mask.Height; y++)
+            for (var y = 0; y < mask.Height; y++)
             {
                 var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < mask.Width; x++)
+                for (var x = 0; x < mask.Width; x++)
                 {
                     var value = mask.At<byte>(y, x);
                     row[x] = new L8(value);
@@ -236,17 +228,17 @@ public class BackgroundSubtractor
 }
 
 /// <summary>
-/// Result of background subtraction operation.
+///     Result of background subtraction operation.
 /// </summary>
 public record BackgroundSubtractionResult
 {
     /// <summary>
-    /// Binary foreground masks for each frame (white = foreground, black = background).
+    ///     Binary foreground masks for each frame (white = foreground, black = background).
     /// </summary>
     public required List<Image<L8>> ForegroundMasks { get; init; }
 
     /// <summary>
-    /// Learned background model image (optional, for debugging).
+    ///     Learned background model image (optional, for debugging).
     /// </summary>
     public Image<Rgba32>? BackgroundModel { get; init; }
 }

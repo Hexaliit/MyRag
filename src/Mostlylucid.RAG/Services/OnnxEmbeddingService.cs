@@ -1,26 +1,17 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Mostlylucid.RAG.Config;
-using System.Text.RegularExpressions;
 
 namespace Mostlylucid.RAG.Services;
 
 /// <summary>
-/// ONNX-based embedding service using CPU-friendly sentence transformers
-/// Uses all-MiniLM-L6-v2 model (384 dimensions) for efficient semantic search
+///     ONNX-based embedding service using CPU-friendly sentence transformers
+///     Uses all-MiniLM-L6-v2 model (384 dimensions) for efficient semantic search
 /// </summary>
 public class OnnxEmbeddingService : IEmbeddingService, IDisposable
 {
-    private readonly ILogger<OnnxEmbeddingService> _logger;
-    private readonly SemanticSearchConfig _config;
-    private InferenceSession? _session;
-    private readonly Dictionary<string, int> _vocabulary;
-    private readonly SemaphoreSlim _semaphore = new(1, 1);
-    private readonly SemaphoreSlim _initSemaphore = new(1, 1);
-    private bool _disposed;
-    private bool _initialized;
-
     private const int MaxSequenceLength = 256;
     private const string PadToken = "[PAD]";
     private const string UnkToken = "[UNK]";
@@ -28,8 +19,20 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
     private const string SepToken = "[SEP]";
 
     // Hugging Face model URLs
-    private const string ModelUrl = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx";
-    private const string VocabUrl = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt";
+    private const string ModelUrl =
+        "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx";
+
+    private const string VocabUrl =
+        "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt";
+
+    private readonly SemanticSearchConfig _config;
+    private readonly SemaphoreSlim _initSemaphore = new(1, 1);
+    private readonly ILogger<OnnxEmbeddingService> _logger;
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly Dictionary<string, int> _vocabulary;
+    private bool _disposed;
+    private bool _initialized;
+    private InferenceSession? _session;
 
     public OnnxEmbeddingService(
         ILogger<OnnxEmbeddingService> logger,
@@ -40,8 +43,19 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         _vocabulary = new Dictionary<string, int>();
     }
 
+    public void Dispose()
+    {
+        if (_disposed) return;
+
+        _session?.Dispose();
+        _semaphore?.Dispose();
+        _disposed = true;
+
+        GC.SuppressFinalize(this);
+    }
+
     /// <summary>
-    /// Ensures the model is initialized, downloading if necessary
+    ///     Ensures the model is initialized, downloading if necessary
     /// </summary>
     public async Task EnsureInitializedAsync(CancellationToken cancellationToken = default)
     {
@@ -77,10 +91,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
             }
 
             // Load vocabulary
-            if (File.Exists(_config.VocabPath))
-            {
-                LoadVocabulary(_config.VocabPath);
-            }
+            if (File.Exists(_config.VocabPath)) LoadVocabulary(_config.VocabPath);
 
             // Create ONNX session
             var sessionOptions = new SessionOptions
@@ -103,53 +114,18 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         }
     }
 
-    private static async Task DownloadFileAsync(string url, string destinationPath, CancellationToken cancellationToken)
-    {
-        using var httpClient = new HttpClient();
-        httpClient.Timeout = TimeSpan.FromMinutes(10); // Large file timeout
-
-        using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
-        await contentStream.CopyToAsync(fileStream, cancellationToken);
-    }
-
-    private void LoadVocabulary(string vocabPath)
-    {
-        var lines = File.ReadAllLines(vocabPath);
-        for (int i = 0; i < lines.Length; i++)
-        {
-            var token = lines[i].Trim();
-            if (!string.IsNullOrEmpty(token))
-            {
-                _vocabulary[token] = i;
-            }
-        }
-        _logger.LogInformation("Loaded vocabulary with {Count} tokens", _vocabulary.Count);
-    }
-
     public async Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
-        if (!_config.Enabled)
-        {
-            return new float[_config.VectorSize];
-        }
+        if (!_config.Enabled) return new float[_config.VectorSize];
 
         // Ensure model is downloaded and initialized
         await EnsureInitializedAsync(cancellationToken);
 
         if (_session == null)
-        {
             // Return zero vector if initialization failed
             return new float[_config.VectorSize];
-        }
 
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return new float[_config.VectorSize];
-        }
+        if (string.IsNullOrWhiteSpace(text)) return new float[_config.VectorSize];
 
         await _semaphore.WaitAsync(cancellationToken);
         try
@@ -162,7 +138,8 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         }
     }
 
-    public async Task<List<float[]>> GenerateEmbeddingsAsync(IEnumerable<string> texts, CancellationToken cancellationToken = default)
+    public async Task<List<float[]>> GenerateEmbeddingsAsync(IEnumerable<string> texts,
+        CancellationToken cancellationToken = default)
     {
         var results = new List<float[]>();
         foreach (var text in texts)
@@ -170,7 +147,35 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
             var embedding = await GenerateEmbeddingAsync(text, cancellationToken);
             results.Add(embedding);
         }
+
         return results;
+    }
+
+    private static async Task DownloadFileAsync(string url, string destinationPath, CancellationToken cancellationToken)
+    {
+        using var httpClient = new HttpClient();
+        httpClient.Timeout = TimeSpan.FromMinutes(10); // Large file timeout
+
+        using var response =
+            await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using var fileStream =
+            new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+        await contentStream.CopyToAsync(fileStream, cancellationToken);
+    }
+
+    private void LoadVocabulary(string vocabPath)
+    {
+        var lines = File.ReadAllLines(vocabPath);
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var token = lines[i].Trim();
+            if (!string.IsNullOrEmpty(token)) _vocabulary[token] = i;
+        }
+
+        _logger.LogInformation("Loaded vocabulary with {Count} tokens", _vocabulary.Count);
     }
 
     private float[] GenerateEmbedding(string text)
@@ -213,7 +218,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
     }
 
     /// <summary>
-    /// Mean pooling: average the token embeddings, only considering non-padded tokens
+    ///     Mean pooling: average the token embeddings, only considering non-padded tokens
     /// </summary>
     private float[] MeanPooling(Tensor<float> output, int actualLength, int[] dimensions)
     {
@@ -223,10 +228,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         {
             // Already pooled - just return as is
             var result = new float[dimensions[1]];
-            for (int i = 0; i < dimensions[1]; i++)
-            {
-                result[i] = output[0, i];
-            }
+            for (var i = 0; i < dimensions[1]; i++) result[i] = output[0, i];
             return result;
         }
 
@@ -237,22 +239,14 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
 
         // Sum all token embeddings (only for actual tokens, not padding)
         var tokensToPool = Math.Min(actualLength, seqLen);
-        for (int t = 0; t < tokensToPool; t++)
-        {
-            for (int h = 0; h < hiddenSize; h++)
-            {
-                pooled[h] += output[0, t, h];
-            }
-        }
+        for (var t = 0; t < tokensToPool; t++)
+        for (var h = 0; h < hiddenSize; h++)
+            pooled[h] += output[0, t, h];
 
         // Average by dividing by number of actual tokens
         if (tokensToPool > 0)
-        {
-            for (int h = 0; h < hiddenSize; h++)
-            {
+            for (var h = 0; h < hiddenSize; h++)
                 pooled[h] /= tokensToPool;
-            }
-        }
 
         return pooled;
     }
@@ -273,7 +267,6 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
             .Take(MaxSequenceLength - 2); // Leave room for [CLS] and [SEP]
 
         foreach (var word in words)
-        {
             if (_vocabulary.Count > 0)
             {
                 // Use vocabulary if available
@@ -287,7 +280,6 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                 // Fallback: use hash code as token ID
                 tokens.Add(Math.Abs(word.GetHashCode()) % 30000);
             }
-        }
 
         // Add [SEP] token at the end
         if (_vocabulary.TryGetValue(SepToken, out var sepId))
@@ -303,24 +295,15 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
 
         var tensorData = new long[1, paddedLength];
 
-        for (int i = 0; i < length; i++)
-        {
-            tensorData[0, i] = tokens[i];
-        }
+        for (var i = 0; i < length; i++) tensorData[0, i] = tokens[i];
 
         // Pad the rest with pad token ID
         var padId = _vocabulary.TryGetValue(PadToken, out var id) ? id : 0;
-        for (int i = length; i < paddedLength; i++)
-        {
-            tensorData[0, i] = padId;
-        }
+        for (var i = length; i < paddedLength; i++) tensorData[0, i] = padId;
 
         // Flatten to 1D array and create tensor
         var flatData = new long[paddedLength];
-        for (int i = 0; i < paddedLength; i++)
-        {
-            flatData[i] = tensorData[0, i];
-        }
+        for (var i = 0; i < paddedLength; i++) flatData[i] = tensorData[0, i];
         return new DenseTensor<long>(flatData.AsMemory(), new[] { 1, paddedLength });
     }
 
@@ -331,10 +314,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
 
         var flatData = new long[paddedLength];
 
-        for (int i = 0; i < length; i++)
-        {
-            flatData[i] = 1;
-        }
+        for (var i = 0; i < length; i++) flatData[i] = 1;
         // Rest are already 0
 
         return new DenseTensor<long>(flatData.AsMemory(), new[] { 1, paddedLength });
@@ -356,24 +336,9 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         var magnitude = MathF.Sqrt(sumOfSquares);
 
         if (magnitude > 0)
-        {
-            for (int i = 0; i < vector.Length; i++)
-            {
+            for (var i = 0; i < vector.Length; i++)
                 vector[i] /= magnitude;
-            }
-        }
 
         return vector;
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-
-        _session?.Dispose();
-        _semaphore?.Dispose();
-        _disposed = true;
-
-        GC.SuppressFinalize(this);
     }
 }

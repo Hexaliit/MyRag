@@ -6,12 +6,12 @@ using SixLabors.ImageSharp.Processing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzer for edge detection and density using Sobel-like operators.
+///     Analyzer for edge detection and density using Sobel-like operators.
 /// </summary>
 public class EdgeAnalyzer
 {
     /// <summary>
-    /// Calculate edge density (0-1) using a Sobel-like approximation
+    ///     Calculate edge density (0-1) using a Sobel-like approximation
     /// </summary>
     /// <param name="image">Image to analyze</param>
     /// <returns>Edge density score (0-1)</returns>
@@ -72,7 +72,7 @@ public class EdgeAnalyzer
     }
 
     /// <summary>
-    /// Calculate entropy of luminance histogram (0-8 range)
+    ///     Calculate entropy of luminance histogram (0-8 range)
     /// </summary>
     public double CalculateLuminanceEntropy(Image<Rgba32> image)
     {
@@ -108,7 +108,7 @@ public class EdgeAnalyzer
     }
 
     /// <summary>
-    /// Detect if image looks like it has straight edges (screenshot/UI indicator)
+    ///     Detect if image looks like it has straight edges (screenshot/UI indicator)
     /// </summary>
     public double CalculateStraightEdgeRatio(Image<Rgba32> image)
     {
@@ -164,6 +164,8 @@ public class EdgeAnalyzer
         return (horizontalEdges + verticalEdges) / (double)(totalEdges * 2);
     }
 
-    private static int GetLuminance(Rgba32 p) =>
-        (int)(0.299 * p.R + 0.587 * p.G + 0.114 * p.B);
+    private static int GetLuminance(Rgba32 p)
+    {
+        return (int)(0.299 * p.R + 0.587 * p.G + 0.114 * p.B);
+    }
 }

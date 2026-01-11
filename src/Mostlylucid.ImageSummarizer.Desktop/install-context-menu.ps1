@@ -10,7 +10,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Find the executable
-if ([string]::IsNullOrEmpty($ExePath)) {
+if ( [string]::IsNullOrEmpty($ExePath))
+{
     # Try to find in common locations
     $possiblePaths = @(
         "$PSScriptRoot\bin\Release\net10.0\ImageSummarizer.exe",
@@ -19,15 +20,18 @@ if ([string]::IsNullOrEmpty($ExePath)) {
         "$env:ProgramFiles\ImageSummarizer\ImageSummarizer.exe"
     )
 
-    foreach ($path in $possiblePaths) {
-        if (Test-Path $path) {
+    foreach ($path in $possiblePaths)
+    {
+        if (Test-Path $path)
+        {
             $ExePath = $path
             break
         }
     }
 }
 
-if ([string]::IsNullOrEmpty($ExePath) -or -not (Test-Path $ExePath)) {
+if ([string]::IsNullOrEmpty($ExePath) -or -not (Test-Path $ExePath))
+{
     Write-Host "ImageSummarizer.exe not found. Please specify path with -ExePath" -ForegroundColor Red
     Write-Host "Usage: .\install-context-menu.ps1 -ExePath 'C:\path\to\ImageSummarizer.exe'"
     exit 1
@@ -43,14 +47,18 @@ $registryPaths = @(
 )
 
 # Also add to specific extensions for better compatibility
-foreach ($ext in $imageExtensions) {
+foreach ($ext in $imageExtensions)
+{
     $registryPaths += "HKCU:\Software\Classes\.$ext\shell\ImageSummarizer"
 }
 
-if ($Uninstall) {
+if ($Uninstall)
+{
     Write-Host "Removing context menu entries..." -ForegroundColor Yellow
-    foreach ($regPath in $registryPaths) {
-        if (Test-Path $regPath) {
+    foreach ($regPath in $registryPaths)
+    {
+        if (Test-Path $regPath)
+        {
             Remove-Item -Path $regPath -Recurse -Force
             Write-Host "  Removed: $regPath" -ForegroundColor Gray
         }
@@ -61,9 +69,11 @@ if ($Uninstall) {
 
 Write-Host "Installing context menu entries..." -ForegroundColor Yellow
 
-foreach ($regPath in $registryPaths) {
+foreach ($regPath in $registryPaths)
+{
     # Create the shell key
-    if (-not (Test-Path $regPath)) {
+    if (-not (Test-Path $regPath))
+    {
         New-Item -Path $regPath -Force | Out-Null
     }
 
@@ -73,7 +83,8 @@ foreach ($regPath in $registryPaths) {
 
     # Create command subkey
     $commandPath = "$regPath\command"
-    if (-not (Test-Path $commandPath)) {
+    if (-not (Test-Path $commandPath))
+    {
         New-Item -Path $commandPath -Force | Out-Null
     }
 

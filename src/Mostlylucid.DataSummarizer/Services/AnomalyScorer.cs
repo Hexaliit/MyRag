@@ -3,14 +3,14 @@ using Mostlylucid.DataSummarizer.Models;
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Computes an overall anomaly score for a dataset based on data quality issues,
-/// statistical anomalies, and structural patterns.
-/// Score ranges from 0 (clean) to 1 (highly anomalous).
+///     Computes an overall anomaly score for a dataset based on data quality issues,
+///     statistical anomalies, and structural patterns.
+///     Score ranges from 0 (clean) to 1 (highly anomalous).
 /// </summary>
 public static class AnomalyScorer
 {
     /// <summary>
-    /// Compute overall anomaly score for a profile
+    ///     Compute overall anomaly score for a profile
     /// </summary>
     public static AnomalyScoreResult ComputeAnomalyScore(DataProfile profile)
     {
@@ -53,7 +53,6 @@ public static class AnomalyScorer
 
         // Add component breakdown
         foreach (var (name, score, weight) in componentScores)
-        {
             result.Components.Add(new AnomalyComponent
             {
                 Name = name,
@@ -61,7 +60,6 @@ public static class AnomalyScorer
                 Weight = weight,
                 WeightedScore = Math.Round(score * weight / totalWeight, 4)
             });
-        }
 
         // Interpret overall score
         result.Interpretation = result.OverallScore switch
@@ -122,7 +120,6 @@ public static class AnomalyScorer
         var score = avgScore * 0.3 + maxScore * 0.4 + countScore * 0.3;
 
         if (highNullColumns > 0)
-        {
             result.Issues.Add(new AnomalyIssue
             {
                 Category = "NullRate",
@@ -130,7 +127,6 @@ public static class AnomalyScorer
                 Severity = maxNullPercent > 50 ? "High" : "Medium",
                 AffectedColumns = profile.Columns.Where(c => c.NullPercent > 20).Select(c => c.Name).ToList()
             });
-        }
 
         return Math.Min(1.0, score);
     }
@@ -164,7 +160,8 @@ public static class AnomalyScorer
             result.Issues.Add(new AnomalyIssue
             {
                 Category = "Outliers",
-                Description = $"{highOutlierCols} columns with >5% outliers. Worst: {string.Join(", ", worstCols.Select(o => $"{o.Column.Name} ({o.Ratio:P1})"))}",
+                Description =
+                    $"{highOutlierCols} columns with >5% outliers. Worst: {string.Join(", ", worstCols.Select(o => $"{o.Column.Name} ({o.Ratio:P1})"))}",
                 Severity = maxOutlierRatio > 0.1 ? "High" : "Medium",
                 AffectedColumns = worstCols.Select(o => o.Column.Name).ToList()
             });
@@ -175,7 +172,8 @@ public static class AnomalyScorer
 
     private static double ComputeDistributionScore(DataProfile profile, AnomalyScoreResult result)
     {
-        var numericCols = profile.Columns.Where(c => c.InferredType == ColumnType.Numeric && c.Skewness.HasValue).ToList();
+        var numericCols = profile.Columns.Where(c => c.InferredType == ColumnType.Numeric && c.Skewness.HasValue)
+            .ToList();
         if (numericCols.Count == 0) return 0;
 
         // High skewness indicates potential data issues
@@ -192,7 +190,6 @@ public static class AnomalyScorer
         var score = skewScore * 0.3 + extremeSkewScore * 0.4 + kurtosisScore * 0.3;
 
         if (highSkewCols.Count > 0)
-        {
             result.Issues.Add(new AnomalyIssue
             {
                 Category = "Distribution",
@@ -200,7 +197,6 @@ public static class AnomalyScorer
                 Severity = extremeSkewCols.Count > 0 ? "Medium" : "Low",
                 AffectedColumns = highSkewCols.Select(c => c.Name).ToList()
             });
-        }
 
         return Math.Min(1.0, score);
     }
@@ -211,12 +207,13 @@ public static class AnomalyScorer
 
         // Constant columns (0 information)
         var constantCols = profile.Columns.Where(c => c.UniqueCount <= 1).ToList();
-        
+
         // Near-unique columns that might be IDs incorrectly used as features
         var nearUniqueCols = profile.Columns
-            .Where(c => c.UniquePercent > 95 && c.InferredType != ColumnType.Id && c.SemanticRole != SemanticRole.Identifier)
+            .Where(c => c.UniquePercent > 95 && c.InferredType != ColumnType.Id &&
+                        c.SemanticRole != SemanticRole.Identifier)
             .ToList();
-        
+
         // High-cardinality categoricals
         var highCardCat = profile.Columns
             .Where(c => c.InferredType == ColumnType.Categorical && c.UniquePercent > 50)
@@ -224,12 +221,12 @@ public static class AnomalyScorer
 
         var constantScore = (double)constantCols.Count / profile.Columns.Count;
         var nearUniqueScore = (double)nearUniqueCols.Count / profile.Columns.Count;
-        var highCardScore = (double)highCardCat.Count / Math.Max(1, profile.Columns.Count(c => c.InferredType == ColumnType.Categorical));
+        var highCardScore = (double)highCardCat.Count /
+                            Math.Max(1, profile.Columns.Count(c => c.InferredType == ColumnType.Categorical));
 
         var score = constantScore * 0.5 + nearUniqueScore * 0.3 + highCardScore * 0.2;
 
         if (constantCols.Count > 0)
-        {
             result.Issues.Add(new AnomalyIssue
             {
                 Category = "Cardinality",
@@ -237,10 +234,8 @@ public static class AnomalyScorer
                 Severity = "Medium",
                 AffectedColumns = constantCols.Select(c => c.Name).ToList()
             });
-        }
 
         if (nearUniqueCols.Count > 0)
-        {
             result.Issues.Add(new AnomalyIssue
             {
                 Category = "Cardinality",
@@ -248,7 +243,6 @@ public static class AnomalyScorer
                 Severity = "Low",
                 AffectedColumns = nearUniqueCols.Select(c => c.Name).ToList()
             });
-        }
 
         return Math.Min(1.0, score);
     }
@@ -282,17 +276,16 @@ public static class AnomalyScorer
             result.Issues.Add(new AnomalyIssue
             {
                 Category = "Schema",
-                Description = $"High column-to-row ratio ({profile.ColumnCount} cols / {profile.RowCount} rows) - potential overfitting risk",
+                Description =
+                    $"High column-to-row ratio ({profile.ColumnCount} cols / {profile.RowCount} rows) - potential overfitting risk",
                 Severity = "Medium"
             });
         }
 
         // Mostly ID/text columns (limited numeric analysis)
-        var numericRatio = (double)profile.Columns.Count(c => c.InferredType == ColumnType.Numeric) / profile.Columns.Count;
-        if (numericRatio < 0.1 && profile.Columns.Count > 5)
-        {
-            score += 0.1;
-        }
+        var numericRatio = (double)profile.Columns.Count(c => c.InferredType == ColumnType.Numeric) /
+                           profile.Columns.Count;
+        if (numericRatio < 0.1 && profile.Columns.Count > 5) score += 0.1;
 
         return Math.Min(1.0, score);
     }
@@ -302,10 +295,7 @@ public static class AnomalyScorer
         var recs = new List<string>();
 
         // Based on score severity
-        if (result.OverallScore >= 0.5)
-        {
-            recs.Add("Data quality requires immediate attention before modeling");
-        }
+        if (result.OverallScore >= 0.5) recs.Add("Data quality requires immediate attention before modeling");
 
         // Specific recommendations based on issues
         var nullIssues = result.Issues.Where(i => i.Category == "NullRate" && i.Severity != "Low").ToList();
@@ -317,26 +307,16 @@ public static class AnomalyScorer
 
         var outlierIssues = result.Issues.Where(i => i.Category == "Outliers" && i.Severity == "High").ToList();
         if (outlierIssues.Count > 0)
-        {
             recs.Add("Investigate outliers - consider capping, winsorization, or separate modeling");
-        }
 
         var cardinalityIssues = result.Issues.Where(i => i.Category == "Cardinality").ToList();
         if (cardinalityIssues.Any(i => i.Description.Contains("constant")))
-        {
             recs.Add("Remove constant columns before modeling");
-        }
 
         var distributionIssues = result.Issues.Where(i => i.Category == "Distribution").ToList();
-        if (distributionIssues.Count > 0)
-        {
-            recs.Add("Consider transformations (log, Box-Cox) for highly skewed columns");
-        }
+        if (distributionIssues.Count > 0) recs.Add("Consider transformations (log, Box-Cox) for highly skewed columns");
 
-        if (recs.Count == 0)
-        {
-            recs.Add("Data quality is acceptable for analysis");
-        }
+        if (recs.Count == 0) recs.Add("Data quality is acceptable for analysis");
 
         return recs;
     }
@@ -345,41 +325,41 @@ public static class AnomalyScorer
 #region Models
 
 /// <summary>
-/// Result of computing anomaly score for a profile
+///     Result of computing anomaly score for a profile
 /// </summary>
 public class AnomalyScoreResult
 {
     public string ProfileSource { get; set; } = "";
     public DateTime ComputedAt { get; set; }
-    
+
     /// <summary>
-    /// Overall anomaly score (0-1, higher = more anomalous)
+    ///     Overall anomaly score (0-1, higher = more anomalous)
     /// </summary>
     public double OverallScore { get; set; }
-    
+
     /// <summary>
-    /// Human-readable interpretation
+    ///     Human-readable interpretation
     /// </summary>
     public string Interpretation { get; set; } = "";
-    
+
     /// <summary>
-    /// Breakdown by component
+    ///     Breakdown by component
     /// </summary>
     public List<AnomalyComponent> Components { get; set; } = [];
-    
+
     /// <summary>
-    /// Specific issues found
+    ///     Specific issues found
     /// </summary>
     public List<AnomalyIssue> Issues { get; set; } = [];
-    
+
     /// <summary>
-    /// Actionable recommendations
+    ///     Actionable recommendations
     /// </summary>
     public List<string> Recommendations { get; set; } = [];
 }
 
 /// <summary>
-/// Component of the anomaly score
+///     Component of the anomaly score
 /// </summary>
 public class AnomalyComponent
 {
@@ -390,7 +370,7 @@ public class AnomalyComponent
 }
 
 /// <summary>
-/// Specific anomaly issue found
+///     Specific anomaly issue found
 /// </summary>
 public class AnomalyIssue
 {

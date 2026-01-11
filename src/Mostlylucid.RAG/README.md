@@ -34,6 +34,7 @@ The semantic search requires the all-MiniLM-L6-v2 ONNX model. Download it using 
 ```
 
 Or manually:
+
 ```bash
 mkdir -p ../Mostlylucid/models
 cd ../Mostlylucid/models
@@ -211,6 +212,7 @@ Qdrant supports API key authentication. Configure separate keys for read and wri
 ### Model not found
 
 Ensure the ONNX model files are in the correct location:
+
 ```bash
 ls -la Mostlylucid/models/
 # Should show:
@@ -221,6 +223,7 @@ ls -la Mostlylucid/models/
 ### Qdrant connection failed
 
 Check Qdrant is running:
+
 ```bash
 curl http://localhost:6333/health
 ```
@@ -228,6 +231,7 @@ curl http://localhost:6333/health
 ### Low similarity scores
 
 Adjust the minimum similarity threshold in configuration:
+
 ```json
 {
   "MinimumSimilarityScore": 0.3  // Lower threshold for more results
@@ -245,6 +249,7 @@ dotnet test Mostlylucid.Test/Mostlylucid.Test.csproj
 ### Adding Custom Embedding Models
 
 Replace the model files and update configuration:
+
 1. Convert your model to ONNX format
 2. Update `VectorSize` to match model output dimensions
 3. Provide compatible tokenizer vocabulary

@@ -1,11 +1,11 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Services;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Services;
 
 /// <summary>
-/// Integration tests for OllamaService - requires Ollama to be running locally
-/// These tests are marked with the IntegrationTest trait and can be skipped in CI
+///     Integration tests for OllamaService - requires Ollama to be running locally
+///     These tests are marked with the IntegrationTest trait and can be skipped in CI
 /// </summary>
 public class OllamaServiceTests
 {
@@ -16,7 +16,7 @@ public class OllamaServiceTests
     public async Task GenerateAsync_WithValidPrompt_ReturnsResponse()
     {
         // Arrange
-        var ollama = new OllamaService("llama3.2:3b");
+        var ollama = new OllamaService();
         var prompt = "Say 'Hello, World!' and nothing else.";
 
         // Act
@@ -33,7 +33,7 @@ public class OllamaServiceTests
     public async Task EmbedAsync_WithValidText_ReturnsEmbedding()
     {
         // Arrange
-        var ollama = new OllamaService("llama3.2:3b", "nomic-embed-text");
+        var ollama = new OllamaService();
         var text = "This is a test sentence for embedding.";
 
         // Act

@@ -1,6 +1,7 @@
 # Signal Architecture
 
-The library uses a **signal-based storage pattern** where analysis results are stored as discrete observations (signals) with metadata. This enables flexible, extensible analysis pipelines.
+The library uses a **signal-based storage pattern** where analysis results are stored as discrete observations (signals)
+with metadata. This enables flexible, extensible analysis pipelines.
 
 ## Core Concepts
 
@@ -22,6 +23,7 @@ public class Signal
 ```
 
 **Benefits:**
+
 - **Flexibility**: Add new analysis types without schema changes
 - **Versioning**: Multiple sources can provide competing signals
 - **Aggregation**: Combine signals using strategies (highest confidence, average)
@@ -70,6 +72,7 @@ var bestSignal = dynamicProfile.GetBestSignal("quality.sharpness");
 ## Signal Catalog
 
 ### Identity Signals (confidence: 1.0)
+
 - `identity.sha256` - SHA256 content hash
 - `identity.format` - Image format (PNG, JPEG, GIF, WEBP)
 - `identity.width`, `identity.height` - Dimensions
@@ -77,6 +80,7 @@ var bestSignal = dynamicProfile.GetBestSignal("quality.sharpness");
 - `identity.is_animated` - Whether image is animated
 
 ### Content Signals
+
 - `content.type` - Detected type (Photo, Diagram, Chart, etc.)
 - `content.type_confidence` - Type detection confidence (0.0-1.0)
 - `content.text_likeliness` - Probability of containing text (0.0-1.0)
@@ -84,11 +88,13 @@ var bestSignal = dynamicProfile.GetBestSignal("quality.sharpness");
 - `content.extracted_text` - OCR results (confidence: 0.9, source: OCR)
 
 ### Quality Signals
+
 - `quality.sharpness` - Laplacian variance (confidence: 0.8)
 - `quality.edge_density` - Percentage of edge pixels (confidence: 0.9)
 - `quality.luminance_entropy` - Information content (confidence: 0.9)
 
 ### Color Signals
+
 - `color.dominant_color_names` - List of color names (confidence: 0.9)
 - `color.dominant_color_hexes` - List of hex codes (confidence: 0.9)
 - `color.dominant_color_percentages` - List of percentages (confidence: 0.9)
@@ -97,6 +103,7 @@ var bestSignal = dynamicProfile.GetBestSignal("quality.sharpness");
 - `color.is_mostly_grayscale` - Boolean flag (confidence: 1.0)
 
 ### Motion Signals
+
 - `motion.has_motion` - Whether significant motion detected
 - `motion.type` - Motion type (object_motion, camera_pan, oscillating, etc.)
 - `motion.direction` - Dominant direction (up, down, left, right, stationary)
@@ -106,18 +113,21 @@ var bestSignal = dynamicProfile.GetBestSignal("quality.sharpness");
 - `motion.moving_objects` - List of what is moving
 
 ### Florence-2 Signals
+
 - `florence2.caption` - Enhanced caption with color context
 - `florence2.ocr_text` - OCR text from Florence-2
 - `florence2.should_escalate` - Whether to escalate to Vision LLM
 - `florence2.duration_ms` - Inference time
 
 ### Vision LLM Signals
+
 - `vision.llm.caption` - Rich caption from Vision LLM
 - `vision.llm.scene` - Scene classification
 - `vision.llm.entities` - Detected entities
 - `vision.llm.text` - Text read by Vision LLM
 
 ### Validation Signals
+
 - `validation.contradiction.count` - Number of contradictions detected
 - `validation.contradiction.status` - Overall status: "clean", "info", "warning", "error", "critical"
 - `validation.contradiction.<rule_id>` - Details of specific contradiction
@@ -126,7 +136,8 @@ var bestSignal = dynamicProfile.GetBestSignal("quality.sharpness");
 
 ## Dynamic Pipeline Selection
 
-The library supports **signal-driven pipeline selection** - specify which signals you need, and the system automatically determines which waves to run.
+The library supports **signal-driven pipeline selection** - specify which signals you need, and the system automatically
+determines which waves to run.
 
 ### How It Works
 
@@ -147,41 +158,41 @@ var matchingSignals = SignalGlobMatcher.FilterSignals(profile, signalPatterns);
 
 ### Glob Pattern Syntax
 
-| Pattern | Matches | Example |
-|---------|---------|---------|
-| `motion.*` | All motion signals | motion.direction, motion.magnitude |
-| `color.dominant*` | Prefix match | color.dominant_colors, color.dominant_names |
-| `vision.llm.caption` | Exact match | Only that specific signal |
-| `*` | All signals | Runs full pipeline |
+| Pattern              | Matches            | Example                                     |
+|----------------------|--------------------|---------------------------------------------|
+| `motion.*`           | All motion signals | motion.direction, motion.magnitude          |
+| `color.dominant*`    | Prefix match       | color.dominant_colors, color.dominant_names |
+| `vision.llm.caption` | Exact match        | Only that specific signal                   |
+| `*`                  | All signals        | Runs full pipeline                          |
 
 ### Predefined Collections
 
 Use `@name` syntax for predefined signal groups:
 
-| Collection | Expands To | Use Case |
-|------------|-----------|----------|
-| `@identity` | identity.* | File metadata, hashing |
-| `@motion` | motion.*, complexity.* | Animation analysis |
-| `@color` | color.* | Color extraction |
-| `@quality` | quality.* | Image quality metrics |
-| `@text` | content.text*, ocr.*, vision.llm.text | Text extraction |
-| `@vision` | vision.* | Vision LLM outputs |
-| `@alttext` | vision.llm.caption, content.text*, motion.summary | Alt text generation |
-| `@tool` | identity.*, color.dominant*, motion.*, vision.llm.*, ocr.voting.* | MCP tool calls |
-| `@all` | * | Full pipeline |
+| Collection  | Expands To                                                        | Use Case               |
+|-------------|-------------------------------------------------------------------|------------------------|
+| `@identity` | identity.*                                                        | File metadata, hashing |
+| `@motion`   | motion.*, complexity.*                                            | Animation analysis     |
+| `@color`    | color.*                                                           | Color extraction       |
+| `@quality`  | quality.*                                                         | Image quality metrics  |
+| `@text`     | content.text*, ocr.*, vision.llm.text                             | Text extraction        |
+| `@vision`   | vision.*                                                          | Vision LLM outputs     |
+| `@alttext`  | vision.llm.caption, content.text*, motion.summary                 | Alt text generation    |
+| `@tool`     | identity.*, color.dominant*, motion.*, vision.llm.*, ocr.voting.* | MCP tool calls         |
+| `@all`      | *                                                                 | Full pipeline          |
 
 ### Wave Tag Mapping
 
-| Signal Prefix | Wave Tags | Waves Run |
-|---------------|-----------|-----------|
-| `motion.*`, `complexity.*` | motion | MotionWave |
-| `color.*` | color | ColorWave |
-| `ocr.*`, `content.*` | ocr, content | AdvancedOcrWave, OcrWave |
-| `vision.*` | vision, llm | VisionLlmWave, Florence2Wave |
-| `identity.*` | identity | IdentityWave |
-| `quality.*` | quality | ForensicsWave |
-| `face.*` | face | FaceDetectionWave |
-| `clip.*` | clip, embedding | ClipEmbeddingWave |
+| Signal Prefix              | Wave Tags       | Waves Run                    |
+|----------------------------|-----------------|------------------------------|
+| `motion.*`, `complexity.*` | motion          | MotionWave                   |
+| `color.*`                  | color           | ColorWave                    |
+| `ocr.*`, `content.*`       | ocr, content    | AdvancedOcrWave, OcrWave     |
+| `vision.*`                 | vision, llm     | VisionLlmWave, Florence2Wave |
+| `identity.*`               | identity        | IdentityWave                 |
+| `quality.*`                | quality         | ForensicsWave                |
+| `face.*`                   | face            | FaceDetectionWave            |
+| `clip.*`                   | clip, embedding | ClipEmbeddingWave            |
 
 ### MCP Tool Call Example
 
@@ -196,6 +207,7 @@ Use `@name` syntax for predefined signal groups:
 ```
 
 Only MotionWave and ColorWave run, returning:
+
 ```json
 {
   "signals": [
@@ -207,6 +219,7 @@ Only MotionWave and ColorWave run, returning:
 ```
 
 **Benefits:**
+
 - **Performance**: Skip expensive waves you don't need
 - **Selective**: Request only relevant signals for your use case
 - **Flexible**: Combine patterns for custom analysis pipelines
@@ -216,7 +229,8 @@ Only MotionWave and ColorWave run, returning:
 
 ## Contradiction Detection
 
-The library includes a **config-driven contradiction detection system** that validates signals from different analysis waves for consistency.
+The library includes a **config-driven contradiction detection system** that validates signals from different analysis
+waves for consistency.
 
 ```mermaid
 graph TD
@@ -241,16 +255,16 @@ graph TD
 
 ### Built-in Rules
 
-| Rule ID | Description | Severity |
-|---------|-------------|----------|
-| `ocr_vs_vision_text` | OCR found text but Vision LLM says no text | Warning |
-| `text_likeliness_vs_ocr` | High text score but OCR found nothing | Warning |
-| `grayscale_vs_colors` | Marked grayscale but has colorful dominants | Info |
-| `screenshot_vs_photo_noise` | Screenshot type but photo-like noise | Warning |
-| `llm_vs_heuristic_type` | Vision LLM type differs from heuristics | Info |
-| `face_vs_icon` | Faces detected in Icon/Diagram | Warning |
-| `exif_format_mismatch` | EXIF in format that doesn't support it | Warning |
-| `blur_vs_edges` | Low sharpness but high edge density | Info |
+| Rule ID                     | Description                                 | Severity |
+|-----------------------------|---------------------------------------------|----------|
+| `ocr_vs_vision_text`        | OCR found text but Vision LLM says no text  | Warning  |
+| `text_likeliness_vs_ocr`    | High text score but OCR found nothing       | Warning  |
+| `grayscale_vs_colors`       | Marked grayscale but has colorful dominants | Info     |
+| `screenshot_vs_photo_noise` | Screenshot type but photo-like noise        | Warning  |
+| `llm_vs_heuristic_type`     | Vision LLM type differs from heuristics     | Info     |
+| `face_vs_icon`              | Faces detected in Icon/Diagram              | Warning  |
+| `exif_format_mismatch`      | EXIF in format that doesn't support it      | Warning  |
+| `blur_vs_edges`             | Low sharpness but high edge density         | Info     |
 
 ### Resolution Strategies
 

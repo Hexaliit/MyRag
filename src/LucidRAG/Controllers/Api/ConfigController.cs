@@ -1,18 +1,18 @@
+using LucidRAG.Config;
+using LucidRAG.Models;
+using LucidRAG.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.GraphRag;
-using LucidRAG.Config;
-using LucidRAG.Models;
-using LucidRAG.Services;
 
 namespace LucidRAG.Controllers.Api;
 
 /// <summary>
-/// Configuration and capabilities API.
-/// Returns available modes and services for dynamic UI configuration.
+///     Configuration and capabilities API.
+///     Returns available modes and services for dynamic UI configuration.
 /// </summary>
 [ApiController]
 [Route("api/config")]
@@ -26,7 +26,7 @@ public class ConfigController(
     private const string ServicesCacheKey = "DetectedServices";
 
     /// <summary>
-    /// Get available capabilities and modes based on detected services.
+    ///     Get available capabilities and modes based on detected services.
     /// </summary>
     [HttpGet("capabilities")]
     public async Task<IActionResult> GetCapabilities(CancellationToken ct = default)
@@ -41,31 +41,33 @@ public class ConfigController(
 
         if (services.OllamaAvailable)
         {
-            extractionModes.Add(new("hybrid", "Hybrid", "Heuristic candidates + LLM enhancement per document", true, false));
-            extractionModes.Add(new("llm", "Full LLM", "MSFT GraphRAG style - 2 LLM calls per chunk (slow, thorough)", true, false));
+            extractionModes.Add(new ExtractionModeInfo("hybrid", "Hybrid",
+                "Heuristic candidates + LLM enhancement per document", true, false));
+            extractionModes.Add(new ExtractionModeInfo("llm", "Full LLM",
+                "MSFT GraphRAG style - 2 LLM calls per chunk (slow, thorough)", true, false));
         }
         else
         {
-            extractionModes.Add(new("hybrid", "Hybrid", "Requires Ollama - not available", false, false));
-            extractionModes.Add(new("llm", "Full LLM", "Requires Ollama - not available", false, false));
+            extractionModes.Add(new ExtractionModeInfo("hybrid", "Hybrid", "Requires Ollama - not available", false,
+                false));
+            extractionModes.Add(new ExtractionModeInfo("llm", "Full LLM", "Requires Ollama - not available", false,
+                false));
         }
 
         // Determine available LLM models
         var llmModels = new List<LlmModelInfo>();
         if (services.OllamaAvailable)
-        {
             foreach (var model in services.AvailableModels)
             {
                 var isDefault = model == summarizerConfig.Value.Ollama.Model;
-                llmModels.Add(new(model, model, "ollama", isDefault));
+                llmModels.Add(new LlmModelInfo(model, model, "ollama", isDefault));
             }
-        }
 
         // Current configuration
         var currentConfig = new CurrentConfig(
-            ExtractionMode: ragConfig.Value.ExtractionMode.ToString().ToLowerInvariant(),
-            LlmModel: summarizerConfig.Value.Ollama.Model,
-            DemoMode: ragConfig.Value.DemoMode.Enabled
+            ragConfig.Value.ExtractionMode.ToString().ToLowerInvariant(),
+            summarizerConfig.Value.Ollama.Model,
+            ragConfig.Value.DemoMode.Enabled
         );
 
         return Ok(new
@@ -92,7 +94,7 @@ public class ConfigController(
     }
 
     /// <summary>
-    /// Get just the available extraction modes (lightweight endpoint for UI dropdown).
+    ///     Get just the available extraction modes (lightweight endpoint for UI dropdown).
     /// </summary>
     [HttpGet("extraction-modes")]
     public async Task<IActionResult> GetExtractionModes(CancellationToken ct = default)
@@ -114,31 +116,28 @@ public class ConfigController(
     }
 
     /// <summary>
-    /// Set the extraction mode for new document processing.
+    ///     Set the extraction mode for new document processing.
     /// </summary>
     [HttpPut("extraction-mode")]
     public IActionResult SetExtractionMode([FromBody] SetExtractionModeRequest request)
     {
         if (ragConfig.Value.DemoMode.Enabled)
-        {
             return StatusCode(403, new { error = "Configuration changes disabled in demo mode" });
-        }
 
         if (!Enum.TryParse<ExtractionMode>(request.Mode, true, out var mode))
-        {
-            return BadRequest(new { error = $"Invalid mode. Valid values: heuristic, hybrid, llm" });
-        }
+            return BadRequest(new { error = "Invalid mode. Valid values: heuristic, hybrid, llm" });
 
         // Note: This only affects runtime configuration. For persistence, update appsettings.json
         ragConfig.Value.ExtractionMode = mode;
 
         logger.LogInformation("Extraction mode changed to {Mode}", mode);
 
-        return Ok(new { mode = mode.ToString().ToLowerInvariant(), message = "Extraction mode updated for new documents" });
+        return Ok(new
+            { mode = mode.ToString().ToLowerInvariant(), message = "Extraction mode updated for new documents" });
     }
 
     /// <summary>
-    /// Get synthesis cache statistics
+    ///     Get synthesis cache statistics
     /// </summary>
     [HttpGet("cache/stats")]
     public IActionResult GetCacheStats()
@@ -148,15 +147,13 @@ public class ConfigController(
     }
 
     /// <summary>
-    /// Clear the synthesis cache
+    ///     Clear the synthesis cache
     /// </summary>
     [HttpDelete("cache")]
     public IActionResult ClearCache()
     {
         if (ragConfig.Value.DemoMode.Enabled)
-        {
             return StatusCode(403, new { error = "Cache operations disabled in demo mode" });
-        }
 
         synthesisCache.Clear();
         return Ok(new { message = "Synthesis cache cleared" });
@@ -164,10 +161,7 @@ public class ConfigController(
 
     private async Task<DetectedServices> GetDetectedServicesAsync()
     {
-        if (cache.TryGetValue(ServicesCacheKey, out DetectedServices? cached) && cached is not null)
-        {
-            return cached;
-        }
+        if (cache.TryGetValue(ServicesCacheKey, out DetectedServices? cached) && cached is not null) return cached;
 
         logger.LogDebug("Detecting available services...");
         var services = await ServiceDetector.DetectSilentAsync(summarizerConfig.Value);

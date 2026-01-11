@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Reflection;
+using System.Text;
 using Mostlylucid.DocSummarizer.Images.Orchestration;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -10,8 +7,8 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace Mostlylucid.DocSummarizer.Images.Coordination;
 
 /// <summary>
-/// Loads wave manifests from YAML files for dynamic composition.
-/// Uses Orchestration.WaveManifest as the canonical manifest type.
+///     Loads wave manifests from YAML files for dynamic composition.
+///     Uses Orchestration.WaveManifest as the canonical manifest type.
 /// </summary>
 public sealed class WaveManifestLoader
 {
@@ -27,7 +24,7 @@ public sealed class WaveManifestLoader
     }
 
     /// <summary>
-    /// Load all wave manifests from embedded resources.
+    ///     Load all wave manifests from embedded resources.
     /// </summary>
     public IReadOnlyDictionary<string, WaveManifest> LoadEmbeddedManifests()
     {
@@ -44,17 +41,14 @@ public sealed class WaveManifestLoader
             var yaml = reader.ReadToEnd();
             var manifest = _deserializer.Deserialize<WaveManifest>(yaml);
 
-            if (manifest != null)
-            {
-                _manifests[manifest.Name] = manifest;
-            }
+            if (manifest != null) _manifests[manifest.Name] = manifest;
         }
 
         return _manifests;
     }
 
     /// <summary>
-    /// Load wave manifests from a directory.
+    ///     Load wave manifests from a directory.
     /// </summary>
     public IReadOnlyDictionary<string, WaveManifest> LoadFromDirectory(string directory)
     {
@@ -68,17 +62,14 @@ public sealed class WaveManifestLoader
             var yaml = File.ReadAllText(file);
             var manifest = _deserializer.Deserialize<WaveManifest>(yaml);
 
-            if (manifest != null)
-            {
-                _manifests[manifest.Name] = manifest;
-            }
+            if (manifest != null) _manifests[manifest.Name] = manifest;
         }
 
         return _manifests;
     }
 
     /// <summary>
-    /// Get a specific manifest by wave name.
+    ///     Get a specific manifest by wave name.
     /// </summary>
     public WaveManifest? GetManifest(string waveName)
     {
@@ -86,12 +77,15 @@ public sealed class WaveManifestLoader
     }
 
     /// <summary>
-    /// Get all loaded manifests.
+    ///     Get all loaded manifests.
     /// </summary>
-    public IReadOnlyDictionary<string, WaveManifest> GetAllManifests() => _manifests;
+    public IReadOnlyDictionary<string, WaveManifest> GetAllManifests()
+    {
+        return _manifests;
+    }
 
     /// <summary>
-    /// Get all manifests sorted by priority (highest first).
+    ///     Get all manifests sorted by priority (highest first).
     /// </summary>
     public IReadOnlyList<WaveManifest> GetOrderedManifests()
     {
@@ -102,12 +96,12 @@ public sealed class WaveManifestLoader
     }
 
     /// <summary>
-    /// Get all signal contracts for LLM consumption.
-    /// Returns a summary of what each wave emits and consumes.
+    ///     Get all signal contracts for LLM consumption.
+    ///     Returns a summary of what each wave emits and consumes.
     /// </summary>
     public string GetSignalContractsSummary()
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine("# Wave Signal Contracts");
         sb.AppendLine();
 
@@ -121,7 +115,7 @@ public sealed class WaveManifestLoader
     }
 
     /// <summary>
-    /// Get all signal contracts as structured data.
+    ///     Get all signal contracts as structured data.
     /// </summary>
     public IReadOnlyList<SignalContract> GetAllContracts()
     {
@@ -131,7 +125,7 @@ public sealed class WaveManifestLoader
     }
 
     /// <summary>
-    /// Get manifests that can run given available signals.
+    ///     Get manifests that can run given available signals.
     /// </summary>
     public IReadOnlyList<WaveManifest> GetRunnableManifests(IReadOnlySet<string> availableSignals)
     {
@@ -141,7 +135,7 @@ public sealed class WaveManifestLoader
     }
 
     /// <summary>
-    /// Check if a wave can run given available signals.
+    ///     Check if a wave can run given available signals.
     /// </summary>
     public bool CanRun(WaveManifest manifest, IReadOnlySet<string> availableSignals)
     {
@@ -155,16 +149,14 @@ public sealed class WaveManifestLoader
 
         // Check required signals
         foreach (var requirement in manifest.Triggers.Requires)
-        {
             if (!availableSignals.Contains(requirement.Signal))
                 return false;
-        }
 
         return true;
     }
 
     /// <summary>
-    /// Get all signals that a wave emits.
+    ///     Get all signals that a wave emits.
     /// </summary>
     public IReadOnlySet<string> GetEmittedSignals(WaveManifest manifest)
     {
@@ -179,7 +171,7 @@ public sealed class WaveManifestLoader
     }
 
     /// <summary>
-    /// Get all signals that a wave listens to.
+    ///     Get all signals that a wave listens to.
     /// </summary>
     public IReadOnlySet<string> GetListenedSignals(WaveManifest manifest)
     {
@@ -194,7 +186,7 @@ public sealed class WaveManifestLoader
     }
 
     /// <summary>
-    /// Build a dependency graph of waves.
+    ///     Build a dependency graph of waves.
     /// </summary>
     public Dictionary<string, HashSet<string>> BuildDependencyGraph()
     {
@@ -203,12 +195,8 @@ public sealed class WaveManifestLoader
 
         // First pass: map signals to producing waves
         foreach (var manifest in _manifests.Values)
-        {
-            foreach (var signal in GetEmittedSignals(manifest))
-            {
-                signalToWave[signal] = manifest.Name;
-            }
-        }
+        foreach (var signal in GetEmittedSignals(manifest))
+            signalToWave[signal] = manifest.Name;
 
         // Second pass: build dependencies
         foreach (var manifest in _manifests.Values)
@@ -216,19 +204,15 @@ public sealed class WaveManifestLoader
             graph[manifest.Name] = new HashSet<string>();
 
             foreach (var signal in GetListenedSignals(manifest))
-            {
                 if (signalToWave.TryGetValue(signal, out var producer) && producer != manifest.Name)
-                {
                     graph[manifest.Name].Add(producer);
-                }
-            }
         }
 
         return graph;
     }
 
     /// <summary>
-    /// Get topologically sorted wave execution order.
+    ///     Get topologically sorted wave execution order.
     /// </summary>
     public IReadOnlyList<string> GetExecutionOrder()
     {
@@ -246,22 +230,15 @@ public sealed class WaveManifestLoader
             visiting.Add(wave);
 
             if (graph.TryGetValue(wave, out var deps))
-            {
                 foreach (var dep in deps)
-                {
                     Visit(dep);
-                }
-            }
 
             visiting.Remove(wave);
             visited.Add(wave);
             sorted.Add(wave);
         }
 
-        foreach (var wave in graph.Keys.OrderByDescending(w => _manifests[w].Priority))
-        {
-            Visit(wave);
-        }
+        foreach (var wave in graph.Keys.OrderByDescending(w => _manifests[w].Priority)) Visit(wave);
 
         return sorted;
     }

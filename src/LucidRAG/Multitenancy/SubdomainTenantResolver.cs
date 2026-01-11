@@ -1,40 +1,39 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using LucidRAG.Data;
+using Microsoft.Extensions.Options;
 
 namespace LucidRAG.Multitenancy;
 
 /// <summary>
-/// Resolves the current tenant from the HTTP request.
-/// This interface is ASP.NET-specific (uses HttpContext).
+///     Resolves the current tenant from the HTTP request.
+///     This interface is ASP.NET-specific (uses HttpContext).
 /// </summary>
 public interface ITenantResolver
 {
     /// <summary>
-    /// Resolve the tenant context from the current HTTP request.
-    /// Returns null if no tenant can be resolved.
+    ///     Resolve the tenant context from the current HTTP request.
+    ///     Returns null if no tenant can be resolved.
     /// </summary>
     Task<TenantContext?> ResolveAsync(HttpContext context, CancellationToken ct = default);
 }
 
 /// <summary>
-/// Resolves tenant from subdomain, header, or query parameter.
-/// Priority: Header > Query > Subdomain > Default
+///     Resolves tenant from subdomain, header, or query parameter.
+///     Priority: Header > Query > Subdomain > Default
 /// </summary>
 public class SubdomainTenantResolver : ITenantResolver
 {
-    private readonly IServiceProvider _services;
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
     private readonly IMemoryCache _cache;
     private readonly ILogger<SubdomainTenantResolver> _logger;
     private readonly MultitenancyOptions _options;
-
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
+    private readonly IServiceProvider _services;
 
     public SubdomainTenantResolver(
         IServiceProvider services,
         IMemoryCache cache,
         ILogger<SubdomainTenantResolver> logger,
-        Microsoft.Extensions.Options.IOptions<MultitenancyOptions> options)
+        IOptions<MultitenancyOptions> options)
     {
         _services = services;
         _cache = cache;
@@ -93,11 +92,11 @@ public class SubdomainTenantResolver : ITenantResolver
     }
 
     /// <summary>
-    /// Extract tenant ID from path: /t/{tenantId}/...
-    /// Examples:
-    ///   /t/mostlylucid -> mostlylucid
-    ///   /t/acme/api/docs -> acme
-    ///   /api/docs -> null
+    ///     Extract tenant ID from path: /t/{tenantId}/...
+    ///     Examples:
+    ///     /t/mostlylucid -> mostlylucid
+    ///     /t/acme/api/docs -> acme
+    ///     /api/docs -> null
     /// </summary>
     private static string? ExtractTenantFromPath(PathString path)
     {
@@ -112,22 +111,19 @@ public class SubdomainTenantResolver : ITenantResolver
             var nextSlash = remaining.IndexOf('/');
             var tenantId = nextSlash >= 0 ? remaining[..nextSlash] : remaining;
 
-            if (!string.IsNullOrWhiteSpace(tenantId) && tenantId.Length >= 2)
-            {
-                return tenantId.ToLowerInvariant();
-            }
+            if (!string.IsNullOrWhiteSpace(tenantId) && tenantId.Length >= 2) return tenantId.ToLowerInvariant();
         }
 
         return null;
     }
 
     /// <summary>
-    /// Extract tenant ID from hostname.
-    /// Examples:
-    ///   acme.lucidrag.com -> acme
-    ///   contoso.api.lucidrag.com -> contoso
-    ///   localhost -> null (use default)
-    ///   lucidrag.com -> null (use default)
+    ///     Extract tenant ID from hostname.
+    ///     Examples:
+    ///     acme.lucidrag.com -> acme
+    ///     contoso.api.lucidrag.com -> contoso
+    ///     localhost -> null (use default)
+    ///     lucidrag.com -> null (use default)
     /// </summary>
     private string? ExtractTenantFromHost(string host)
     {
@@ -139,27 +135,19 @@ public class SubdomainTenantResolver : ITenantResolver
             hostWithoutPort.StartsWith("127.") ||
             hostWithoutPort.StartsWith("192.168.") ||
             hostWithoutPort.StartsWith("10."))
-        {
             return null;
-        }
 
         // Split by dots
         var parts = hostWithoutPort.Split('.');
 
         // Need at least 3 parts for subdomain (tenant.domain.tld)
-        if (parts.Length < 3)
-        {
-            return null;
-        }
+        if (parts.Length < 3) return null;
 
         // First part is the tenant subdomain
         var subdomain = parts[0];
 
         // Ignore common non-tenant subdomains
-        if (IsReservedSubdomain(subdomain))
-        {
-            return null;
-        }
+        if (IsReservedSubdomain(subdomain)) return null;
 
         return subdomain;
     }
@@ -179,10 +167,7 @@ public class SubdomainTenantResolver : ITenantResolver
     {
         var cacheKey = $"tenant:{tenantId}";
 
-        if (_cache.TryGetValue(cacheKey, out TenantContext? cached))
-        {
-            return cached;
-        }
+        if (_cache.TryGetValue(cacheKey, out TenantContext? cached)) return cached;
 
         // Look up tenant in database
         using var scope = _services.CreateScope();
@@ -229,29 +214,29 @@ public class SubdomainTenantResolver : ITenantResolver
 }
 
 /// <summary>
-/// Configuration options for multi-tenancy.
+///     Configuration options for multi-tenancy.
 /// </summary>
 public class MultitenancyOptions
 {
     public const string SectionName = "Multitenancy";
 
     /// <summary>
-    /// Whether to enable multi-tenancy.
+    ///     Whether to enable multi-tenancy.
     /// </summary>
     public bool Enabled { get; set; } = false;
 
     /// <summary>
-    /// Whether to allow the default tenant when no tenant is specified.
+    ///     Whether to allow the default tenant when no tenant is specified.
     /// </summary>
     public bool AllowDefaultTenant { get; set; } = true;
 
     /// <summary>
-    /// Whether to auto-provision tenants that don't exist.
+    ///     Whether to auto-provision tenants that don't exist.
     /// </summary>
     public bool AutoProvisionTenants { get; set; } = false;
 
     /// <summary>
-    /// Base domain for tenant subdomains (e.g., "lucidrag.com").
+    ///     Base domain for tenant subdomains (e.g., "lucidrag.com").
     /// </summary>
     public string? BaseDomain { get; set; }
 }

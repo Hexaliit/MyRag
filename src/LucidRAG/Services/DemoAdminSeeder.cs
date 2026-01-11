@@ -5,15 +5,11 @@ using Microsoft.AspNetCore.Identity;
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Seeds a demo admin user in development mode for easier testing.
-/// The demo user can be used for auto-login in dev environments.
+///     Seeds a demo admin user in development mode for easier testing.
+///     The demo user can be used for auto-login in dev environments.
 /// </summary>
 public class DemoAdminSeeder : IHostedService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IWebHostEnvironment _environment;
-    private readonly ILogger<DemoAdminSeeder> _logger;
-
     public const string DemoAdminEmail = "admin@lucidrag.local";
     public const string DemoAdminPassword = "Admin123!";
     public const string DemoAdminDisplayName = "Demo Admin";
@@ -25,6 +21,10 @@ public class DemoAdminSeeder : IHostedService
         Roles.TenantAdmin,
         Roles.User
     ];
+
+    private readonly IWebHostEnvironment _environment;
+    private readonly ILogger<DemoAdminSeeder> _logger;
+    private readonly IServiceProvider _serviceProvider;
 
     public DemoAdminSeeder(
         IServiceProvider serviceProvider,
@@ -53,18 +53,14 @@ public class DemoAdminSeeder : IHostedService
         {
             // Ensure all roles exist
             foreach (var role in AllRoles)
-            {
                 if (!await roleManager.RoleExistsAsync(role))
                 {
                     _logger.LogInformation("Creating {Role} role", role);
                     var roleResult = await roleManager.CreateAsync(new IdentityRole(role));
                     if (!roleResult.Succeeded)
-                    {
                         _logger.LogWarning("Failed to create {Role} role: {Errors}",
                             role, string.Join(", ", roleResult.Errors.Select(e => e.Description)));
-                    }
                 }
-            }
 
             // Check if demo admin already exists
             var existingUser = await userManager.FindByEmailAsync(DemoAdminEmail);
@@ -78,6 +74,7 @@ public class DemoAdminSeeder : IHostedService
                     await userManager.AddToRoleAsync(existingUser, Roles.SystemAdmin);
                     _logger.LogInformation("Added {Role} role to existing demo admin", Roles.SystemAdmin);
                 }
+
                 return;
             }
 
@@ -113,5 +110,8 @@ public class DemoAdminSeeder : IHostedService
         }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
 }

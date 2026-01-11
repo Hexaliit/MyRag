@@ -7,13 +7,13 @@ using FluentAssertions;
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Integration tests for the Documents API
+///     Integration tests for the Documents API
 /// </summary>
 [Collection("Integration")]
 public class DocumentsApiTests : IAsyncLifetime
 {
-    private readonly TestWebApplicationFactory _factory;
     private readonly HttpClient _client;
+    private readonly TestWebApplicationFactory _factory;
 
     public DocumentsApiTests(TestWebApplicationFactory factory)
     {
@@ -148,7 +148,7 @@ public class DocumentsApiTests : IAsyncLifetime
     public async Task ListDocuments_ReturnsAllDocuments()
     {
         // Arrange - Upload multiple documents
-        for (int i = 0; i < 3; i++)
+        for (var i = 0; i < 3; i++)
         {
             var content = new MultipartFormDataContent();
             content.Add(new StringContent($"# Document {i}\n\nContent for document {i}.", Encoding.UTF8),
@@ -194,11 +194,9 @@ public class DocumentsApiTests : IAsyncLifetime
     {
         // Arrange
         var content = new MultipartFormDataContent();
-        for (int i = 0; i < 3; i++)
-        {
+        for (var i = 0; i < 3; i++)
             content.Add(new StringContent($"# Batch Doc {i}\n\nBatch content {i}.", Encoding.UTF8),
                 "files", $"batch-{i}.md");
-        }
 
         // Act
         var response = await _client.PostAsync("/api/documents/upload-batch", content);
@@ -210,10 +208,7 @@ public class DocumentsApiTests : IAsyncLifetime
         var documents = result.GetProperty("documents");
         documents.GetArrayLength().Should().Be(3);
 
-        foreach (var doc in documents.EnumerateArray())
-        {
-            doc.GetProperty("status").GetString().Should().Be("queued");
-        }
+        foreach (var doc in documents.EnumerateArray()) doc.GetProperty("status").GetString().Should().Be("queued");
     }
 
     [Fact]
@@ -223,7 +218,7 @@ public class DocumentsApiTests : IAsyncLifetime
         var sb = new StringBuilder();
         sb.AppendLine("# Large Document Test");
         sb.AppendLine();
-        for (int i = 0; i < 100; i++)
+        for (var i = 0; i < 100; i++)
         {
             sb.AppendLine($"## Section {i}");
             sb.AppendLine();
@@ -250,7 +245,8 @@ public class DocumentsApiTests : IAsyncLifetime
     public async Task Upload_WithCollectionId_AssociatesWithCollection()
     {
         // Arrange - Create a collection first
-        var collectionResponse = await _client.PostAsJsonAsync("/api/collections", new { name = "Upload Test Collection" });
+        var collectionResponse =
+            await _client.PostAsJsonAsync("/api/collections", new { name = "Upload Test Collection" });
         collectionResponse.StatusCode.Should().Be(HttpStatusCode.Created);
         var collectionResult = await collectionResponse.Content.ReadFromJsonAsync<JsonElement>();
         var collectionId = collectionResult.GetProperty("id").GetString();
@@ -278,7 +274,8 @@ public class DocumentsApiTests : IAsyncLifetime
     {
         // Arrange - Use a non-existent collection ID
         var content = new MultipartFormDataContent();
-        content.Add(new StringContent("# Invalid Collection Test\n\nContent.", Encoding.UTF8), "file", "invalid-collection-test.md");
+        content.Add(new StringContent("# Invalid Collection Test\n\nContent.", Encoding.UTF8), "file",
+            "invalid-collection-test.md");
         content.Add(new StringContent(Guid.NewGuid().ToString()), "collectionId");
 
         // Act

@@ -27,6 +27,7 @@ datasummarizer -f data.csv --show-pii-type email,phone
 ```
 
 **Benefits:**
+
 - ✅ Screenshot-safe console output
 - ✅ CI/CD pipeline safe (no PII in logs)
 - ✅ GDPR/HIPAA compliance-friendly
@@ -54,6 +55,7 @@ datasummarizer -f data.csv --onnx-enabled false
 ```
 
 **Performance Impact:**
+
 - Regex-only: 100% speed, good for structured PII
 - Regex + ONNX: ~85% speed, excellent for all PII types
 - Improved detection of: Names, addresses, unstructured sensitive text
@@ -63,17 +65,20 @@ datasummarizer -f data.csv --onnx-enabled false
 ### 🔧 Technical Improvements
 
 **Configuration:**
+
 - New `PiiDisplayConfig` with 20+ type-specific settings
 - Per-type control (show emails but hide SSN, etc.)
 - Configurable redaction characters and visible chars
 
 **Architecture:**
+
 - `PiiRedactionService` for centralized redaction logic
 - `PiiResults` stored in `DataProfile` for output filtering
 - Enhanced `DuckDbProfiler` with ONNX config flow
 - All PII handling runs **100% locally** (no API calls)
 
 **CLI Additions:**
+
 ```
 --show-pii                Show actual PII values (disables privacy protection)
 --show-pii-type <types>   Show specific PII types (email,phone,ssn,name,etc.)
@@ -96,6 +101,7 @@ datasummarizer -f data.csv --onnx-enabled false
 - **Total**: 305 tests passing
 
 **Tested Scenarios:**
+
 - PII detection with 20+ different PII types
 - Redaction format preservation (SSN, email, phone, credit card)
 - Selective PII display (`--show-pii-type`)
@@ -108,12 +114,14 @@ datasummarizer -f data.csv --onnx-enabled false
 ### 📝 Documentation Updates
 
 **New README Sections:**
+
 - **Privacy-Safe PII Handling** - Complete PII redaction guide
 - **ONNX Integration** - Model selection, GPU acceleration, troubleshooting
 - **Configuration Examples** - `appsettings.json` for PII and ONNX
 - **Release Shields** - Tests, Privacy, ONNX status badges
 
 **API Documentation:**
+
 - `PiiDisplayConfig` - Per-type display configuration
 - `PiiRedactionService` - Redaction logic and format preservation
 - `OnnxConfig` - Embedding models and execution providers
@@ -169,6 +177,7 @@ ONNX classifier now auto-enables from config. To disable:
 ```
 
 Or via CLI:
+
 ```bash
 datasummarizer -f data.csv --onnx-enabled false
 ```
@@ -186,13 +195,14 @@ datasummarizer -f data.csv --onnx-enabled false
 
 ### ⚡ Performance
 
-| Mode | Speed | PII Detection Quality |
-|------|-------|----------------------|
-| **Fast (no PII)** | 100% | N/A |
-| **Regex only** | ~95% | Good for structured PII |
-| **Regex + ONNX** | ~85% | Excellent for all types |
+| Mode              | Speed | PII Detection Quality   |
+|-------------------|-------|-------------------------|
+| **Fast (no PII)** | 100%  | N/A                     |
+| **Regex only**    | ~95%  | Good for structured PII |
+| **Regex + ONNX**  | ~85%  | Excellent for all types |
 
 **Benchmarks:**
+
 - Hospital patient data (974 rows): ~2s with ONNX
 - PII test data (5 rows): <1s with ONNX
 - Model download (first run): ~10s for 23MB quantized model
@@ -203,11 +213,13 @@ datasummarizer -f data.csv --onnx-enabled false
 ### 📦 Files Changed
 
 **New Files:**
+
 - `Configuration/PiiDisplayConfig.cs` - PII display configuration
 - `Services/PiiRedactionService.cs` - Redaction logic
 - `RELEASE_NOTES.md` - This file
 
 **Modified Files:**
+
 - `README.md` - Added Privacy and ONNX sections, shields
 - `Program.cs` - PII redaction integration, 8 new CLI options
 - `Services/DuckDbProfiler.cs` - Auto-enable ONNX, store PII results
@@ -229,6 +241,7 @@ datasummarizer -f data.csv --onnx-enabled false
 ### 🔮 Roadmap
 
 **Upcoming Features:**
+
 - PDF/Markdown report PII redaction
 - JSON output PII redaction options
 - Custom PII patterns via config

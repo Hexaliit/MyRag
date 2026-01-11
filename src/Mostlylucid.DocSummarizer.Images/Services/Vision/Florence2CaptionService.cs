@@ -1,31 +1,32 @@
+using System.Collections;
+using System.Diagnostics;
+using Florence2;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Config;
-using Mostlylucid.DocSummarizer.Images.Models;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using Florence2;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Vision;
 
 /// <summary>
-/// Fast local captioning and OCR service using Florence-2 ONNX models.
-/// Provides sub-second inference without requiring external services.
-/// Compensates for Florence-2's weak color detection by enhancing captions with ColorWave signals.
-/// Can be used as a "first pass" before escalating to more powerful vision LLMs.
+///     Fast local captioning and OCR service using Florence-2 ONNX models.
+///     Provides sub-second inference without requiring external services.
+///     Compensates for Florence-2's weak color detection by enhancing captions with ColorWave signals.
+///     Can be used as a "first pass" before escalating to more powerful vision LLMs.
 /// </summary>
 public class Florence2CaptionService
 {
-    private readonly ILogger<Florence2CaptionService>? _logger;
-    private readonly ImageConfig _config;
     private readonly ColorAnalyzer _colorAnalyzer;
+    private readonly ImageConfig _config;
+    private readonly ILogger<Florence2CaptionService>? _logger;
+    private readonly SemaphoreSlim _modelLock = new(1, 1);
+    private readonly string? _modelsDirectory;
     private readonly SceneDetectionService _sceneDetectionService;
     private Florence2Model? _model;
-    private readonly SemaphoreSlim _modelLock = new(1, 1);
     private bool _modelInitialized;
-    private string? _modelsDirectory;
 
     public Florence2CaptionService(
         IOptions<ImageConfig> config,
@@ -41,7 +42,7 @@ public class Florence2CaptionService
     }
 
     /// <summary>
-    /// Check if Florence-2 models are available.
+    ///     Check if Florence-2 models are available.
     /// </summary>
     public async Task<bool> IsAvailableAsync(CancellationToken ct = default)
     {
@@ -57,8 +58,8 @@ public class Florence2CaptionService
     }
 
     /// <summary>
-    /// Get a fast caption for an image using Florence-2.
-    /// Handles GIFs by creating frame strips automatically.
+    ///     Get a fast caption for an image using Florence-2.
+    ///     Handles GIFs by creating frame strips automatically.
     /// </summary>
     /// <param name="imagePath">Path to the image file</param>
     /// <param name="detailed">If true, uses DETAILED_CAPTION task</param>
@@ -70,30 +71,25 @@ public class Florence2CaptionService
         bool enhanceWithColors = true,
         CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         try
         {
             await EnsureModelLoadedAsync(ct);
 
             if (_model == null)
-            {
                 return new Florence2CaptionResult(
-                    Success: false,
-                    Caption: null,
-                    OcrText: null,
-                    Error: "Florence-2 model not loaded",
-                    DurationMs: sw.ElapsedMilliseconds,
-                    EnhancedWithColors: false);
-            }
+                    false,
+                    null,
+                    null,
+                    "Florence-2 model not loaded",
+                    sw.ElapsedMilliseconds,
+                    false);
 
             var ext = Path.GetExtension(imagePath).ToLowerInvariant();
 
             // Handle GIFs with frame strip
-            if (ext == ".gif")
-            {
-                return await GetGifCaptionAsync(imagePath, detailed, enhanceWithColors, sw, ct);
-            }
+            if (ext == ".gif") return await GetGifCaptionAsync(imagePath, detailed, enhanceWithColors, sw, ct);
 
             // Static image
             return await GetStaticCaptionAsync(imagePath, detailed, enhanceWithColors, sw, ct);
@@ -102,102 +98,98 @@ public class Florence2CaptionService
         {
             _logger?.LogError(ex, "Florence-2 captioning failed for {Path}", imagePath);
             return new Florence2CaptionResult(
-                Success: false,
-                Caption: null,
-                OcrText: null,
-                Error: ex.Message,
-                DurationMs: sw.ElapsedMilliseconds,
-                EnhancedWithColors: false);
+                false,
+                null,
+                null,
+                ex.Message,
+                sw.ElapsedMilliseconds,
+                false);
         }
     }
 
     /// <summary>
-    /// Extract text from an image using Florence-2 OCR.
-    /// Faster than Tesseract but less accurate for complex layouts.
-    /// Good as a "first pass" before escalating to full OCR.
+    ///     Extract text from an image using Florence-2 OCR.
+    ///     Faster than Tesseract but less accurate for complex layouts.
+    ///     Good as a "first pass" before escalating to full OCR.
     /// </summary>
     public async Task<Florence2OcrResult> ExtractTextAsync(
         string imagePath,
         CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         try
         {
             await EnsureModelLoadedAsync(ct);
 
             if (_model == null)
-            {
                 return new Florence2OcrResult(
-                    Success: false,
-                    Text: null,
-                    Error: "Florence-2 model not loaded",
-                    DurationMs: sw.ElapsedMilliseconds);
-            }
+                    false,
+                    null,
+                    "Florence-2 model not loaded",
+                    sw.ElapsedMilliseconds);
 
             using var imgStream = File.OpenRead(imagePath);
             var streams = new Stream[] { imgStream };
 
             // Use OCR task
-            var results = _model.Run(TaskTypes.OCR, streams, textInput: null, cancellationToken: ct);
+            var results = _model.Run(TaskTypes.OCR, streams, null, ct);
             var text = ExtractText(results);
 
             return new Florence2OcrResult(
-                Success: !string.IsNullOrWhiteSpace(text),
-                Text: text?.Trim(),
-                Error: string.IsNullOrWhiteSpace(text) ? "No text detected" : null,
-                DurationMs: sw.ElapsedMilliseconds);
+                !string.IsNullOrWhiteSpace(text),
+                text?.Trim(),
+                string.IsNullOrWhiteSpace(text) ? "No text detected" : null,
+                sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Florence-2 OCR failed for {Path}", imagePath);
             return new Florence2OcrResult(
-                Success: false,
-                Text: null,
-                Error: ex.Message,
-                DurationMs: sw.ElapsedMilliseconds);
+                false,
+                null,
+                ex.Message,
+                sw.ElapsedMilliseconds);
         }
     }
 
     /// <summary>
-    /// Run combined caption + OCR analysis in a single pass.
-    /// Useful as a quick "first pass" before full wave pipeline.
+    ///     Run combined caption + OCR analysis in a single pass.
+    ///     Useful as a quick "first pass" before full wave pipeline.
     /// </summary>
     public async Task<Florence2AnalysisResult> AnalyzeAsync(
         string imagePath,
         bool enhanceWithColors = true,
         CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         try
         {
             await EnsureModelLoadedAsync(ct);
 
             if (_model == null)
-            {
                 return new Florence2AnalysisResult(
-                    Success: false,
-                    Caption: null,
-                    OcrText: null,
-                    Error: "Florence-2 model not loaded",
-                    DurationMs: sw.ElapsedMilliseconds,
-                    EnhancedWithColors: false);
-            }
+                    false,
+                    null,
+                    null,
+                    "Florence-2 model not loaded",
+                    sw.ElapsedMilliseconds,
+                    false);
 
             // Get caption
             using var imgStream1 = File.OpenRead(imagePath);
-            var captionResult = _model.Run(TaskTypes.DETAILED_CAPTION, new[] { imgStream1 }, textInput: null, cancellationToken: ct);
+            var captionResult = _model.Run(TaskTypes.DETAILED_CAPTION, new[] { imgStream1 }, null, ct);
             var caption = ExtractText(captionResult);
 
             // Get OCR text
             using var imgStream2 = File.OpenRead(imagePath);
-            var ocrResult = _model.Run(TaskTypes.OCR, new[] { imgStream2 }, textInput: null, cancellationToken: ct);
+            var ocrResult = _model.Run(TaskTypes.OCR, new[] { imgStream2 }, null, ct);
             var ocrText = ExtractText(ocrResult);
 
             // Enhance caption with colors
-            string? enhancedCaption = caption;
-            bool wasEnhanced = false;
+            var enhancedCaption = caption;
+            var wasEnhanced = false;
 
             if (enhanceWithColors && !string.IsNullOrWhiteSpace(caption))
             {
@@ -207,23 +199,23 @@ public class Florence2CaptionService
             }
 
             return new Florence2AnalysisResult(
-                Success: !string.IsNullOrWhiteSpace(enhancedCaption) || !string.IsNullOrWhiteSpace(ocrText),
-                Caption: CleanCaption(enhancedCaption),
-                OcrText: ocrText?.Trim(),
-                Error: null,
-                DurationMs: sw.ElapsedMilliseconds,
-                EnhancedWithColors: wasEnhanced);
+                !string.IsNullOrWhiteSpace(enhancedCaption) || !string.IsNullOrWhiteSpace(ocrText),
+                CleanCaption(enhancedCaption),
+                ocrText?.Trim(),
+                null,
+                sw.ElapsedMilliseconds,
+                wasEnhanced);
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Florence-2 analysis failed for {Path}", imagePath);
             return new Florence2AnalysisResult(
-                Success: false,
-                Caption: null,
-                OcrText: null,
-                Error: ex.Message,
-                DurationMs: sw.ElapsedMilliseconds,
-                EnhancedWithColors: false);
+                false,
+                null,
+                null,
+                ex.Message,
+                sw.ElapsedMilliseconds,
+                false);
         }
     }
 
@@ -231,7 +223,7 @@ public class Florence2CaptionService
         string imagePath,
         bool detailed,
         bool enhanceWithColors,
-        System.Diagnostics.Stopwatch sw,
+        Stopwatch sw,
         CancellationToken ct)
     {
         using var imgStream = File.OpenRead(imagePath);
@@ -239,7 +231,7 @@ public class Florence2CaptionService
 
         // Get caption from Florence-2
         var task = detailed ? TaskTypes.DETAILED_CAPTION : TaskTypes.CAPTION;
-        var results = _model!.Run(task, streams, textInput: null, cancellationToken: ct);
+        var results = _model!.Run(task, streams, null, ct);
         var caption = ExtractText(results);
 
         // Also get OCR text quickly
@@ -247,25 +239,26 @@ public class Florence2CaptionService
         try
         {
             using var imgStream2 = File.OpenRead(imagePath);
-            var ocrResults = _model.Run(TaskTypes.OCR, new[] { imgStream2 }, textInput: null, cancellationToken: ct);
+            var ocrResults = _model.Run(TaskTypes.OCR, new[] { imgStream2 }, null, ct);
             ocrText = ExtractText(ocrResults)?.Trim();
         }
-        catch { /* OCR is optional */ }
-
-        if (string.IsNullOrWhiteSpace(caption))
+        catch
         {
-            return new Florence2CaptionResult(
-                Success: false,
-                Caption: null,
-                OcrText: ocrText,
-                Error: "No caption generated",
-                DurationMs: sw.ElapsedMilliseconds,
-                EnhancedWithColors: false);
+            /* OCR is optional */
         }
 
+        if (string.IsNullOrWhiteSpace(caption))
+            return new Florence2CaptionResult(
+                false,
+                null,
+                ocrText,
+                "No caption generated",
+                sw.ElapsedMilliseconds,
+                false);
+
         // Enhance with color signals if requested
-        string? enhancedCaption = caption;
-        bool wasEnhanced = false;
+        var enhancedCaption = caption;
+        var wasEnhanced = false;
 
         if (enhanceWithColors)
         {
@@ -275,19 +268,19 @@ public class Florence2CaptionService
         }
 
         return new Florence2CaptionResult(
-            Success: true,
-            Caption: CleanCaption(enhancedCaption),
-            OcrText: ocrText,
-            Error: null,
-            DurationMs: sw.ElapsedMilliseconds,
-            EnhancedWithColors: wasEnhanced);
+            true,
+            CleanCaption(enhancedCaption),
+            ocrText,
+            null,
+            sw.ElapsedMilliseconds,
+            wasEnhanced);
     }
 
     private async Task<Florence2CaptionResult> GetGifCaptionAsync(
         string gifPath,
         bool detailed,
         bool enhanceWithColors,
-        System.Diagnostics.Stopwatch sw,
+        Stopwatch sw,
         CancellationToken ct)
     {
         try
@@ -298,13 +291,11 @@ public class Florence2CaptionService
             using var image = await Image.LoadAsync<Rgba32>(gifPath, ct);
 
             if (image.Frames.Count < 2)
-            {
                 // Single frame - use static processing
                 return await GetStaticCaptionAsync(gifPath, detailed, enhanceWithColors, sw, ct);
-            }
 
             // Extract scene-end frames using SceneDetectionService (max 4 frames)
-            var sceneDetection = _sceneDetectionService.DetectScenes(image, maxScenes: 4);
+            var sceneDetection = _sceneDetectionService.DetectScenes(image);
 
             _logger?.LogDebug(
                 "Motion detection found {SceneCount} scenes from {TotalFrames} frames: [{Indices}] (avgMotion={AvgMotion:F3})",
@@ -319,7 +310,8 @@ public class Florence2CaptionService
                 foreach (var frameIdx in sceneDetection.SceneEndFrameIndices)
                 {
                     using var frame = image.Frames.CloneFrame(frameIdx);
-                    var tempPath = Path.Combine(Path.GetTempPath(), $"florence2_scene_{frameIdx}_{Guid.NewGuid():N}.png");
+                    var tempPath = Path.Combine(Path.GetTempPath(),
+                        $"florence2_scene_{frameIdx}_{Guid.NewGuid():N}.png");
                     await frame.SaveAsPngAsync(tempPath, ct);
                     framePaths.Add(tempPath);
                 }
@@ -357,13 +349,13 @@ public class Florence2CaptionService
 
                 // Get caption from LAST frame (most complete scene, likely has most text/context)
                 string? caption = null;
-                bool wasEnhanced = false;
+                var wasEnhanced = false;
 
                 try
                 {
                     using var imgStream = File.OpenRead(framePaths[^1]); // Last scene frame
                     var task = detailed ? TaskTypes.DETAILED_CAPTION : TaskTypes.CAPTION;
-                    var captionResult = _model!.Run(task, new[] { imgStream }, textInput: null, cancellationToken: ct);
+                    var captionResult = _model!.Run(task, new[] { imgStream }, null, ct);
                     caption = ExtractText(captionResult);
 
                     // Enhance with colors
@@ -380,24 +372,29 @@ public class Florence2CaptionService
                 }
 
                 return new Florence2CaptionResult(
-                    Success: !string.IsNullOrWhiteSpace(caption) || !string.IsNullOrWhiteSpace(combinedOcrText),
-                    Caption: CleanCaption(caption),
-                    OcrText: string.IsNullOrWhiteSpace(combinedOcrText) ? null : combinedOcrText,
-                    Error: string.IsNullOrWhiteSpace(caption) && string.IsNullOrWhiteSpace(combinedOcrText)
+                    !string.IsNullOrWhiteSpace(caption) || !string.IsNullOrWhiteSpace(combinedOcrText),
+                    CleanCaption(caption),
+                    string.IsNullOrWhiteSpace(combinedOcrText) ? null : combinedOcrText,
+                    string.IsNullOrWhiteSpace(caption) && string.IsNullOrWhiteSpace(combinedOcrText)
                         ? "No caption or text generated"
                         : null,
-                    DurationMs: sw.ElapsedMilliseconds,
-                    EnhancedWithColors: wasEnhanced,
-                    FrameCount: framePaths.Count,
-                    SceneDetection: sceneDetection);
+                    sw.ElapsedMilliseconds,
+                    wasEnhanced,
+                    framePaths.Count,
+                    sceneDetection);
             }
             finally
             {
                 // Clean up all temp frames
                 foreach (var path in framePaths)
-                {
-                    try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore */ }
-                }
+                    try
+                    {
+                        if (File.Exists(path)) File.Delete(path);
+                    }
+                    catch
+                    {
+                        /* ignore */
+                    }
             }
         }
         catch (Exception ex)
@@ -411,14 +408,14 @@ public class Florence2CaptionService
     // See Services/Analysis/SceneDetectionService.cs
 
     /// <summary>
-    /// Process a single frame with Florence-2 OCR.
+    ///     Process a single frame with Florence-2 OCR.
     /// </summary>
     private async Task<string?> ProcessFrameOcrAsync(string framePath, CancellationToken ct)
     {
         try
         {
             using var imgStream = File.OpenRead(framePath);
-            var ocrResults = _model!.Run(TaskTypes.OCR, new[] { imgStream }, textInput: null, cancellationToken: ct);
+            var ocrResults = _model!.Run(TaskTypes.OCR, new[] { imgStream }, null, ct);
             var text = ExtractText(ocrResults)?.Trim();
             return text;
         }
@@ -430,8 +427,8 @@ public class Florence2CaptionService
     }
 
     /// <summary>
-    /// Deduplicate OCR results using text similarity (Levenshtein distance).
-    /// Filters out near-duplicate results to get only unique text content.
+    ///     Deduplicate OCR results using text similarity (Levenshtein distance).
+    ///     Filters out near-duplicate results to get only unique text content.
     /// </summary>
     private List<string> DeduplicateOcrResults(string?[] ocrResults)
     {
@@ -454,17 +451,14 @@ public class Florence2CaptionService
                 }
             }
 
-            if (!isDuplicate)
-            {
-                uniqueTexts.Add(text);
-            }
+            if (!isDuplicate) uniqueTexts.Add(text);
         }
 
         return uniqueTexts;
     }
 
     /// <summary>
-    /// Calculate text similarity using Levenshtein distance (0.0 = completely different, 1.0 = identical).
+    ///     Calculate text similarity using Levenshtein distance (0.0 = completely different, 1.0 = identical).
     /// </summary>
     private static double CalculateTextSimilarity(string text1, string text2)
     {
@@ -475,11 +469,11 @@ public class Florence2CaptionService
         if (maxLen == 0) return 1.0;
 
         var distance = LevenshteinDistance(text1.ToLowerInvariant(), text2.ToLowerInvariant());
-        return 1.0 - ((double)distance / maxLen);
+        return 1.0 - (double)distance / maxLen;
     }
 
     /// <summary>
-    /// Calculate Levenshtein distance between two strings.
+    ///     Calculate Levenshtein distance between two strings.
     /// </summary>
     private static int LevenshteinDistance(string s1, string s2)
     {
@@ -487,29 +481,27 @@ public class Florence2CaptionService
         var len2 = s2.Length;
         var matrix = new int[len1 + 1, len2 + 1];
 
-        for (int i = 0; i <= len1; i++)
+        for (var i = 0; i <= len1; i++)
             matrix[i, 0] = i;
-        for (int j = 0; j <= len2; j++)
+        for (var j = 0; j <= len2; j++)
             matrix[0, j] = j;
 
-        for (int i = 1; i <= len1; i++)
+        for (var i = 1; i <= len1; i++)
+        for (var j = 1; j <= len2; j++)
         {
-            for (int j = 1; j <= len2; j++)
-            {
-                var cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
-                matrix[i, j] = Math.Min(
-                    Math.Min(matrix[i - 1, j] + 1, matrix[i, j - 1] + 1),
-                    matrix[i - 1, j - 1] + cost
-                );
-            }
+            var cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
+            matrix[i, j] = Math.Min(
+                Math.Min(matrix[i - 1, j] + 1, matrix[i, j - 1] + 1),
+                matrix[i - 1, j - 1] + cost
+            );
         }
 
         return matrix[len1, len2];
     }
 
     /// <summary>
-    /// Extract a representative single frame from an animated GIF for Florence2 analysis.
-    /// Uses the middle frame which is more likely to show interesting content.
+    ///     Extract a representative single frame from an animated GIF for Florence2 analysis.
+    ///     Uses the middle frame which is more likely to show interesting content.
     /// </summary>
     private async Task<(string? FramePath, int TotalFrameCount)> ExtractRepresentativeFrameAsync(
         string gifPath,
@@ -545,8 +537,8 @@ public class Florence2CaptionService
     }
 
     /// <summary>
-    /// Enhance caption with accurate color information from ColorWave.
-    /// Florence-2 is weak at color detection, so we compensate with our deterministic color analyzer.
+    ///     Enhance caption with accurate color information from ColorWave.
+    ///     Florence-2 is weak at color detection, so we compensate with our deterministic color analyzer.
     /// </summary>
     private async Task<(string caption, bool enhanced)> EnhanceCaptionWithColorsAsync(
         string imagePath,
@@ -559,12 +551,9 @@ public class Florence2CaptionService
             using var image = await Image.LoadAsync<Rgba32>(imagePath, ct);
 
             // Get dominant colors using ColorAnalyzer
-            var dominantColors = _colorAnalyzer.ExtractDominantColors(image, maxColors: 5);
+            var dominantColors = _colorAnalyzer.ExtractDominantColors(image);
 
-            if (dominantColors == null || dominantColors.Count == 0)
-            {
-                return (baseCaption, false);
-            }
+            if (dominantColors == null || dominantColors.Count == 0) return (baseCaption, false);
 
             // Get top 2-3 significant colors
             var topColors = dominantColors
@@ -573,10 +562,7 @@ public class Florence2CaptionService
                 .Select(c => c.Name.ToLowerInvariant())
                 .ToList();
 
-            if (topColors.Count == 0)
-            {
-                return (baseCaption, false);
-            }
+            if (topColors.Count == 0) return (baseCaption, false);
 
             // Check if caption already mentions these colors
             var captionLower = baseCaption.ToLowerInvariant();
@@ -585,10 +571,8 @@ public class Florence2CaptionService
                 .ToList();
 
             if (missingColors.Count == 0)
-            {
                 // Colors already mentioned
                 return (baseCaption, false);
-            }
 
             // Build color prefix
             var colorPhrase = missingColors.Count switch
@@ -608,7 +592,7 @@ public class Florence2CaptionService
     }
 
     /// <summary>
-    /// Check if a color synonym is present (e.g., "crimson" for "red")
+    ///     Check if a color synonym is present (e.g., "crimson" for "red")
     /// </summary>
     private static bool IsColorSynonymPresent(string text, string color)
     {
@@ -634,10 +618,7 @@ public class Florence2CaptionService
     private string? ExtractText(object results)
     {
         // Florence2 returns different types based on task
-        if (results is string str)
-        {
-            return str;
-        }
+        if (results is string str) return str;
 
         // Try to get text property via reflection or dynamic
         try
@@ -645,22 +626,22 @@ public class Florence2CaptionService
             var type = results.GetType();
 
             // Try common text property names (Florence2 uses PureText for caption/OCR results)
-            var propertyNames = new[] { "PureText", "Text", "text", "Caption", "caption", "Description", "description", "Content", "content" };
+            var propertyNames = new[]
+            {
+                "PureText", "Text", "text", "Caption", "caption", "Description", "description", "Content", "content"
+            };
             foreach (var propName in propertyNames)
             {
                 var prop = type.GetProperty(propName);
                 if (prop != null)
                 {
                     var value = prop.GetValue(results)?.ToString();
-                    if (!string.IsNullOrWhiteSpace(value))
-                    {
-                        return value;
-                    }
+                    if (!string.IsNullOrWhiteSpace(value)) return value;
                 }
             }
 
             // If it's a collection, extract text from each item and combine
-            if (results is System.Collections.IEnumerable enumerable)
+            if (results is IEnumerable enumerable)
             {
                 var texts = new List<string>();
                 var itemCount = 0;
@@ -677,11 +658,9 @@ public class Florence2CaptionService
 
                     // Log element type on first item for debugging
                     if (itemCount == 1)
-                    {
                         _logger?.LogDebug("Florence2 collection element type: {Type}, properties: {Props}",
                             itemType.FullName,
                             string.Join(", ", itemType.GetProperties().Select(p => $"{p.Name}:{p.PropertyType.Name}")));
-                    }
 
                     foreach (var propName in propertyNames)
                     {
@@ -701,10 +680,7 @@ public class Florence2CaptionService
                 _logger?.LogDebug("Florence2 collection had {Count} items, extracted {TextCount} text values",
                     itemCount, texts.Count);
 
-                if (texts.Count > 0)
-                {
-                    return string.Join(" ", texts);
-                }
+                if (texts.Count > 0) return string.Join(" ", texts);
             }
 
             // Last resort - ToString
@@ -716,11 +692,9 @@ public class Florence2CaptionService
                 && toString != typeName
                 && !toString.EndsWith(typeName)
                 && fullTypeName != null && !toString.Contains(fullTypeName)
-                && !toString.Contains("[]")  // Avoid array type names
-                && !toString.StartsWith("System."))  // Avoid system type names
-            {
+                && !toString.Contains("[]") // Avoid array type names
+                && !toString.StartsWith("System.")) // Avoid system type names
                 return toString;
-            }
 
             // Debug: Log property names to help diagnose
             _logger?.LogDebug("Florence2 result type: {Type}, properties: {Props}",
@@ -752,9 +726,9 @@ public class Florence2CaptionService
             // Download models if needed (with status callback)
             var modelSource = new FlorenceModelDownloader(_modelsDirectory!);
             await modelSource.DownloadModelsAsync(
-                onStatusUpdate: status => _logger?.LogDebug("Florence-2 download: {Status}", status),
-                logger: null,
-                ct: ct);
+                status => _logger?.LogDebug("Florence-2 download: {Status}", status),
+                null,
+                ct);
 
             // Load model
             _model = new Florence2Model(modelSource);
@@ -774,7 +748,7 @@ public class Florence2CaptionService
     }
 
     /// <summary>
-    /// Create frame strip from GIF for Florence-2 to analyze.
+    ///     Create frame strip from GIF for Florence-2 to analyze.
     /// </summary>
     private async Task<(string? StripPath, int FrameCount)> CreateGifFrameStripAsync(
         string gifPath,
@@ -790,24 +764,16 @@ public class Florence2CaptionService
         var step = Math.Max(1, image.Frames.Count / maxFrames);
         var frames = new List<Image<Rgba32>>();
 
-        for (int i = 0; i < image.Frames.Count && frames.Count < maxFrames; i += step)
-        {
+        for (var i = 0; i < image.Frames.Count && frames.Count < maxFrames; i += step)
             frames.Add(image.Frames.CloneFrame(i));
-        }
 
         // Simple deduplication
         var uniqueFrames = new List<Image<Rgba32>> { frames[0] };
-        for (int i = 1; i < frames.Count; i++)
-        {
+        for (var i = 1; i < frames.Count; i++)
             if (!AreFramesSimilar(uniqueFrames[^1], frames[i], 0.95))
-            {
                 uniqueFrames.Add(frames[i]);
-            }
             else
-            {
                 frames[i].Dispose();
-            }
-        }
 
         if (uniqueFrames.Count < 2)
         {
@@ -822,7 +788,7 @@ public class Florence2CaptionService
 
         using var strip = new Image<Rgba32>(stripWidth, frameHeight);
 
-        int xOffset = 0;
+        var xOffset = 0;
         foreach (var frame in uniqueFrames)
         {
             using var resized = frame.Clone();
@@ -844,22 +810,20 @@ public class Florence2CaptionService
         if (frame1.Width != frame2.Width || frame1.Height != frame2.Height)
             return false;
 
-        int sampleStep = Math.Max(1, Math.Min(frame1.Width, frame1.Height) / 16);
-        int matchingPixels = 0;
-        int totalSampled = 0;
+        var sampleStep = Math.Max(1, Math.Min(frame1.Width, frame1.Height) / 16);
+        var matchingPixels = 0;
+        var totalSampled = 0;
 
-        for (int y = 0; y < frame1.Height; y += sampleStep)
+        for (var y = 0; y < frame1.Height; y += sampleStep)
+        for (var x = 0; x < frame1.Width; x += sampleStep)
         {
-            for (int x = 0; x < frame1.Width; x += sampleStep)
-            {
-                var p1 = frame1[x, y];
-                var p2 = frame2[x, y];
+            var p1 = frame1[x, y];
+            var p2 = frame2[x, y];
 
-                var diff = Math.Abs(p1.R - p2.R) + Math.Abs(p1.G - p2.G) + Math.Abs(p1.B - p2.B);
-                if (diff < 30)
-                    matchingPixels++;
-                totalSampled++;
-            }
+            var diff = Math.Abs(p1.R - p2.R) + Math.Abs(p1.G - p2.G) + Math.Abs(p1.B - p2.B);
+            if (diff < 30)
+                matchingPixels++;
+            totalSampled++;
         }
 
         return totalSampled > 0 && (double)matchingPixels / totalSampled >= threshold;
@@ -878,29 +842,22 @@ public class Florence2CaptionService
             "The image shows",
             "This image shows",
             "In this image,",
-            "The picture shows",
+            "The picture shows"
         };
 
         foreach (var artifact in artifacts)
-        {
             if (result.StartsWith(artifact, StringComparison.OrdinalIgnoreCase))
-            {
                 result = result[artifact.Length..].TrimStart(' ', ',');
-            }
-        }
 
         // Capitalize first letter
-        if (result.Length > 0 && char.IsLower(result[0]))
-        {
-            result = char.ToUpper(result[0]) + result[1..];
-        }
+        if (result.Length > 0 && char.IsLower(result[0])) result = char.ToUpper(result[0]) + result[1..];
 
         return string.IsNullOrWhiteSpace(result) ? null : result;
     }
 }
 
 /// <summary>
-/// Result from Florence-2 caption service
+///     Result from Florence-2 caption service
 /// </summary>
 public record Florence2CaptionResult(
     bool Success,
@@ -913,7 +870,7 @@ public record Florence2CaptionResult(
     AnimatedSceneResult? SceneDetection = null);
 
 /// <summary>
-/// Result from Florence-2 OCR
+///     Result from Florence-2 OCR
 /// </summary>
 public record Florence2OcrResult(
     bool Success,
@@ -922,7 +879,7 @@ public record Florence2OcrResult(
     long DurationMs);
 
 /// <summary>
-/// Combined analysis result from Florence-2
+///     Combined analysis result from Florence-2
 /// </summary>
 public record Florence2AnalysisResult(
     bool Success,

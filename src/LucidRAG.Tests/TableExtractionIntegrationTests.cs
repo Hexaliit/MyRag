@@ -1,22 +1,17 @@
-using System;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Core.Services;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace LucidRAG.Tests;
 
 public class TableExtractionIntegrationTests
 {
-    private readonly ITestOutputHelper _output;
-    private readonly ILogger<TableExtractorFactory> _factoryLogger;
     private readonly ILogger<DocxTableExtractor> _docxLogger;
+    private readonly ILogger<TableExtractorFactory> _factoryLogger;
+    private readonly ITestOutputHelper _output;
     private readonly ILogger<PdfTableExtractor> _pdfLogger;
 
     public TableExtractionIntegrationTests(ITestOutputHelper output)
@@ -70,10 +65,7 @@ public class TableExtractionIntegrationTests
         }
         finally
         {
-            if (File.Exists(testFile))
-            {
-                File.Delete(testFile);
-            }
+            if (File.Exists(testFile)) File.Delete(testFile);
         }
     }
 
@@ -102,17 +94,12 @@ public class TableExtractionIntegrationTests
                 _output.WriteLine($"  Table {table.TableNumber}: {table.RowCount}×{table.ColumnCount}");
                 _output.WriteLine($"    Confidence: {table.Confidence:F2}");
                 if (table.ColumnNames != null)
-                {
                     _output.WriteLine($"    Columns: {string.Join(", ", table.ColumnNames)}");
-                }
             }
         }
         finally
         {
-            if (File.Exists(testFile))
-            {
-                File.Delete(testFile);
-            }
+            if (File.Exists(testFile)) File.Delete(testFile);
         }
     }
 
@@ -135,10 +122,7 @@ public class TableExtractionIntegrationTests
         }
         finally
         {
-            if (File.Exists(testFile))
-            {
-                File.Delete(testFile);
-            }
+            if (File.Exists(testFile)) File.Delete(testFile);
         }
     }
 
@@ -230,20 +214,14 @@ public class TableExtractionIntegrationTests
 
         // Header row
         var headerRow = new TableRow();
-        foreach (var header in headers)
-        {
-            headerRow.Append(CreateTableCell(header));
-        }
+        foreach (var header in headers) headerRow.Append(CreateTableCell(header));
         table.Append(headerRow);
 
         // Data rows
         foreach (var row in rows)
         {
             var tableRow = new TableRow();
-            foreach (var cell in row)
-            {
-                tableRow.Append(CreateTableCell(cell));
-            }
+            foreach (var cell in row) tableRow.Append(CreateTableCell(cell));
             table.Append(tableRow);
         }
 
@@ -253,10 +231,7 @@ public class TableExtractionIntegrationTests
     private TableRow CreateDataRow(params string[] cells)
     {
         var row = new TableRow();
-        foreach (var cellText in cells)
-        {
-            row.Append(CreateTableCell(cellText));
-        }
+        foreach (var cellText in cells) row.Append(CreateTableCell(cellText));
         return row;
     }
 

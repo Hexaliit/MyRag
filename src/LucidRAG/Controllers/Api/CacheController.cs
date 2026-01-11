@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LucidRAG.Controllers.Api;
 
 /// <summary>
-/// API endpoints for LFU cache management and statistics.
+///     API endpoints for LFU cache management and statistics.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -22,7 +22,7 @@ public class CacheController : ControllerBase
     }
 
     /// <summary>
-    /// Get cache statistics for all tenants.
+    ///     Get cache statistics for all tenants.
     /// </summary>
     [HttpGet("statistics")]
     public ActionResult<CacheStatisticsResponse> GetStatistics()
@@ -64,7 +64,7 @@ public class CacheController : ControllerBase
     }
 
     /// <summary>
-    /// Get cache statistics for a specific tenant.
+    ///     Get cache statistics for a specific tenant.
     /// </summary>
     [HttpGet("statistics/{tenantId}")]
     public ActionResult<TenantStatistics> GetTenantStatistics(string tenantId)
@@ -102,7 +102,7 @@ public class CacheController : ControllerBase
     }
 
     /// <summary>
-    /// Invalidate (clear) cache for a specific tenant.
+    ///     Invalidate (clear) cache for a specific tenant.
     /// </summary>
     [HttpPost("invalidate/{tenantId}")]
     public IActionResult InvalidateTenant(string tenantId)

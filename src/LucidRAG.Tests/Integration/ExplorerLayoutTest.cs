@@ -4,16 +4,16 @@ using PuppeteerSharp;
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Test to verify the Explorer mode layout - checking if the main content fills the screen.
-/// Run with: dotnet test --filter "FullyQualifiedName~ExplorerLayoutTest" src/LucidRAG.Tests/LucidRAG.Tests.csproj
+///     Test to verify the Explorer mode layout - checking if the main content fills the screen.
+///     Run with: dotnet test --filter "FullyQualifiedName~ExplorerLayoutTest" src/LucidRAG.Tests/LucidRAG.Tests.csproj
 /// </summary>
 [Collection("Browser")]
 [Trait("Category", "Browser")]
 public class ExplorerLayoutTest : IAsyncLifetime
 {
+    private const string BaseUrl = "http://127.0.0.1:5080";
     private IBrowser? _browser;
     private IPage? _page;
-    private const string BaseUrl = "http://127.0.0.1:5080";
 
     public async Task InitializeAsync()
     {
@@ -144,7 +144,6 @@ public class ExplorerLayoutTest : IAsyncLifetime
         };
 
         foreach (var selector in validSelectors)
-        {
             try
             {
                 explorerButton = await _page.QuerySelectorAsync(selector);
@@ -158,7 +157,6 @@ public class ExplorerLayoutTest : IAsyncLifetime
             {
                 // Try next selector
             }
-        }
 
         // If not found, try JavaScript to find by text content
         if (explorerButton == null)
@@ -200,10 +198,7 @@ public class ExplorerLayoutTest : IAsyncLifetime
                 ");
 
                 Console.WriteLine("Available clickable elements:");
-                foreach (var btn in buttons)
-                {
-                    Console.WriteLine($"  - {btn}");
-                }
+                foreach (var btn in buttons) Console.WriteLine($"  - {btn}");
             }
         }
         else
@@ -219,7 +214,8 @@ public class ExplorerLayoutTest : IAsyncLifetime
 
         // Step 8: Take full page screenshot
         Console.WriteLine("Step 8: Taking full page screenshot of explorer...");
-        await _page.ScreenshotAsync(@"E:\source\lucidrag\explorer-expanded.png", new ScreenshotOptions { FullPage = true });
+        await _page.ScreenshotAsync(@"E:\source\lucidrag\explorer-expanded.png",
+            new ScreenshotOptions { FullPage = true });
         Console.WriteLine("Screenshot saved to: E:\\source\\lucidrag\\explorer-expanded.png");
 
         // Step 9: Analyze the explorer layout
@@ -275,7 +271,8 @@ public class ExplorerLayoutTest : IAsyncLifetime
         var viewportHeight = viewport.GetProperty("height").GetDouble();
         Console.WriteLine($"Viewport: {viewportWidth}x{viewportHeight}");
 
-        if (layoutInfo.TryGetProperty("mainContent", out var mainContent) && mainContent.ValueKind != JsonValueKind.Null)
+        if (layoutInfo.TryGetProperty("mainContent", out var mainContent) &&
+            mainContent.ValueKind != JsonValueKind.Null)
         {
             var mainWidth = mainContent.GetProperty("width").GetDouble();
             var mainHeight = mainContent.GetProperty("height").GetDouble();
@@ -286,17 +283,11 @@ public class ExplorerLayoutTest : IAsyncLifetime
             Console.WriteLine($"\nMain content width ratio: {widthRatio:P1} of viewport");
 
             if (widthRatio > 0.8)
-            {
                 Console.WriteLine("SUCCESS: Explorer main content fills most of the screen!");
-            }
             else if (widthRatio > 0.5)
-            {
                 Console.WriteLine("PARTIAL: Explorer has significant width but may be constrained by sidebar");
-            }
             else
-            {
                 Console.WriteLine("ISSUE: Explorer main content appears squished (less than 50% of viewport width)");
-            }
         }
         else
         {
@@ -309,7 +300,8 @@ public class ExplorerLayoutTest : IAsyncLifetime
             Console.WriteLine($"Sidebar width: {sidebarWidth}px");
         }
 
-        if (layoutInfo.TryGetProperty("explorerContainer", out var explorer) && explorer.ValueKind != JsonValueKind.Null)
+        if (layoutInfo.TryGetProperty("explorerContainer", out var explorer) &&
+            explorer.ValueKind != JsonValueKind.Null)
         {
             var explorerWidth = explorer.GetProperty("width").GetDouble();
             Console.WriteLine($"Explorer container width: {explorerWidth}px");

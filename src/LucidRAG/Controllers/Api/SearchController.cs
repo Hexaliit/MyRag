@@ -1,13 +1,13 @@
-using Microsoft.AspNetCore.Mvc;
 using LucidRAG.Models;
 using LucidRAG.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LucidRAG.Controllers.Api;
 
 /// <summary>
-/// Standalone search API for programmatic access without conversation memory.
-/// Use this for single queries where you don't need chat history.
-/// For conversational use cases, see /api/chat.
+///     Standalone search API for programmatic access without conversation memory.
+///     Use this for single queries where you don't need chat history.
+///     For conversational use cases, see /api/chat.
 /// </summary>
 [ApiController]
 [Route("api/search")]
@@ -16,32 +16,29 @@ public class SearchController(
     ILogger<SearchController> logger) : ControllerBase
 {
     /// <summary>
-    /// Search documents with hybrid retrieval (BM25 + BERT).
-    /// Returns matching segments without LLM synthesis.
+    ///     Search documents with hybrid retrieval (BM25 + BERT).
+    ///     Returns matching segments without LLM synthesis.
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> Search([FromBody] SearchApiRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Query))
-        {
-            return BadRequest(new { error = "Query is required" });
-        }
+        if (string.IsNullOrWhiteSpace(request.Query)) return BadRequest(new { error = "Query is required" });
 
         try
         {
             // Parse search mode from string (default to Hybrid)
             var searchMode = request.SearchMode?.ToLowerInvariant() switch
             {
-                "semantic" => Services.SearchMode.Semantic,
-                "keyword" => Services.SearchMode.Keyword,
-                _ => Services.SearchMode.Hybrid
+                "semantic" => SearchMode.Semantic,
+                "keyword" => SearchMode.Keyword,
+                _ => SearchMode.Hybrid
             };
 
             var searchRequest = new SearchRequest(
-                Query: request.Query,
-                CollectionId: request.CollectionId,
-                DocumentIds: request.DocumentIds,
-                TopK: request.TopK ?? 10,
+                request.Query,
+                request.CollectionId,
+                request.DocumentIds,
+                request.TopK ?? 10,
                 SearchMode: searchMode);
 
             var result = await searchService.SearchAsync(searchRequest, ct);
@@ -71,26 +68,24 @@ public class SearchController(
     }
 
     /// <summary>
-    /// Search with LLM-synthesized answer (single query, no conversation memory).
-    /// Similar to /api/chat but stateless - no conversation is created or maintained.
+    ///     Search with LLM-synthesized answer (single query, no conversation memory).
+    ///     Similar to /api/chat but stateless - no conversation is created or maintained.
     /// </summary>
     [HttpPost("answer")]
-    public async Task<IActionResult> SearchWithAnswer([FromBody] SearchApiRequest request, CancellationToken ct = default)
+    public async Task<IActionResult> SearchWithAnswer([FromBody] SearchApiRequest request,
+        CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Query))
-        {
-            return BadRequest(new { error = "Query is required" });
-        }
+        if (string.IsNullOrWhiteSpace(request.Query)) return BadRequest(new { error = "Query is required" });
 
         try
         {
             // Create a chat request without conversation ID to get a one-shot answer
             var chatRequest = new ChatRequest(
-                Query: request.Query,
-                ConversationId: null, // No conversation memory
-                CollectionId: request.CollectionId,
-                DocumentIds: request.DocumentIds,
-                SystemPrompt: request.SystemPrompt);
+                request.Query,
+                null, // No conversation memory
+                request.CollectionId,
+                request.DocumentIds,
+                request.SystemPrompt);
 
             var response = await searchService.ChatAsync(chatRequest, ct);
 

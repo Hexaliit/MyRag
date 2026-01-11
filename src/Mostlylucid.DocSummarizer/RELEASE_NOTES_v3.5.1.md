@@ -1,6 +1,7 @@
 # DocSummarizer v3.5.1 - Enhanced Embeddings, Intelligent Retrieval & Multi-Framework
 
-> **Turn documents or URLs into evidence-grounded summaries — for humans or AI agents — without sending anything to the cloud.**
+> **Turn documents or URLs into evidence-grounded summaries — for humans or AI agents — without sending anything to the
+cloud.**
 
 ## What's New
 
@@ -10,15 +11,15 @@
 
 8 new embedding models added:
 
-| Model | Dimensions | Context | Use Case |
-|-------|-----------|---------|----------|
-| `BgeBaseEnV15` | 768 | 512 | **New default** - best quality/speed |
-| `BgeLargeEnV15` | 1024 | 512 | Maximum quality |
-| `GteBase` | 768 | 512 | Strong MTEB performer |
-| `GteLarge` | 1024 | 512 | Top-tier quality |
-| `JinaEmbeddingsV2BaseEn` | 768 | **8192** | Long context specialist |
-| `SnowflakeArcticEmbedM` | 768 | 512 | Top MTEB retrieval |
-| `NomicEmbedTextV15` | 768 | **8192** | Long context + Matryoshka |
+| Model                    | Dimensions | Context  | Use Case                             |
+|--------------------------|------------|----------|--------------------------------------|
+| `BgeBaseEnV15`           | 768        | 512      | **New default** - best quality/speed |
+| `BgeLargeEnV15`          | 1024       | 512      | Maximum quality                      |
+| `GteBase`                | 768        | 512      | Strong MTEB performer                |
+| `GteLarge`               | 1024       | 512      | Top-tier quality                     |
+| `JinaEmbeddingsV2BaseEn` | 768        | **8192** | Long context specialist              |
+| `SnowflakeArcticEmbedM`  | 768        | 512      | Top MTEB retrieval                   |
+| `NomicEmbedTextV15`      | 768        | **8192** | Long context + Matryoshka            |
 
 ```bash
 # Use maximum quality model
@@ -32,12 +33,12 @@ docsummarizer -f doc.pdf --embedding-model JinaEmbeddingsV2BaseEn
 
 New inverse-scaling algorithm ensures smaller documents get higher coverage:
 
-| Document Size | Coverage | Example |
-|--------------|----------|---------|
-| ≤50 segments | 40-50% | Nearly all content |
-| 150-400 segments | 10-20% | 310 segments → 43 retrieved (13.6%) |
-| 400-1000 segments | 5-10% | Balanced coverage |
-| >1000 segments | 5% | Large document optimization |
+| Document Size     | Coverage | Example                             |
+|-------------------|----------|-------------------------------------|
+| ≤50 segments      | 40-50%   | Nearly all content                  |
+| 150-400 segments  | 10-20%   | 310 segments → 43 retrieved (13.6%) |
+| 400-1000 segments | 5-10%    | Balanced coverage                   |
+| >1000 segments    | 5%       | Large document optimization         |
 
 **Before**: 310 segments → 16 retrieved (5.2%)
 **After**: 310 segments → 43 retrieved (13.6%)
@@ -45,6 +46,7 @@ New inverse-scaling algorithm ensures smaller documents get higher coverage:
 ### Cross-Encoder Reranking
 
 New second-stage precision reranker using:
+
 - Exact term overlap with early-match bonus
 - Query term density analysis
 - Exact phrase matching (huge boost)
@@ -56,6 +58,7 @@ Enable with `retrieval.useReranking: true` (default: enabled).
 ### Document Metadata & arXiv Banner
 
 Automatic metadata extraction and display:
+
 - Detects arXiv IDs from filenames (e.g., `1506.01057v2.pdf`)
 - Fetches metadata from arXiv API (title, authors, date, abstract)
 - Extracts PDF embedded metadata as fallback
@@ -74,16 +77,19 @@ ArXiv: 1506.01057
 All hardcoded scoring values now have sensible defaults but are fully configurable:
 
 **Hierarchical Encoder** (`HierarchicalEncoderConfig`):
+
 - Section context blending weight (default: 15%)
 - Per-section-type boosts (introduction: 1.3x, conclusion: 1.25x, results: 1.2x)
 - Position boosts (first sentence: 1.2x, last sentence: 1.1x)
 - Heading level boosts (H1: 1.15x, H2: 1.1x, H3: 1.05x)
 
 **Cross-Encoder Reranker** (`RerankerConfig`):
+
 - 12 configurable scoring signals
 - Term overlap, exact phrase, heading match, density, position weights
 
 **Adaptive Sampling** (`RetrievalConfig`):
+
 - Document size thresholds (50, 150, 400, 1000 segments)
 - Coverage percentages per tier (50%, 40%, 20%, 10%, 5%)
 - All configurable via JSON config
@@ -91,6 +97,7 @@ All hardcoded scoring values now have sensible defaults but are fully configurab
 ### Clearer Coverage Labels
 
 Changed from misleading "Coverage: 5%" to:
+
 ```
 Evidence: 43 segments (13.6% of 310)
 Confidence: Medium
@@ -100,10 +107,10 @@ Confidence: Medium
 
 DocSummarizer now builds for **both .NET 8 and .NET 10**:
 
-| Framework | LTS Status | Use Case |
-|-----------|------------|----------|
-| .NET 8 | LTS (Nov 2026) | Production servers, enterprise environments |
-| .NET 10 | Current | Latest performance, new features |
+| Framework | LTS Status     | Use Case                                    |
+|-----------|----------------|---------------------------------------------|
+| .NET 8    | LTS (Nov 2026) | Production servers, enterprise environments |
+| .NET 10   | Current        | Latest performance, new features            |
 
 ```bash
 # Build for .NET 8 LTS
@@ -119,10 +126,10 @@ dotnet publish -c Release -r win-x64 -f net10.0
 
 Download from [GitHub Releases](https://github.com/scottgal/mostlylucidweb/releases/tag/docsummarizer-v3.5.1):
 
-| Platform | .NET 8 | .NET 10 |
-|----------|--------|---------|
-| Windows x64 | `docsummarizer-net8-win-x64.zip` | `docsummarizer-win-x64.zip` |
-| Linux x64 | `docsummarizer-net8-linux-x64.tar.gz` | `docsummarizer-linux-x64.tar.gz` |
+| Platform    | .NET 8                                | .NET 10                          |
+|-------------|---------------------------------------|----------------------------------|
+| Windows x64 | `docsummarizer-net8-win-x64.zip`      | `docsummarizer-win-x64.zip`      |
+| Linux x64   | `docsummarizer-net8-linux-x64.tar.gz` | `docsummarizer-linux-x64.tar.gz` |
 | macOS ARM64 | `docsummarizer-net8-osx-arm64.tar.gz` | `docsummarizer-osx-arm64.tar.gz` |
 
 ### Quick Start
@@ -142,7 +149,8 @@ docsummarizer -f document.pdf -m Bert
 
 **Default embedding model changed**: `AllMiniLmL6V2` → `BgeBaseEnV15`
 
-The new model is ~4x larger (110MB vs 23MB) but produces significantly better quality embeddings. First run will auto-download the new model.
+The new model is ~4x larger (110MB vs 23MB) but produces significantly better quality embeddings. First run will
+auto-download the new model.
 
 To use the old default: `--embedding-model AllMiniLmL6V2`
 
@@ -179,12 +187,14 @@ Mostlylucid.DocSummarizer.csproj     # Multi-targeting net8.0;net10.0
 
 ## Documentation
 
-- **README**: [Mostlylucid.DocSummarizer/README.md](https://github.com/scottgal/mostlylucidweb/blob/main/Mostlylucid.DocSummarizer/README.md)
-- **CHANGELOG**: [CHANGELOG.md](https://github.com/scottgal/mostlylucidweb/blob/main/Mostlylucid.DocSummarizer/CHANGELOG.md)
+- **README
+  **: [Mostlylucid.DocSummarizer/README.md](https://github.com/scottgal/mostlylucidweb/blob/main/Mostlylucid.DocSummarizer/README.md)
+- **CHANGELOG
+  **: [CHANGELOG.md](https://github.com/scottgal/mostlylucidweb/blob/main/Mostlylucid.DocSummarizer/CHANGELOG.md)
 - **Blog Series**:
-  - [Part 1: Architecture](/blog/building-a-document-summarizer-with-rag)
-  - [Part 2: Quick-Start](/blog/docsummarizer-tool)
-  - [Part 3: Advanced Concepts](/blog/docsummarizer-advanced-concepts)
+    - [Part 1: Architecture](/blog/building-a-document-summarizer-with-rag)
+    - [Part 2: Quick-Start](/blog/docsummarizer-tool)
+    - [Part 3: Advanced Concepts](/blog/docsummarizer-advanced-concepts)
 
 ## Contributing
 
@@ -196,4 +206,5 @@ MIT License - See project repository for details
 
 ---
 
-**Full Changelog**: [v3.1.0...v3.5.1](https://github.com/scottgal/mostlylucidweb/compare/docsummarizer-v3.1.0...docsummarizer-v3.5.1)
+**Full Changelog
+**: [v3.1.0...v3.5.1](https://github.com/scottgal/mostlylucidweb/compare/docsummarizer-v3.1.0...docsummarizer-v3.5.1)

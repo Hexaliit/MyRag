@@ -1,14 +1,14 @@
 using Htmx;
 using LucidRAG.Authorization;
+using LucidRAG.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using LucidRAG.Services;
 
 namespace LucidRAG.Controllers.UI;
 
 /// <summary>
-/// Admin home controller - requires authentication.
-/// Provides full document management, upload, and chat functionality.
+///     Admin home controller - requires authentication.
+///     Provides full document management, upload, and chat functionality.
 /// </summary>
 [Route("admin")]
 [Authorize(Roles = Roles.AllAuthenticated)]
@@ -16,7 +16,7 @@ public class HomeController(
     IDocumentProcessingService documentService) : Controller
 {
     [HttpGet]
-    [HttpGet("~/home")]  // Also accessible at /home for backwards compat
+    [HttpGet("~/home")] // Also accessible at /home for backwards compat
     public async Task<IActionResult> Index(CancellationToken ct = default)
     {
         var documents = await documentService.GetDocumentsAsync(ct: ct);
@@ -44,20 +44,17 @@ public class HomeController(
     }
 
     /// <summary>
-    /// Returns the File Explorer partial view for HTMX requests.
+    ///     Returns the File Explorer partial view for HTMX requests.
     /// </summary>
     [HttpGet("explorer")]
     public IActionResult Explorer()
     {
-        if (Request.IsHtmx())
-        {
-            return PartialView("_FileExplorer");
-        }
+        if (Request.IsHtmx()) return PartialView("_FileExplorer");
         return RedirectToAction(nameof(Index));
     }
 
     /// <summary>
-    /// Returns the Chat sidebar partial view for HTMX requests.
+    ///     Returns the Chat sidebar partial view for HTMX requests.
     /// </summary>
     [HttpGet("chat-sidebar")]
     public async Task<IActionResult> ChatSidebar(CancellationToken ct = default)
@@ -67,32 +64,27 @@ public class HomeController(
             var documents = await documentService.GetDocumentsAsync(ct: ct);
             return PartialView("_ChatSidebar", documents);
         }
+
         return RedirectToAction(nameof(Index));
     }
 
     /// <summary>
-    /// Returns the collection selector partial view for HTMX requests.
+    ///     Returns the collection selector partial view for HTMX requests.
     /// </summary>
     [HttpGet("collection-selector")]
     public IActionResult CollectionSelector()
     {
-        if (Request.IsHtmx())
-        {
-            return PartialView("_SidebarCollectionSelector");
-        }
+        if (Request.IsHtmx()) return PartialView("_SidebarCollectionSelector");
         return RedirectToAction(nameof(Index));
     }
 
     /// <summary>
-    /// Returns the add content section partial view for HTMX requests.
+    ///     Returns the add content section partial view for HTMX requests.
     /// </summary>
     [HttpGet("add-content")]
     public IActionResult AddContent()
     {
-        if (Request.IsHtmx())
-        {
-            return PartialView("_SidebarAddContent");
-        }
+        if (Request.IsHtmx()) return PartialView("_SidebarAddContent");
         return RedirectToAction(nameof(Index));
     }
 }

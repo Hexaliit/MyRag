@@ -2,7 +2,9 @@
 
 ## Overview
 
-The OCR pipeline system provides a flexible, JSON-based configuration for orchestrating multi-phase image analysis and OCR workflows. Pipelines are composed of modular **phases** (implemented as analysis waves) that can be enabled, disabled, and parameterized independently.
+The OCR pipeline system provides a flexible, JSON-based configuration for orchestrating multi-phase image analysis and
+OCR workflows. Pipelines are composed of modular **phases** (implemented as analysis waves) that can be enabled,
+disabled, and parameterized independently.
 
 ## Key Features
 
@@ -96,55 +98,57 @@ PipelinesConfig (root)
 
 ### Pipeline Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | Unique pipeline identifier (e.g., "advancedocr") |
-| `displayName` | string | Human-readable name for UI/CLI |
-| `description` | string | What this pipeline optimizes for |
-| `category` | string | Category: "speed", "quality", "balanced", "accessibility" |
-| `estimatedDurationSeconds` | number | Typical processing time for user guidance |
-| `accuracyImprovement` | number | Expected accuracy gain over baseline (%) |
-| `isDefault` | boolean | Whether this is the default pipeline |
-| `tags` | string[] | Categorization tags |
-| `globalSettings` | object | Pipeline-wide configuration |
-| `phases` | array | Ordered list of phases |
+| Field                      | Type     | Description                                               |
+|----------------------------|----------|-----------------------------------------------------------|
+| `name`                     | string   | Unique pipeline identifier (e.g., "advancedocr")          |
+| `displayName`              | string   | Human-readable name for UI/CLI                            |
+| `description`              | string   | What this pipeline optimizes for                          |
+| `category`                 | string   | Category: "speed", "quality", "balanced", "accessibility" |
+| `estimatedDurationSeconds` | number   | Typical processing time for user guidance                 |
+| `accuracyImprovement`      | number   | Expected accuracy gain over baseline (%)                  |
+| `isDefault`                | boolean  | Whether this is the default pipeline                      |
+| `tags`                     | string[] | Categorization tags                                       |
+| `globalSettings`           | object   | Pipeline-wide configuration                               |
+| `phases`                   | array    | Ordered list of phases                                    |
 
 ### Phase Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique phase identifier within pipeline |
-| `name` | string | Human-readable phase name |
-| `description` | string | What this phase does |
-| `enabled` | boolean | Whether phase is active |
-| `priority` | number | Execution order (higher = earlier) |
-| `waveType` | string | Wave class implementing this phase |
-| `dependsOn` | string[] | IDs of phases that must run first |
-| `parameters` | object | Phase-specific configuration |
-| `earlyExitThreshold` | number | Skip if previous confidence exceeds this |
-| `maxDurationMs` | number | Maximum phase execution time |
-| `tags` | string[] | Phase categorization |
+| Field                | Type     | Description                              |
+|----------------------|----------|------------------------------------------|
+| `id`                 | string   | Unique phase identifier within pipeline  |
+| `name`               | string   | Human-readable phase name                |
+| `description`        | string   | What this phase does                     |
+| `enabled`            | boolean  | Whether phase is active                  |
+| `priority`           | number   | Execution order (higher = earlier)       |
+| `waveType`           | string   | Wave class implementing this phase       |
+| `dependsOn`          | string[] | IDs of phases that must run first        |
+| `parameters`         | object   | Phase-specific configuration             |
+| `earlyExitThreshold` | number   | Skip if previous confidence exceeds this |
+| `maxDurationMs`      | number   | Maximum phase execution time             |
+| `tags`               | string[] | Phase categorization                     |
 
 ### Global Settings
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `maxTotalDurationMs` | number | Maximum total pipeline duration (0 = unlimited) |
-| `globalEarlyExitThreshold` | number | Skip remaining phases if any achieves this confidence |
-| `enableParallelization` | boolean | Whether to parallelize independent phases |
-| `maxParallelism` | number | Max degree of parallelism (-1 = CPU count) |
-| `emitPerformanceSignals` | boolean | Emit detailed performance metrics |
-| `enableCaching` | boolean | Cache intermediate results |
+| Field                      | Type    | Description                                           |
+|----------------------------|---------|-------------------------------------------------------|
+| `maxTotalDurationMs`       | number  | Maximum total pipeline duration (0 = unlimited)       |
+| `globalEarlyExitThreshold` | number  | Skip remaining phases if any achieves this confidence |
+| `enableParallelization`    | boolean | Whether to parallelize independent phases             |
+| `maxParallelism`           | number  | Max degree of parallelism (-1 = CPU count)            |
+| `emitPerformanceSignals`   | boolean | Emit detailed performance metrics                     |
+| `enableCaching`            | boolean | Cache intermediate results                            |
 
 ## Built-in Pipelines
 
 ### Simple OCR
+
 - **Speed**: ~0.5s per image
 - **Accuracy**: Baseline Tesseract
 - **Use Case**: Quick extraction, batch processing
 - **Phases**: ColorWave → OcrWave → OcrQualityWave
 
 ### Advanced OCR (Default)
+
 - **Speed**: ~2.5s per GIF
 - **Accuracy**: +25% over baseline
 - **Use Case**: Best balance of speed and accuracy
@@ -152,12 +156,14 @@ PipelinesConfig (root)
 - **Features**: Frame stabilization, temporal median, voting, spell-check
 
 ### Quality OCR
+
 - **Speed**: ~12s per GIF
 - **Accuracy**: +45% over baseline
 - **Use Case**: High-accuracy needs, archival
 - **Phases**: Same as Advanced but with higher frame counts and stricter thresholds
 
 ### Alt Text Generation
+
 - **Speed**: ~3.5s per image
 - **Accuracy**: Optimized for descriptive quality
 - **Use Case**: Accessibility, image description
@@ -301,12 +307,12 @@ await pipelineService.SavePipelinesAsync(config, "custom-pipelines.json");
 
 ## Available Wave Types
 
-| Wave Type | Description | Priority | Signals Emitted |
-|-----------|-------------|----------|-----------------|
-| `ColorWave` | Color analysis, dominant colors, text likelihood | 100 | `color.*`, `content.text_likeliness` |
-| `OcrWave` | Simple Tesseract OCR (baseline) | 60 | `ocr.text`, `ocr.confidence` |
-| `AdvancedOcrWave` | Multi-frame temporal OCR | 59 | `ocr.voting.*`, `ocr.stabilization.*` |
-| `OcrQualityWave` | Spell-check quality assessment | 58 | `ocr.quality.*` |
+| Wave Type         | Description                                      | Priority | Signals Emitted                       |
+|-------------------|--------------------------------------------------|----------|---------------------------------------|
+| `ColorWave`       | Color analysis, dominant colors, text likelihood | 100      | `color.*`, `content.text_likeliness`  |
+| `OcrWave`         | Simple Tesseract OCR (baseline)                  | 60       | `ocr.text`, `ocr.confidence`          |
+| `AdvancedOcrWave` | Multi-frame temporal OCR                         | 59       | `ocr.voting.*`, `ocr.stabilization.*` |
+| `OcrQualityWave`  | Spell-check quality assessment                   | 58       | `ocr.quality.*`                       |
 
 ## Performance Tuning
 
@@ -408,6 +414,7 @@ var json = JsonSerializer.Serialize(
 ```
 
 This provides:
+
 - **No reflection cost**: Types are generated at compile time
 - **AOT compatibility**: Works with native AOT compilation
 - **Smaller binaries**: No metadata required at runtime
@@ -428,6 +435,7 @@ Pipelines are loaded from (in order of preference):
 ### 1. Start with Built-in Pipelines
 
 Use the pre-configured pipelines as templates:
+
 - Copy and modify existing pipelines
 - Understand phase interactions before creating custom ones
 
@@ -481,11 +489,13 @@ Add descriptions for custom parameters:
 Error: Pipeline 'myocr' not found
 ```
 
-**Solution**: Check pipeline name matches exactly (case-sensitive). Use `imagecli list-pipelines` to see available options.
+**Solution**: Check pipeline name matches exactly (case-sensitive). Use `imagecli list-pipelines` to see available
+options.
 
 ### Phase Execution Order Wrong
 
 If phases run in unexpected order, check:
+
 - Priority values (higher = earlier)
 - `dependsOn` dependencies
 - Wave implementation priority
@@ -493,6 +503,7 @@ If phases run in unexpected order, check:
 ### Performance Issues
 
 If pipeline is too slow:
+
 - Enable early exit thresholds
 - Reduce frame counts in phase parameters
 - Use parallelization
@@ -501,6 +512,7 @@ If pipeline is too slow:
 ### JSON Validation Errors
 
 If pipelines.json fails to load:
+
 - Validate JSON syntax (use a JSON validator)
 - Check all required fields are present
 - Verify phase IDs in `dependsOn` exist

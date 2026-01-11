@@ -4,7 +4,7 @@ using Mostlylucid.DocSummarizer.Services.Onnx;
 namespace Mostlylucid.GraphRag.Services;
 
 /// <summary>
-/// ONNX BERT embedding service wrapper.
+///     ONNX BERT embedding service wrapper.
 /// </summary>
 public sealed class EmbeddingService : IDisposable
 {
@@ -18,14 +18,28 @@ public sealed class EmbeddingService : IDisposable
             UseQuantized = false,
             ExecutionProvider = OnnxExecutionProvider.Auto
         };
-        _inner = new OnnxEmbeddingService(config, verbose: false);
+        _inner = new OnnxEmbeddingService(config, false);
     }
 
     public int Dimension => _inner.EmbeddingDimension;
-    
-    public Task InitializeAsync(CancellationToken ct = default) => _inner.InitializeAsync(ct);
-    public Task<float[]> EmbedAsync(string text, CancellationToken ct = default) => _inner.EmbedAsync(text, ct);
-    public Task<float[][]> EmbedBatchAsync(IEnumerable<string> texts, CancellationToken ct = default) => _inner.EmbedBatchAsync(texts, ct);
-    
-    public void Dispose() => _inner.Dispose();
+
+    public void Dispose()
+    {
+        _inner.Dispose();
+    }
+
+    public Task InitializeAsync(CancellationToken ct = default)
+    {
+        return _inner.InitializeAsync(ct);
+    }
+
+    public Task<float[]> EmbedAsync(string text, CancellationToken ct = default)
+    {
+        return _inner.EmbedAsync(text, ct);
+    }
+
+    public Task<float[][]> EmbedBatchAsync(IEnumerable<string> texts, CancellationToken ct = default)
+    {
+        return _inner.EmbedBatchAsync(texts, ct);
+    }
 }

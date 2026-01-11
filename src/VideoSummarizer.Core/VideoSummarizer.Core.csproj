@@ -49,7 +49,15 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Config\*.json" />
+    <EmbeddedResource Include="Config\*.yaml" />
     <EmbeddedResource Include="Waves\*.wave.yaml" />
+  </ItemGroup>
+
+  <!-- Copy YAML config to output for standalone loading -->
+  <ItemGroup>
+    <None Include="Config\waves.yaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

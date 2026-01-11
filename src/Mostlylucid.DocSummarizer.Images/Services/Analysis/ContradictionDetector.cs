@@ -4,16 +4,13 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Detects contradictions between signals using config-driven rules.
-/// Implements priority-chain validation with rejection policies.
+///     Detects contradictions between signals using config-driven rules.
+///     Implements priority-chain validation with rejection policies.
 /// </summary>
 public class ContradictionDetector
 {
-    private readonly ILogger<ContradictionDetector>? _logger;
-    private readonly List<ContradictionRule> _rules;
-
     /// <summary>
-    /// Built-in rules for common signal contradictions.
+    ///     Built-in rules for common signal contradictions.
     /// </summary>
     public static readonly List<ContradictionRule> DefaultRules = new()
     {
@@ -141,6 +138,9 @@ public class ContradictionDetector
         }
     };
 
+    private readonly ILogger<ContradictionDetector>? _logger;
+    private readonly List<ContradictionRule> _rules;
+
     public ContradictionDetector(
         IEnumerable<ContradictionRule>? customRules = null,
         ILogger<ContradictionDetector>? logger = null)
@@ -148,14 +148,11 @@ public class ContradictionDetector
         _logger = logger;
         _rules = new List<ContradictionRule>(DefaultRules);
 
-        if (customRules != null)
-        {
-            _rules.AddRange(customRules);
-        }
+        if (customRules != null) _rules.AddRange(customRules);
     }
 
     /// <summary>
-    /// Add a custom contradiction rule.
+    ///     Add a custom contradiction rule.
     /// </summary>
     public void AddRule(ContradictionRule rule)
     {
@@ -163,7 +160,7 @@ public class ContradictionDetector
     }
 
     /// <summary>
-    /// Remove a rule by ID.
+    ///     Remove a rule by ID.
     /// </summary>
     public bool RemoveRule(string ruleId)
     {
@@ -171,14 +168,13 @@ public class ContradictionDetector
     }
 
     /// <summary>
-    /// Check for contradictions in an analysis context.
+    ///     Check for contradictions in an analysis context.
     /// </summary>
     public IEnumerable<ContradictionResult> DetectContradictions(AnalysisContext context)
     {
         var results = new List<ContradictionResult>();
 
         foreach (var rule in _rules.Where(r => r.Enabled))
-        {
             try
             {
                 var contradiction = CheckRule(rule, context);
@@ -194,22 +190,18 @@ public class ContradictionDetector
             {
                 _logger?.LogError(ex, "Error checking rule {RuleId}", rule.RuleId);
             }
-        }
 
         return results;
     }
 
     /// <summary>
-    /// Check for contradictions in a DynamicImageProfile.
+    ///     Check for contradictions in a DynamicImageProfile.
     /// </summary>
     public IEnumerable<ContradictionResult> DetectContradictions(DynamicImageProfile profile)
     {
         // Build context from profile signals
         var context = new AnalysisContext();
-        foreach (var signal in profile.GetAllSignals())
-        {
-            context.AddSignal(signal);
-        }
+        foreach (var signal in profile.GetAllSignals()) context.AddSignal(signal);
         return DetectContradictions(context);
     }
 
@@ -250,18 +242,14 @@ public class ContradictionDetector
 
             if (rule.ExpectedValuesA.Any(v => v.ToString() == valueAStr) &&
                 rule.ContradictoryValuesB.Any(v => v.ToString() == valueBStr))
-            {
                 return CreateResult(rule, signalA, signalB,
                     $"Value '{valueAStr}' for {rule.SignalKeyA} conflicts with '{valueBStr}' for {rule.SignalKeyB}");
-            }
         }
 
         // Direct value comparison for same-key signals
         if (rule.SignalKeyA == rule.SignalKeyB && !Equals(signalA.Value, signalB.Value))
-        {
             return CreateResult(rule, signalA, signalB,
                 $"Multiple signals for {rule.SignalKeyA} have conflicting values: '{signalA.Value}' vs '{signalB.Value}'");
-        }
 
         return null;
     }
@@ -280,10 +268,8 @@ public class ContradictionDetector
         if (rule.RuleId == "grayscale_vs_colors")
         {
             if (signalA.Value is bool isGrayscale && isGrayscale && numB > rule.Threshold)
-            {
                 return CreateResult(rule, signalA, signalB,
                     $"Image marked as grayscale but saturation is {numB:F2} (> {rule.Threshold})");
-            }
             return null;
         }
 
@@ -291,19 +277,15 @@ public class ContradictionDetector
         if (rule.RuleId == "blur_vs_edges")
         {
             if (numA < 300 && numB > 0.3)
-            {
                 return CreateResult(rule, signalA, signalB,
                     $"Low sharpness ({numA:F0}) but high edge density ({numB:F2})");
-            }
             return null;
         }
 
         var difference = Math.Abs(numA - numB);
         if (difference > rule.Threshold)
-        {
             return CreateResult(rule, signalA, signalB,
                 $"Numeric divergence: {rule.SignalKeyA}={numA:F2} vs {rule.SignalKeyB}={numB:F2} (diff={difference:F2}, threshold={rule.Threshold})");
-        }
 
         return null;
     }
@@ -315,13 +297,9 @@ public class ContradictionDetector
             return null;
 
         if (signalA.Value is bool boolA && signalB.Value is bool boolB)
-        {
             if (boolA != boolB)
-            {
                 return CreateResult(rule, signalA, signalB,
                     $"Boolean contradiction: {rule.SignalKeyA}={boolA} vs {rule.SignalKeyB}={boolB}");
-            }
-        }
 
         return null;
     }
@@ -340,10 +318,8 @@ public class ContradictionDetector
 
             if (rule.ExpectedValuesA.Any(v => v.ToString() == valueAStr) &&
                 rule.ContradictoryValuesB.Any(v => v.ToString() == valueBStr))
-            {
                 return CreateResult(rule, signalA, signalB,
                     $"Mutually exclusive values: {rule.SignalKeyA}='{valueAStr}' cannot coexist with {rule.SignalKeyB}='{valueBStr}'");
-            }
         }
 
         return null;
@@ -357,21 +333,13 @@ public class ContradictionDetector
 
         // Check if signalA implies signalB should exist
         if (rule.RuleId == "text_likeliness_vs_ocr")
-        {
             if (TryGetNumericValue(signalA.Value, out var textLikeliness))
-            {
                 if (textLikeliness > (rule.Threshold ?? 0.7))
-                {
                     // High text likeliness - OCR text should exist
                     if (signalB?.Value == null ||
                         (signalB.Value is string text && string.IsNullOrWhiteSpace(text)))
-                    {
                         return CreateResult(rule, signalA, null,
                             $"High text likeliness ({textLikeliness:F2}) but no OCR text found");
-                    }
-                }
-            }
-        }
 
         return null;
     }
@@ -401,15 +369,11 @@ public class ContradictionDetector
 
         // OCR found significant text
         if (ocrText.Length > 20)
-        {
             // Vision LLM says no text
             if (caption.Contains("no text") || caption.Contains("without text") ||
-                caption.Contains("doesn't contain") && caption.Contains("text"))
-            {
+                (caption.Contains("doesn't contain") && caption.Contains("text")))
                 return CreateResult(rule, ocrSignal, visionSignal,
                     $"OCR found {ocrText.Length} chars of text but Vision LLM says no text present");
-            }
-        }
 
         return null;
     }
@@ -429,10 +393,8 @@ public class ContradictionDetector
             var text = textSignal?.Value?.ToString() ?? "";
             // But text is very short or looks garbled
             if (text.Length < 5 || IsGarbledText(text))
-            {
                 return CreateResult(rule, confidenceSignal, textSignal,
                     $"High OCR confidence ({confidence:F2}) but text appears garbled or too short: '{text.Substring(0, Math.Min(50, text.Length))}'");
-            }
         }
 
         return null;
@@ -450,10 +412,8 @@ public class ContradictionDetector
         var imageType = typeSignal.Value.ToString()?.ToLowerInvariant() ?? "";
 
         if (faceCount > 0 && (imageType == "icon" || imageType == "diagram"))
-        {
             return CreateResult(rule, faceCountSignal, typeSignal,
                 $"Detected {faceCount} face(s) in image classified as '{imageType}'");
-        }
 
         return null;
     }
@@ -469,10 +429,8 @@ public class ContradictionDetector
             var format = formatSignal.Value.ToString()?.ToUpperInvariant() ?? "";
             // PNG and GIF don't typically have EXIF
             if (format == "PNG" || format == "GIF" || format == "BMP")
-            {
                 return CreateResult(rule, exifSignal, formatSignal,
                     $"EXIF data found in {format} image (unusual - may indicate format conversion or tampering)");
-            }
         }
 
         return null;
@@ -493,10 +451,8 @@ public class ContradictionDetector
 
         // Screenshots should have very low noise (clean digital capture)
         if (noiseLevel > 0.1)
-        {
             return CreateResult(rule, typeSignal, noiseSignal,
                 $"Image classified as screenshot but has photo-like noise level ({noiseLevel:F2})");
-        }
 
         return null;
     }
@@ -542,11 +498,35 @@ public class ContradictionDetector
     {
         result = 0;
 
-        if (value is double d) { result = d; return true; }
-        if (value is float f) { result = f; return true; }
-        if (value is int i) { result = i; return true; }
-        if (value is long l) { result = l; return true; }
-        if (value is decimal dec) { result = (double)dec; return true; }
+        if (value is double d)
+        {
+            result = d;
+            return true;
+        }
+
+        if (value is float f)
+        {
+            result = f;
+            return true;
+        }
+
+        if (value is int i)
+        {
+            result = i;
+            return true;
+        }
+
+        if (value is long l)
+        {
+            result = l;
+            return true;
+        }
+
+        if (value is decimal dec)
+        {
+            result = (double)dec;
+            return true;
+        }
 
         return double.TryParse(value.ToString(), out result);
     }
@@ -580,7 +560,10 @@ public class ContradictionDetector
     }
 
     /// <summary>
-    /// Get all registered rules.
+    ///     Get all registered rules.
     /// </summary>
-    public IReadOnlyList<ContradictionRule> GetRules() => _rules.AsReadOnly();
+    public IReadOnlyList<ContradictionRule> GetRules()
+    {
+        return _rules.AsReadOnly();
+    }
 }

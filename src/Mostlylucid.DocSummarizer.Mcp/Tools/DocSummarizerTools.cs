@@ -8,19 +8,24 @@ namespace Mostlylucid.DocSummarizer.Mcp.Tools;
 public static class DocSummarizerTools
 {
     private static readonly string DefaultModel = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "llama3.2:3b";
-    private static readonly string DefaultEmbedModel = Environment.GetEnvironmentVariable("OLLAMA_EMBED_MODEL") ?? "nomic-embed-text";
-    private static readonly string DefaultBaseUrl = Environment.GetEnvironmentVariable("OLLAMA_BASE_URL") ?? "http://localhost:11434";
+
+    private static readonly string DefaultEmbedModel =
+        Environment.GetEnvironmentVariable("OLLAMA_EMBED_MODEL") ?? "nomic-embed-text";
+
+    private static readonly string DefaultBaseUrl =
+        Environment.GetEnvironmentVariable("OLLAMA_BASE_URL") ?? "http://localhost:11434";
 
     /// <summary>
-    /// Check if Ollama is available and list models.
+    ///     Check if Ollama is available and list models.
     /// </summary>
     [McpServerTool(Name = "check_ollama")]
-    [Description("Check if Ollama LLM service is available and list installed models. Returns availability status and model information.")]
+    [Description(
+        "Check if Ollama LLM service is available and list installed models. Returns availability status and model information.")]
     public static async Task<string> CheckOllamaAsync()
     {
         var ollama = new OllamaService(DefaultModel, DefaultEmbedModel, DefaultBaseUrl);
         var available = await ollama.IsAvailableAsync();
-        
+
         var result = new Dictionary<string, object>
         {
             ["available"] = available,
@@ -38,7 +43,6 @@ public static class DocSummarizerTools
             {
                 var info = await ollama.GetModelInfoAsync(modelName);
                 if (info != null)
-                {
                     modelInfos.Add(new
                     {
                         name = info.Name,
@@ -47,7 +51,6 @@ public static class DocSummarizerTools
                         quantization = info.QuantizationLevel,
                         context_window = info.ContextWindow
                     });
-                }
             }
 
             result["models"] = modelInfos;
@@ -58,21 +61,25 @@ public static class DocSummarizerTools
     }
 
     /// <summary>
-    /// Generate text using Ollama LLM.
+    ///     Generate text using Ollama LLM.
     /// </summary>
     [McpServerTool(Name = "generate_text")]
-    [Description("Generate text using a local Ollama LLM. Useful for text generation, completion, summarization, and transformation tasks.")]
+    [Description(
+        "Generate text using a local Ollama LLM. Useful for text generation, completion, summarization, and transformation tasks.")]
     public static async Task<string> GenerateTextAsync(
-        [Description("Prompt for text generation")] string prompt,
-        [Description("Temperature for generation (0.0-1.0, lower is more focused, default: 0.3)")] double temperature = 0.3,
-        [Description("Ollama model to use (default from env or llama3.2:3b)")] string? model = null)
+        [Description("Prompt for text generation")]
+        string prompt,
+        [Description("Temperature for generation (0.0-1.0, lower is more focused, default: 0.3)")]
+        double temperature = 0.3,
+        [Description("Ollama model to use (default from env or llama3.2:3b)")]
+        string? model = null)
     {
         try
         {
             var ollama = new OllamaService(
-                model: model ?? DefaultModel,
-                embedModel: DefaultEmbedModel,
-                baseUrl: DefaultBaseUrl);
+                model ?? DefaultModel,
+                DefaultEmbedModel,
+                DefaultBaseUrl);
 
             var response = await ollama.GenerateAsync(prompt, temperature);
 
@@ -95,20 +102,23 @@ public static class DocSummarizerTools
     }
 
     /// <summary>
-    /// Generate embeddings for text using Ollama.
+    ///     Generate embeddings for text using Ollama.
     /// </summary>
     [McpServerTool(Name = "generate_embedding")]
-    [Description("Generate vector embeddings for text using Ollama. Returns embedding dimensions and a sample of the vector. Useful for semantic search and similarity comparisons.")]
+    [Description(
+        "Generate vector embeddings for text using Ollama. Returns embedding dimensions and a sample of the vector. Useful for semantic search and similarity comparisons.")]
     public static async Task<string> GenerateEmbeddingAsync(
-        [Description("Text to generate embeddings for")] string text,
-        [Description("Embedding model to use (default from env or nomic-embed-text)")] string? embedModel = null)
+        [Description("Text to generate embeddings for")]
+        string text,
+        [Description("Embedding model to use (default from env or nomic-embed-text)")]
+        string? embedModel = null)
     {
         try
         {
             var ollama = new OllamaService(
-                model: DefaultModel,
-                embedModel: embedModel ?? DefaultEmbedModel,
-                baseUrl: DefaultBaseUrl);
+                DefaultModel,
+                embedModel ?? DefaultEmbedModel,
+                DefaultBaseUrl);
 
             var embedding = await ollama.EmbedAsync(text);
 
@@ -133,21 +143,24 @@ public static class DocSummarizerTools
     }
 
     /// <summary>
-    /// Calculate cosine similarity between two texts.
+    ///     Calculate cosine similarity between two texts.
     /// </summary>
     [McpServerTool(Name = "calculate_similarity")]
-    [Description("Calculate the cosine similarity between two texts using embeddings. Returns a score from -1 to 1, where 1 means identical meaning.")]
+    [Description(
+        "Calculate the cosine similarity between two texts using embeddings. Returns a score from -1 to 1, where 1 means identical meaning.")]
     public static async Task<string> CalculateSimilarityAsync(
         [Description("First text to compare")] string text1,
-        [Description("Second text to compare")] string text2,
-        [Description("Embedding model to use (default from env or nomic-embed-text)")] string? embedModel = null)
+        [Description("Second text to compare")]
+        string text2,
+        [Description("Embedding model to use (default from env or nomic-embed-text)")]
+        string? embedModel = null)
     {
         try
         {
             var ollama = new OllamaService(
-                model: DefaultModel,
-                embedModel: embedModel ?? DefaultEmbedModel,
-                baseUrl: DefaultBaseUrl);
+                DefaultModel,
+                embedModel ?? DefaultEmbedModel,
+                DefaultBaseUrl);
 
             var embedding1 = await ollama.EmbedAsync(text1);
             var embedding2 = await ollama.EmbedAsync(text2);
@@ -180,14 +193,17 @@ public static class DocSummarizerTools
     }
 
     /// <summary>
-    /// Summarize text using Ollama LLM.
+    ///     Summarize text using Ollama LLM.
     /// </summary>
     [McpServerTool(Name = "summarize_text")]
     [Description("Summarize text using a local Ollama LLM. Provides a concise summary of the input text.")]
     public static async Task<string> SummarizeTextAsync(
         [Description("Text to summarize")] string text,
-        [Description("Target summary length: 'brief' (1-2 sentences), 'medium' (paragraph), 'detailed' (multiple paragraphs)")] string length = "medium",
-        [Description("Ollama model to use (default from env or llama3.2:3b)")] string? model = null)
+        [Description(
+            "Target summary length: 'brief' (1-2 sentences), 'medium' (paragraph), 'detailed' (multiple paragraphs)")]
+        string length = "medium",
+        [Description("Ollama model to use (default from env or llama3.2:3b)")]
+        string? model = null)
     {
         try
         {
@@ -199,20 +215,20 @@ public static class DocSummarizerTools
             };
 
             var prompt = $"""
-                Summarize the following text. {lengthInstruction}
+                          Summarize the following text. {lengthInstruction}
 
-                TEXT:
-                {text}
+                          TEXT:
+                          {text}
 
-                SUMMARY:
-                """;
+                          SUMMARY:
+                          """;
 
             var ollama = new OllamaService(
-                model: model ?? DefaultModel,
-                embedModel: DefaultEmbedModel,
-                baseUrl: DefaultBaseUrl);
+                model ?? DefaultModel,
+                DefaultEmbedModel,
+                DefaultBaseUrl);
 
-            var summary = await ollama.GenerateAsync(prompt, 0.3);
+            var summary = await ollama.GenerateAsync(prompt);
 
             var result = new
             {
@@ -233,30 +249,28 @@ public static class DocSummarizerTools
     }
 
     /// <summary>
-    /// Read and summarize a file.
+    ///     Read and summarize a file.
     /// </summary>
     [McpServerTool(Name = "summarize_file")]
     [Description("Read a text file (txt, md, etc.) and generate a summary using local Ollama LLM.")]
     public static async Task<string> SummarizeFileAsync(
-        [Description("Path to the text file to summarize")] string filePath,
-        [Description("Target summary length: 'brief', 'medium', or 'detailed'")] string length = "medium",
-        [Description("Ollama model to use (default from env or llama3.2:3b)")] string? model = null)
+        [Description("Path to the text file to summarize")]
+        string filePath,
+        [Description("Target summary length: 'brief', 'medium', or 'detailed'")]
+        string length = "medium",
+        [Description("Ollama model to use (default from env or llama3.2:3b)")]
+        string? model = null)
     {
         try
         {
             if (!File.Exists(filePath))
-            {
                 return JsonSerializer.Serialize(new { success = false, error = $"File not found: {filePath}" });
-            }
 
             var text = await File.ReadAllTextAsync(filePath);
-            
+
             // Truncate if too long
             const int maxChars = 50000;
-            if (text.Length > maxChars)
-            {
-                text = text[..maxChars] + "\n\n[Content truncated...]";
-            }
+            if (text.Length > maxChars) text = text[..maxChars] + "\n\n[Content truncated...]";
 
             var lengthInstruction = length.ToLower() switch
             {
@@ -266,20 +280,20 @@ public static class DocSummarizerTools
             };
 
             var prompt = $"""
-                Summarize the following document. {lengthInstruction}
+                          Summarize the following document. {lengthInstruction}
 
-                DOCUMENT:
-                {text}
+                          DOCUMENT:
+                          {text}
 
-                SUMMARY:
-                """;
+                          SUMMARY:
+                          """;
 
             var ollama = new OllamaService(
-                model: model ?? DefaultModel,
-                embedModel: DefaultEmbedModel,
-                baseUrl: DefaultBaseUrl);
+                model ?? DefaultModel,
+                DefaultEmbedModel,
+                DefaultBaseUrl);
 
-            var summary = await ollama.GenerateAsync(prompt, 0.3);
+            var summary = await ollama.GenerateAsync(prompt);
 
             var result = new
             {
@@ -301,32 +315,35 @@ public static class DocSummarizerTools
     }
 
     /// <summary>
-    /// Answer a question about text content.
+    ///     Answer a question about text content.
     /// </summary>
     [McpServerTool(Name = "ask_about_text")]
     [Description("Answer a question about provided text using a local Ollama LLM.")]
     public static async Task<string> AskAboutTextAsync(
-        [Description("Text content to ask about")] string text,
-        [Description("Question to ask about the text")] string question,
-        [Description("Ollama model to use (default from env or llama3.2:3b)")] string? model = null)
+        [Description("Text content to ask about")]
+        string text,
+        [Description("Question to ask about the text")]
+        string question,
+        [Description("Ollama model to use (default from env or llama3.2:3b)")]
+        string? model = null)
     {
         try
         {
             var prompt = $"""
-                Based on the following text, answer the question. If the answer is not in the text, say so.
+                          Based on the following text, answer the question. If the answer is not in the text, say so.
 
-                TEXT:
-                {text}
+                          TEXT:
+                          {text}
 
-                QUESTION: {question}
+                          QUESTION: {question}
 
-                ANSWER:
-                """;
+                          ANSWER:
+                          """;
 
             var ollama = new OllamaService(
-                model: model ?? DefaultModel,
-                embedModel: DefaultEmbedModel,
-                baseUrl: DefaultBaseUrl);
+                model ?? DefaultModel,
+                DefaultEmbedModel,
+                DefaultBaseUrl);
 
             var answer = await ollama.GenerateAsync(prompt, 0.2);
 
@@ -356,7 +373,7 @@ public static class DocSummarizerTools
         double normA = 0;
         double normB = 0;
 
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dotProduct += a[i] * b[i];
             normA += a[i] * a[i];

@@ -8,6 +8,7 @@ Deterministic image profiling with optional OCR, motion analysis, embeddings, an
 ## Demo Output
 
 ### Animated GIF with Subtitles
+
 ![Anchorman meme](demo-images/anchorman-not-even-mad.gif)
 
 ```
@@ -55,13 +56,13 @@ var result = await analyzer.AnalyzeBySignalsAsync(
 
 ## Pipelines
 
-| Need | Use | Speed |
-|------|-----|-------|
-| Fast profile only | `ProfileOnly` | ~10ms |
-| Captions for photos/screens | `florence2` | ~200ms |
-| GIFs with subtitles | `auto` (filmstrip) | ~2-3s |
-| Motion understanding | `motion` | ~300ms |
-| Best effort caption | `florence2+llm` | ~1-5s |
+| Need                        | Use                | Speed  |
+|-----------------------------|--------------------|--------|
+| Fast profile only           | `ProfileOnly`      | ~10ms  |
+| Captions for photos/screens | `florence2`        | ~200ms |
+| GIFs with subtitles         | `auto` (filmstrip) | ~2-3s  |
+| Motion understanding        | `motion`           | ~300ms |
+| Best effort caption         | `florence2+llm`    | ~1-5s  |
 
 ## Filmstrip Optimization (NEW!)
 
@@ -77,10 +78,10 @@ For animated GIFs, the `auto` pipeline uses **filmstrip mode**:
 
 ![Text-Only Strip](demo-images/anchorman-not-even-mad_textonly_strip.png)
 
-| Approach | Dimensions | Tokens | Time |
-|----------|------------|--------|------|
-| Full frames (10) | 3000×185 | ~1500 | ~27s |
-| Text-only strip | 253×105 | ~50 | ~2-3s |
+| Approach         | Dimensions | Tokens | Time  |
+|------------------|------------|--------|-------|
+| Full frames (10) | 3000×185   | ~1500  | ~27s  |
+| Text-only strip  | 253×105    | ~50    | ~2-3s |
 
 **30× token reduction** while preserving all subtitle text.
 
@@ -113,6 +114,7 @@ imagesummarizer export-strip animation.gif --mode motion
 ## CLI Tools
 
 ### Desktop GUI
+
 ![Desktop App](demo-images/desktop-preview.png)
 
 - Drag & drop images for instant analysis
@@ -121,6 +123,7 @@ imagesummarizer export-strip animation.gif --mode motion
 - Animated GIF preview + filmstrip
 
 ### Command Line
+
 ```bash
 # Analyze image
 imagesummarizer image.gif --pipeline auto --output visual

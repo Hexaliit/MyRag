@@ -4,7 +4,7 @@ using System.Text;
 namespace Mostlylucid.DocSummarizer.Services.Utilities;
 
 /// <summary>
-/// Word list categories for entity extraction filtering.
+///     Word list categories for entity extraction filtering.
 /// </summary>
 public enum WordListCategory
 {
@@ -17,25 +17,24 @@ public enum WordListCategory
 }
 
 /// <summary>
-/// In-memory word list store for efficient querying of stopwords, honorifics, etc.
-/// Supports both embedded defaults and custom user lists.
-///
-/// Features:
-/// - Fast in-memory HashSet lookups
-/// - Case-insensitive matching
-/// - Category-based filtering (stopwords, honorifics, place indicators, etc.)
-/// - Custom user lists that override/extend defaults
+///     In-memory word list store for efficient querying of stopwords, honorifics, etc.
+///     Supports both embedded defaults and custom user lists.
+///     Features:
+///     - Fast in-memory HashSet lookups
+///     - Case-insensitive matching
+///     - Category-based filtering (stopwords, honorifics, place indicators, etc.)
+///     - Custom user lists that override/extend defaults
 /// </summary>
 public sealed class WordListStore
 {
     private readonly bool _verbose;
-    private bool _initialized;
 
     // In-memory storage by category
     private readonly Dictionary<WordListCategory, HashSet<string>> _wordLists = new();
+    private bool _initialized;
 
     /// <summary>
-    /// Create a word list store with in-memory storage.
+    ///     Create a word list store with in-memory storage.
     /// </summary>
     /// <param name="dbPath">Ignored (for API compatibility)</param>
     /// <param name="verbose">Enable verbose logging</param>
@@ -44,14 +43,12 @@ public sealed class WordListStore
         _verbose = verbose;
 
         // Initialize empty sets for each category
-        foreach (WordListCategory category in Enum.GetValues<WordListCategory>())
-        {
+        foreach (var category in Enum.GetValues<WordListCategory>())
             _wordLists[category] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        }
     }
 
     /// <summary>
-    /// Initialize the word lists by loading default words from embedded resources.
+    ///     Initialize the word lists by loading default words from embedded resources.
     /// </summary>
     public async Task InitializeAsync()
     {
@@ -64,12 +61,13 @@ public sealed class WordListStore
         if (_verbose)
         {
             var stats = GetStats();
-            Console.WriteLine($"[WordListStore] Initialized: {stats.TotalWords} words across {stats.Categories} categories");
+            Console.WriteLine(
+                $"[WordListStore] Initialized: {stats.TotalWords} words across {stats.Categories} categories");
         }
     }
 
     /// <summary>
-    /// Check if a word is in any stopword category (fast cached lookup).
+    ///     Check if a word is in any stopword category (fast cached lookup).
     /// </summary>
     public bool IsStopword(string word)
     {
@@ -78,7 +76,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Check if a word is an honorific (Mr., Dr., Captain, etc.)
+    ///     Check if a word is an honorific (Mr., Dr., Captain, etc.)
     /// </summary>
     public bool IsHonorific(string word)
     {
@@ -87,7 +85,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Check if a word is a place indicator (Street, Road, etc.)
+    ///     Check if a word is a place indicator (Street, Road, etc.)
     /// </summary>
     public bool IsPlaceIndicator(string word)
     {
@@ -96,7 +94,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Check if a word is a code/technical keyword
+    ///     Check if a word is a code/technical keyword
     /// </summary>
     public bool IsCodeKeyword(string word)
     {
@@ -105,7 +103,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Check if a word is a day name
+    ///     Check if a word is a day name
     /// </summary>
     public bool IsDayName(string word)
     {
@@ -114,7 +112,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Check if a word is a month name
+    ///     Check if a word is a month name
     /// </summary>
     public bool IsMonthName(string word)
     {
@@ -123,7 +121,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Check if word should be filtered (any category except honorific)
+    ///     Check if word should be filtered (any category except honorific)
     /// </summary>
     public bool ShouldFilter(string word)
     {
@@ -131,7 +129,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Get all words in a category.
+    ///     Get all words in a category.
     /// </summary>
     public Task<List<string>> GetWordsAsync(WordListCategory category)
     {
@@ -140,7 +138,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Search for words matching a pattern (case-insensitive substring match).
+    ///     Search for words matching a pattern (case-insensitive substring match).
     /// </summary>
     public Task<List<(string Word, WordListCategory Category)>> SearchAsync(string pattern)
     {
@@ -161,7 +159,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Add a custom word to a category.
+    ///     Add a custom word to a category.
     /// </summary>
     public Task AddWordAsync(string word, WordListCategory category, bool isCustom = true)
     {
@@ -171,7 +169,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Remove a word from a category.
+    ///     Remove a word from a category.
     /// </summary>
     public Task RemoveWordAsync(string word, WordListCategory category)
     {
@@ -181,7 +179,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Import words from a text file (one word per line, # for comments).
+    ///     Import words from a text file (one word per line, # for comments).
     /// </summary>
     public async Task ImportFromFileAsync(string filePath, WordListCategory category, bool isCustom = true)
     {
@@ -193,7 +191,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Export a category to a text file.
+    ///     Export a category to a text file.
     /// </summary>
     public async Task ExportToFileAsync(string filePath, WordListCategory category)
     {
@@ -203,16 +201,13 @@ public sealed class WordListStore
         content.AppendLine($"# Exported: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
         content.AppendLine();
 
-        foreach (var word in words.OrderBy(w => w))
-        {
-            content.AppendLine(word);
-        }
+        foreach (var word in words.OrderBy(w => w)) content.AppendLine(word);
 
         await File.WriteAllTextAsync(filePath, content.ToString());
     }
 
     /// <summary>
-    /// Get statistics about the word lists.
+    ///     Get statistics about the word lists.
     /// </summary>
     public (int TotalWords, int Categories, int CustomWords) GetStats()
     {
@@ -226,7 +221,7 @@ public sealed class WordListStore
     }
 
     /// <summary>
-    /// Persist the database to a file (no-op in memory-only version).
+    ///     Persist the database to a file (no-op in memory-only version).
     /// </summary>
     public Task SaveToFileAsync(string filePath)
     {
@@ -277,24 +272,19 @@ public sealed class WordListStore
             .Where(l => !string.IsNullOrEmpty(l) && !l.StartsWith('#'))
             .Distinct(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var word in words)
-        {
-            _wordLists[category].Add(word);
-        }
+        foreach (var word in words) _wordLists[category].Add(word);
     }
 
     private void EnsureInitialized()
     {
         if (!_initialized)
-        {
             // Synchronous initialization for hot path
             InitializeAsync().GetAwaiter().GetResult();
-        }
     }
 }
 
 /// <summary>
-/// Singleton accessor for the default word list store.
+///     Singleton accessor for the default word list store.
 /// </summary>
 public static class WordLists
 {
@@ -302,26 +292,25 @@ public static class WordLists
     private static readonly object _lock = new();
 
     /// <summary>
-    /// Get the default word list store instance.
+    ///     Get the default word list store instance.
     /// </summary>
     public static WordListStore Default
     {
         get
         {
             if (_instance == null)
-            {
                 lock (_lock)
                 {
                     _instance ??= new WordListStore();
                     _instance.InitializeAsync().GetAwaiter().GetResult();
                 }
-            }
+
             return _instance;
         }
     }
 
     /// <summary>
-    /// Replace the default instance (useful for testing or custom configs).
+    ///     Replace the default instance (useful for testing or custom configs).
     /// </summary>
     public static void SetDefault(WordListStore store)
     {
@@ -332,9 +321,28 @@ public static class WordLists
     }
 
     // Convenience methods for common checks
-    public static bool IsStopword(string word) => Default.IsStopword(word);
-    public static bool IsHonorific(string word) => Default.IsHonorific(word);
-    public static bool IsPlaceIndicator(string word) => Default.IsPlaceIndicator(word);
-    public static bool IsCodeKeyword(string word) => Default.IsCodeKeyword(word);
-    public static bool ShouldFilter(string word) => Default.ShouldFilter(word);
+    public static bool IsStopword(string word)
+    {
+        return Default.IsStopword(word);
+    }
+
+    public static bool IsHonorific(string word)
+    {
+        return Default.IsHonorific(word);
+    }
+
+    public static bool IsPlaceIndicator(string word)
+    {
+        return Default.IsPlaceIndicator(word);
+    }
+
+    public static bool IsCodeKeyword(string word)
+    {
+        return Default.IsCodeKeyword(word);
+    }
+
+    public static bool ShouldFilter(string word)
+    {
+        return Default.ShouldFilter(word);
+    }
 }

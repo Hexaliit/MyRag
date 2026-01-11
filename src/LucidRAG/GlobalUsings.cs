@@ -2,6 +2,7 @@
 // These apply to all files in the project
 
 // Alias to avoid conflict with HotChocolate.Path
+
 global using Path = System.IO.Path;
 global using Directory = System.IO.Directory;
 global using File = System.IO.File;

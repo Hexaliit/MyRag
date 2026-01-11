@@ -1,14 +1,13 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
+using LucidRAG.Cli.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Spectre.Console;
-using LucidRAG.Cli.Services;
 
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// Extract text from images using advanced OCR pipeline
+///     Extract text from images using advanced OCR pipeline
 /// </summary>
 public static class OcrCommand
 {
@@ -80,14 +79,13 @@ public static class OcrCommand
                     var profile = await AnsiConsole.Status()
                         .Spinner(Spinner.Known.Dots)
                         .SpinnerStyle(Style.Parse("cyan"))
-                        .StartAsync($"Analyzing {Path.GetFileName(fullPath)}...", async ctx =>
-                        {
-                            return await orchestrator.AnalyzeAsync(fullPath, ct);
-                        });
+                        .StartAsync($"Analyzing {Path.GetFileName(fullPath)}...",
+                            async ctx => { return await orchestrator.AnalyzeAsync(fullPath, ct); });
 
                     // Display analysis summary
                     AnsiConsole.MarkupLine($"[dim]Analysis completed in {profile.AnalysisDurationMs}ms[/]");
-                    AnsiConsole.MarkupLine($"[dim]Signals: {profile.GetAllSignals().Count()} | Waves: {string.Join(", ", profile.ContributingWaves)}[/]\n");
+                    AnsiConsole.MarkupLine(
+                        $"[dim]Signals: {profile.GetAllSignals().Count()} | Waves: {string.Join(", ", profile.ContributingWaves)}[/]\n");
 
                     // Get extracted text
                     string? extractedText = null;
@@ -136,12 +134,12 @@ public static class OcrCommand
                             .AddColumn("[dim]Value[/]");
 
                         table.AddRow("Characters", extractedText.Length.ToString());
-                        table.AddRow("Words", extractedText.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length.ToString());
+                        table.AddRow("Words",
+                            extractedText.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+                                .Length.ToString());
 
                         if (profile.HasSignal("ocr.frames.extracted"))
-                        {
                             table.AddRow("Frames Processed", profile.GetValue<int>("ocr.frames.extracted").ToString());
-                        }
 
                         if (profile.HasSignal("ocr.voting.agreement_score"))
                         {
@@ -168,11 +166,10 @@ public static class OcrCommand
 
                         if (profile.HasSignal("ocr.skipped") || profile.HasSignal("ocr.advanced.skipped"))
                         {
-                            var skipSignal = profile.GetBestSignal("ocr.advanced.skipped") ?? profile.GetBestSignal("ocr.skipped");
+                            var skipSignal = profile.GetBestSignal("ocr.advanced.skipped") ??
+                                             profile.GetBestSignal("ocr.skipped");
                             if (skipSignal?.Metadata != null && skipSignal.Metadata.ContainsKey("reason"))
-                            {
                                 AnsiConsole.MarkupLine($"[dim]Reason: {skipSignal.Metadata["reason"]}[/]");
-                            }
                         }
                     }
 
@@ -211,10 +208,7 @@ public static class OcrCommand
                 catch (Exception ex)
                 {
                     AnsiConsole.MarkupLine($"[red]✗ Error:[/] {ex.Message}");
-                    if (verbose)
-                    {
-                        AnsiConsole.WriteException(ex);
-                    }
+                    if (verbose) AnsiConsole.WriteException(ex);
                     AnsiConsole.WriteLine();
                 }
             }

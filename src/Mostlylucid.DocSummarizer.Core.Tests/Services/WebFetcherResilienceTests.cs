@@ -8,7 +8,7 @@ using Xunit;
 namespace Mostlylucid.DocSummarizer.Tests.Services;
 
 /// <summary>
-/// Tests for WebFetcher resilience features (circuit breaker, retry, exceptions)
+///     Tests for WebFetcher resilience features (circuit breaker, retry, exceptions)
 /// </summary>
 public class WebFetcherResilienceTests
 {
@@ -18,6 +18,27 @@ public class WebFetcherResilienceTests
         Mode = WebFetchMode.Simple,
         TimeoutSeconds = 30
     };
+
+    #region Status Code Classification Tests
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)] // 400
+    [InlineData(HttpStatusCode.Unauthorized)] // 401
+    [InlineData(HttpStatusCode.PaymentRequired)] // 402
+    [InlineData(HttpStatusCode.Forbidden)] // 403
+    [InlineData(HttpStatusCode.NotFound)] // 404
+    [InlineData(HttpStatusCode.MethodNotAllowed)] // 405
+    [InlineData(HttpStatusCode.Gone)] // 410
+    public void PermanentFailureStatusCodes_AreCorrectlyClassified(HttpStatusCode statusCode)
+    {
+        // These should NOT trigger retries - they are permanent failures
+        // Test via exception creation (we can't easily test the pipeline directly without mocking HTTP)
+        var exception = new WebFetchPermanentException($"HTTP {(int)statusCode}", statusCode);
+
+        Assert.Equal(statusCode, exception.StatusCode);
+    }
+
+    #endregion
 
     #region WebFetchPermanentException Tests
 
@@ -53,7 +74,7 @@ public class WebFetcherResilienceTests
     {
         // Arrange
         var inner = new InvalidOperationException("Inner error");
-        
+
         // Act
         var exception = new WebFetchPermanentException("Outer message", HttpStatusCode.Forbidden, inner);
 
@@ -82,7 +103,7 @@ public class WebFetcherResilienceTests
     {
         // Arrange
         var inner = new Exception("DNS resolution failed");
-        
+
         // Act
         var exception = new SecurityException("Host blocked", inner);
 
@@ -110,11 +131,11 @@ public class WebFetcherResilienceTests
     {
         // Arrange & Act
         var result = new WebFetchResult(
-            tempFilePath: "/tmp/test.html",
-            contentType: "text/html",
-            sourceUrl: "https://example.com",
-            fileExtension: ".html",
-            isHtmlContent: true);
+            "/tmp/test.html",
+            "text/html",
+            "https://example.com",
+            ".html",
+            true);
 
         // Assert
         Assert.Equal("/tmp/test.html", result.TempFilePath);
@@ -139,14 +160,15 @@ public class WebFetcherResilienceTests
     [InlineData(".jpg", "Image")]
     [InlineData(".jpeg", "Image")]
     [InlineData(".tiff", "Image")]
-    public void WebFetchResult_GetContentDescription_ReturnsCorrectDescription(string extension, string expectedDescription)
+    public void WebFetchResult_GetContentDescription_ReturnsCorrectDescription(string extension,
+        string expectedDescription)
     {
         // Arrange
         var result = new WebFetchResult(
-            tempFilePath: $"/tmp/test{extension}",
-            contentType: "application/octet-stream",
-            sourceUrl: "https://example.com",
-            fileExtension: extension);
+            $"/tmp/test{extension}",
+            "application/octet-stream",
+            "https://example.com",
+            extension);
 
         // Act
         var description = result.GetContentDescription();
@@ -160,10 +182,10 @@ public class WebFetcherResilienceTests
     {
         // Arrange
         var result = new WebFetchResult(
-            tempFilePath: "/tmp/test.xyz",
-            contentType: "application/x-custom",
-            sourceUrl: "https://example.com",
-            fileExtension: ".xyz");
+            "/tmp/test.xyz",
+            "application/x-custom",
+            "https://example.com",
+            ".xyz");
 
         // Act
         var description = result.GetContentDescription();
@@ -177,10 +199,10 @@ public class WebFetcherResilienceTests
     {
         // Arrange
         var result = new WebFetchResult(
-            tempFilePath: "/tmp/nonexistent.html",
-            contentType: "text/html",
-            sourceUrl: "https://example.com",
-            fileExtension: ".html");
+            "/tmp/nonexistent.html",
+            "text/html",
+            "https://example.com",
+            ".html");
 
         // Act & Assert - should not throw
         result.Dispose();
@@ -193,10 +215,10 @@ public class WebFetcherResilienceTests
     {
         // Arrange & Act
         var result = new WebFetchResult(
-            tempFilePath: "/tmp/test.pdf",
-            contentType: "application/pdf",
-            sourceUrl: "https://example.com",
-            fileExtension: ".pdf");
+            "/tmp/test.pdf",
+            "application/pdf",
+            "https://example.com",
+            ".pdf");
 
         // Assert
         Assert.False(result.IsHtmlContent);
@@ -234,27 +256,6 @@ public class WebFetcherResilienceTests
             var fetcher = new WebFetcher(config);
             Assert.NotNull(fetcher);
         }
-    }
-
-    #endregion
-
-    #region Status Code Classification Tests
-
-    [Theory]
-    [InlineData(HttpStatusCode.BadRequest)]        // 400
-    [InlineData(HttpStatusCode.Unauthorized)]      // 401
-    [InlineData(HttpStatusCode.PaymentRequired)]   // 402
-    [InlineData(HttpStatusCode.Forbidden)]         // 403
-    [InlineData(HttpStatusCode.NotFound)]          // 404
-    [InlineData(HttpStatusCode.MethodNotAllowed)]  // 405
-    [InlineData(HttpStatusCode.Gone)]              // 410
-    public void PermanentFailureStatusCodes_AreCorrectlyClassified(HttpStatusCode statusCode)
-    {
-        // These should NOT trigger retries - they are permanent failures
-        // Test via exception creation (we can't easily test the pipeline directly without mocking HTTP)
-        var exception = new WebFetchPermanentException($"HTTP {(int)statusCode}", statusCode);
-        
-        Assert.Equal(statusCode, exception.StatusCode);
     }
 
     #endregion

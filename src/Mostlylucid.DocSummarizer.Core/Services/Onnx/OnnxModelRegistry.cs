@@ -103,8 +103,19 @@ public class EmbeddingModelInfo
     public required long SizeBytes { get; init; }
     public bool RequiresInstruction { get; init; }
     public string? QueryInstruction { get; init; }
-    
-    public string GetModelUrl() => OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, ModelFile);
-    public string GetTokenizerUrl() => OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, TokenizerFile);
-    public string GetVocabUrl() => OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, VocabFile);
+
+    public string GetModelUrl()
+    {
+        return OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, ModelFile);
+    }
+
+    public string GetTokenizerUrl()
+    {
+        return OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, TokenizerFile);
+    }
+
+    public string GetVocabUrl()
+    {
+        return OnnxModelRegistry.GetDownloadUrl(HuggingFaceRepo, VocabFile);
+    }
 }

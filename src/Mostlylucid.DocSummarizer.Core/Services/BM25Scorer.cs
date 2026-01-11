@@ -5,20 +5,18 @@ using StyloFlowBm25Corpus = StyloFlow.Retrieval.Bm25Corpus;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// BM25 (Best Matching 25) sparse retrieval scorer - Segment adapter.
-///
-/// Wraps StyloFlow.Retrieval.Bm25Scorer for use with Segment objects.
-/// This adapter pattern eliminates code duplication while maintaining
-/// the domain-specific API for DocSummarizer consumers.
-///
-/// For new code, consider using StyloFlow.Retrieval.Bm25Scorer directly.
+///     BM25 (Best Matching 25) sparse retrieval scorer - Segment adapter.
+///     Wraps StyloFlow.Retrieval.Bm25Scorer for use with Segment objects.
+///     This adapter pattern eliminates code duplication while maintaining
+///     the domain-specific API for DocSummarizer consumers.
+///     For new code, consider using StyloFlow.Retrieval.Bm25Scorer directly.
 /// </summary>
 public class BM25Scorer
 {
     private readonly StyloFlowBm25 _scorer;
     private StyloFlowBm25Corpus? _corpus;
-    private List<Segment>? _segments;
     private bool _initialized;
+    private List<Segment>? _segments;
 
     public BM25Scorer(double k1 = 1.5, double b = 0.75)
     {
@@ -26,7 +24,7 @@ public class BM25Scorer
     }
 
     /// <summary>
-    /// Initialize BM25 with corpus statistics from segments.
+    ///     Initialize BM25 with corpus statistics from segments.
     /// </summary>
     public void Initialize(IEnumerable<Segment> segments)
     {
@@ -36,7 +34,7 @@ public class BM25Scorer
     }
 
     /// <summary>
-    /// Score a segment against a query using BM25.
+    ///     Score a segment against a query using BM25.
     /// </summary>
     public double Score(Segment segment, string query)
     {
@@ -44,12 +42,12 @@ public class BM25Scorer
             throw new InvalidOperationException("BM25 not initialized. Call Initialize() first.");
 
         // Use the underlying StyloFlow scorer with pre-built corpus
-        var scorer = new StyloFlowBm25(_corpus!, _scorer.Name == "BM25" ? 1.5 : 1.5, 0.75);
+        var scorer = new StyloFlowBm25(_corpus!, _scorer.Name == "BM25" ? 1.5 : 1.5);
         return scorer.Score(query, segment.Text);
     }
 
     /// <summary>
-    /// Score all segments against a query, returning ranked list.
+    ///     Score all segments against a query, returning ranked list.
     /// </summary>
     public List<(Segment segment, double score)> ScoreAll(IEnumerable<Segment> segments, string query)
     {
@@ -66,22 +64,19 @@ public class BM25Scorer
 }
 
 /// <summary>
-/// Extended RRF that combines three signals: dense, sparse (BM25), and salience.
-///
-/// This remains Segment-specific as it manipulates domain objects directly.
-/// For generic RRF, use StyloFlow.Retrieval.ReciprocalRankFusion.
+///     Extended RRF that combines three signals: dense, sparse (BM25), and salience.
+///     This remains Segment-specific as it manipulates domain objects directly.
+///     For generic RRF, use StyloFlow.Retrieval.ReciprocalRankFusion.
 /// </summary>
 public static class HybridRRF
 {
     /// <summary>
-    /// Reciprocal Rank Fusion combining dense similarity, BM25, and salience scores.
-    ///
-    /// RRF(d) = 1/(k + rank_dense) + 1/(k + rank_bm25) + 1/(k + rank_salience)
-    ///
-    /// This three-way fusion captures:
-    /// - Semantic similarity (dense embeddings)
-    /// - Lexical matching (BM25 sparse)
-    /// - Document importance (salience from extraction)
+    ///     Reciprocal Rank Fusion combining dense similarity, BM25, and salience scores.
+    ///     RRF(d) = 1/(k + rank_dense) + 1/(k + rank_bm25) + 1/(k + rank_salience)
+    ///     This three-way fusion captures:
+    ///     - Semantic similarity (dense embeddings)
+    ///     - Lexical matching (BM25 sparse)
+    ///     - Document importance (salience from extraction)
     /// </summary>
     public static List<Segment> Fuse(
         List<Segment> segments,
@@ -110,14 +105,14 @@ public static class HybridRRF
         var rrfScores = new Dictionary<Segment, double>();
 
         // Dense ranking contribution
-        for (int i = 0; i < byDense.Count; i++)
+        for (var i = 0; i < byDense.Count; i++)
         {
             var segment = byDense[i];
             rrfScores[segment] = 1.0 / (k + i + 1);
         }
 
         // BM25 ranking contribution
-        for (int i = 0; i < byBM25.Count; i++)
+        for (var i = 0; i < byBM25.Count; i++)
         {
             var segment = byBM25[i];
             if (rrfScores.ContainsKey(segment))
@@ -127,7 +122,7 @@ public static class HybridRRF
         }
 
         // Salience ranking contribution
-        for (int i = 0; i < bySalience.Count; i++)
+        for (var i = 0; i < bySalience.Count; i++)
         {
             var segment = bySalience[i];
             if (rrfScores.ContainsKey(segment))
@@ -137,10 +132,7 @@ public static class HybridRRF
         }
 
         // Store final scores and return top-K
-        foreach (var (segment, score) in rrfScores)
-        {
-            segment.RetrievalScore = score;
-        }
+        foreach (var (segment, score) in rrfScores) segment.RetrievalScore = score;
 
         return rrfScores
             .OrderByDescending(kv => kv.Value)

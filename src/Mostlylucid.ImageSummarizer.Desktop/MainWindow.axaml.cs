@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -37,39 +39,29 @@ public partial class MainWindow : Window
         if (files == null) return;
 
         var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp" };
-        var imagePaths = new System.Collections.Generic.List<string>();
+        var imagePaths = new List<string>();
 
         foreach (var file in files)
-        {
             try
             {
                 // Try to get local path - works for local files
                 var path = file.Path.LocalPath;
                 if (!string.IsNullOrEmpty(path) &&
-                    System.IO.File.Exists(path) &&
+                    File.Exists(path) &&
                     imageExtensions.Any(ext => path.EndsWith(ext, StringComparison.OrdinalIgnoreCase)))
-                {
                     imagePaths.Add(path);
-                }
             }
             catch
             {
                 // Skip files we can't access
             }
-        }
 
-        if (imagePaths.Count > 0)
-        {
-            await _viewModel.HandleDropAsync(imagePaths.ToArray());
-        }
+        if (imagePaths.Count > 0) await _viewModel.HandleDropAsync(imagePaths.ToArray());
     }
 
     // Handle command-line argument for shell integration
     public async void LoadFromArgs(string[] args)
     {
-        if (args.Length > 0 && System.IO.File.Exists(args[0]))
-        {
-            await _viewModel.LoadImageAsync(args[0]);
-        }
+        if (args.Length > 0 && File.Exists(args[0])) await _viewModel.LoadImageAsync(args[0]);
     }
 }

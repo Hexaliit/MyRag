@@ -4,13 +4,13 @@ using Spectre.Console;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Consumes progress updates from Core's ProgressChannel and displays them using Spectre.Console.
-/// This bridges the library's channel-based progress API to CLI-specific rich terminal output.
+///     Consumes progress updates from Core's ProgressChannel and displays them using Spectre.Console.
+///     This bridges the library's channel-based progress API to CLI-specific rich terminal output.
 /// </summary>
 public class ProgressChannelConsumer
 {
-    private readonly bool _verbose;
     private readonly bool _useSpectre;
+    private readonly bool _verbose;
 
     public ProgressChannelConsumer(bool verbose = true, bool useSpectre = true)
     {
@@ -19,7 +19,7 @@ public class ProgressChannelConsumer
     }
 
     /// <summary>
-    /// Run an async operation while consuming and displaying progress updates.
+    ///     Run an async operation while consuming and displaying progress updates.
     /// </summary>
     public async Task<T> RunWithProgressAsync<T>(
         string title,
@@ -27,25 +27,21 @@ public class ProgressChannelConsumer
         CancellationToken ct = default)
     {
         var channel = ProgressChannel.CreateUnbounded();
-        
+
         // Start the operation
         var operationTask = operation(channel.Writer);
-        
+
         // Consume progress updates
         if (_useSpectre)
-        {
             await ConsumeWithSpectreAsync(title, channel.Reader, operationTask, ct);
-        }
         else
-        {
             await ConsumeSimpleAsync(channel.Reader, operationTask, ct);
-        }
-        
+
         return await operationTask;
     }
 
     /// <summary>
-    /// Consume progress using Spectre.Console Status display.
+    ///     Consume progress using Spectre.Console Status display.
     /// </summary>
     private async Task ConsumeWithSpectreAsync<T>(
         string title,
@@ -61,24 +57,15 @@ public class ProgressChannelConsumer
                 try
                 {
                     while (!operationTask.IsCompleted)
-                    {
                         // Check for progress updates (non-blocking)
                         if (reader.TryRead(out var update))
-                        {
                             DisplayUpdate(update, ctx);
-                        }
                         else
-                        {
                             // Small delay to avoid busy-waiting
                             await Task.Delay(50, ct);
-                        }
-                    }
-                    
+
                     // Drain any remaining updates
-                    while (reader.TryRead(out var update))
-                    {
-                        DisplayUpdate(update, ctx);
-                    }
+                    while (reader.TryRead(out var update)) DisplayUpdate(update, ctx);
                 }
                 catch (OperationCanceledException)
                 {
@@ -92,7 +79,8 @@ public class ProgressChannelConsumer
         var message = update.Type switch
         {
             ProgressType.Stage => $"[cyan]{Markup.Escape(update.Stage)}:[/] {Markup.Escape(update.Message)}",
-            ProgressType.ItemProgress => $"[dim]{Markup.Escape(update.Stage)}:[/] {update.Current}/{update.Total} ({update.PercentComplete:F0}%)",
+            ProgressType.ItemProgress =>
+                $"[dim]{Markup.Escape(update.Stage)}:[/] {update.Current}/{update.Total} ({update.PercentComplete:F0}%)",
             ProgressType.LlmActivity => $"[yellow]LLM:[/] {Markup.Escape(update.Message)}",
             ProgressType.Info when _verbose => $"[dim]{Markup.Escape(update.Message)}[/]",
             ProgressType.Warning => $"[yellow]Warning:[/] {Markup.Escape(update.Message)}",
@@ -105,17 +93,15 @@ public class ProgressChannelConsumer
         if (message != null)
         {
             ctx.Status(message);
-            
+
             // For important updates, also write to console
             if (update.Type is ProgressType.Warning or ProgressType.Error or ProgressType.Completed)
-            {
                 AnsiConsole.MarkupLine(message);
-            }
         }
     }
 
     /// <summary>
-    /// Consume progress with simple console output (non-interactive mode).
+    ///     Consume progress with simple console output (non-interactive mode).
     /// </summary>
     private async Task ConsumeSimpleAsync<T>(
         ChannelReader<ProgressUpdate> reader,
@@ -125,22 +111,13 @@ public class ProgressChannelConsumer
         try
         {
             while (!operationTask.IsCompleted)
-            {
                 if (reader.TryRead(out var update))
-                {
                     DisplayUpdateSimple(update);
-                }
                 else
-                {
                     await Task.Delay(50, ct);
-                }
-            }
-            
+
             // Drain remaining
-            while (reader.TryRead(out var update))
-            {
-                DisplayUpdateSimple(update);
-            }
+            while (reader.TryRead(out var update)) DisplayUpdateSimple(update);
         }
         catch (OperationCanceledException)
         {
@@ -153,7 +130,8 @@ public class ProgressChannelConsumer
         var message = update.Type switch
         {
             ProgressType.Stage => $"[{update.Stage}] {update.Message}",
-            ProgressType.ItemProgress when _verbose => $"  {update.Current}/{update.Total} ({update.PercentComplete:F0}%)",
+            ProgressType.ItemProgress when _verbose =>
+                $"  {update.Current}/{update.Total} ({update.PercentComplete:F0}%)",
             ProgressType.LlmActivity when _verbose => $"  LLM: {update.Message}",
             ProgressType.Info when _verbose => $"  {update.Message}",
             ProgressType.Warning => $"[WARN] {update.Message}",
@@ -163,14 +141,11 @@ public class ProgressChannelConsumer
             _ => null
         };
 
-        if (message != null)
-        {
-            Console.WriteLine(message);
-        }
+        if (message != null) Console.WriteLine(message);
     }
 
     /// <summary>
-    /// Consume progress with a Spectre.Console progress bar (for longer operations).
+    ///     Consume progress with a Spectre.Console progress bar (for longer operations).
     /// </summary>
     public async Task<T> RunWithProgressBarAsync<T>(
         string title,
@@ -178,7 +153,7 @@ public class ProgressChannelConsumer
         CancellationToken ct = default)
     {
         var channel = ProgressChannel.CreateUnbounded();
-        
+
         if (!_useSpectre)
         {
             // Fall back to simple mode
@@ -188,7 +163,7 @@ public class ProgressChannelConsumer
         }
 
         T result = default!;
-        
+
         await AnsiConsole.Progress()
             .AutoRefresh(true)
             .AutoClear(false)
@@ -203,29 +178,20 @@ public class ProgressChannelConsumer
             {
                 var mainTask = ctx.AddTask($"[cyan]{Markup.Escape(title)}[/]");
                 mainTask.MaxValue = 100;
-                
+
                 var operationTask = operation(channel.Writer);
-                
+
                 try
                 {
                     while (!operationTask.IsCompleted)
-                    {
                         if (channel.Reader.TryRead(out var update))
-                        {
                             UpdateProgressBar(mainTask, update);
-                        }
                         else
-                        {
                             await Task.Delay(50, ct);
-                        }
-                    }
-                    
+
                     // Drain remaining
-                    while (channel.Reader.TryRead(out var update))
-                    {
-                        UpdateProgressBar(mainTask, update);
-                    }
-                    
+                    while (channel.Reader.TryRead(out var update)) UpdateProgressBar(mainTask, update);
+
                     mainTask.Value = 100;
                     mainTask.Description = $"[green]✓ {Markup.Escape(title)} complete[/]";
                 }
@@ -238,17 +204,17 @@ public class ProgressChannelConsumer
                     mainTask.Description = $"[red]Failed: {Markup.Escape(ex.Message)}[/]";
                     throw;
                 }
-                
+
                 result = await operationTask;
             });
-        
+
         return result;
     }
 
     private static void UpdateProgressBar(ProgressTask task, ProgressUpdate update)
     {
         task.Value = update.PercentComplete;
-        
+
         var desc = update.Type switch
         {
             ProgressType.Stage => $"[cyan]{Markup.Escape(update.Stage)}:[/] {Markup.Escape(update.Message)}",
@@ -258,9 +224,6 @@ public class ProgressChannelConsumer
             _ => null
         };
 
-        if (desc != null)
-        {
-            task.Description = desc;
-        }
+        if (desc != null) task.Description = desc;
     }
 }

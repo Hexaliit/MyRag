@@ -6,13 +6,13 @@ using FluentAssertions;
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Integration tests for the Crawl API
+///     Integration tests for the Crawl API
 /// </summary>
 [Collection("Integration")]
 public class CrawlApiTests : IAsyncLifetime
 {
-    private readonly TestWebApplicationFactory _factory;
     private readonly HttpClient _client;
+    private readonly TestWebApplicationFactory _factory;
 
     public CrawlApiTests(TestWebApplicationFactory factory)
     {
@@ -161,7 +161,7 @@ public class CrawlApiTests : IAsyncLifetime
     public async Task ListCrawlJobs_ReturnsAllJobs()
     {
         // Arrange - Start multiple crawl jobs
-        for (int i = 0; i < 2; i++)
+        for (var i = 0; i < 2; i++)
         {
             var request = new
             {
@@ -211,7 +211,8 @@ public class CrawlApiTests : IAsyncLifetime
     public async Task StartCrawl_WithCollection_IncludesCollectionId()
     {
         // Arrange - Create a collection first
-        var collectionResponse = await _client.PostAsJsonAsync("/api/collections", new { name = "Crawl Test Collection" });
+        var collectionResponse =
+            await _client.PostAsJsonAsync("/api/collections", new { name = "Crawl Test Collection" });
         collectionResponse.StatusCode.Should().Be(HttpStatusCode.Created);
         var collectionResult = await collectionResponse.Content.ReadFromJsonAsync<JsonElement>();
         var collectionId = collectionResult.GetProperty("id").GetString();
@@ -220,7 +221,7 @@ public class CrawlApiTests : IAsyncLifetime
         {
             seedUrls = new[] { "https://example.com" },
             maxPages = 5,
-            collectionId = collectionId
+            collectionId
         };
 
         var startResponse = await _client.PostAsJsonAsync("/api/crawl", request);
@@ -320,7 +321,7 @@ public class CrawlApiTests : IAsyncLifetime
 
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
         result.GetProperty("maxPages").GetInt32().Should().Be(50); // Default
-        result.GetProperty("maxDepth").GetInt32().Should().Be(3);  // Default
+        result.GetProperty("maxDepth").GetInt32().Should().Be(3); // Default
     }
 
     [Fact]

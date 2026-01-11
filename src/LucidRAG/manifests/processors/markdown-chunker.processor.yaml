@@ -64,7 +64,7 @@ defaults:
     respect_code_blocks: true   # Keep code blocks intact
     respect_lists: true         # Keep lists together
     respect_tables: true        # Keep tables together
-    heading_levels: [1, 2, 3]   # Which heading levels to respect
+    heading_levels: [ 1, 2, 3 ]   # Which heading levels to respect
 
   # Quality parameters
   quality:

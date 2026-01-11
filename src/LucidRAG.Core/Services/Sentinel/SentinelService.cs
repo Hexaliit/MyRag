@@ -696,6 +696,278 @@ JSON only, no explanation:";
         return $"I need some clarification about your query \"{query}\". {issues}. Could you rephrase or provide more context?";
     }
 
+    /// <inheritdoc />
+    public async Task<FollowUpDetectionResult> DetectFollowUpAsync(
+        string query,
+        string? previousQuery,
+        IReadOnlyList<string>? conversationHistory = null,
+        CancellationToken ct = default)
+    {
+        // If no previous query, can't be a follow-up
+        if (string.IsNullOrWhiteSpace(previousQuery))
+        {
+            return new FollowUpDetectionResult
+            {
+                IsFollowUp = false,
+                Confidence = 1.0,
+                Reason = "No previous query to follow up on"
+            };
+        }
+
+        var queryLower = query.ToLowerInvariant().Trim();
+
+        // 1. Check for coreference patterns (pronouns referring to previous topic)
+        var (hasCoreference, coreferences, resolvedQuery) = DetectCoreferences(query, previousQuery);
+
+        if (hasCoreference)
+        {
+            _logger.LogDebug("Detected coreference in query: '{Query}' -> '{Resolved}'", query, resolvedQuery);
+            return new FollowUpDetectionResult
+            {
+                IsFollowUp = true,
+                Confidence = 0.9,
+                Reason = $"Coreference detected: {string.Join(", ", coreferences.Keys)}",
+                ResolvedQuery = resolvedQuery,
+                ResolvedCoreferences = coreferences,
+                UseSameDocumentSet = true
+            };
+        }
+
+        // 2. Check for explicit continuation markers
+        var continuationMarkers = new[]
+        {
+            "tell me more", "more about", "go on", "continue", "what else",
+            "and also", "additionally", "furthermore", "in addition",
+            "can you explain", "could you elaborate", "please explain",
+            "why is that", "how does that", "what about"
+        };
+
+        var hasContinuationMarker = continuationMarkers.Any(m => queryLower.Contains(m));
+        if (hasContinuationMarker)
+        {
+            _logger.LogDebug("Detected continuation marker in query: '{Query}'", query);
+            return new FollowUpDetectionResult
+            {
+                IsFollowUp = true,
+                Confidence = 0.85,
+                Reason = "Continuation marker detected",
+                ResolvedQuery = query,
+                UseSameDocumentSet = true
+            };
+        }
+
+        // 3. Check semantic similarity between queries
+        try
+        {
+            var currentEmbedding = await _embedding.EmbedAsync(query, ct);
+            var previousEmbedding = await _embedding.EmbedAsync(previousQuery, ct);
+            var similarity = CosineSimilarity(currentEmbedding, previousEmbedding);
+
+            _logger.LogDebug("Query similarity: {Similarity:F3} between '{Current}' and '{Previous}'",
+                similarity, query, previousQuery);
+
+            // High similarity suggests same topic
+            if (similarity > 0.7)
+            {
+                return new FollowUpDetectionResult
+                {
+                    IsFollowUp = true,
+                    Confidence = similarity,
+                    Reason = $"High semantic similarity ({similarity:F2})",
+                    ResolvedQuery = query,
+                    UseSameDocumentSet = true
+                };
+            }
+
+            // Medium similarity - might be related but could be new topic
+            if (similarity > 0.5)
+            {
+                return new FollowUpDetectionResult
+                {
+                    IsFollowUp = true,
+                    Confidence = similarity * 0.8,
+                    Reason = $"Medium semantic similarity ({similarity:F2})",
+                    ResolvedQuery = query,
+                    UseSameDocumentSet = false // Search fresh but keep conversation context
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to compute semantic similarity for follow-up detection");
+        }
+
+        // 4. Check for shared keywords/entities
+        var previousKeywords = ExtractKeywords(previousQuery);
+        var currentKeywords = ExtractKeywords(query);
+        var sharedKeywords = previousKeywords.Intersect(currentKeywords, StringComparer.OrdinalIgnoreCase).ToList();
+
+        if (sharedKeywords.Count > 0 && sharedKeywords.Count >= currentKeywords.Count * 0.3)
+        {
+            var overlap = (double)sharedKeywords.Count / Math.Max(currentKeywords.Count, 1);
+            return new FollowUpDetectionResult
+            {
+                IsFollowUp = true,
+                Confidence = Math.Min(0.7, 0.4 + overlap * 0.5),
+                Reason = $"Shared keywords: {string.Join(", ", sharedKeywords.Take(3))}",
+                ResolvedQuery = query,
+                UseSameDocumentSet = overlap > 0.5
+            };
+        }
+
+        // Not a follow-up - new topic
+        return new FollowUpDetectionResult
+        {
+            IsFollowUp = false,
+            Confidence = 0.8,
+            Reason = "New topic detected",
+            ResolvedQuery = query,
+            UseSameDocumentSet = false
+        };
+    }
+
+    /// <summary>
+    /// Detect and resolve coreferences (pronouns referring to previous entities).
+    /// </summary>
+    private (bool hasCoreference, Dictionary<string, string> coreferences, string resolvedQuery)
+        DetectCoreferences(string query, string previousQuery)
+    {
+        var coreferences = new Dictionary<string, string>();
+        var resolvedQuery = query;
+
+        // Common coreference pronouns and patterns
+        var pronounPatterns = new Dictionary<string, Regex>
+        {
+            ["it"] = new Regex(@"\b(it|it's|its)\b", RegexOptions.IgnoreCase),
+            ["that"] = new Regex(@"\b(that|that's)\b", RegexOptions.IgnoreCase),
+            ["this"] = new Regex(@"\b(this|this is)\b", RegexOptions.IgnoreCase),
+            ["they"] = new Regex(@"\b(they|them|their|they're)\b", RegexOptions.IgnoreCase),
+            ["those"] = new Regex(@"\b(those|these)\b", RegexOptions.IgnoreCase)
+        };
+
+        // Extract the main subject from previous query
+        var previousSubject = ExtractMainSubject(previousQuery);
+        if (string.IsNullOrEmpty(previousSubject))
+        {
+            return (false, coreferences, query);
+        }
+
+        foreach (var (pronoun, pattern) in pronounPatterns)
+        {
+            if (pattern.IsMatch(query))
+            {
+                // Check if this looks like a reference to the previous topic
+                // (not a structural word like "it is important that...")
+                var match = pattern.Match(query);
+                var surroundingContext = GetSurroundingContext(query, match.Index);
+
+                // Skip if the pronoun is followed by structural patterns
+                if (IsStructuralUse(query, match.Index))
+                {
+                    continue;
+                }
+
+                coreferences[pronoun] = previousSubject;
+
+                // Replace the first occurrence for the resolved query
+                resolvedQuery = pattern.Replace(resolvedQuery, previousSubject, 1);
+            }
+        }
+
+        return (coreferences.Count > 0, coreferences, resolvedQuery);
+    }
+
+    /// <summary>
+    /// Extract the main subject/topic from a query.
+    /// </summary>
+    private string ExtractMainSubject(string query)
+    {
+        // Remove question words and extract the core subject
+        var cleaned = Regex.Replace(query,
+            @"^(what|how|why|when|where|who|which|can you|could you|tell me|explain|describe)\s+(is|are|does|do|about|the)?\s*",
+            "", RegexOptions.IgnoreCase).Trim();
+
+        // Take first significant phrase (up to preposition or verb)
+        var match = Regex.Match(cleaned, @"^([A-Za-z\s\-]+?)(?:\s+(?:in|on|at|with|for|to|from|by|is|are|does|do|\?))", RegexOptions.IgnoreCase);
+
+        if (match.Success && match.Groups[1].Value.Length > 2)
+        {
+            return match.Groups[1].Value.Trim();
+        }
+
+        // Fall back to first few words
+        var words = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(" ", words.Take(3)).TrimEnd('?', '.', ',');
+    }
+
+    /// <summary>
+    /// Check if a pronoun use is structural (not referential).
+    /// E.g., "it is important" vs "tell me about it"
+    /// </summary>
+    private bool IsStructuralUse(string query, int pronounIndex)
+    {
+        var structuralPatterns = new[]
+        {
+            @"\bit\s+(is|was|would be|could be)\s+(important|necessary|possible|clear|obvious|true|false)",
+            @"\bthat\s+(is|was|would be)\s+(why|how|when|where|because)",
+            @"\bthis\s+(is|was|would be)\s+(a|an|the)"
+        };
+
+        var afterPronoun = query.Substring(pronounIndex);
+        return structuralPatterns.Any(p => Regex.IsMatch(afterPronoun, p, RegexOptions.IgnoreCase));
+    }
+
+    private string GetSurroundingContext(string text, int position)
+    {
+        var start = Math.Max(0, position - 20);
+        var end = Math.Min(text.Length, position + 30);
+        return text.Substring(start, end - start);
+    }
+
+    /// <summary>
+    /// Extract significant keywords from text.
+    /// </summary>
+    private HashSet<string> ExtractKeywords(string text)
+    {
+        var stopwords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+            "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
+            "to", "of", "in", "for", "on", "with", "at", "by", "from", "as",
+            "what", "how", "why", "when", "where", "who", "which",
+            "this", "that", "these", "those", "it", "its",
+            "can", "you", "me", "tell", "about", "explain", "describe", "and", "or", "but"
+        };
+
+        return Regex.Matches(text, @"\b[a-zA-Z]{3,}\b")
+            .Select(m => m.Value.ToLowerInvariant())
+            .Where(w => !stopwords.Contains(w))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Compute cosine similarity between two vectors.
+    /// </summary>
+    private static double CosineSimilarity(ReadOnlyMemory<float> a, ReadOnlyMemory<float> b)
+    {
+        var spanA = a.Span;
+        var spanB = b.Span;
+
+        if (spanA.Length != spanB.Length || spanA.Length == 0)
+            return 0;
+
+        double dot = 0, normA = 0, normB = 0;
+        for (int i = 0; i < spanA.Length; i++)
+        {
+            dot += spanA[i] * spanB[i];
+            normA += spanA[i] * spanA[i];
+            normB += spanB[i] * spanB[i];
+        }
+
+        var denom = Math.Sqrt(normA) * Math.Sqrt(normB);
+        return denom > 0 ? dot / denom : 0;
+    }
+
     // DTOs for JSON parsing
     private record OllamaResponse(string Response);
 

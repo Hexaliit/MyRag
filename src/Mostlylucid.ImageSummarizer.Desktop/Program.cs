@@ -1,9 +1,9 @@
-using Avalonia;
 using System;
+using Avalonia;
 
 namespace Mostlylucid.ImageSummarizer.Desktop;
 
-class Program
+internal class Program
 {
     public static string[] Args { get; private set; } = Array.Empty<string>();
 
@@ -15,8 +15,10 @@ class Program
     }
 
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
+    {
+        return AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();
+    }
 }

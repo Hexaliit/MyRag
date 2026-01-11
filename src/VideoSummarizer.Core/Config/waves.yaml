@@ -1,0 +1,550 @@
+# VideoSummarizer Wave Manifests
+# All configuration values for waves - NO magic numbers in code
+# Waves read their config from here for LLM composability
+
+defaults:
+  lane: default
+  concurrency: 1
+  timeout_seconds: 300
+
+lanes:
+  gpu:
+    max_concurrency: 1
+    description: GPU-bound operations (CLIP, vision, decoding)
+  cpu:
+    max_concurrency: 4
+    description: CPU-bound analysis operations
+  io:
+    max_concurrency: 8
+    description: IO-bound operations (file extraction)
+
+# =============================================================================
+# PHASE 1: NORMALIZATION (Priority 1000)
+# =============================================================================
+normalize:
+  name: normalize
+  priority: 1000
+  enabled: true
+  tags: [metadata, audio]
+  lane: io
+
+  listens:
+    required: []
+    optional: []
+
+  emits:
+    on_start: [wave.started.normalize]
+    on_complete:
+      - key: video.normalized
+        type: bool
+      - key: video.duration
+        type: double
+      - key: video.fps
+        type: double
+      - key: video.width
+        type: int
+      - key: video.height
+        type: int
+      - key: video.codec
+        type: string
+      - key: video.content_hash
+        type: string
+      - key: audio.extracted_path
+        type: string
+    on_failure: [wave.failed.normalize]
+
+  config:
+    audio_sample_rate: 16000
+    audio_channels: 1
+    audio_codec: pcm_s16le
+    hash_buffer_size_mb: 1
+
+# =============================================================================
+# PHASE 2: SHOT DETECTION (Priority 900)
+# =============================================================================
+ffmpeg_shot_detection:
+  name: ffmpeg_shot_detection
+  priority: 900
+  enabled: true
+  tags: [shot, visual]
+  lane: gpu
+
+  listens:
+    required: [video.normalized]
+    optional: []
+
+  emits:
+    on_start: [wave.started.ffmpeg_shot_detection]
+    on_complete:
+      - key: shots.detected
+        type: bool
+      - key: shots.count
+        type: int
+      - key: shots.avg_duration
+        type: double
+      - key: shots.detection_method
+        type: string
+      - key: shots.detection_time_ms
+        type: long
+    on_failure: [wave.failed.ffmpeg_shot_detection]
+
+  config:
+    scene_threshold: 0.3  # 0.0-1.0, higher = fewer cuts detected
+    black_frame_threshold: 0.5
+    black_frame_ratio: 0.1
+    min_shot_duration_seconds: 0.1
+    min_boundary_gap_seconds: 0.5
+    use_hardware_acceleration: true
+
+  escalation:
+    targets:
+      manual_review:
+        when:
+          - signal: shots.count
+            condition: "> 500"
+        skip_when: []
+
+# =============================================================================
+# PHASE 3: KEYFRAME PIPELINE (Priority 850-790)
+# =============================================================================
+iframe_detection:
+  name: iframe_detection
+  priority: 850
+  enabled: true
+  tags: [visual, shot]
+  lane: io
+
+  listens:
+    required: [shots.detected]
+    optional: []
+
+  emits:
+    on_start: [wave.started.iframe_detection]
+    on_complete:
+      - key: keyframes.iframes_detected
+        type: bool
+      - key: keyframes.iframes_count
+        type: int
+    on_failure: [wave.failed.iframe_detection]
+
+  cache:
+    emits:
+      - key: iframes
+        type: List<IFrameInfo>
+    uses: []
+
+keyframe_selection:
+  name: keyframe_selection
+  priority: 840
+  enabled: true
+  tags: [visual, shot]
+  lane: cpu
+
+  listens:
+    required: [shots.detected, keyframes.iframes_detected]
+    optional: []
+
+  emits:
+    on_start: [wave.started.keyframe_selection]
+    on_complete:
+      - key: keyframes.selected
+        type: bool
+      - key: keyframes.selected_count
+        type: int
+    on_failure: [wave.failed.keyframe_selection]
+
+  cache:
+    emits:
+      - key: keyframe_selections
+        type: List<KeyframeSelection>
+    uses: [iframes]
+
+  config:
+    max_keyframes: 50
+    min_keyframe_interval_seconds: 2.0
+    prefer_shot_keyframes: true
+    iframe_alignment_tolerance_seconds: 1.0
+
+thumbnail_extraction:
+  name: thumbnail_extraction
+  priority: 830
+  enabled: true
+  tags: [visual]
+  lane: io
+
+  listens:
+    required: [keyframes.selected]
+    optional: []
+
+  emits:
+    on_start: [wave.started.thumbnail_extraction]
+    on_complete:
+      - key: keyframes.thumbnails_extracted
+        type: int
+    on_failure: [wave.failed.thumbnail_extraction]
+
+  cache:
+    emits:
+      - key: thumbnails
+        type: Dictionary<double, string>
+    uses: [keyframe_selections]
+
+  config:
+    thumbnail_width: 128
+    min_keyframes_for_dedup: 5
+
+keyframe_deduplication:
+  name: keyframe_deduplication
+  priority: 820
+  enabled: true
+  tags: [visual]
+  lane: cpu
+
+  listens:
+    required: [keyframes.thumbnails_extracted]
+    optional: []
+
+  emits:
+    on_start: [wave.started.keyframe_deduplication]
+    on_complete:
+      - key: keyframes.deduplicated
+        type: int
+      - key: keyframes.duplicates_skipped
+        type: int
+    on_failure: [wave.failed.keyframe_deduplication]
+
+  cache:
+    emits:
+      - key: unique_timestamps
+        type: HashSet<double>
+      - key: dhash_values
+        type: Dictionary<int, string>
+    uses: [thumbnails, keyframe_selections]
+
+  config:
+    hamming_threshold: 10  # Lower = stricter matching (0-64 range)
+    min_keyframes_to_enable: 5
+
+fullres_extraction:
+  name: fullres_extraction
+  priority: 810
+  enabled: true
+  tags: [visual]
+  lane: io
+
+  listens:
+    required: [keyframes.deduplicated]
+    optional: [keyframes.selected]
+
+  emits:
+    on_start: [wave.started.fullres_extraction]
+    on_complete:
+      - key: keyframes.extracted
+        type: bool
+      - key: keyframes.count
+        type: int
+    on_failure: [wave.failed.fullres_extraction]
+
+  cache:
+    emits:
+      - key: extracted_frames
+        type: Dictionary<double, string>
+    uses: [unique_timestamps, keyframe_selections]
+
+clip_embedding:
+  name: clip_embedding
+  priority: 800
+  enabled: true
+  tags: [visual]
+  lane: gpu
+
+  listens:
+    required: [keyframes.extracted]
+    optional: []
+
+  emits:
+    on_start: [wave.started.clip_embedding]
+    on_complete:
+      - key: clip.embeddings_ready
+        type: bool
+      - key: clip.embeddings_count
+        type: int
+      - key: clip.batch_size
+        type: int
+      - key: clip.processing_time_ms
+        type: long
+      - key: clip.avg_time_per_frame_ms
+        type: long
+    on_failure: [wave.failed.clip_embedding]
+
+  cache:
+    emits: []
+    uses: [extracted_frames]
+
+  config:
+    batch_size: 8
+    embedding_dimension: 512
+    model: clip-vit-b32
+    use_gpu: true
+    gpu_device_id: 0
+
+  escalation:
+    targets:
+      incomplete_embeddings:
+        when:
+          - signal: clip.embeddings_count
+            condition: "< 50%"
+
+image_analysis:
+  name: image_analysis
+  priority: 790
+  enabled: true
+  tags: [visual, ocr]
+  lane: gpu
+
+  listens:
+    required: [keyframes.extracted]
+    optional: [clip.embeddings_ready]
+
+  emits:
+    on_start: [wave.started.image_analysis]
+    on_complete:
+      - key: keyframes.analyzed
+        type: int
+      - key: ocr.extracted
+        type: int
+      - key: captions.generated
+        type: int
+    on_failure: [wave.failed.image_analysis]
+
+  config:
+    max_parallel_analysis: 2
+    enable_ocr: true
+    enable_caption: true
+    enable_vision_llm: false  # Optional escalation
+    ocr_confidence_threshold: 0.5
+
+  escalation:
+    targets:
+      vision_llm:
+        when:
+          - signal: ocr.avg_confidence
+            condition: "< 0.5"
+
+# =============================================================================
+# PHASE 4: ADDITIONAL VISUAL PROCESSING (Priority 790-740)
+# =============================================================================
+shot_thumbnail:
+  name: shot_thumbnail
+  priority: 785
+  enabled: true
+  tags: [visual, shot]
+  lane: io
+
+  listens:
+    required: [shots.detected]
+    optional: [keyframes.extracted]
+
+  emits:
+    on_complete:
+      - key: shot_thumbnails.generated
+        type: int
+
+  config:
+    thumbnail_width: 320
+    thumbnail_height: 180
+    format: jpg
+    quality: 85
+
+title_credits_detection:
+  name: title_credits_detection
+  priority: 780
+  enabled: true
+  tags: [visual, credits]
+  lane: cpu
+
+  listens:
+    required: [shots.detected]
+    optional: []
+
+  emits:
+    on_complete:
+      - key: credits.intro_detected
+        type: bool
+      - key: credits.outro_detected
+        type: bool
+      - key: credits.intro_end_time
+        type: double
+      - key: credits.outro_start_time
+        type: double
+
+  config:
+    intro_search_duration_seconds: 300  # First 5 minutes
+    outro_search_duration_seconds: 300  # Last 5 minutes
+    black_frame_threshold: 0.1
+    text_density_threshold: 0.3
+
+subtitle_extraction:
+  name: subtitle_extraction
+  priority: 750
+  enabled: true
+  tags: [speech, text]
+  lane: io
+
+  listens:
+    required: [video.normalized]
+    optional: []
+
+  emits:
+    on_complete:
+      - key: subtitles.extracted
+        type: bool
+      - key: subtitles.track_count
+        type: int
+      - key: subtitles.language
+        type: string
+
+  config:
+    preferred_languages: [eng, en, und]
+    extract_all_tracks: false
+
+chapter_extraction:
+  name: chapter_extraction
+  priority: 740
+  enabled: true
+  tags: [metadata, scene]
+  lane: io
+
+  listens:
+    required: [video.normalized]
+    optional: []
+
+  emits:
+    on_complete:
+      - key: chapters.extracted
+        type: bool
+      - key: chapters.count
+        type: int
+
+# =============================================================================
+# PHASE 5: AUDIO PROCESSING (Priority 500)
+# =============================================================================
+transcription:
+  name: transcription
+  priority: 500
+  enabled: true
+  tags: [speech, audio]
+  lane: gpu
+
+  listens:
+    required: [audio.extracted_path]
+    optional: [subtitles.extracted]
+
+  emits:
+    on_start: [wave.started.transcription]
+    on_complete:
+      - key: transcription.complete
+        type: bool
+      - key: transcription.utterance_count
+        type: int
+      - key: transcription.word_count
+        type: int
+      - key: transcription.words_per_minute
+        type: double
+      - key: transcription.detected_language
+        type: string
+      - key: diarization.speaker_count
+        type: int
+    on_failure: [wave.failed.transcription]
+
+  config:
+    model: whisper-large-v3
+    use_gpu: true
+    enable_diarization: true
+    min_utterance_words_to_skip: 100  # Skip if subtitles have enough
+    min_utterances_to_skip: 10
+
+  escalation:
+    targets:
+      use_subtitles:
+        when:
+          - signal: subtitles.extracted
+            value: true
+        skip_when:
+          - signal: subtitles.track_count
+            condition: "== 0"
+
+# =============================================================================
+# PHASE 6: SEMANTIC ANALYSIS (Priority 400)
+# =============================================================================
+scene_clustering:
+  name: scene_clustering
+  priority: 400
+  enabled: true
+  tags: [scene, visual]
+  lane: cpu
+
+  listens:
+    required: [shots.detected]
+    optional: [clip.embeddings_ready, chapters.extracted, transcription.complete]
+
+  emits:
+    on_start: [wave.started.scene_clustering]
+    on_complete:
+      - key: scenes.created
+        type: bool
+      - key: scene.count
+        type: int
+      - key: scene.avg_duration
+        type: double
+      - key: scene.clustering_method
+        type: string
+    on_failure: [wave.failed.scene_clustering]
+
+  config:
+    similarity_threshold: 0.7
+    min_scene_duration_seconds: 5.0
+    min_shots_per_scene: 2
+    fallback_scene_duration_seconds: 30.0  # When no embeddings
+
+# =============================================================================
+# PHASE 7: EVIDENCE GENERATION (Priority 300)
+# =============================================================================
+evidence_generation:
+  name: evidence_generation
+  priority: 300
+  enabled: true
+  tags: [scene, shot]
+  lane: cpu
+
+  listens:
+    required: []  # Can run with just shots or scenes
+    optional:
+      - scenes.created
+      - shots.detected
+      - transcription.complete
+      - keyframes.extracted
+
+  emits:
+    on_start: [wave.started.evidence_generation]
+    on_complete:
+      - key: evidence.generated
+        type: bool
+      - key: evidence.total_count
+        type: int
+      - key: evidence.with_embeddings
+        type: int
+      - key: evidence.scene_count
+        type: int
+      - key: evidence.shot_count
+        type: int
+      - key: evidence.utterance_count
+        type: int
+    on_failure: [wave.failed.evidence_generation]
+
+  config:
+    create_scene_evidence: true
+    create_shot_evidence: true
+    create_keyframe_evidence: true
+    create_utterance_evidence: true
+    create_text_track_evidence: true

@@ -1,6 +1,5 @@
-﻿using Mostlylucid.Shared.Interfaces;
+﻿namespace Mostlylucid.Shared.Models;
 
-namespace Mostlylucid.Shared.Models;
-
-public class BlogPostPageDto : BasePagingModel<BlogPostDto>{
+public class BlogPostPageDto : BasePagingModel<BlogPostDto>
+{
 }

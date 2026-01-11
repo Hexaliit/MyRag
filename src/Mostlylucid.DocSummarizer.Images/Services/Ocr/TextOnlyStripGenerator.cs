@@ -3,15 +3,16 @@ using OpenCvSharp;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using Point = SixLabors.ImageSharp.Point;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr;
 
 /// <summary>
-/// Generates compact "text-only" images by extracting and combining text bounding boxes.
-/// This improves OCR accuracy across ALL engines (Tesseract, ML, Florence-2) by:
-/// - Removing visual noise from non-text regions
-/// - Reducing image size for faster processing
-/// - Focusing the model attention on just the text
+///     Generates compact "text-only" images by extracting and combining text bounding boxes.
+///     This improves OCR accuracy across ALL engines (Tesseract, ML, Florence-2) by:
+///     - Removing visual noise from non-text regions
+///     - Reducing image size for faster processing
+///     - Focusing the model attention on just the text
 /// </summary>
 public class TextOnlyStripGenerator
 {
@@ -23,47 +24,9 @@ public class TextOnlyStripGenerator
     }
 
     /// <summary>
-    /// Result of text-only strip generation.
-    /// </summary>
-    public record TextOnlyStripResult
-    {
-        public required Image<Rgba32> StripImage { get; init; }
-        public required int TotalFrames { get; init; }
-        public required int FramesWithText { get; init; }
-        public required int TextRegionsExtracted { get; init; }
-        public required int ClearFramesDetected { get; init; }
-        public required int TextSegments { get; init; } // Number of distinct text appearances (separated by clear frames)
-        public required List<TextRegionInfo> Regions { get; init; }
-    }
-
-    public record TextRegionInfo
-    {
-        public int FrameIndex { get; init; }
-        public int SegmentIndex { get; init; } // Which text segment (0, 1, 2... separated by clear frames)
-        public int FrameCount { get; init; } // How many frames this text appeared for
-        public int X { get; init; }
-        public int Y { get; init; }
-        public int Width { get; init; }
-        public int Height { get; init; }
-        public int StripY { get; init; } // Y position in the combined strip
-        public bool IsClearFrame { get; init; } // Was this after a clear/blank frame
-    }
-
-    /// <summary>
-    /// Detected frame with text info for tracking repetitions.
-    /// </summary>
-    private record FrameTextInfo
-    {
-        public int FrameIndex { get; init; }
-        public bool HasText { get; init; }
-        public List<Rect> TextBoxes { get; init; } = new();
-        public Image<Rgba32>? Frame { get; init; }
-    }
-
-    /// <summary>
-    /// Generates a compact text-only strip from an animated GIF.
-    /// Extracts ONLY the text bounding boxes and stacks them vertically.
-    /// Detects clear frames between text repetitions to properly segment captions.
+    ///     Generates a compact text-only strip from an animated GIF.
+    ///     Extracts ONLY the text bounding boxes and stacks them vertically.
+    ///     Detects clear frames between text repetitions to properly segment captions.
     /// </summary>
     public async Task<TextOnlyStripResult> GenerateTextOnlyStripAsync(
         string gifPath,
@@ -73,10 +36,7 @@ public class TextOnlyStripGenerator
     {
         using var image = await Image.LoadAsync<Rgba32>(gifPath, ct);
 
-        if (image.Frames.Count < 2)
-        {
-            return await ExtractTextRegionsFromSingleFrameAsync(image, padding, ct);
-        }
+        if (image.Frames.Count < 2) return await ExtractTextRegionsFromSingleFrameAsync(image, padding, ct);
 
         var totalFrames = image.Frames.Count;
 
@@ -112,7 +72,7 @@ public class TextOnlyStripGenerator
         var croppedImages = new List<(Image<Rgba32> Image, TextRegionInfo Info)>();
         var clearFrameCount = 0;
 
-        for (int segIdx = 0; segIdx < segments.Count; segIdx++)
+        for (var segIdx = 0; segIdx < segments.Count; segIdx++)
         {
             var segment = segments[segIdx];
 
@@ -138,7 +98,7 @@ public class TextOnlyStripGenerator
                 // Skip invalid crops
                 if (width <= 0 || height <= 0) continue;
 
-                var cropRect = new SixLabors.ImageSharp.Rectangle(x, y, width, height);
+                var cropRect = new Rectangle(x, y, width, height);
                 var cropped = bestFrame.Frame.Clone(ctx => ctx.Crop(cropRect));
 
                 var info = new TextRegionInfo
@@ -159,10 +119,7 @@ public class TextOnlyStripGenerator
         }
 
         // Cleanup frame images
-        foreach (var frameInfo in frameInfos)
-        {
-            frameInfo.Frame?.Dispose();
-        }
+        foreach (var frameInfo in frameInfos) frameInfo.Frame?.Dispose();
 
         if (croppedImages.Count == 0)
         {
@@ -188,13 +145,13 @@ public class TextOnlyStripGenerator
         var totalHeight = croppedImages.Sum(x => x.Image.Height) + (croppedImages.Count - 1) * padding;
 
         var stripImage = new Image<Rgba32>(maxWidth, totalHeight);
-        stripImage.Mutate(ctx => ctx.BackgroundColor(SixLabors.ImageSharp.Color.White));
+        stripImage.Mutate(ctx => ctx.BackgroundColor(Color.White));
 
         var currentY = 0;
         foreach (var (croppedImage, info) in croppedImages)
         {
             var x = (maxWidth - croppedImage.Width) / 2;
-            stripImage.Mutate(ctx => ctx.DrawImage(croppedImage, new SixLabors.ImageSharp.Point(x, currentY), 1f));
+            stripImage.Mutate(ctx => ctx.DrawImage(croppedImage, new Point(x, currentY), 1f));
             regions.Add(info with { StripY = currentY });
             currentY += croppedImage.Height + padding;
             croppedImage.Dispose();
@@ -219,8 +176,8 @@ public class TextOnlyStripGenerator
     }
 
     /// <summary>
-    /// Analyze all frames to detect which have text and which are clear/blank.
-    /// Samples every frame for GIFs under 100 frames, otherwise samples ~100 frames.
+    ///     Analyze all frames to detect which have text and which are clear/blank.
+    ///     Samples every frame for GIFs under 100 frames, otherwise samples ~100 frames.
     /// </summary>
     private List<FrameTextInfo> AnalyzeFramesForTextAndClearFrames(Image<Rgba32> image)
     {
@@ -230,7 +187,7 @@ public class TextOnlyStripGenerator
         // For larger GIFs, sample ~100 frames
         var sampleInterval = image.Frames.Count <= 100 ? 1 : Math.Max(1, image.Frames.Count / 100);
 
-        for (int i = 0; i < image.Frames.Count; i += sampleInterval)
+        for (var i = 0; i < image.Frames.Count; i += sampleInterval)
         {
             var frame = image.Frames.CloneFrame(i);
             var textBoxes = DetectTextBoundingBoxes(frame);
@@ -251,9 +208,9 @@ public class TextOnlyStripGenerator
     }
 
     /// <summary>
-    /// Identify distinct text segments by detecting:
-    /// 1. Clear frames (no text) between segments
-    /// 2. Significant text position/content changes (bounding box moved/resized)
+    ///     Identify distinct text segments by detecting:
+    ///     1. Clear frames (no text) between segments
+    ///     2. Significant text position/content changes (bounding box moved/resized)
     /// </summary>
     private List<TextSegment> IdentifyTextSegments(List<FrameTextInfo> frameInfos)
     {
@@ -263,7 +220,6 @@ public class TextOnlyStripGenerator
         FrameTextInfo? lastTextFrame = null;
 
         foreach (var frame in frameInfos)
-        {
             if (frame.HasText)
             {
                 // Check if text changed using detailed comparison
@@ -275,10 +231,7 @@ public class TextOnlyStripGenerator
                     // - First segment
                     // - After a clear frame
                     // - Text position/size changed significantly
-                    if (currentSegment.Frames.Count > 0)
-                    {
-                        segments.Add(currentSegment);
-                    }
+                    if (currentSegment.Frames.Count > 0) segments.Add(currentSegment);
                     currentSegment = new TextSegment { StartedAfterClearFrame = wasCleared || textChanged };
                     wasCleared = false;
                 }
@@ -292,24 +245,14 @@ public class TextOnlyStripGenerator
                 wasCleared = true;
                 lastTextFrame = null;
             }
-        }
 
         // Add final segment
-        if (currentSegment.Frames.Count > 0)
-        {
-            segments.Add(currentSegment);
-        }
+        if (currentSegment.Frames.Count > 0) segments.Add(currentSegment);
 
         _logger?.LogDebug("Segment detection: {Count} segments from {Frames} frames",
             segments.Count, frameInfos.Count);
 
         return segments;
-    }
-
-    private class TextSegment
-    {
-        public List<FrameTextInfo> Frames { get; } = new();
-        public bool StartedAfterClearFrame { get; set; }
     }
 
     private long ComputeSegmentHash(List<Rect> boxes)
@@ -325,12 +268,13 @@ public class TextOnlyStripGenerator
             hash = hash * 31 + box.Width / 20;
             hash = hash * 31 + box.Height / 20;
         }
+
         return hash;
     }
 
     /// <summary>
-    /// Check if two text regions are significantly different (different captions).
-    /// Compares actual pixel content in the text region.
+    ///     Check if two text regions are significantly different (different captions).
+    ///     Compares actual pixel content in the text region.
     /// </summary>
     private bool AreTextRegionsDifferent(FrameTextInfo frame1, FrameTextInfo frame2)
     {
@@ -348,14 +292,14 @@ public class TextOnlyStripGenerator
         try
         {
             using var crop1 = frame1.Frame.Clone(ctx => ctx.Crop(
-                new SixLabors.ImageSharp.Rectangle(
+                new Rectangle(
                     Math.Max(0, box1.X),
                     Math.Max(0, box1.Y),
                     Math.Min(box1.Width, frame1.Frame.Width - box1.X),
                     Math.Min(box1.Height, frame1.Frame.Height - box1.Y))));
 
             using var crop2 = frame2.Frame.Clone(ctx => ctx.Crop(
-                new SixLabors.ImageSharp.Rectangle(
+                new Rectangle(
                     Math.Max(0, box2.X),
                     Math.Max(0, box2.Y),
                     Math.Min(box2.Width, frame2.Frame.Width - box2.X),
@@ -375,8 +319,8 @@ public class TextOnlyStripGenerator
     }
 
     /// <summary>
-    /// Calculate visual similarity between two images, focusing ONLY on bright pixels (text).
-    /// Ignores dark background to detect text changes even when background is similar.
+    ///     Calculate visual similarity between two images, focusing ONLY on bright pixels (text).
+    ///     Ignores dark background to detect text changes even when background is similar.
     /// </summary>
     private double CalculateImageSimilarity(Image<Rgba32> img1, Image<Rgba32> img2)
     {
@@ -390,18 +334,18 @@ public class TextOnlyStripGenerator
 
         if (width == 0 || height == 0) return 0.0;
 
-        int brightPixels1 = 0;
-        int brightPixels2 = 0;
-        int matchingBright = 0;
+        var brightPixels1 = 0;
+        var brightPixels2 = 0;
+        var matchingBright = 0;
 
         img1.ProcessPixelRows(img2, (accessor1, accessor2) =>
         {
-            for (int y = 0; y < height; y++)
+            for (var y = 0; y < height; y++)
             {
                 var row1 = accessor1.GetRowSpan(y);
                 var row2 = accessor2.GetRowSpan(y);
 
-                for (int x = 0; x < width; x++)
+                for (var x = 0; x < width; x++)
                 {
                     var p1 = row1[x];
                     var p2 = row2[x];
@@ -468,7 +412,7 @@ public class TextOnlyStripGenerator
             // Skip invalid crops
             if (width <= 0 || height <= 0) continue;
 
-            var cropRect = new SixLabors.ImageSharp.Rectangle(x, y, width, height);
+            var cropRect = new Rectangle(x, y, width, height);
             var cropped = frame.Clone(ctx => ctx.Crop(cropRect));
             croppedImages.Add(cropped);
 
@@ -493,13 +437,13 @@ public class TextOnlyStripGenerator
         var totalHeight = croppedImages.Sum(x => x.Height) + (croppedImages.Count - 1) * padding;
 
         var stripImage = new Image<Rgba32>(maxWidth, totalHeight);
-        stripImage.Mutate(ctx => ctx.BackgroundColor(SixLabors.ImageSharp.Color.White));
+        stripImage.Mutate(ctx => ctx.BackgroundColor(Color.White));
 
         var currentY = 0;
-        for (int i = 0; i < croppedImages.Count; i++)
+        for (var i = 0; i < croppedImages.Count; i++)
         {
             var x = (maxWidth - croppedImages[i].Width) / 2;
-            stripImage.Mutate(ctx => ctx.DrawImage(croppedImages[i], new SixLabors.ImageSharp.Point(x, currentY), 1f));
+            stripImage.Mutate(ctx => ctx.DrawImage(croppedImages[i], new Point(x, currentY), 1f));
             regions[i] = regions[i] with { StripY = currentY };
             currentY += croppedImages[i].Height + padding;
             croppedImages[i].Dispose();
@@ -518,8 +462,8 @@ public class TextOnlyStripGenerator
     }
 
     /// <summary>
-    /// Detect text bounding boxes - returns a SINGLE tight box around subtitle text.
-    /// Crops just the bottom portion containing text, not individual characters.
+    ///     Detect text bounding boxes - returns a SINGLE tight box around subtitle text.
+    ///     Crops just the bottom portion containing text, not individual characters.
     /// </summary>
     private List<Rect> DetectTextBoundingBoxes(Image<Rgba32> frame)
     {
@@ -555,7 +499,7 @@ public class TextOnlyStripGenerator
             int textLeft = 0, textRight = thresh.Width - 1;
 
             // Scan from top to find first row with significant bright pixels
-            for (int y = 0; y < thresh.Height; y++)
+            for (var y = 0; y < thresh.Height; y++)
             {
                 var row = new Mat(thresh, new Rect(0, y, thresh.Width, 1));
                 if (Cv2.CountNonZero(row) > thresh.Width * 0.02)
@@ -566,7 +510,7 @@ public class TextOnlyStripGenerator
             }
 
             // Scan from bottom to find last row with bright pixels
-            for (int y = thresh.Height - 1; y >= 0; y--)
+            for (var y = thresh.Height - 1; y >= 0; y--)
             {
                 var row = new Mat(thresh, new Rect(0, y, thresh.Width, 1));
                 if (Cv2.CountNonZero(row) > thresh.Width * 0.02)
@@ -577,7 +521,7 @@ public class TextOnlyStripGenerator
             }
 
             // Scan columns for text bounds
-            for (int x = 0; x < thresh.Width; x++)
+            for (var x = 0; x < thresh.Width; x++)
             {
                 var col = new Mat(thresh, new Rect(x, 0, 1, thresh.Height));
                 if (Cv2.CountNonZero(col) > 0)
@@ -587,7 +531,7 @@ public class TextOnlyStripGenerator
                 }
             }
 
-            for (int x = thresh.Width - 1; x >= 0; x--)
+            for (var x = thresh.Width - 1; x >= 0; x--)
             {
                 var col = new Mat(thresh, new Rect(x, 0, 1, thresh.Height));
                 if (Cv2.CountNonZero(col) > 0)
@@ -602,20 +546,18 @@ public class TextOnlyStripGenerator
             var textHeight = textBottom - textTop + 1;
 
             if (textWidth > 30 && textHeight > 8 && textHeight < 80)
-            {
                 // Return single tight box (coordinates relative to full frame)
                 return new List<Rect>
                 {
-                    new Rect(textLeft, textTop + subtitleY, textWidth, textHeight)
+                    new(textLeft, textTop + subtitleY, textWidth, textHeight)
                 };
-            }
         }
 
         return new List<Rect>();
     }
 
     /// <summary>
-    /// Fallback MSER-based text detection for non-subtitle text.
+    ///     Fallback MSER-based text detection for non-subtitle text.
     /// </summary>
     private List<Rect> DetectTextBoxesMSER(Mat mat)
     {
@@ -626,11 +568,9 @@ public class TextOnlyStripGenerator
             mat.CopyTo(gray);
 
         using var mser = MSER.Create(
-            delta: 5,
-            minArea: 100,
-            maxArea: 5000, // Much smaller max area - text characters are small
-            maxVariation: 0.25,
-            minDiversity: 0.2);
+            5,
+            100,
+            5000);
 
         mser.DetectRegions(gray, out var msers, out var bboxes);
 
@@ -646,17 +586,15 @@ public class TextOnlyStripGenerator
             if (aspectRatio >= 0.3 && aspectRatio <= 8 &&
                 areaRatio >= 0.0001 && areaRatio <= 0.02 && // Much smaller max area
                 bbox.Width >= 10 && bbox.Height >= 8 && bbox.Height <= 60)
-            {
                 textBoxes.Add(bbox);
-            }
         }
 
         return textBoxes;
     }
 
     /// <summary>
-    /// Merge nearby boxes into text lines - creates TIGHT bounding boxes around text only.
-    /// Does NOT expand horizontally - keeps the actual text bounds.
+    ///     Merge nearby boxes into text lines - creates TIGHT bounding boxes around text only.
+    ///     Does NOT expand horizontally - keeps the actual text bounds.
     /// </summary>
     private List<Rect> MergeTextBoxesIntoLines(List<Rect> boxes, int imageWidth)
     {
@@ -668,7 +606,7 @@ public class TextOnlyStripGenerator
         var merged = new List<Rect>();
         var used = new bool[sorted.Count];
 
-        for (int i = 0; i < sorted.Count; i++)
+        for (var i = 0; i < sorted.Count; i++)
         {
             if (used[i]) continue;
 
@@ -679,7 +617,7 @@ public class TextOnlyStripGenerator
             var lineRight = current.Right;
 
             // Find boxes on the same line (similar Y)
-            for (int j = i + 1; j < sorted.Count; j++)
+            for (var j = i + 1; j < sorted.Count; j++)
             {
                 if (used[j]) continue;
 
@@ -715,7 +653,7 @@ public class TextOnlyStripGenerator
         var merged = new List<Rect>();
         var current = sorted[0];
 
-        for (int i = 1; i < sorted.Count; i++)
+        for (var i = 1; i < sorted.Count; i++)
         {
             var next = sorted[i];
             var gap = next.Top - current.Bottom;
@@ -741,7 +679,7 @@ public class TextOnlyStripGenerator
     }
 
     /// <summary>
-    /// Deduplicate text regions that look similar (same text appearing across frames).
+    ///     Deduplicate text regions that look similar (same text appearing across frames).
     /// </summary>
     private List<(Image<Rgba32> Image, TextRegionInfo Info)> DeduplicateTextRegions(
         List<(Image<Rgba32> Image, TextRegionInfo Info)> regions)
@@ -756,13 +694,9 @@ public class TextOnlyStripGenerator
                 ImagesAreSimilar(existing.Image, region.Image, 0.90));
 
             if (!isDuplicate)
-            {
                 unique.Add(region);
-            }
             else
-            {
                 region.Image.Dispose();
-            }
         }
 
         _logger?.LogDebug("Deduplication: {Original} → {Unique} unique text regions",
@@ -798,12 +732,12 @@ public class TextOnlyStripGenerator
         // Sample every 4th pixel
         img1.ProcessPixelRows(img2, (accessor1, accessor2) =>
         {
-            for (int y = 0; y < height; y += 4)
+            for (var y = 0; y < height; y += 4)
             {
                 var row1 = accessor1.GetRowSpan(y);
                 var row2 = accessor2.GetRowSpan(y);
 
-                for (int x = 0; x < width; x += 4)
+                for (var x = 0; x < width; x += 4)
                 {
                     var p1 = row1[x];
                     var p2 = row2[x];
@@ -818,7 +752,7 @@ public class TextOnlyStripGenerator
         if (totalPixels == 0) return true;
 
         var avgDiff = totalDiff / (double)totalPixels;
-        var similarity = 1.0 - (avgDiff / 765.0);
+        var similarity = 1.0 - avgDiff / 765.0;
 
         return similarity >= threshold;
     }
@@ -831,12 +765,12 @@ public class TextOnlyStripGenerator
         {
             unsafe
             {
-                for (int y = 0; y < accessor.Height; y++)
+                for (var y = 0; y < accessor.Height; y++)
                 {
                     var row = accessor.GetRowSpan(y);
                     var matPtr = (byte*)mat.Ptr(y).ToPointer();
 
-                    for (int x = 0; x < row.Length; x++)
+                    for (var x = 0; x < row.Length; x++)
                     {
                         var pixel = row[x];
                         matPtr[x * 4 + 0] = pixel.B;
@@ -849,5 +783,52 @@ public class TextOnlyStripGenerator
         });
 
         return mat;
+    }
+
+    /// <summary>
+    ///     Result of text-only strip generation.
+    /// </summary>
+    public record TextOnlyStripResult
+    {
+        public required Image<Rgba32> StripImage { get; init; }
+        public required int TotalFrames { get; init; }
+        public required int FramesWithText { get; init; }
+        public required int TextRegionsExtracted { get; init; }
+        public required int ClearFramesDetected { get; init; }
+
+        public required int
+            TextSegments { get; init; } // Number of distinct text appearances (separated by clear frames)
+
+        public required List<TextRegionInfo> Regions { get; init; }
+    }
+
+    public record TextRegionInfo
+    {
+        public int FrameIndex { get; init; }
+        public int SegmentIndex { get; init; } // Which text segment (0, 1, 2... separated by clear frames)
+        public int FrameCount { get; init; } // How many frames this text appeared for
+        public int X { get; init; }
+        public int Y { get; init; }
+        public int Width { get; init; }
+        public int Height { get; init; }
+        public int StripY { get; init; } // Y position in the combined strip
+        public bool IsClearFrame { get; init; } // Was this after a clear/blank frame
+    }
+
+    /// <summary>
+    ///     Detected frame with text info for tracking repetitions.
+    /// </summary>
+    private record FrameTextInfo
+    {
+        public int FrameIndex { get; init; }
+        public bool HasText { get; init; }
+        public List<Rect> TextBoxes { get; init; } = new();
+        public Image<Rgba32>? Frame { get; init; }
+    }
+
+    private class TextSegment
+    {
+        public List<FrameTextInfo> Frames { get; } = new();
+        public bool StartedAfterClearFrame { get; set; }
     }
 }

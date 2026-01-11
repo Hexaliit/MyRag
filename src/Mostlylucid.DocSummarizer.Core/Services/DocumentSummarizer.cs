@@ -1,9 +1,10 @@
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Mostlylucid.DocSummarizer.Services.Utilities;
 using Mostlylucid.Summarizer.Core.Utilities;
-
 
 namespace Mostlylucid.DocSummarizer.Services;
 
@@ -14,31 +15,32 @@ public class DocumentSummarizer
     /// </summary>
     private const int LargeFileSizeThreshold = 1024 * 1024;
 
-    private readonly DoclingClient _docling;
-    private readonly int _maxLlmParallelism;
-    private readonly OllamaService _ollama;
-    private readonly IEmbeddingService _embedder;
-    private readonly ProcessingConfig _processingConfig;
-    private readonly SummaryLengthConfig _lengthConfig;
-    private readonly ProgressService _progress;
-    private readonly RagSummarizer _rag;
-    private readonly bool _verbose;
-    private int? _cachedContextWindow;
-    private MapReduceSummarizer? _mapReduce;
-    
-    // BERT config for lazy initialization (model downloaded on first use)
-    private readonly OnnxConfig _onnxConfig;
     private readonly BertConfig _bertConfig;
     private readonly BertRagConfig _bertRagConfig;
-    
-    // Vector store for persistent caching (optional)
-    private readonly IVectorStore? _vectorStore;
 
     // Persistent chunk cache
     private readonly ChunkCacheService _chunkCache;
 
+    private readonly DoclingClient _docling;
+    private readonly IEmbeddingService _embedder;
+
     // Front matter detector for filtering junk content
     private readonly FrontMatterDetector _frontMatterDetector;
+    private readonly SummaryLengthConfig _lengthConfig;
+    private readonly int _maxLlmParallelism;
+    private readonly OllamaService _ollama;
+
+    // BERT config for lazy initialization (model downloaded on first use)
+    private readonly OnnxConfig _onnxConfig;
+    private readonly ProcessingConfig _processingConfig;
+    private readonly ProgressService _progress;
+    private readonly RagSummarizer _rag;
+
+    // Vector store for persistent caching (optional)
+    private readonly IVectorStore? _vectorStore;
+    private readonly bool _verbose;
+    private int? _cachedContextWindow;
+    private MapReduceSummarizer? _mapReduce;
 
     /// <summary>
     ///     Temp directory for intermediate files
@@ -76,36 +78,37 @@ public class DocumentSummarizer
         var ollamaTimeout = ollamaConfig != null
             ? TimeSpan.FromSeconds(ollamaConfig.TimeoutSeconds)
             : OllamaService.DefaultTimeout;
-        
+
         // Get all Ollama settings from config
         var classifierModel = ollamaConfig?.ClassifierModel;
         var baseUrl = ollamaConfig?.BaseUrl ?? "http://localhost:11434";
         var embedModel = ollamaConfig?.EmbedModel ?? "nomic-embed-text";
-        
+
         _ollama = new OllamaService(
-            model: ollamaModel, 
-            embedModel: embedModel,
-            baseUrl: baseUrl,
-            timeout: ollamaTimeout, 
+            ollamaModel,
+            embedModel,
+            baseUrl,
+            ollamaTimeout,
             classifierModel: classifierModel);
-        
+
         // Store ONNX and BERT config for lazy initialization
         _onnxConfig = onnxConfig ?? new OnnxConfig();
         _bertConfig = bertConfig ?? new BertConfig();
         _bertRagConfig = bertRagConfig ?? new BertRagConfig();
-        
+
         // Create embedding service based on backend choice
         _embedder = embeddingBackend == EmbeddingBackend.Onnx
             ? new OnnxEmbeddingService(_onnxConfig, verbose)
             : new OllamaEmbeddingService(_ollama);
-        
-        _rag = new RagSummarizer(_ollama, _embedder, qdrantHost, verbose, _maxLlmParallelism, qdrantConfig, Template, null, _lengthConfig);
+
+        _rag = new RagSummarizer(_ollama, _embedder, qdrantHost, verbose, _maxLlmParallelism, qdrantConfig, Template,
+            null, _lengthConfig);
 
         _chunkCache = new ChunkCacheService(_processingConfig.ChunkCache, verbose);
 
         // Front matter detector uses sentinel LLM for ambiguous cases
         _frontMatterDetector = new FrontMatterDetector(_ollama, verbose);
-        
+
         // Create vector store based on configured backend
         _vectorStore = CreateVectorStore(_bertRagConfig, qdrantConfig, qdrantHost, verbose);
     }
@@ -129,9 +132,9 @@ public class DocumentSummarizer
     ///     Create vector store based on configured backend with fallback support
     /// </summary>
     private static IVectorStore? CreateVectorStore(
-        BertRagConfig bertRagConfig, 
-        QdrantConfig? qdrantConfig, 
-        string qdrantHost, 
+        BertRagConfig bertRagConfig,
+        QdrantConfig? qdrantConfig,
+        string qdrantHost,
         bool verbose)
     {
         switch (bertRagConfig.VectorStore)
@@ -140,11 +143,11 @@ public class DocumentSummarizer
                 return new QdrantVectorStore(
                     qdrantConfig ?? new QdrantConfig { Host = qdrantHost },
                     verbose,
-                    deleteOnDispose: !bertRagConfig.PersistVectors);
-                
+                    !bertRagConfig.PersistVectors);
+
             case VectorStoreBackend.InMemory when bertRagConfig.PersistVectors:
                 return new InMemoryVectorStore(verbose);
-                
+
             default:
                 return null;
         }
@@ -215,7 +218,7 @@ public class DocumentSummarizer
     }
 
     /// <summary>
-    /// Summarize and return both the summary and the source chunks (for quality analysis)
+    ///     Summarize and return both the summary and the source chunks (for quality analysis)
     /// </summary>
     public async Task<(DocumentSummary summary, List<DocumentChunk> chunks)> SummarizeWithChunksAsync(
         string filePath,
@@ -225,9 +228,9 @@ public class DocumentSummarizer
         var (summary, chunks, _) = await SummarizeInternalAsync(filePath, mode, focus);
         return (summary, chunks);
     }
-    
+
     /// <summary>
-    /// Summarize from pre-converted chunks (for benchmark mode - avoids re-running Docling)
+    ///     Summarize from pre-converted chunks (for benchmark mode - avoids re-running Docling)
     /// </summary>
     public async Task<DocumentSummary> SummarizeFromChunksAsync(
         string docId,
@@ -235,24 +238,21 @@ public class DocumentSummarizer
         SummarizationMode mode = SummarizationMode.MapReduce,
         string? focus = null)
     {
-        if (_verbose)
-        {
-            Console.WriteLine($"[Benchmark] Using {chunks.Count} pre-converted chunks");
-        }
-        
-        DocumentSummary result = mode switch
+        if (_verbose) Console.WriteLine($"[Benchmark] Using {chunks.Count} pre-converted chunks");
+
+        var result = mode switch
         {
             SummarizationMode.MapReduce => await (await GetMapReduceSummarizerAsync()).SummarizeAsync(docId, chunks),
             SummarizationMode.Rag => await _rag.SummarizeAsync(docId, chunks, focus),
             SummarizationMode.Iterative => await SummarizeIterativeAsync(docId, chunks),
             _ => throw new ArgumentException($"Unknown mode: {mode}")
         };
-        
+
         return result;
     }
-    
+
     /// <summary>
-    /// Convert a document to chunks without summarizing (for benchmark pre-processing)
+    ///     Convert a document to chunks without summarizing (for benchmark pre-processing)
     /// </summary>
     public async Task<List<DocumentChunk>> ConvertToChunksAsync(string filePath)
     {
@@ -282,10 +282,10 @@ public class DocumentSummarizer
         var chunker = await CreateChunkerAsync();
         var chunks = chunker.ChunkByStructure(markdown);
         Console.WriteLine($"Created {chunks.Count} chunks");
-        
+
         return chunks;
     }
-    
+
     public async Task<DocumentSummary> SummarizeAsync(
         string filePath,
         SummarizationMode mode = SummarizationMode.MapReduce,
@@ -294,7 +294,7 @@ public class DocumentSummarizer
         var (summary, _, _) = await SummarizeInternalAsync(filePath, mode, focus);
         return summary;
     }
-    
+
     private async Task<(DocumentSummary summary, List<DocumentChunk> chunks, string docId)> SummarizeInternalAsync(
         string filePath,
         SummarizationMode mode,
@@ -308,14 +308,12 @@ public class DocumentSummarizer
         {
             cachedChunks = await _chunkCache.TryLoadAsync(docId, fileHash);
             if (_verbose && cachedChunks != null)
-            {
                 Console.WriteLine($"[Cache] Reusing {cachedChunks.Count} cached chunks for {docId}");
-            }
         }
- 
+
         try
         {
-        if (_verbose)
+            if (_verbose)
 
             {
                 PrintBanner();
@@ -350,26 +348,23 @@ public class DocumentSummarizer
                 {
                     Console.WriteLine("Extracting text from ZIP archive...");
                     Console.Out.Flush();
-                    
+
                     var archiveInfo = ArchiveHandler.InspectArchive(filePath);
                     if (archiveInfo == null || !archiveInfo.IsValid)
-                    {
-                        throw new InvalidOperationException($"Cannot process archive: {archiveInfo?.Error ?? "Invalid archive"}");
-                    }
-                    
+                        throw new InvalidOperationException(
+                            $"Cannot process archive: {archiveInfo?.Error ?? "Invalid archive"}");
+
                     if (_verbose)
                     {
                         var gutenbergTag = archiveInfo.IsGutenberg ? " (Gutenberg)" : "";
-                        Console.WriteLine($"[Archive] {archiveInfo.MainFileName} ({archiveInfo.MainFileSize / 1024:N0} KB){gutenbergTag}");
+                        Console.WriteLine(
+                            $"[Archive] {archiveInfo.MainFileName} ({archiveInfo.MainFileSize / 1024:N0} KB){gutenbergTag}");
                     }
-                    
+
                     markdown = await ArchiveHandler.ExtractTextAsync(filePath);
-                    
-                    if (_verbose)
-                    {
-                        Console.WriteLine($"[Archive] Extracted {markdown.Length / 1024:N0} KB of text");
-                    }
-                    
+
+                    if (_verbose) Console.WriteLine($"[Archive] Extracted {markdown.Length / 1024:N0} KB of text");
+
                     // Filter front matter
                     markdown = await FilterFrontMatterAsync(markdown);
                     markdownForBert = markdown;
@@ -397,7 +392,7 @@ public class DocumentSummarizer
 
                     // Filter front matter for directly-read files too
                     markdown = await FilterFrontMatterAsync(markdown);
-                    
+
                     // For BERT modes, preserve the original markdown with correct heading levels
                     // (chunk reconstruction wrongly converts all headings to ##)
                     markdownForBert = markdown;
@@ -463,33 +458,29 @@ public class DocumentSummarizer
             }
 
             var totalWords = CountWords(chunks);
-             if (totalWords < _lengthConfig.MinWordsForSummary)
-             {
-                 if (_verbose)
-                 {
-                     _progress.Warning($"Document has {totalWords} words; below summary threshold {_lengthConfig.MinWordsForSummary}. Returning original text.");
-                 }
- 
-                 var direct = BuildDirectSummary(docId, chunks, totalWords);
-                 return (direct, chunks, docId);
-             }
- 
-             // For BERT modes, we need the markdown content
-             // Re-read from temp file if we cached it, or reconstruct from chunks
-             // Skip if already set (e.g., from direct markdown read which preserves heading levels)
-             if (markdownForBert == null && 
-                 mode is SummarizationMode.Bert or SummarizationMode.BertHybrid or SummarizationMode.BertRag or SummarizationMode.Auto)
-             {
+            if (totalWords < _lengthConfig.MinWordsForSummary)
+            {
+                if (_verbose)
+                    _progress.Warning(
+                        $"Document has {totalWords} words; below summary threshold {_lengthConfig.MinWordsForSummary}. Returning original text.");
+
+                var direct = BuildDirectSummary(docId, chunks, totalWords);
+                return (direct, chunks, docId);
+            }
+
+            // For BERT modes, we need the markdown content
+            // Re-read from temp file if we cached it, or reconstruct from chunks
+            // Skip if already set (e.g., from direct markdown read which preserves heading levels)
+            if (markdownForBert == null &&
+                mode is SummarizationMode.Bert or SummarizationMode.BertHybrid or SummarizationMode.BertRag
+                    or SummarizationMode.Auto)
+            {
                 if (tempMarkdownPath != null && File.Exists(tempMarkdownPath))
-                {
                     markdownForBert = await File.ReadAllTextAsync(tempMarkdownPath);
-                }
                 else
-                {
                     // Reconstruct from chunks (loses precise heading levels - all become ##)
-                    markdownForBert = string.Join("\n\n", chunks.Select(c => 
+                    markdownForBert = string.Join("\n\n", chunks.Select(c =>
                         string.IsNullOrEmpty(c.Heading) ? c.Content : $"## {c.Heading}\n\n{c.Content}"));
-                }
             }
 
             // Auto mode: select best mode based on document and available resources
@@ -501,9 +492,10 @@ public class DocumentSummarizer
                 if (_verbose) Console.WriteLine($"[Auto] Selected mode: {effectiveMode}");
             }
 
-            DocumentSummary result = effectiveMode switch
+            var result = effectiveMode switch
             {
-                SummarizationMode.MapReduce => await (await GetMapReduceSummarizerAsync()).SummarizeAsync(docId, chunks),
+                SummarizationMode.MapReduce =>
+                    await (await GetMapReduceSummarizerAsync()).SummarizeAsync(docId, chunks),
                 SummarizationMode.Rag => await _rag.SummarizeAsync(docId, chunks, focus),
                 SummarizationMode.Iterative => await SummarizeIterativeAsync(docId, chunks),
                 SummarizationMode.Bert => await SummarizeBertAsync(markdownForBert!, chunks),
@@ -537,75 +529,76 @@ public class DocumentSummarizer
     }
 
     /// <summary>
-    /// Pure BERT extractive summarization - no LLM required.
-    /// Uses ONNX embeddings to find the most important sentences.
-    /// Model is downloaded on first use only.
+    ///     Pure BERT extractive summarization - no LLM required.
+    ///     Uses ONNX embeddings to find the most important sentences.
+    ///     Model is downloaded on first use only.
     /// </summary>
     private async Task<DocumentSummary> SummarizeBertAsync(string markdown, List<DocumentChunk> chunks)
     {
         _progress.WriteDivider("BERT Extractive Summarization");
         if (_verbose) Console.WriteLine("[BERT] Using local ONNX model (no LLM required)");
-        
+
         // Lazy-create BERT summarizer (downloads model on first use)
         using var bertSummarizer = new BertSummarizer(_onnxConfig, _bertConfig, _verbose);
-        
+
         // Detect content type for position weighting
         var contentType = DetectContentType(chunks);
         if (_verbose) Console.WriteLine($"[BERT] Content type: {contentType}");
-        
+
         var result = await bertSummarizer.SummarizeAsync(markdown, contentType);
-        
+
         _progress.Success("BERT extraction complete");
         return result;
     }
 
     /// <summary>
-    /// Hybrid mode: BERT extracts key sentences, LLM polishes into fluent prose.
-    /// Best of both worlds - grounded extraction + fluent output.
+    ///     Hybrid mode: BERT extracts key sentences, LLM polishes into fluent prose.
+    ///     Best of both worlds - grounded extraction + fluent output.
     /// </summary>
-    private async Task<DocumentSummary> SummarizeBertHybridAsync(string markdown, List<DocumentChunk> chunks, string docId)
+    private async Task<DocumentSummary> SummarizeBertHybridAsync(string markdown, List<DocumentChunk> chunks,
+        string docId)
     {
         _progress.WriteDivider("BERT Hybrid Summarization");
         if (_verbose) Console.WriteLine("[Hybrid] BERT extraction + LLM polishing");
-        
+
         // Step 1: BERT extraction
         using var bertSummarizer = new BertSummarizer(_onnxConfig, _bertConfig, _verbose);
         var contentType = DetectContentType(chunks);
-        
+
         if (_verbose) Console.WriteLine($"[Hybrid] Content type: {contentType}");
         if (_verbose) Console.WriteLine("[Hybrid] Step 1: Extracting key sentences with BERT...");
-        
+
         var bertResult = await bertSummarizer.SummarizeAsync(markdown, contentType);
-        
+
         // Step 2: LLM polish - rewrite extracted sentences into fluent prose
         if (_verbose) Console.WriteLine("[Hybrid] Step 2: Polishing with LLM...");
-        
+
         var extractedText = bertResult.ExecutiveSummary;
         var topicTexts = bertResult.TopicSummaries
             .Select(t => $"## {t.Topic}\n{t.Summary}")
             .ToList();
-        
+
         var polishPrompt = $"""
-            You are given key sentences extracted from a document. 
-            Rewrite them into a fluent, coherent summary.
-            Preserve the meaning and key facts. Do not add new information.
-            
-            IMPORTANT RULES:
-            - Keep existing citations like [s1], [s2], [s123] exactly as they appear
-            - Do NOT add reference lists, footnotes, or placeholder text like "[insert reference]"
-            - Do NOT add "References:" sections
-            - Just write the summary with inline citations preserved
-            
-            EXTRACTED CONTENT:
-            {extractedText}
-            
-            {(topicTexts.Count > 0 ? "TOPIC SECTIONS:\n" + string.Join("\n\n", topicTexts) : "")}
-            
-            FLUENT SUMMARY:
-            """;
-        
-        var polishedSummary = await _ollama.GenerateAsync(polishPrompt, temperature: 0.3);
-        
+                            You are given key sentences extracted from a document. 
+                            Rewrite them into a fluent, coherent summary.
+                            Preserve the meaning and key facts. Do not add new information.
+
+                            IMPORTANT RULES:
+                            - Keep existing citations like [s1], [s2], [s123] exactly as they appear
+                            - Do NOT add reference lists, footnotes, or placeholder text like "[insert reference]"
+                            - Do NOT add "References:" sections
+                            - Just write the summary with inline citations preserved
+
+                            EXTRACTED CONTENT:
+                            {extractedText}
+
+                            {(topicTexts.Count > 0 ? "TOPIC SECTIONS:\n" + string.Join("\n\n", topicTexts) : "")}
+
+                            FLUENT SUMMARY:
+                            """;
+
+        var polishedSummary = await _ollama.GenerateAsync(polishPrompt);
+
         // Build final result with polished summary but BERT's grounding
         var result = new DocumentSummary(
             polishedSummary,
@@ -613,24 +606,22 @@ public class DocumentSummarizer
             bertResult.OpenQuestions,
             bertResult.Trace with { DocumentId = docId },
             bertResult.Entities);
-        
+
         _progress.Success("Hybrid summarization complete");
         return result;
     }
 
     /// <summary>
-    /// BERT→RAG pipeline: production-grade summarization.
-    /// 
-    /// Architecture:
-    /// 1. Extract: Parse into segments with embeddings + salience scores
-    /// 2. Retrieve: Dual-score ranking (query similarity + salience)
-    /// 3. Synthesize: LLM generates fluent summary from retrieved segments
-    /// 
-    /// Properties:
-    /// - LLM only at synthesis (no LLM-in-the-loop evaluation)
-    /// - Deterministic extraction (reproducible, debuggable)
-    /// - Perfect citations (every claim traceable to source segment)
-    /// - Scales to any document size
+    ///     BERT→RAG pipeline: production-grade summarization.
+    ///     Architecture:
+    ///     1. Extract: Parse into segments with embeddings + salience scores
+    ///     2. Retrieve: Dual-score ranking (query similarity + salience)
+    ///     3. Synthesize: LLM generates fluent summary from retrieved segments
+    ///     Properties:
+    ///     - LLM only at synthesis (no LLM-in-the-loop evaluation)
+    ///     - Deterministic extraction (reproducible, debuggable)
+    ///     - Perfect citations (every claim traceable to source segment)
+    ///     - Scales to any document size
     /// </summary>
     private async Task<(DocumentSummary summary, string docId)> SummarizeBertRagPipelinedAsync(
         string filePath,
@@ -638,15 +629,12 @@ public class DocumentSummarizer
         string? focusQuery)
     {
         _progress.WriteDivider("BERT→RAG Pipeline (Pipelined)");
-        if (_verbose)
-        {
-            Console.WriteLine("[BertRag] Pipelined extraction: Docling chunks → streaming embeddings");
-        }
+        if (_verbose) Console.WriteLine("[BertRag] Pipelined extraction: Docling chunks → streaming embeddings");
 
         using var bertRag = new PipelinedBertRagSummarizer(
             _onnxConfig,
             _ollama,
-            extractionConfig: new ExtractionConfig
+            new ExtractionConfig
             {
                 MmrLambda = _bertConfig.Lambda,
                 ExtractionRatio = _bertConfig.ExtractionRatio,
@@ -656,15 +644,15 @@ public class DocumentSummarizer
                 IncludeCodeBlocks = true,
                 IncludeListItems = true
             },
-            retrievalConfig: new RetrievalConfig
+            new RetrievalConfig
             {
                 Alpha = 0.6,
                 TopK = 25,
                 FallbackCount = 5,
                 MinSimilarity = 0.3
             },
-            template: Template,
-            verbose: _verbose);
+            Template,
+            _verbose);
 
         // Wire chunk callback
         _docling.OnChunkComplete = (chunkIdx, startPage, endPage, markdown) =>
@@ -685,7 +673,9 @@ public class DocumentSummarizer
         // If nothing was parsed/embedded, fall back to single-pass conversion
         if (bertRag.SegmentCount == 0)
         {
-            if (_verbose) Console.WriteLine("[WARNING] No segments produced from streaming conversion; falling back to full convert");
+            if (_verbose)
+                Console.WriteLine(
+                    "[WARNING] No segments produced from streaming conversion; falling back to full convert");
             var fullMarkdown = await _docling.ConvertAsync(filePath, CancellationToken.None);
             var fallback = await SummarizeBertRagAsync(fullMarkdown, docId, focusQuery);
             return (fallback, docId);
@@ -704,16 +694,16 @@ public class DocumentSummarizer
             Console.WriteLine("[BertRag] Production-grade summarization pipeline");
             Console.WriteLine("[BertRag] Phase 1: Extract → Phase 2: Retrieve → Phase 3: Synthesize");
         }
-        
+
         // Detect content type for position weighting
         var contentType = DetectContentTypeFromMarkdown(markdown);
         if (_verbose) Console.WriteLine($"[BertRag] Content type: {contentType}");
-        
+
         // Create and run the pipeline with vector store for caching
         using var bertRag = new BertRagSummarizer(
             _onnxConfig,
             _ollama,
-            extractionConfig: new ExtractionConfig
+            new ExtractionConfig
             {
                 MmrLambda = _bertConfig.Lambda,
                 ExtractionRatio = _bertConfig.ExtractionRatio,
@@ -723,45 +713,41 @@ public class DocumentSummarizer
                 IncludeCodeBlocks = true,
                 IncludeListItems = true
             },
-            retrievalConfig: new RetrievalConfig
+            new RetrievalConfig
             {
                 Alpha = 0.6, // 60% query similarity, 40% salience
-                TopK = 25,   // Retrieve more for synthesis
+                TopK = 25, // Retrieve more for synthesis
                 FallbackCount = 5,
                 MinSimilarity = 0.3
             },
-            template: Template,
-            verbose: _verbose,
-            vectorStore: _vectorStore,
-            bertRagConfig: _bertRagConfig);
-        
+            Template,
+            _verbose,
+            _vectorStore,
+            _bertRagConfig);
+
         var result = await bertRag.SummarizeAsync(docId, markdown, focusQuery, contentType);
-        
+
         _progress.Success("BERT→RAG pipeline complete");
         return result;
     }
 
     /// <summary>
-    /// Hierarchical collection summarization for anthologies and complete works.
-    /// 
-    /// Strategy (Map-Reduce with sampling):
-    /// 1. DETECT: Identify collection structure (Shakespeare plays, story anthologies, etc.)
-    /// 2. PARTITION: Split into individual works using H1 boundaries
-    /// 3. SAMPLE: For large collections, sample representative works from each category
-    /// 4. MAP: Summarize each work independently with progress indicator
-    /// 5. REDUCE: Synthesize work summaries into collection overview
+    ///     Hierarchical collection summarization for anthologies and complete works.
+    ///     Strategy (Map-Reduce with sampling):
+    ///     1. DETECT: Identify collection structure (Shakespeare plays, story anthologies, etc.)
+    ///     2. PARTITION: Split into individual works using H1 boundaries
+    ///     3. SAMPLE: For large collections, sample representative works from each category
+    ///     4. MAP: Summarize each work independently with progress indicator
+    ///     5. REDUCE: Synthesize work summaries into collection overview
     /// </summary>
     private async Task<DocumentSummary> SummarizeHierarchicalAsync(string markdown, string docId, string? focusQuery)
     {
         _progress.WriteDivider("Hierarchical Collection Summarization");
-        if (_verbose)
-        {
-            Console.WriteLine("[Hierarchical] Analyzing collection structure...");
-        }
-        
+        if (_verbose) Console.WriteLine("[Hierarchical] Analyzing collection structure...");
+
         // Detect collection structure
-        var collectionInfo = Services.Utilities.CollectionDetector.AnalyzeMarkdown(markdown);
-        
+        var collectionInfo = CollectionDetector.AnalyzeMarkdown(markdown);
+
         if (!collectionInfo.IsCollection)
         {
             if (_verbose)
@@ -769,9 +755,10 @@ public class DocumentSummarizer
                 Console.WriteLine("[Hierarchical] Not a collection (detected as single document or chaptered novel)");
                 Console.WriteLine("[Hierarchical] Falling back to BertRag mode");
             }
+
             return await SummarizeBertRagAsync(markdown, docId, focusQuery);
         }
-        
+
         if (_verbose)
         {
             Console.WriteLine($"[Hierarchical] Collection detected: {collectionInfo.CollectionTitle ?? "Untitled"}");
@@ -780,7 +767,7 @@ public class DocumentSummarizer
             if (collectionInfo.IsShakespeare)
                 Console.WriteLine("[Hierarchical] Shakespeare detected - using genre-aware sampling");
         }
-        
+
         // Create segment extractor for work-level summarization
         using var extractor = new SegmentExtractor(_onnxConfig, new ExtractionConfig
         {
@@ -789,21 +776,21 @@ public class DocumentSummarizer
             MinSegments = _bertConfig.MinSentences,
             MaxSegments = _bertConfig.MaxSentences * 2
         }, _verbose);
-        
+
         // Create and run hierarchical summarizer
         await using var hierarchicalSummarizer = new HierarchicalCollectionSummarizer(
             _ollama,
             extractor,
-            verbose: _verbose,
-            maxWorksToSummarize: 15,
-            targetWordsPerWork: 150,
-            targetWordsFinal: Template.TargetWords > 0 ? Template.TargetWords : 800);
-        
+            _verbose,
+            15,
+            150,
+            Template.TargetWords > 0 ? Template.TargetWords : 800);
+
         var collectionResult = await hierarchicalSummarizer.SummarizeAsync(
             markdown,
             collectionInfo,
             focusQuery);
-        
+
         // Convert CollectionSummaryResult to DocumentSummary
         var topicSummaries = collectionResult.WorkSummaries
             .Select(w => new TopicSummary(
@@ -811,7 +798,7 @@ public class DocumentSummarizer
                 w.Summary,
                 new List<string> { $"work-{w.Title.ToLowerInvariant().Replace(" ", "-")}" }))
             .ToList();
-        
+
         var trace = new SummarizationTrace(
             docId,
             collectionResult.TotalWorksInCollection,
@@ -820,9 +807,10 @@ public class DocumentSummarizer
             collectionResult.ProcessingTime,
             (double)collectionResult.WorksSummarized / collectionResult.TotalWorksInCollection,
             0);
-        
-        _progress.Success($"Hierarchical summarization complete ({collectionResult.WorksSummarized}/{collectionResult.TotalWorksInCollection} works)");
-        
+
+        _progress.Success(
+            $"Hierarchical summarization complete ({collectionResult.WorksSummarized}/{collectionResult.TotalWorksInCollection} works)");
+
         return new DocumentSummary(
             collectionResult.ExecutiveSummary,
             topicSummaries,
@@ -831,43 +819,42 @@ public class DocumentSummarizer
     }
 
     /// <summary>
-    /// Detect content type from raw markdown (for cases where we don't have chunks yet)
+    ///     Detect content type from raw markdown (for cases where we don't have chunks yet)
     /// </summary>
     private ContentType DetectContentTypeFromMarkdown(string markdown)
     {
         var sampleText = markdown.Length > 3000 ? markdown[..3000] : markdown;
         var sampleLower = sampleText.ToLowerInvariant();
-        
+
         // Fiction indicators
         var fictionScore = 0;
         if (sampleLower.Contains("said") || sampleLower.Contains("replied")) fictionScore += 2;
         if (sampleLower.Contains("chapter")) fictionScore += 3;
-        if (System.Text.RegularExpressions.Regex.IsMatch(sampleLower, @"\b(he|she)\s+(walked|looked|felt|thought)\b")) fictionScore += 2;
+        if (Regex.IsMatch(sampleLower, @"\b(he|she)\s+(walked|looked|felt|thought)\b")) fictionScore += 2;
         if (sampleLower.Contains("\"") && sampleLower.Split('"').Length > 4) fictionScore += 2;
-        
+
         // Technical indicators
         var technicalScore = 0;
-        if (sampleLower.Contains("function") || sampleLower.Contains("class") || sampleLower.Contains("method")) technicalScore += 2;
+        if (sampleLower.Contains("function") || sampleLower.Contains("class") || sampleLower.Contains("method"))
+            technicalScore += 2;
         if (sampleLower.Contains("```") || sampleLower.Contains("`")) technicalScore += 3;
         if (sampleLower.Contains("install") || sampleLower.Contains("configure")) technicalScore += 2;
-        if (System.Text.RegularExpressions.Regex.IsMatch(sampleLower, @"\b(api|http|json|xml)\b")) technicalScore += 2;
-        
+        if (Regex.IsMatch(sampleLower, @"\b(api|http|json|xml)\b")) technicalScore += 2;
+
         if (fictionScore > technicalScore + 2) return ContentType.Narrative;
         if (technicalScore > fictionScore + 2) return ContentType.Expository;
         return ContentType.Unknown;
     }
 
     /// <summary>
-    /// Auto-select the best summarization mode based on document size and available resources.
-    /// 
-    /// Thresholds (approximate):
-    /// - Tiny (&lt;500 words, ~1 page): Iterative - just LLM, no extraction overhead
-    /// - Small (500-1500 words, 1-2 pages): Iterative - simple and effective
-    /// - Medium (1500-8000 words, 2-15 pages): BertHybrid - BERT extract + LLM polish
-    /// - Large (8000+ words, 15+ pages): BertRag - production pipeline with recall-safe pre-filtering
-    /// - Collections (detected structure): Hierarchical - anthology/complete works handling
-    /// 
-    /// BertRag is also used when a focus query is provided (retrieval-optimized).
+    ///     Auto-select the best summarization mode based on document size and available resources.
+    ///     Thresholds (approximate):
+    ///     - Tiny (&lt;500 words, ~1 page): Iterative - just LLM, no extraction overhead
+    ///     - Small (500-1500 words, 1-2 pages): Iterative - simple and effective
+    ///     - Medium (1500-8000 words, 2-15 pages): BertHybrid - BERT extract + LLM polish
+    ///     - Large (8000+ words, 15+ pages): BertRag - production pipeline with recall-safe pre-filtering
+    ///     - Collections (detected structure): Hierarchical - anthology/complete works handling
+    ///     BertRag is also used when a focus query is provided (retrieval-optimized).
     /// </summary>
     private SummarizationMode AutoSelectMode(
         List<DocumentChunk> chunks,
@@ -877,32 +864,31 @@ public class DocumentSummarizer
     {
         var totalWords = CountWords(chunks);
         var chunkCount = chunks.Count;
-        
+
         if (_verbose) Console.WriteLine($"[Auto] Document: {totalWords:N0} words, {chunkCount} chunks");
-        
+
         // If focus query provided, use BertRag (best for focused retrieval)
         if (!string.IsNullOrEmpty(focus))
         {
             if (_verbose) Console.WriteLine("[Auto] Focus query provided -> BertRag (query-optimized retrieval)");
             return SummarizationMode.BertRag;
         }
-        
+
         // If no LLM available, use pure BERT
         if (!llmAvailable)
         {
             if (_verbose) Console.WriteLine("[Auto] No LLM available -> Bert (extractive only)");
             return SummarizationMode.Bert;
         }
-        
+
         // For large documents, check if it's a collection (anthology, complete works, etc.)
         // Only check if we have the markdown content and the document is large enough
         if (totalWords >= 20000 && !string.IsNullOrEmpty(markdown))
-        {
             // Quick collection detection - use lightweight heuristics first
             if (CollectionDetector.QuickIsCollection(markdown))
             {
                 if (_verbose) Console.WriteLine("[Auto] Quick collection detection triggered, analyzing structure...");
-                
+
                 var collectionInfo = CollectionDetector.AnalyzeMarkdown(markdown);
                 if (collectionInfo.IsCollection && collectionInfo.Works.Count >= 3)
                 {
@@ -913,11 +899,11 @@ public class DocumentSummarizer
                             Console.WriteLine("[Auto] Shakespeare collection detected");
                         Console.WriteLine("[Auto] -> Hierarchical (collection summarization)");
                     }
+
                     return SummarizationMode.Hierarchical;
                 }
             }
-        }
-        
+
         // Tiny documents (<500 words, ~1 page): Just use LLM directly
         // No need for extraction overhead - the whole doc fits in context
         if (totalWords < 500)
@@ -925,7 +911,7 @@ public class DocumentSummarizer
             if (_verbose) Console.WriteLine("[Auto] Tiny document (<500 words) -> Iterative (no extraction needed)");
             return SummarizationMode.Iterative;
         }
-        
+
         // Small documents (500-1500 words, 1-3 pages): Iterative
         // Simple and effective, LLM can see the whole document
         if (totalWords < 1500)
@@ -933,7 +919,7 @@ public class DocumentSummarizer
             if (_verbose) Console.WriteLine("[Auto] Small document (500-1500 words) -> Iterative");
             return SummarizationMode.Iterative;
         }
-        
+
         // Medium documents (1500-8000 words, 3-15 pages): BertHybrid
         // BERT extraction to find key sentences, LLM to polish
         if (totalWords < 8000)
@@ -941,7 +927,7 @@ public class DocumentSummarizer
             if (_verbose) Console.WriteLine("[Auto] Medium document (1500-8000 words) -> BertHybrid");
             return SummarizationMode.BertHybrid;
         }
-        
+
         // Large documents (8000+ words, 15+ pages): BertRag
         // Production pipeline with recall-safe pre-filtering for speed
         if (_verbose) Console.WriteLine("[Auto] Large document (8000+ words) -> BertRag (production pipeline)");
@@ -949,7 +935,7 @@ public class DocumentSummarizer
     }
 
     /// <summary>
-    /// Check if Ollama LLM is available
+    ///     Check if Ollama LLM is available
     /// </summary>
     private async Task<bool> IsLlmAvailableAsync()
     {
@@ -964,19 +950,19 @@ public class DocumentSummarizer
     }
 
     /// <summary>
-    /// Iterative summarization for small documents - sends entire content to LLM
-    /// Best for documents under ~1500 words where the whole text fits in context
+    ///     Iterative summarization for small documents - sends entire content to LLM
+    ///     Best for documents under ~1500 words where the whole text fits in context
     /// </summary>
     private async Task<DocumentSummary> SummarizeIterativeAsync(string docId, List<DocumentChunk> chunks)
     {
         if (_verbose) Console.WriteLine($"[Iterative] Processing {chunks.Count} chunks as single document");
-        
+
         // Combine all chunks into single text
         var fullText = string.Join("\n\n", chunks.Select(c => c.Content));
         var wordCount = fullText.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-        
+
         if (_verbose) Console.WriteLine($"[Iterative] Document has {wordCount} words");
-        
+
         // Build prompt based on template
         var targetWords = Template.TargetWords > 0 ? Template.TargetWords : 200;
         var prompt = $@"Summarize the following document in approximately {targetWords} words.
@@ -986,21 +972,22 @@ Document:
 
 Summary:";
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         var response = await _ollama.GenerateAsync(prompt);
         sw.Stop();
-        
+
         // Clean up the response
         var summary = response.Trim();
-        
+
         // Build topic summaries from chunk headings if available
-        var topicSummaries = Template.IncludeTopics 
+        var topicSummaries = Template.IncludeTopics
             ? chunks.Where(c => !string.IsNullOrEmpty(c.Heading))
-                    .Select(c => new TopicSummary(c.Heading, c.Content.Length > 200 ? c.Content[..200] + "..." : c.Content, [c.Id]))
-                    .Take(10)
-                    .ToList()
+                .Select(c =>
+                    new TopicSummary(c.Heading, c.Content.Length > 200 ? c.Content[..200] + "..." : c.Content, [c.Id]))
+                .Take(10)
+                .ToList()
             : new List<TopicSummary>();
-        
+
         var trace = new SummarizationTrace(
             docId,
             chunks.Count,
@@ -1008,31 +995,28 @@ Summary:";
             chunks.Select(c => c.Heading).Where(h => !string.IsNullOrEmpty(h)).Distinct().ToList(),
             sw.Elapsed,
             1.0, // Full coverage
-            0    // No citations in iterative mode
+            0 // No citations in iterative mode
         );
-        
+
         if (_verbose) Console.WriteLine($"[Iterative] Completed in {sw.Elapsed.TotalSeconds:F1}s");
-        
+
         return new DocumentSummary(summary, topicSummaries, new List<string>(), trace);
     }
 
     /// <summary>
-    /// Query a document using RAG - retrieves relevant chunks and answers the question
+    ///     Query a document using RAG - retrieves relevant chunks and answers the question
     /// </summary>
     public async Task<string> QueryAsync(string filePath, string query)
     {
         if (_verbose) Console.WriteLine($"[Query] Processing query: {query}");
-        
+
         // Convert document to chunks
         var chunks = await ConvertToChunksAsync(filePath);
-        
-        if (chunks.Count == 0)
-        {
-            return "Unable to process document - no content found.";
-        }
-        
+
+        if (chunks.Count == 0) return "Unable to process document - no content found.";
+
         if (_verbose) Console.WriteLine($"[Query] Document has {chunks.Count} chunks");
-        
+
         // For small documents, just include everything in context
         if (chunks.Count <= 5)
         {
@@ -1045,19 +1029,19 @@ Document:
 Answer the question directly and concisely. If the answer is not in the document, say so.
 
 Answer:";
-            
+
             return await _ollama.GenerateAsync(prompt);
         }
-        
+
         // For larger documents, use semantic search to find relevant chunks
         if (_verbose) Console.WriteLine("[Query] Using semantic search to find relevant chunks");
-        
+
         // Initialize embedder if needed
         await _embedder.InitializeAsync();
-        
+
         // Generate query embedding
         var queryEmbedding = await _embedder.EmbedAsync(query);
-        
+
         // Generate embeddings for all chunks
         var chunkEmbeddings = new List<(DocumentChunk Chunk, float[] Embedding)>();
         foreach (var chunk in chunks)
@@ -1065,27 +1049,25 @@ Answer:";
             var embedding = await _embedder.EmbedAsync(chunk.Content);
             chunkEmbeddings.Add((chunk, embedding));
         }
-        
+
         // Find most similar chunks using cosine similarity
         var rankedChunks = chunkEmbeddings
             .Select(ce => (ce.Chunk, Similarity: CosineSimilarity(queryEmbedding, ce.Embedding)))
             .OrderByDescending(x => x.Similarity)
             .Take(5)
             .ToList();
-        
+
         if (_verbose)
         {
             Console.WriteLine($"[Query] Top {rankedChunks.Count} relevant chunks:");
             foreach (var (chunk, sim) in rankedChunks)
-            {
                 Console.WriteLine($"  - {chunk.Heading ?? "Untitled"}: {sim:F3}");
-            }
         }
-        
+
         // Build context from relevant chunks
-        var context = string.Join("\n\n---\n\n", rankedChunks.Select(r => 
+        var context = string.Join("\n\n---\n\n", rankedChunks.Select(r =>
             $"[{r.Chunk.Id}] {(string.IsNullOrEmpty(r.Chunk.Heading) ? "" : $"# {r.Chunk.Heading}\n")}{r.Chunk.Content}"));
-        
+
         var answerPrompt = $@"Based on the following excerpts from a document, answer this question: {query}
 
 Relevant excerpts:
@@ -1097,25 +1079,25 @@ Instructions:
 - If the answer is not in the provided excerpts, say so
 
 Answer:";
-        
+
         return await _ollama.GenerateAsync(answerPrompt);
     }
-    
+
     /// <summary>
-    /// Calculate cosine similarity between two vectors
+    ///     Calculate cosine similarity between two vectors
     /// </summary>
     private static float CosineSimilarity(float[] a, float[] b)
     {
         if (a.Length != b.Length) return 0;
-        
+
         float dotProduct = 0, normA = 0, normB = 0;
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dotProduct += a[i] * b[i];
             normA += a[i] * a[i];
             normB += b[i] * b[i];
         }
-        
+
         var denominator = Math.Sqrt(normA) * Math.Sqrt(normB);
         return denominator == 0 ? 0 : (float)(dotProduct / denominator);
     }
@@ -1124,21 +1106,22 @@ Answer:";
     {
         // Use heuristics from first few chunks
         var sampleText = string.Join(" ", chunks.Take(3).Select(c => c.Content)).ToLowerInvariant();
-        
+
         // Fiction indicators
         var fictionScore = 0;
         if (sampleText.Contains("said") || sampleText.Contains("replied")) fictionScore += 2;
         if (sampleText.Contains("chapter")) fictionScore += 3;
-        if (System.Text.RegularExpressions.Regex.IsMatch(sampleText, @"\b(he|she)\s+(walked|looked|felt|thought)\b")) fictionScore += 2;
+        if (Regex.IsMatch(sampleText, @"\b(he|she)\s+(walked|looked|felt|thought)\b")) fictionScore += 2;
         if (sampleText.Contains("\"") && sampleText.Split('"').Length > 4) fictionScore += 2; // Dialogue
-        
+
         // Technical indicators
         var technicalScore = 0;
-        if (sampleText.Contains("function") || sampleText.Contains("class") || sampleText.Contains("method")) technicalScore += 2;
+        if (sampleText.Contains("function") || sampleText.Contains("class") || sampleText.Contains("method"))
+            technicalScore += 2;
         if (sampleText.Contains("```") || sampleText.Contains("`")) technicalScore += 3;
         if (sampleText.Contains("install") || sampleText.Contains("configure")) technicalScore += 2;
-        if (System.Text.RegularExpressions.Regex.IsMatch(sampleText, @"\b(api|http|json|xml)\b")) technicalScore += 2;
-        
+        if (Regex.IsMatch(sampleText, @"\b(api|http|json|xml)\b")) technicalScore += 2;
+
         if (fictionScore > technicalScore + 2) return ContentType.Narrative;
         if (technicalScore > fictionScore + 2) return ContentType.Expository;
         return ContentType.Unknown;
@@ -1189,29 +1172,24 @@ Answer:";
             var headingIsDefault = _processingConfig.MaxHeadingLevel == defaultProcessing.MaxHeadingLevel;
 
             if (targetIsDefault)
-            {
                 // Use MUCH larger chunks for fiction to keep narrative flow
                 // Target ~8-10 chunks for a full novel (~8000-10000 tokens per chunk)
                 targetChunkTokens = Math.Max(targetChunkTokens, 10000);
-            }
 
             if (minIsDefault)
-            {
                 // Ensure merged sections stay substantial for prose
                 minChunkTokens = Math.Max(minChunkTokens, 2000);
-            }
 
             if (headingIsDefault)
-            {
                 // Avoid over-splitting on subheadings for fiction/non-technical text
                 headingLevel = 1;
-            }
         }
 
-        if (_verbose) Console.WriteLine($"Chunk sizing: target={targetChunkTokens}, min={minChunkTokens} tokens, headings≤{headingLevel}");
+        if (_verbose)
+            Console.WriteLine(
+                $"Chunk sizing: target={targetChunkTokens}, min={minChunkTokens} tokens, headings≤{headingLevel}");
 
         return new DocumentChunker(headingLevel, targetChunkTokens, minChunkTokens);
-
     }
 
     private DocumentSummary BuildDirectSummary(string docId, List<DocumentChunk> chunks, int totalWords)
@@ -1222,7 +1200,8 @@ Answer:";
             ? fullText[..maxPreviewLength].TrimEnd() + "…"
             : fullText;
 
-        var message = $"Document is {totalWords} words (< {_lengthConfig.MinWordsForSummary}); returning original text.";
+        var message =
+            $"Document is {totalWords} words (< {_lengthConfig.MinWordsForSummary}); returning original text.";
         var executive = string.IsNullOrWhiteSpace(preview)
             ? message
             : $"{message}\n\n{preview}";
@@ -1257,7 +1236,6 @@ Answer:";
         var inWord = false;
 
         foreach (var ch in text)
-        {
             if (char.IsLetterOrDigit(ch) || ch == '\'' || ch == '’')
             {
                 if (!inWord)
@@ -1274,7 +1252,6 @@ Answer:";
             {
                 inWord = false;
             }
-        }
 
         return count;
     }
@@ -1282,15 +1259,12 @@ Answer:";
     private static int CountWords(IEnumerable<DocumentChunk> chunks)
     {
         var total = 0;
-        foreach (var chunk in chunks)
-        {
-            total += CountWords(chunk.Content);
-        }
+        foreach (var chunk in chunks) total += CountWords(chunk.Content);
         return total;
     }
 
     /// <summary>
-    /// Print styled banner - now handled by SpectreProgressService
+    ///     Print styled banner - now handled by SpectreProgressService
     /// </summary>
     private static string NormalizeDocId(string filePath)
     {
@@ -1304,41 +1278,38 @@ Answer:";
         using var stream = File.OpenRead(filePath);
         return ContentHasher.ComputeHash(stream);
     }
- 
+
     private static void PrintBanner()
     {
         // Banner now handled by SpectreProgressService.WriteHeader() in Program.cs
     }
 
     /// <summary>
-    /// Filter front matter, junk content, and other non-main content from markdown
+    ///     Filter front matter, junk content, and other non-main content from markdown
     /// </summary>
     private async Task<string> FilterFrontMatterAsync(string markdown)
     {
         // Quick check - if no front matter detected, skip expensive analysis
-        if (!_frontMatterDetector.HasFrontMatterToFilter(markdown))
-        {
-            return markdown;
-        }
+        if (!_frontMatterDetector.HasFrontMatterToFilter(markdown)) return markdown;
 
         if (_verbose) Console.WriteLine("[FrontMatter] Analyzing document structure...");
 
         var profile = await _frontMatterDetector.AnalyzeAsync(markdown);
-        
+
         if (profile.MainContentStartIndex > 0 || profile.JunkRanges.Count > 0 || profile.SkipPatterns.Count > 0)
         {
             var originalLength = markdown.Length;
             markdown = _frontMatterDetector.ApplyProfile(markdown, profile);
             var filteredLength = markdown.Length;
-            
+
             if (_verbose && filteredLength < originalLength)
             {
                 var reduction = (originalLength - filteredLength) * 100.0 / originalLength;
-                Console.WriteLine($"[FrontMatter] Filtered {reduction:F1}% ({(originalLength - filteredLength) / 1024:N0} KB) of front matter/junk");
+                Console.WriteLine(
+                    $"[FrontMatter] Filtered {reduction:F1}% ({(originalLength - filteredLength) / 1024:N0} KB) of front matter/junk");
             }
         }
 
         return markdown;
     }
 }
-

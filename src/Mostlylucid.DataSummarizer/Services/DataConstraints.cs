@@ -3,8 +3,8 @@ using Mostlylucid.DataSummarizer.Models;
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Data constraints/expectations system inspired by Great Expectations.
-/// Define rules that data must satisfy and validate against profiles.
+///     Data constraints/expectations system inspired by Great Expectations.
+///     Define rules that data must satisfy and validate against profiles.
 /// </summary>
 public class ConstraintValidator
 {
@@ -16,7 +16,7 @@ public class ConstraintValidator
     }
 
     /// <summary>
-    /// Validate a profile against a set of constraints
+    ///     Validate a profile against a set of constraints
     /// </summary>
     public ConstraintValidationResult Validate(DataProfile profile, ConstraintSuite suite)
     {
@@ -37,8 +37,8 @@ public class ConstraintValidator
         result.TotalConstraints = result.Results.Count;
         result.PassedConstraints = result.Results.Count(r => r.Passed);
         result.FailedConstraints = result.Results.Count(r => !r.Passed);
-        result.PassRate = result.TotalConstraints > 0 
-            ? (double)result.PassedConstraints / result.TotalConstraints 
+        result.PassRate = result.TotalConstraints > 0
+            ? (double)result.PassedConstraints / result.TotalConstraints
             : 1.0;
         result.AllPassed = result.FailedConstraints == 0;
 
@@ -46,7 +46,7 @@ public class ConstraintValidator
     }
 
     /// <summary>
-    /// Auto-generate constraints from an existing profile (learn from data)
+    ///     Auto-generate constraints from an existing profile (learn from data)
     /// </summary>
     public ConstraintSuite GenerateFromProfile(DataProfile profile, ConstraintGenerationOptions? options = null)
     {
@@ -55,7 +55,6 @@ public class ConstraintValidator
 
         // Table-level constraints
         if (options.IncludeRowCountConstraints)
-        {
             constraints.Add(new DataConstraint
             {
                 Type = ConstraintType.RowCountBetween,
@@ -63,7 +62,6 @@ public class ConstraintValidator
                 MaxValue = (long)(profile.RowCount * 2.0),
                 Description = $"Row count should be between {profile.RowCount * 0.5:N0} and {profile.RowCount * 2:N0}"
             });
-        }
 
         if (options.IncludeSchemaConstraints)
         {
@@ -90,16 +88,13 @@ public class ConstraintValidator
             if (options.IncludeNullConstraints)
             {
                 if (col.NullPercent == 0)
-                {
                     constraints.Add(new DataConstraint
                     {
                         Type = ConstraintType.ColumnNotNull,
                         ColumnName = col.Name,
                         Description = $"Column '{col.Name}' should not have null values"
                     });
-                }
                 else if (col.NullPercent < options.MaxAllowedNullPercent)
-                {
                     constraints.Add(new DataConstraint
                     {
                         Type = ConstraintType.NullPercentBelow,
@@ -107,12 +102,10 @@ public class ConstraintValidator
                         MaxValue = Math.Min(col.NullPercent * 1.5, options.MaxAllowedNullPercent),
                         Description = $"Column '{col.Name}' null % should be below {col.NullPercent * 1.5:F1}%"
                     });
-                }
             }
 
             // Type constraints
             if (options.IncludeTypeConstraints)
-            {
                 constraints.Add(new DataConstraint
                 {
                     Type = ConstraintType.ColumnTypeIs,
@@ -120,11 +113,9 @@ public class ConstraintValidator
                     ExpectedType = col.InferredType,
                     Description = $"Column '{col.Name}' should be of type {col.InferredType}"
                 });
-            }
 
             // Numeric range constraints
             if (options.IncludeRangeConstraints && col.InferredType == ColumnType.Numeric)
-            {
                 if (col.Min.HasValue && col.Max.HasValue)
                 {
                     var range = col.Max.Value - col.Min.Value;
@@ -134,45 +125,39 @@ public class ConstraintValidator
                         ColumnName = col.Name,
                         MinValue = col.Min.Value - range * 0.1,
                         MaxValue = col.Max.Value + range * 0.1,
-                        Description = $"Column '{col.Name}' values should be between {col.Min:F2} and {col.Max:F2} (with 10% tolerance)"
+                        Description =
+                            $"Column '{col.Name}' values should be between {col.Min:F2} and {col.Max:F2} (with 10% tolerance)"
                     });
                 }
-            }
 
             // Uniqueness constraints
             if (options.IncludeUniquenessConstraints)
-            {
                 if (col.UniquePercent >= 99.9)
-                {
                     constraints.Add(new DataConstraint
                     {
                         Type = ConstraintType.ColumnUnique,
                         ColumnName = col.Name,
                         Description = $"Column '{col.Name}' should have unique values"
                     });
-                }
-            }
 
             // Categorical constraints
             if (options.IncludeCategoricalConstraints && col.InferredType == ColumnType.Categorical)
-            {
                 if (col.TopValues?.Count > 0 && col.UniqueCount <= 50)
-                {
                     constraints.Add(new DataConstraint
                     {
                         Type = ConstraintType.ValuesInSet,
                         ColumnName = col.Name,
-                        AllowedValues = col.TopValues.Select(tv => tv.Value ?? "").Where(v => !string.IsNullOrEmpty(v)).ToList(),
+                        AllowedValues = col.TopValues.Select(tv => tv.Value ?? "").Where(v => !string.IsNullOrEmpty(v))
+                            .ToList(),
                         Description = $"Column '{col.Name}' values should be in the known set"
                     });
-                }
-            }
         }
 
         return new ConstraintSuite
         {
             Name = $"Auto-generated from {Path.GetFileName(profile.SourcePath)}",
-            Description = $"Generated at {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} from profile with {profile.RowCount:N0} rows",
+            Description =
+                $"Generated at {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} from profile with {profile.RowCount:N0} rows",
             GeneratedAt = DateTime.UtcNow,
             SourceProfile = profile.SourcePath,
             Constraints = constraints
@@ -194,7 +179,7 @@ public class ConstraintValidator
                 case ConstraintType.RowCountBetween:
                     result.ActualValue = profile.RowCount;
                     result.Passed = profile.RowCount >= (constraint.MinValue ?? long.MinValue) &&
-                                   profile.RowCount <= (constraint.MaxValue ?? long.MaxValue);
+                                    profile.RowCount <= (constraint.MaxValue ?? long.MaxValue);
                     break;
 
                 case ConstraintType.RowCountEquals:
@@ -211,7 +196,9 @@ public class ConstraintValidator
                     var existingCols = profile.Columns.Select(c => c.Name).ToHashSet();
                     var missingCols = constraint.ExpectedColumns?.Where(c => !existingCols.Contains(c)).ToList() ?? [];
                     result.Passed = missingCols.Count == 0;
-                    result.Details = missingCols.Count > 0 ? $"Missing columns: {string.Join(", ", missingCols)}" : null;
+                    result.Details = missingCols.Count > 0
+                        ? $"Missing columns: {string.Join(", ", missingCols)}"
+                        : null;
                     break;
 
                 case ConstraintType.ColumnNotNull:
@@ -221,6 +208,7 @@ public class ConstraintValidator
                         result.ActualValue = notNullCol.NullCount;
                         result.Passed = notNullCol.NullCount == 0;
                     }
+
                     break;
 
                 case ConstraintType.NullPercentBelow:
@@ -230,6 +218,7 @@ public class ConstraintValidator
                         result.ActualValue = nullPctCol.NullPercent;
                         result.Passed = nullPctCol.NullPercent <= (constraint.MaxValue ?? 100);
                     }
+
                     break;
 
                 case ConstraintType.ColumnTypeIs:
@@ -239,6 +228,7 @@ public class ConstraintValidator
                         result.ActualValue = typeCol.InferredType.ToString();
                         result.Passed = typeCol.InferredType == constraint.ExpectedType;
                     }
+
                     break;
 
                 case ConstraintType.ValuesBetween:
@@ -247,8 +237,9 @@ public class ConstraintValidator
                     {
                         result.ActualValue = $"[{rangeCol.Min:F2}, {rangeCol.Max:F2}]";
                         result.Passed = rangeCol.Min >= (constraint.MinValue ?? double.MinValue) &&
-                                       rangeCol.Max <= (constraint.MaxValue ?? double.MaxValue);
+                                        rangeCol.Max <= (constraint.MaxValue ?? double.MaxValue);
                     }
+
                     break;
 
                 case ConstraintType.ColumnUnique:
@@ -258,6 +249,7 @@ public class ConstraintValidator
                         result.ActualValue = uniqueCol.UniquePercent;
                         result.Passed = uniqueCol.UniquePercent >= 99.9;
                     }
+
                     break;
 
                 case ConstraintType.ValuesInSet:
@@ -266,10 +258,14 @@ public class ConstraintValidator
                     {
                         var allowedSet = constraint.AllowedValues.ToHashSet();
                         var actualValues = setCol.TopValues.Select(tv => tv.Value ?? "").ToList();
-                        var unknownValues = actualValues.Where(v => !string.IsNullOrEmpty(v) && !allowedSet.Contains(v)).ToList();
+                        var unknownValues = actualValues.Where(v => !string.IsNullOrEmpty(v) && !allowedSet.Contains(v))
+                            .ToList();
                         result.Passed = unknownValues.Count == 0;
-                        result.Details = unknownValues.Count > 0 ? $"Unknown values: {string.Join(", ", unknownValues.Take(5))}" : null;
+                        result.Details = unknownValues.Count > 0
+                            ? $"Unknown values: {string.Join(", ", unknownValues.Take(5))}"
+                            : null;
                     }
+
                     break;
 
                 case ConstraintType.MeanBetween:
@@ -278,8 +274,9 @@ public class ConstraintValidator
                     {
                         result.ActualValue = meanCol.Mean;
                         result.Passed = meanCol.Mean >= (constraint.MinValue ?? double.MinValue) &&
-                                       meanCol.Mean <= (constraint.MaxValue ?? double.MaxValue);
+                                        meanCol.Mean <= (constraint.MaxValue ?? double.MaxValue);
                     }
+
                     break;
 
                 case ConstraintType.StdDevBelow:
@@ -289,6 +286,7 @@ public class ConstraintValidator
                         result.ActualValue = stdCol.StdDev;
                         result.Passed = stdCol.StdDev <= (constraint.MaxValue ?? double.MaxValue);
                     }
+
                     break;
 
                 default:
@@ -309,7 +307,7 @@ public class ConstraintValidator
 #region Constraint Models
 
 /// <summary>
-/// A suite of data constraints
+///     A suite of data constraints
 /// </summary>
 public class ConstraintSuite
 {
@@ -321,27 +319,27 @@ public class ConstraintSuite
 }
 
 /// <summary>
-/// A single data constraint/expectation
+///     A single data constraint/expectation
 /// </summary>
 public class DataConstraint
 {
     public ConstraintType Type { get; set; }
     public string? ColumnName { get; set; }
     public string Description { get; set; } = "";
-    
+
     // Value constraints
     public double? MinValue { get; set; }
     public double? MaxValue { get; set; }
     public object? ExpectedValue { get; set; }
     public ColumnType? ExpectedType { get; set; }
-    
+
     // Set constraints
     public List<string>? AllowedValues { get; set; }
     public List<string>? ExpectedColumns { get; set; }
 }
 
 /// <summary>
-/// Types of constraints supported
+///     Types of constraints supported
 /// </summary>
 public enum ConstraintType
 {
@@ -350,30 +348,30 @@ public enum ConstraintType
     RowCountEquals,
     ColumnCountEquals,
     ColumnsExist,
-    
+
     // Column null constraints
     ColumnNotNull,
     NullPercentBelow,
-    
+
     // Column type constraints
     ColumnTypeIs,
-    
+
     // Column value constraints
     ValuesBetween,
     ValuesInSet,
     ColumnUnique,
-    
+
     // Statistical constraints
     MeanBetween,
     StdDevBelow,
     MedianBetween,
-    
+
     // Custom
     Custom
 }
 
 /// <summary>
-/// Options for auto-generating constraints
+///     Options for auto-generating constraints
 /// </summary>
 public class ConstraintGenerationOptions
 {
@@ -388,7 +386,7 @@ public class ConstraintGenerationOptions
 }
 
 /// <summary>
-/// Result of validating a constraint suite
+///     Result of validating a constraint suite
 /// </summary>
 public class ConstraintValidationResult
 {
@@ -401,15 +399,18 @@ public class ConstraintValidationResult
     public int FailedConstraints { get; set; }
     public double PassRate { get; set; }
     public List<ConstraintResult> Results { get; set; } = [];
-    
+
     /// <summary>
-    /// Get failed constraints only
+    ///     Get failed constraints only
     /// </summary>
-    public IEnumerable<ConstraintResult> GetFailures() => Results.Where(r => !r.Passed);
+    public IEnumerable<ConstraintResult> GetFailures()
+    {
+        return Results.Where(r => !r.Passed);
+    }
 }
 
 /// <summary>
-/// Result of validating a single constraint
+///     Result of validating a single constraint
 /// </summary>
 public class ConstraintResult
 {

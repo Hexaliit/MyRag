@@ -7,23 +7,19 @@ using Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// OCR Quality Assessment Wave - 3-tier correction pipeline
-/// Tier 1: Dictionary + Heuristics (language-agnostic OCR patterns)
-/// Tier 2: ML Context Check (n-gram language model, perplexity scoring)
-/// Tier 3: Sentinel LLM (vision re-query for verification)
-/// Priority: 58 (runs after AdvancedOcrWave at 59)
+///     OCR Quality Assessment Wave - 3-tier correction pipeline
+///     Tier 1: Dictionary + Heuristics (language-agnostic OCR patterns)
+///     Tier 2: ML Context Check (n-gram language model, perplexity scoring)
+///     Tier 3: Sentinel LLM (vision re-query for verification)
+///     Priority: 58 (runs after AdvancedOcrWave at 59)
 /// </summary>
 public class OcrQualityWave : IAnalysisWave
 {
     private readonly OcrConfig _config;
     private readonly ILogger<OcrQualityWave>? _logger;
-    private readonly SpellChecker? _spellChecker;
     private readonly MlContextChecker? _mlContextChecker;
     private readonly SentinelLlmCorrector? _sentinelLlmCorrector;
-
-    public string Name => "OcrQualityWave";
-    public int Priority => 58; // Runs after all OCR waves
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "quality" };
+    private readonly SpellChecker? _spellChecker;
 
     public OcrQualityWave(
         IOptions<ImageConfig> imageConfig,
@@ -48,6 +44,10 @@ public class OcrQualityWave : IAnalysisWave
             _spellChecker = new SpellChecker(dictionaryPath, logger as ILogger<SpellChecker>);
         }
     }
+
+    public string Name => "OcrQualityWave";
+    public int Priority => 58; // Runs after all OCR waves
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "quality" };
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
         string imagePath,
@@ -105,7 +105,6 @@ public class OcrQualityWave : IAnalysisWave
                 : true; // Default to enabled if not specified
 
             if (ocrSkipped || !ocrEnabled)
-            {
                 // OCR was skipped - don't assert "no text", just note it wasn't evaluated
                 signals.Add(new Signal
                 {
@@ -119,9 +118,7 @@ public class OcrQualityWave : IAnalysisWave
                         ["reason"] = ocrSkipped ? "ocr_skipped" : "ocr_disabled"
                     }
                 });
-            }
             else
-            {
                 // OCR ran but found no text
                 signals.Add(new Signal
                 {
@@ -131,7 +128,6 @@ public class OcrQualityWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { "ocr", "quality" }
                 });
-            }
             return signals;
         }
 
@@ -142,7 +138,8 @@ public class OcrQualityWave : IAnalysisWave
 
             if (!dictionaryLoaded)
             {
-                _logger?.LogWarning("Dictionary not available for {Language}, spell checking disabled", _config.SpellCheckLanguage);
+                _logger?.LogWarning("Dictionary not available for {Language}, spell checking disabled",
+                    _config.SpellCheckLanguage);
                 signals.Add(new Signal
                 {
                     Key = "ocr.quality.dictionary_unavailable",
@@ -217,19 +214,19 @@ public class OcrQualityWave : IAnalysisWave
             }
 
             // Tier 3: Sentinel LLM Correction (if still uncertain or garbled)
-            string? finalCorrectedText = tier2CorrectedText ?? ocrText;
-            bool tier3Applied = false;
+            var finalCorrectedText = tier2CorrectedText ?? ocrText;
+            var tier3Applied = false;
 
             // Only escalate to Tier 3 if:
             // 1. Tier 1 identified as garbled (< 50% correct)
             // 2. OR Tier 2 made corrections (text was changed)
             // 3. Don't escalate if Tier 2 truly validated text as clean (low perplexity, not neutral)
             // Note: perplexity=50.0 is neutral (unknown bigrams) - don't trust it as validation
-            bool tier2TrulyValidated = tier2CorrectedText == null
-                                    && tier2Perplexity < 60
-                                    && tier2Perplexity > 0
-                                    && Math.Abs(tier2Perplexity - 50.0) > 0.1; // Exclude neutral score
-            bool needsTier3 = (spellResult.IsGarbled || tier2CorrectedText != null) && !tier2TrulyValidated;
+            var tier2TrulyValidated = tier2CorrectedText == null
+                                      && tier2Perplexity < 60
+                                      && tier2Perplexity > 0
+                                      && Math.Abs(tier2Perplexity - 50.0) > 0.1; // Exclude neutral score
+            var needsTier3 = (spellResult.IsGarbled || tier2CorrectedText != null) && !tier2TrulyValidated;
 
             if (needsTier3 && _sentinelLlmCorrector != null)
             {
@@ -273,14 +270,14 @@ public class OcrQualityWave : IAnalysisWave
             // Emit final corrected text signal (prioritized over voting/temporal median in ledger)
             // This ensures corrected text from Tier 2 or Tier 3 is used
             if (finalCorrectedText != ocrText)
-            {
                 signals.Add(new Signal
                 {
                     Key = "ocr.final.corrected_text",
                     Value = finalCorrectedText,
-                    Confidence = tier3Applied ? 0.9 : (tier2CorrectedText != null ? 0.8 : 0.0),
+                    Confidence = tier3Applied ? 0.9 : tier2CorrectedText != null ? 0.8 : 0.0,
                     Source = Name,
-                    Tags = new List<string> { "ocr", "corrected", tier3Applied ? "tier3" : tier2CorrectedText != null ? "tier2" : "tier1" },
+                    Tags = new List<string>
+                        { "ocr", "corrected", tier3Applied ? "tier3" : tier2CorrectedText != null ? "tier2" : "tier1" },
                     Metadata = new Dictionary<string, object>
                     {
                         ["original_text"] = ocrText,
@@ -288,7 +285,6 @@ public class OcrQualityWave : IAnalysisWave
                         ["tier3_applied"] = tier3Applied
                     }
                 });
-            }
 
             // Log correction pipeline summary
             var pipelineSummary = new Dictionary<string, object>
@@ -361,7 +357,8 @@ public class OcrQualityWave : IAnalysisWave
                     {
                         ["quality_score"] = spellResult.CorrectWordsRatio,
                         ["text_length"] = ocrText.Length,
-                        ["misspelled_words"] = spellResult.MisspelledWords.Take(10).ToList(), // First 10 for diagnostics
+                        ["misspelled_words"] =
+                            spellResult.MisspelledWords.Take(10).ToList(), // First 10 for diagnostics
                         ["correction_method"] = "llm_sentinel",
                         ["reason"] = "garbled"
                     }
@@ -424,7 +421,7 @@ public class OcrQualityWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Apply ML contextual suggestions to correct OCR text
+    ///     Apply ML contextual suggestions to correct OCR text
     /// </summary>
     private string ApplyContextualSuggestions(string originalText, List<ContextSuggestion> suggestions)
     {
@@ -434,13 +431,9 @@ public class OcrQualityWave : IAnalysisWave
 
         // Apply suggestions in order of word index
         foreach (var suggestion in suggestions.OrderBy(s => s.WordIndex))
-        {
             if (suggestion.WordIndex < correctedWords.Length && suggestion.Alternatives.Any())
-            {
                 // Take the first (best) alternative
                 correctedWords[suggestion.WordIndex] = suggestion.Alternatives.First();
-            }
-        }
 
         return string.Join(" ", correctedWords);
     }

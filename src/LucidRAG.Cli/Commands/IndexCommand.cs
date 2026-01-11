@@ -1,22 +1,30 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
-using Microsoft.Extensions.DependencyInjection;
 using LucidRAG.Cli.Services;
 using LucidRAG.Data;
+using LucidRAG.Entities;
+using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// Index files for RAG search
+///     Index files for RAG search
 /// </summary>
 public static class IndexCommand
 {
-    private static readonly Argument<string[]> FilesArg = new("files") { Description = "Files or directories to index", Arity = ArgumentArity.OneOrMore };
-    private static readonly Option<string?> CollectionOpt = new("-c", "--collection") { Description = "Collection name" };
-    private static readonly Option<bool> RecursiveOpt = new("-r", "--recursive") { Description = "Process directories recursively", DefaultValueFactory = _ => false };
+    private static readonly Argument<string[]> FilesArg = new("files")
+        { Description = "Files or directories to index", Arity = ArgumentArity.OneOrMore };
+
+    private static readonly Option<string?> CollectionOpt = new("-c", "--collection")
+        { Description = "Collection name" };
+
+    private static readonly Option<bool> RecursiveOpt = new("-r", "--recursive")
+        { Description = "Process directories recursively", DefaultValueFactory = _ => false };
+
     private static readonly Option<string?> DataDirOpt = new("--data-dir") { Description = "Data directory" };
-    private static readonly Option<bool> VerboseOpt = new("-v", "--verbose") { Description = "Verbose output", DefaultValueFactory = _ => false };
+
+    private static readonly Option<bool> VerboseOpt = new("-v", "--verbose")
+        { Description = "Verbose output", DefaultValueFactory = _ => false };
 
     public static Command Create()
     {
@@ -58,7 +66,7 @@ public static class IndexCommand
                 var collection = db.Collections.FirstOrDefault(c => c.Name == collectionName);
                 if (collection == null)
                 {
-                    collection = new LucidRAG.Entities.CollectionEntity
+                    collection = new CollectionEntity
                     {
                         Id = Guid.NewGuid(),
                         Name = collectionName
@@ -67,6 +75,7 @@ public static class IndexCommand
                     await db.SaveChangesAsync(ct);
                     AnsiConsole.MarkupLine($"[green]Created collection:[/] {collectionName}");
                 }
+
                 collectionId = collection.Id;
             }
 

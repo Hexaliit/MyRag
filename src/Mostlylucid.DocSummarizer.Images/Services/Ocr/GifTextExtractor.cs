@@ -2,31 +2,29 @@ using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Gif;
-using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr;
 
 /// <summary>
-/// Extracts text from animated images (GIF/WebP) by intelligently sampling frames.
-/// Handles progressive text reveals (letters appearing one by one) and subtitle-style text changes.
+///     Extracts text from animated images (GIF/WebP) by intelligently sampling frames.
+///     Handles progressive text reveals (letters appearing one by one) and subtitle-style text changes.
 /// </summary>
 public class GifTextExtractor
 {
-    private readonly IOcrEngine _ocrEngine;
-    private readonly TextLikelinessAnalyzer _textAnalyzer;
-    private readonly ILogger<GifTextExtractor>? _logger;
     private readonly AdvancedGifOcrService? _advancedOcrService;
     private readonly ImageConfig _config;
+    private readonly bool _enableSubtitleOptimization = true; // Enable fast path for subtitle regions
+    private readonly ILogger<GifTextExtractor>? _logger;
+    private readonly int _maxFramesToAnalyze = 30; // Don't analyze more than 30 frames total
 
     // Configuration
     private readonly int _maxFramesToSample = 10; // Sample up to 10 frames
-    private readonly int _maxFramesToAnalyze = 30; // Don't analyze more than 30 frames total
-    private readonly double _textLikelinessThreshold = 0.3; // Only OCR frames with text score > 0.3
-    private readonly bool _enableSubtitleOptimization = true; // Enable fast path for subtitle regions
+    private readonly IOcrEngine _ocrEngine;
     private readonly double _subtitleRegionHeight = 0.25; // Bottom 25% of frame for subtitles
+    private readonly TextLikelinessAnalyzer _textAnalyzer;
+    private readonly double _textLikelinessThreshold = 0.3; // Only OCR frames with text score > 0.3
 
     public GifTextExtractor(
         IOcrEngine ocrEngine,
@@ -42,8 +40,8 @@ public class GifTextExtractor
     }
 
     /// <summary>
-    /// Extract text from an animated image by sampling multiple frames.
-    /// Returns combined text from all frames, handling progressive reveals and subtitle changes.
+    ///     Extract text from an animated image by sampling multiple frames.
+    ///     Returns combined text from all frames, handling progressive reveals and subtitle changes.
     /// </summary>
     public async Task<GifTextExtractionResult> ExtractTextAsync(
         string imagePath,
@@ -53,9 +51,7 @@ public class GifTextExtractor
         var formatName = format?.Name?.ToUpperInvariant();
 
         if (formatName != "GIF" && formatName != "WEBP")
-        {
             throw new ArgumentException($"Unsupported animated format: {formatName}. Only GIF and WebP are supported.");
-        }
 
         // Use advanced pipeline if enabled and available
         if (_config.Ocr.UseAdvancedPipeline && _advancedOcrService != null)
@@ -64,7 +60,7 @@ public class GifTextExtractor
                 "Using advanced OCR pipeline (mode={Mode}) for {Format}: {Path}",
                 _config.Ocr.QualityMode, formatName, imagePath);
 
-            var advancedResult = await _advancedOcrService.ExtractTextAsync(imagePath, captureProcessedFrames: false, ct: ct);
+            var advancedResult = await _advancedOcrService.ExtractTextAsync(imagePath, false, ct);
 
             // Convert AdvancedOcrResult to GifTextExtractionResult
             return new GifTextExtractionResult
@@ -126,9 +122,9 @@ public class GifTextExtractor
         // Step 1: Sample frames and calculate text likeliness scores with SSIM-based deduplication
         var frameScores = new List<(int FrameIndex, double TextScore, Image<Rgba32> Frame)>();
         Image<Rgba32>? previousFrame = null;
-        int skippedDuplicates = 0;
+        var skippedDuplicates = 0;
 
-        for (int i = 0; i < frameCount; i += samplingInterval)
+        for (var i = 0; i < frameCount; i += samplingInterval)
         {
             if (ct.IsCancellationRequested) break;
             if (frameScores.Count >= framesToAnalyze) break;
@@ -181,10 +177,7 @@ public class GifTextExtractor
             _logger?.LogWarning("No frames met text likeliness threshold");
 
             // Clean up
-            foreach (var (_, _, frame) in frameScores)
-            {
-                frame.Dispose();
-            }
+            foreach (var (_, _, frame) in frameScores) frame.Dispose();
 
             return new GifTextExtractionResult
             {
@@ -201,7 +194,7 @@ public class GifTextExtractor
         var allTextRegions = new List<OcrTextRegion>();
         var frameTextData = new List<FrameTextData>();
         var tempImagePath = Path.Combine(Path.GetTempPath(), $"frame_{Guid.NewGuid()}.png");
-        int subtitleOptimizationCount = 0;
+        var subtitleOptimizationCount = 0;
 
         try
         {
@@ -219,7 +212,7 @@ public class GifTextExtractor
                     var subtitleY = frame.Height - subtitleHeight;
 
                     using var croppedFrame = frame.Clone(ctx =>
-                        ctx.Crop(new SixLabors.ImageSharp.Rectangle(0, subtitleY, frame.Width, subtitleHeight)));
+                        ctx.Crop(new Rectangle(0, subtitleY, frame.Width, subtitleHeight)));
 
                     await croppedFrame.SaveAsPngAsync(tempImagePath, ct);
 
@@ -275,26 +268,18 @@ public class GifTextExtractor
         finally
         {
             // Clean up temp file
-            if (File.Exists(tempImagePath))
-            {
-                File.Delete(tempImagePath);
-            }
+            if (File.Exists(tempImagePath)) File.Delete(tempImagePath);
 
             // Clean up frames
-            foreach (var (_, _, frame) in frameScores)
-            {
-                frame.Dispose();
-            }
+            foreach (var (_, _, frame) in frameScores) frame.Dispose();
         }
 
         // Step 4: Deduplicate and combine text
         var combinedText = DeduplicateAndCombineText(frameTextData);
 
         if (subtitleOptimizationCount > 0)
-        {
             _logger?.LogInformation("Subtitle optimization: {Count} frames used fast path (bottom {Percent}% only)",
                 subtitleOptimizationCount, _subtitleRegionHeight * 100);
-        }
 
         _logger?.LogInformation("Extracted {Total} text regions from {Frames} frames, combined to: {Preview}",
             allTextRegions.Count, selectedFrames.Count,
@@ -312,8 +297,8 @@ public class GifTextExtractor
     }
 
     /// <summary>
-    /// Fast heuristic to detect if text is likely in subtitle region (bottom portion of frame).
-    /// Uses edge density distribution to avoid expensive text-likeliness calculation.
+    ///     Fast heuristic to detect if text is likely in subtitle region (bottom portion of frame).
+    ///     Uses edge density distribution to avoid expensive text-likeliness calculation.
     /// </summary>
     private bool HasSubtitleLikelyDistribution(Image<Rgba32> frame)
     {
@@ -329,13 +314,13 @@ public class GifTextExtractor
         // Quick edge detection: count high-contrast pixels
         frame.ProcessPixelRows(accessor =>
         {
-            for (int y = 1; y < height - 1; y += 4) // Sample every 4th row for speed
+            for (var y = 1; y < height - 1; y += 4) // Sample every 4th row for speed
             {
                 var prevRow = accessor.GetRowSpan(y - 1);
                 var currRow = accessor.GetRowSpan(y);
                 var nextRow = accessor.GetRowSpan(y + 1);
 
-                for (int x = 1; x < width - 1; x += 4) // Sample every 4th pixel
+                for (var x = 1; x < width - 1; x += 4) // Sample every 4th pixel
                 {
                     var center = currRow[x];
                     var centerLum = (int)(0.299 * center.R + 0.587 * center.G + 0.114 * center.B);
@@ -372,8 +357,8 @@ public class GifTextExtractor
     }
 
     /// <summary>
-    /// Compute similarity between two frames (SSIM-like metric).
-    /// Returns value from 0.0 (completely different) to 1.0 (identical).
+    ///     Compute similarity between two frames (SSIM-like metric).
+    ///     Returns value from 0.0 (completely different) to 1.0 (identical).
     /// </summary>
     private double ComputeFrameSimilarity(Image<Rgba32> frame1, Image<Rgba32> frame2)
     {
@@ -386,12 +371,12 @@ public class GifTextExtractor
         // Sample every 4th pixel for performance
         frame1.ProcessPixelRows(frame2, (row1Accessor, row2Accessor) =>
         {
-            for (int y = 0; y < height; y += 4)
+            for (var y = 0; y < height; y += 4)
             {
                 var row1 = row1Accessor.GetRowSpan(y);
                 var row2 = row2Accessor.GetRowSpan(y);
 
-                for (int x = 0; x < width; x += 4)
+                for (var x = 0; x < width; x += 4)
                 {
                     var p1 = row1[x];
                     var p2 = row2[x];
@@ -415,17 +400,14 @@ public class GifTextExtractor
     }
 
     /// <summary>
-    /// Deduplicate and combine text from multiple frames.
-    /// Handles progressive reveals (H -> HE -> HEL -> HELL -> HELLO) and subtitle changes.
-    /// Uses Levenshtein distance to handle OCR errors gracefully.
+    ///     Deduplicate and combine text from multiple frames.
+    ///     Handles progressive reveals (H -> HE -> HEL -> HELL -> HELLO) and subtitle changes.
+    ///     Uses Levenshtein distance to handle OCR errors gracefully.
     /// </summary>
     private string DeduplicateAndCombineText(List<FrameTextData> frameTextData)
     {
         if (frameTextData.Count == 0) return string.Empty;
-        if (frameTextData.Count == 1)
-        {
-            return string.Join(" ", frameTextData[0].TextRegions.Select(r => r.Text));
-        }
+        if (frameTextData.Count == 1) return string.Join(" ", frameTextData[0].TextRegions.Select(r => r.Text));
 
         // Strategy: Track unique text blocks across frames
         // - Progressive reveals: keep the longest version
@@ -440,10 +422,10 @@ public class GifTextExtractor
 
             if (string.IsNullOrWhiteSpace(frameText)) continue;
 
-            bool merged = false;
+            var merged = false;
 
             // Check for progressive reveals and OCR variations using Levenshtein distance
-            for (int i = 0; i < subtitleLines.Count; i++)
+            for (var i = 0; i < subtitleLines.Count; i++)
             {
                 var existing = subtitleLines[i];
 
@@ -454,7 +436,8 @@ public class GifTextExtractor
                     merged = true;
                     break;
                 }
-                else if (frameText.Contains(existing, StringComparison.OrdinalIgnoreCase))
+
+                if (frameText.Contains(existing, StringComparison.OrdinalIgnoreCase))
                 {
                     // Current text is longer version - replace
                     subtitleLines[i] = frameText;
@@ -470,20 +453,15 @@ public class GifTextExtractor
                 if (maxLength > 0 && distance <= Math.Max(3, maxLength * 0.15)) // Allow 15% error rate
                 {
                     // Keep the longer version (likely more complete)
-                    if (frameText.Length > existing.Length)
-                    {
-                        subtitleLines[i] = frameText;
-                    }
+                    if (frameText.Length > existing.Length) subtitleLines[i] = frameText;
                     merged = true;
                     break;
                 }
             }
 
             if (!merged)
-            {
                 // This is genuinely new text
                 subtitleLines.Add(frameText);
-            }
         }
 
         // Return combined text
@@ -491,8 +469,8 @@ public class GifTextExtractor
     }
 
     /// <summary>
-    /// Calculate Levenshtein distance between two strings.
-    /// Returns the minimum number of single-character edits required to transform one string into the other.
+    ///     Calculate Levenshtein distance between two strings.
+    ///     Returns the minimum number of single-character edits required to transform one string into the other.
     /// </summary>
     private int LevenshteinDistance(string source, string target)
     {
@@ -502,29 +480,27 @@ public class GifTextExtractor
         if (string.IsNullOrEmpty(target))
             return source.Length;
 
-        int sourceLength = source.Length;
-        int targetLength = target.Length;
+        var sourceLength = source.Length;
+        var targetLength = target.Length;
 
         var distance = new int[sourceLength + 1, targetLength + 1];
 
         // Initialize first column and row
-        for (int i = 0; i <= sourceLength; i++)
+        for (var i = 0; i <= sourceLength; i++)
             distance[i, 0] = i;
 
-        for (int j = 0; j <= targetLength; j++)
+        for (var j = 0; j <= targetLength; j++)
             distance[0, j] = j;
 
         // Calculate distances
-        for (int i = 1; i <= sourceLength; i++)
+        for (var i = 1; i <= sourceLength; i++)
+        for (var j = 1; j <= targetLength; j++)
         {
-            for (int j = 1; j <= targetLength; j++)
-            {
-                int cost = (target[j - 1] == source[i - 1]) ? 0 : 1;
+            var cost = target[j - 1] == source[i - 1] ? 0 : 1;
 
-                distance[i, j] = Math.Min(
-                    Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
-                    distance[i - 1, j - 1] + cost);
-            }
+            distance[i, j] = Math.Min(
+                Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
+                distance[i - 1, j - 1] + cost);
         }
 
         return distance[sourceLength, targetLength];
@@ -532,58 +508,58 @@ public class GifTextExtractor
 }
 
 /// <summary>
-/// Result of GIF text extraction with multi-frame analysis.
+///     Result of GIF text extraction with multi-frame analysis.
 /// </summary>
 public record GifTextExtractionResult
 {
     /// <summary>
-    /// Total number of frames in the GIF/WebP.
+    ///     Total number of frames in the GIF/WebP.
     /// </summary>
     public required int TotalFrames { get; init; }
 
     /// <summary>
-    /// Number of frames that were analyzed for text likeliness.
+    ///     Number of frames that were analyzed for text likeliness.
     /// </summary>
     public required int FramesAnalyzed { get; init; }
 
     /// <summary>
-    /// Number of frames that had text extracted.
+    ///     Number of frames that had text extracted.
     /// </summary>
     public required int FramesWithText { get; init; }
 
     /// <summary>
-    /// All text regions extracted from all frames.
+    ///     All text regions extracted from all frames.
     /// </summary>
     public required List<OcrTextRegion> TextRegions { get; init; }
 
     /// <summary>
-    /// Combined deduplicated text from all frames.
+    ///     Combined deduplicated text from all frames.
     /// </summary>
     public required string CombinedText { get; init; }
 
     /// <summary>
-    /// Per-frame text data (for debugging/analysis).
+    ///     Per-frame text data (for debugging/analysis).
     /// </summary>
     public required List<FrameTextData> FrameTextData { get; init; }
 }
 
 /// <summary>
-/// Text data extracted from a single frame.
+///     Text data extracted from a single frame.
 /// </summary>
 public record FrameTextData
 {
     /// <summary>
-    /// Frame index in the GIF/WebP.
+    ///     Frame index in the GIF/WebP.
     /// </summary>
     public required int FrameIndex { get; init; }
 
     /// <summary>
-    /// Text regions extracted from this frame.
+    ///     Text regions extracted from this frame.
     /// </summary>
     public required List<OcrTextRegion> TextRegions { get; init; }
 
     /// <summary>
-    /// Text likeliness score for this frame.
+    ///     Text likeliness score for this frame.
     /// </summary>
     public required double TextLikelinessScore { get; init; }
 }

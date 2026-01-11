@@ -1,31 +1,38 @@
+using LucidRAG.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using LucidRAG.Data;
 
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
-/// Web application factory for integration testing with real services
+///     Web application factory for integration testing with real services
 /// </summary>
 public class TestWebApplicationFactory : WebApplicationFactory<Program>
 {
     /// <summary>
-    /// Connection string for existing dev PostgreSQL.
-    /// Reads from ConnectionStrings__DefaultConnection env var (CI), POSTGRES_PASSWORD env var, or .env file.
+    ///     Connection string for existing dev PostgreSQL.
+    ///     Reads from ConnectionStrings__DefaultConnection env var (CI), POSTGRES_PASSWORD env var, or .env file.
     /// </summary>
     public string PostgresConnectionString { get; set; } = GetConnectionString();
+
+    /// <summary>
+    ///     Ollama base URL
+    /// </summary>
+    public string OllamaBaseUrl { get; set; } = "http://localhost:11434";
+
+    /// <summary>
+    ///     Qdrant URL (if using Qdrant instead of DuckDB)
+    /// </summary>
+    public string QdrantUrl { get; set; } = "http://localhost:6333";
 
     private static string GetConnectionString()
     {
         // First check for full connection string (set by CI workflow)
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
-        if (!string.IsNullOrEmpty(connectionString))
-        {
-            return connectionString;
-        }
+        if (!string.IsNullOrEmpty(connectionString)) return connectionString;
 
         // Try POSTGRES_PASSWORD environment variable
         var password = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD");
@@ -38,21 +45,17 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
             {
                 var lines = File.ReadAllLines(envPath);
                 foreach (var line in lines)
-                {
                     if (line.StartsWith("POSTGRES_PASSWORD="))
                     {
                         password = line.Substring("POSTGRES_PASSWORD=".Length).Trim();
                         break;
                     }
-                }
             }
         }
 
         if (string.IsNullOrEmpty(password))
-        {
             throw new InvalidOperationException(
                 "POSTGRES_PASSWORD not found. Set ConnectionStrings__DefaultConnection, POSTGRES_PASSWORD environment variable, or ensure .env file exists in solution root.");
-        }
 
         return $"Host=localhost;Port=5432;Database=ragdocs_test;Username=postgres;Password={password}";
     }
@@ -68,18 +71,9 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
                 return envPath;
             dir = dir.Parent;
         }
+
         return null;
     }
-
-    /// <summary>
-    /// Ollama base URL
-    /// </summary>
-    public string OllamaBaseUrl { get; set; } = "http://localhost:11434";
-
-    /// <summary>
-    /// Qdrant URL (if using Qdrant instead of DuckDB)
-    /// </summary>
-    public string QdrantUrl { get; set; } = "http://localhost:6333";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -88,12 +82,9 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             // Remove existing DbContext registration
-            var descriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(DbContextOptions<RagDocumentsDbContext>));
-            if (descriptor != null)
-            {
-                services.Remove(descriptor);
-            }
+            var descriptor =
+                services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<RagDocumentsDbContext>));
+            if (descriptor != null) services.Remove(descriptor);
 
             // Add PostgreSQL for testing
             services.AddDbContext<RagDocumentsDbContext>(options =>
@@ -121,7 +112,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// Ensure database is created and migrated
+    ///     Ensure database is created and migrated
     /// </summary>
     public async Task EnsureDatabaseAsync()
     {
@@ -131,7 +122,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// Clean up test data
+    ///     Clean up test data
     /// </summary>
     public async Task CleanupAsync()
     {

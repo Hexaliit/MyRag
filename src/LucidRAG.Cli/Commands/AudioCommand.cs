@@ -1,15 +1,14 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
-using Microsoft.Extensions.DependencyInjection;
-using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Models;
-using Spectre.Console;
+using AudioSummarizer.Core.Services.Analysis;
 using LucidRAG.Cli.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
 
 namespace LucidRAG.Cli.Commands;
 
 /// <summary>
-/// Analyze audio files for forensic characterization, transcription, and speaker analysis
+///     Analyze audio files for forensic characterization, transcription, and speaker analysis
 /// </summary>
 public static class AudioCommand
 {
@@ -44,7 +43,8 @@ public static class AudioCommand
 
     public static Command Create()
     {
-        var command = new Command("audio", "Analyze audio files (forensic characterization, transcription, speaker analysis)");
+        var command = new Command("audio",
+            "Analyze audio files (forensic characterization, transcription, speaker analysis)");
         command.Arguments.Add(AudioFilesArg);
         command.Options.Add(ShowSignalsOpt);
         command.Options.Add(VerboseOpt);
@@ -98,10 +98,8 @@ public static class AudioCommand
 
                         profile = await AnsiConsole.Status()
                             .Spinner(Spinner.Known.Dots)
-                            .StartAsync("Analyzing audio...", async ctx =>
-                            {
-                                return await orchestrator.AnalyzeAsync(fullPath, ct);
-                            });
+                            .StartAsync("Analyzing audio...",
+                                async ctx => { return await orchestrator.AnalyzeAsync(fullPath, ct); });
                     }
                     else
                     {
@@ -109,13 +107,9 @@ public static class AudioCommand
                     }
 
                     if (jsonOutput)
-                    {
                         Console.WriteLine(profile.ToJson());
-                    }
                     else
-                    {
                         DisplayProfile(profile, showSignals, verbose);
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -234,10 +228,7 @@ public static class AudioCommand
         if (profile.Errors.Count > 0)
         {
             AnsiConsole.MarkupLine("[bold red underline]Errors[/]");
-            foreach (var error in profile.Errors)
-            {
-                AnsiConsole.MarkupLine($"  [red]•[/] {error}");
-            }
+            foreach (var error in profile.Errors) AnsiConsole.MarkupLine($"  [red]•[/] {error}");
             AnsiConsole.WriteLine();
         }
     }

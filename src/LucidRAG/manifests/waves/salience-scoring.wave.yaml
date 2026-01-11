@@ -43,7 +43,7 @@ emits:
   on_complete:
     - key: retrieval.salience.score
       type: number
-      confidence_range: [0.0, 1.0]
+      confidence_range: [ 0.0, 1.0 ]
     - key: retrieval.salience.term_matches
       type: number
     - key: retrieval.salience.completed

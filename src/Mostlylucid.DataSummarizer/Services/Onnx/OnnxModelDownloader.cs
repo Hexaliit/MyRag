@@ -4,7 +4,7 @@ using Spectre.Console;
 namespace Mostlylucid.DataSummarizer.Services.Onnx;
 
 /// <summary>
-/// Downloads and caches ONNX models from HuggingFace
+///     Downloads and caches ONNX models from HuggingFace
 /// </summary>
 public class OnnxModelDownloader
 {
@@ -21,10 +21,10 @@ public class OnnxModelDownloader
     }
 
     /// <summary>
-    /// Ensure embedding model is downloaded and return local path
+    ///     Ensure embedding model is downloaded and return local path
     /// </summary>
     public async Task<EmbeddingModelPaths> EnsureEmbeddingModelAsync(
-        EmbeddingModelInfo model, 
+        EmbeddingModelInfo model,
         CancellationToken ct = default)
     {
         var modelDir = Path.Combine(_modelDirectory, "embeddings", SanitizeName(model.Name));
@@ -37,53 +37,56 @@ public class OnnxModelDownloader
         var tasks = new List<Task>();
 
         if (!File.Exists(modelPath))
-            tasks.Add(DownloadFileAsync(model.GetModelUrl(), modelPath, $"Downloading {model.Name} model", model.SizeBytes, ct));
-        
+            tasks.Add(DownloadFileAsync(model.GetModelUrl(), modelPath, $"Downloading {model.Name} model",
+                model.SizeBytes, ct));
+
         if (!File.Exists(tokenizerPath))
-            tasks.Add(DownloadFileAsync(model.GetTokenizerUrl(), tokenizerPath, $"Downloading tokenizer", null, ct));
-        
+            tasks.Add(DownloadFileAsync(model.GetTokenizerUrl(), tokenizerPath, "Downloading tokenizer", null, ct));
+
         if (!File.Exists(vocabPath))
-            tasks.Add(DownloadFileAsync(model.GetVocabUrl(), vocabPath, $"Downloading vocab", null, ct));
+            tasks.Add(DownloadFileAsync(model.GetVocabUrl(), vocabPath, "Downloading vocab", null, ct));
 
         if (tasks.Count > 0)
         {
             // Always show download message - this is a one-time operation
-            AnsiConsole.MarkupLine($"[yellow]First run: downloading ONNX embedding model {model.Name} (~{model.SizeBytes / 1_000_000}MB)...[/]");
+            AnsiConsole.MarkupLine(
+                $"[yellow]First run: downloading ONNX embedding model {model.Name} (~{model.SizeBytes / 1_000_000}MB)...[/]");
             AnsiConsole.MarkupLine($"[dim]Models are cached at: {modelDir}[/]");
-            
+
             await Task.WhenAll(tasks);
-            
-            AnsiConsole.MarkupLine($"[green]Model downloaded successfully![/]");
+
+            AnsiConsole.MarkupLine("[green]Model downloaded successfully![/]");
         }
 
         return new EmbeddingModelPaths(modelPath, tokenizerPath, vocabPath);
     }
 
     private async Task DownloadFileAsync(
-        string url, 
-        string localPath, 
+        string url,
+        string localPath,
         string description,
         long? expectedSize,
         CancellationToken ct)
     {
         var tempPath = localPath + ".tmp";
-        
+
         try
         {
             using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
             response.EnsureSuccessStatusCode();
 
             var totalBytes = response.Content.Headers.ContentLength ?? expectedSize ?? 0;
-            
+
             await using (var contentStream = await response.Content.ReadAsStreamAsync(ct))
-            await using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+            await using (var fileStream =
+                         new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
             {
                 // Stream the download to disk
                 await contentStream.CopyToAsync(fileStream, ct);
             }
-            
+
             // Move after streams are closed
-            File.Move(tempPath, localPath, overwrite: true);
+            File.Move(tempPath, localPath, true);
         }
         catch
         {
@@ -100,6 +103,6 @@ public class OnnxModelDownloader
 }
 
 /// <summary>
-/// Paths to downloaded embedding model files
+///     Paths to downloaded embedding model files
 /// </summary>
 public record EmbeddingModelPaths(string ModelPath, string TokenizerPath, string VocabPath);

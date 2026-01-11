@@ -5,18 +5,19 @@ using Mostlylucid.GraphRag.Storage;
 namespace Mostlylucid.GraphRag.Search;
 
 /// <summary>
-/// Hybrid search: BERT dense + BM25 sparse via RRF fusion.
+///     Hybrid search: BERT dense + BM25 sparse via RRF fusion.
 /// </summary>
 public sealed class SearchService
 {
+    private static readonly Regex TokenRx = new(@"\b\w+\b", RegexOptions.Compiled);
     private readonly GraphRagDb _db;
     private readonly EmbeddingService _embedder;
     private readonly int _rrfK;
-    
-    // BM25 corpus stats
-    private Dictionary<string, double>? _idf;
     private double _avgDocLen;
     private int _corpusSize;
+
+    // BM25 corpus stats
+    private Dictionary<string, double>? _idf;
 
     public SearchService(GraphRagDb db, EmbeddingService embedder, int rrfK = 60)
     {
@@ -43,7 +44,8 @@ public sealed class SearchService
         }
 
         _avgDocLen = (double)totalLen / _corpusSize;
-        _idf = docFreq.ToDictionary(kv => kv.Key, kv => Math.Log((_corpusSize - kv.Value + 0.5) / (kv.Value + 0.5) + 1), StringComparer.OrdinalIgnoreCase);
+        _idf = docFreq.ToDictionary(kv => kv.Key, kv => Math.Log((_corpusSize - kv.Value + 0.5) / (kv.Value + 0.5) + 1),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<List<SearchResult>> SearchAsync(string query, int topK = 10, CancellationToken ct = default)
@@ -62,13 +64,13 @@ public sealed class SearchService
         // RRF fusion
         var rrfScores = new Dictionary<string, (double Score, ChunkResult Chunk)>();
 
-        for (int i = 0; i < denseResults.Count; i++)
+        for (var i = 0; i < denseResults.Count; i++)
         {
             var c = denseResults[i];
             rrfScores[c.Id] = (1.0 / (_rrfK + i + 1), c);
         }
 
-        for (int i = 0; i < bm25Scores.Count; i++)
+        for (var i = 0; i < bm25Scores.Count; i++)
         {
             var (c, _) = bm25Scores[i];
             var score = 1.0 / (_rrfK + i + 1);
@@ -89,7 +91,8 @@ public sealed class SearchService
             foreach (var e in entities.Take(3))
                 relationships.AddRange(await _db.GetRelationshipsForEntityAsync(e.Id));
 
-            searchResults.Add(new SearchResult(chunk.Id, chunk.DocumentId, chunk.Text, score, chunk.Similarity, entities, relationships.DistinctBy(r => r.Id).ToList()));
+            searchResults.Add(new SearchResult(chunk.Id, chunk.DocumentId, chunk.Text, score, chunk.Similarity,
+                entities, relationships.DistinctBy(r => r.Id).ToList()));
         }
 
         return searchResults;
@@ -102,7 +105,8 @@ public sealed class SearchService
 
         var queryTokens = Tokenize(query);
         var docTokens = Tokenize(doc);
-        var tf = docTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+        var tf = docTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
         double score = 0;
         foreach (var term in queryTokens.Distinct(StringComparer.OrdinalIgnoreCase))
@@ -110,6 +114,7 @@ public sealed class SearchService
             if (!tf.TryGetValue(term, out var freq) || !_idf.TryGetValue(term, out var idf)) continue;
             score += idf * freq * (k1 + 1) / (freq + k1 * (1 - b + b * docTokens.Count / _avgDocLen));
         }
+
         return score;
     }
 
@@ -120,8 +125,17 @@ public sealed class SearchService
         return all.Where(e => lower.Contains(e.Name.ToLowerInvariant())).ToList();
     }
 
-    private static readonly Regex TokenRx = new(@"\b\w+\b", RegexOptions.Compiled);
-    private static List<string> Tokenize(string text) => TokenRx.Matches(text.ToLowerInvariant()).Select(m => m.Value).Where(t => t.Length > 1).ToList();
+    private static List<string> Tokenize(string text)
+    {
+        return TokenRx.Matches(text.ToLowerInvariant()).Select(m => m.Value).Where(t => t.Length > 1).ToList();
+    }
 }
 
-public record SearchResult(string ChunkId, string DocumentId, string Text, double Score, float DenseSim, List<EntityResult> Entities, List<RelationshipResult> Relationships);
+public record SearchResult(
+    string ChunkId,
+    string DocumentId,
+    string Text,
+    double Score,
+    float DenseSim,
+    List<EntityResult> Entities,
+    List<RelationshipResult> Relationships);

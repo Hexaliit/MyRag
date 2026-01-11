@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Mostlylucid.GraphRag.Services;
 using Mostlylucid.GraphRag.Storage;
@@ -5,39 +7,36 @@ using Mostlylucid.GraphRag.Storage;
 namespace Mostlylucid.GraphRag.Extraction;
 
 /// <summary>
-/// Entity extraction using BERT embeddings + IDF statistics + structural signals.
-/// 
-/// No hardcoded entity lists. Instead, we detect entities through:
-/// 1. IDF-based term importance (rare terms across corpus = likely entities)
-/// 2. Semantic clustering (BERT embeddings to find coherent concepts)
-/// 3. Structural signals (markdown headings, code blocks, links)
-/// 4. Co-occurrence patterns (terms that frequently appear together)
-/// 
-/// See also: Mostlylucid.DocSummarizer for BM25Scorer and embedding infrastructure.
+///     Entity extraction using BERT embeddings + IDF statistics + structural signals.
+///     No hardcoded entity lists. Instead, we detect entities through:
+///     1. IDF-based term importance (rare terms across corpus = likely entities)
+///     2. Semantic clustering (BERT embeddings to find coherent concepts)
+///     3. Structural signals (markdown headings, code blocks, links)
+///     4. Co-occurrence patterns (terms that frequently appear together)
+///     See also: Mostlylucid.DocSummarizer for BM25Scorer and embedding infrastructure.
 /// </summary>
 public sealed class EntityExtractor : IEntityExtractor
 {
-    private readonly GraphRagDb _db;
-    private readonly EmbeddingService _embedder;
-    private readonly OllamaClient? _llm;
-    private readonly ExtractionMode _mode;
-    private int _llmCallCount;
-    
+    // Minimum thresholds - tuned to reduce noise
+    private const double MinIdfThreshold = 3.5; // Terms must be quite rare (log(N/df) > 3.5)
+    private const int MinMentionCount = 3; // Must appear 3+ times to be significant
+    private const int MinTermLength = 3; // Skip very short terms
+    private const double MinEmbeddingSimilarity = 0.85; // For deduplication
+    private const int MaxCandidatesForEmbedding = 500; // Limit embedding batch size
+
     // Structural patterns - what the author marked as important
     private static readonly Regex HeadingRx = new(@"^#{1,3}\s+(.+)$", RegexOptions.Multiline | RegexOptions.Compiled);
     private static readonly Regex InlineCodeRx = new(@"`([^`]{2,50})`", RegexOptions.Compiled);
     private static readonly Regex InternalLinkRx = new(@"\[([^\]]+)\]\(/blog/([^)]+)\)", RegexOptions.Compiled);
     private static readonly Regex ExternalLinkRx = new(@"\[([^\]]+)\]\((https?://[^)]+)\)", RegexOptions.Compiled);
     private static readonly Regex TokenRx = new(@"\b[A-Za-z][A-Za-z0-9_\.#\+\-]*[A-Za-z0-9]\b", RegexOptions.Compiled);
-    
-    // Minimum thresholds - tuned to reduce noise
-    private const double MinIdfThreshold = 3.5;  // Terms must be quite rare (log(N/df) > 3.5)
-    private const int MinMentionCount = 3;       // Must appear 3+ times to be significant
-    private const int MinTermLength = 3;         // Skip very short terms
-    private const double MinEmbeddingSimilarity = 0.85; // For deduplication
-    private const int MaxCandidatesForEmbedding = 500; // Limit embedding batch size
+    private readonly GraphRagDb _db;
+    private readonly EmbeddingService _embedder;
+    private readonly OllamaClient? _llm;
+    private readonly ExtractionMode _mode;
+    private int _llmCallCount;
 
-    public EntityExtractor(GraphRagDb db, EmbeddingService embedder, OllamaClient? llm = null, 
+    public EntityExtractor(GraphRagDb db, EmbeddingService embedder, OllamaClient? llm = null,
         ExtractionMode mode = ExtractionMode.Heuristic)
     {
         _db = db;
@@ -46,14 +45,15 @@ public sealed class EntityExtractor : IEntityExtractor
         _mode = mode;
     }
 
-    public async Task<ExtractionResult> ExtractAsync(IProgress<ProgressInfo>? progress = null, CancellationToken ct = default)
+    public async Task<ExtractionResult> ExtractAsync(IProgress<ProgressInfo>? progress = null,
+        CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         _llmCallCount = 0;
-        
+
         var chunks = await _db.GetAllChunksAsync();
         var stats = new ExtractionStats();
-        if (chunks.Count == 0) 
+        if (chunks.Count == 0)
             return new ExtractionResult { Mode = _mode };
 
         // ═══════════════════════════════════════════════════════════════════
@@ -62,7 +62,7 @@ public sealed class EntityExtractor : IEntityExtractor
         // ═══════════════════════════════════════════════════════════════════
         progress?.Report(new ProgressInfo(0, 1, "Computing corpus statistics (IDF)..."));
         var (termIdf, termDocFreq) = ComputeIdfStats(chunks);
-        
+
         // ═══════════════════════════════════════════════════════════════════
         // Phase 2: Extract candidates using IDF + structural signals
         // ═══════════════════════════════════════════════════════════════════
@@ -70,16 +70,15 @@ public sealed class EntityExtractor : IEntityExtractor
         var coOccurrences = new Dictionary<(string, string), int>();
         var linkRelationships = new List<(string Source, string Target, string Type, string[] ChunkIds)>();
 
-        for (int i = 0; i < chunks.Count; i++)
+        for (var i = 0; i < chunks.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
             var chunk = chunks[i];
-            
+
             // Extract from this chunk using multiple signals
             var chunkCandidates = ExtractFromChunk(chunk.Text, termIdf);
-            
+
             foreach (var c in chunkCandidates)
-            {
                 if (candidates.TryGetValue(c.Name, out var existing))
                 {
                     existing.ChunkIds.Add(chunk.Id);
@@ -92,22 +91,20 @@ public sealed class EntityExtractor : IEntityExtractor
                     c.ChunkIds.Add(chunk.Id);
                     candidates[c.Name] = c;
                 }
-            }
-            
+
             // Extract explicit relationships from links
             foreach (var link in ExtractLinks(chunk.Text, chunk.Id))
                 linkRelationships.Add(link);
-            
+
             // Track co-occurrences for relationship detection
             var chunkTerms = chunkCandidates.Select(c => c.Name).Distinct().ToList();
-            for (int j = 0; j < chunkTerms.Count; j++)
+            for (var j = 0; j < chunkTerms.Count; j++)
+            for (var k = j + 1; k < chunkTerms.Count; k++)
             {
-                for (int k = j + 1; k < chunkTerms.Count; k++)
-                {
-                    var pair = string.Compare(chunkTerms[j], chunkTerms[k], StringComparison.OrdinalIgnoreCase) < 0
-                        ? (chunkTerms[j], chunkTerms[k]) : (chunkTerms[k], chunkTerms[j]);
-                    coOccurrences[pair] = coOccurrences.GetValueOrDefault(pair) + 1;
-                }
+                var pair = string.Compare(chunkTerms[j], chunkTerms[k], StringComparison.OrdinalIgnoreCase) < 0
+                    ? (chunkTerms[j], chunkTerms[k])
+                    : (chunkTerms[k], chunkTerms[j]);
+                coOccurrences[pair] = coOccurrences.GetValueOrDefault(pair) + 1;
             }
 
             if (i % 50 == 0)
@@ -121,8 +118,8 @@ public sealed class EntityExtractor : IEntityExtractor
         // Phase 3: Filter by significance (must have multiple signals or high confidence)
         // ═══════════════════════════════════════════════════════════════════
         var significant = candidates.Values
-            .Where(c => c.MentionCount >= MinMentionCount || 
-                       (c.Confidence >= 0.8 && c.Signals.Count >= 2))
+            .Where(c => c.MentionCount >= MinMentionCount ||
+                        (c.Confidence >= 0.8 && c.Signals.Count >= 2))
             .OrderByDescending(c => c.MentionCount * c.Confidence)
             .Take(MaxCandidatesForEmbedding) // Limit for performance
             .ToList();
@@ -139,16 +136,16 @@ public sealed class EntityExtractor : IEntityExtractor
         // Phase 5: Classify entity types (LLM or structural heuristics)
         // ═══════════════════════════════════════════════════════════════════
         progress?.Report(new ProgressInfo(0, 1, "Classifying entities..."));
-        
+
         var llmAvailable = _llm != null && await _llm.IsAvailableAsync(ct);
         var usedLlm = false;
-        
+
         if (_mode == ExtractionMode.Llm)
         {
             // LLM mode: require LLM for classification
             if (!llmAvailable)
                 throw new InvalidOperationException("ExtractionMode.Llm requires an available Ollama model.");
-            
+
             await ClassifyWithLlmAsync(deduped, ct);
             usedLlm = true;
         }
@@ -179,7 +176,7 @@ public sealed class EntityExtractor : IEntityExtractor
         stats.CoOccurrenceRelationshipsStored = await StoreCoOccurrenceRelationshipsAsync(coOccurrences, deduped);
 
         sw.Stop();
-        
+
         return new ExtractionResult
         {
             EntitiesExtracted = stats.EntitiesStored,
@@ -191,39 +188,39 @@ public sealed class EntityExtractor : IEntityExtractor
     }
 
     /// <summary>
-    /// Compute IDF (Inverse Document Frequency) for all terms in corpus.
-    /// High IDF = term appears in few documents = likely an entity.
-    /// Low IDF = term appears everywhere = likely a common word.
+    ///     Compute IDF (Inverse Document Frequency) for all terms in corpus.
+    ///     High IDF = term appears in few documents = likely an entity.
+    ///     Low IDF = term appears everywhere = likely a common word.
     /// </summary>
     private (Dictionary<string, double> Idf, Dictionary<string, int> DocFreq) ComputeIdfStats(List<ChunkResult> chunks)
     {
         var docFreq = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        
+
         foreach (var chunk in chunks)
         {
             var terms = TokenRx.Matches(chunk.Text)
                 .Select(m => m.Value)
                 .Where(t => t.Length >= 2)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
-            
+
             foreach (var term in terms)
                 docFreq[term] = docFreq.GetValueOrDefault(term) + 1;
         }
-        
+
         // IDF = log(N / df) where N = total docs, df = docs containing term
         var idf = docFreq.ToDictionary(
             kv => kv.Key,
             kv => Math.Log((double)chunks.Count / kv.Value),
             StringComparer.OrdinalIgnoreCase);
-        
+
         return (idf, docFreq);
     }
 
     /// <summary>
-    /// Extract entity candidates from a chunk using multiple signals:
-    /// - High IDF terms (rare in corpus)
-    /// - Structural markers (headings, code, bold)
-    /// - Syntactic patterns (PascalCase, dotted.names)
+    ///     Extract entity candidates from a chunk using multiple signals:
+    ///     - High IDF terms (rare in corpus)
+    ///     - Structural markers (headings, code, bold)
+    ///     - Syntactic patterns (PascalCase, dotted.names)
     /// </summary>
     private List<EntityCandidate> ExtractFromChunk(string text, Dictionary<string, double> termIdf)
     {
@@ -234,7 +231,7 @@ public sealed class EntityExtractor : IEntityExtractor
         {
             var term = m.Value;
             if (term.Length < MinTermLength) continue;
-            
+
             if (termIdf.TryGetValue(term, out var idf) && idf >= MinIdfThreshold)
             {
                 // Confidence scales with IDF (capped at 0.9)
@@ -275,12 +272,15 @@ public sealed class EntityExtractor : IEntityExtractor
         return candidates.Values.ToList();
     }
 
-    private static bool IsIdentifier(string s) =>
-        s.Length >= 2 && s.Length <= 50 &&
-        !s.Contains('(') && !s.Contains('{') && !s.Contains('=') && !s.Contains(';') &&
-        Regex.IsMatch(s, @"^[A-Za-z_][A-Za-z0-9_\.\-\#\+]*$");
+    private static bool IsIdentifier(string s)
+    {
+        return s.Length >= 2 && s.Length <= 50 &&
+               !s.Contains('(') && !s.Contains('{') && !s.Contains('=') && !s.Contains(';') &&
+               Regex.IsMatch(s, @"^[A-Za-z_][A-Za-z0-9_\.\-\#\+]*$");
+    }
 
-    private static void AddCandidate(Dictionary<string, EntityCandidate> dict, string name, string type, double confidence, string signal)
+    private static void AddCandidate(Dictionary<string, EntityCandidate> dict, string name, string type,
+        double confidence, string signal)
     {
         if (dict.TryGetValue(name, out var existing))
         {
@@ -289,6 +289,7 @@ public sealed class EntityExtractor : IEntityExtractor
                 existing.Type = type;
                 existing.Confidence = confidence;
             }
+
             existing.Signals.Add(signal);
         }
         else
@@ -304,34 +305,35 @@ public sealed class EntityExtractor : IEntityExtractor
     }
 
     /// <summary>
-    /// Use BERT embeddings to find and merge similar entities.
-    /// "Docker" ≈ "docker"; "Entity Framework" ≈ "EF Core" (semantically)
+    ///     Use BERT embeddings to find and merge similar entities.
+    ///     "Docker" ≈ "docker"; "Entity Framework" ≈ "EF Core" (semantically)
     /// </summary>
-    private async Task<List<EntityCandidate>> DeduplicateWithEmbeddingsAsync(List<EntityCandidate> candidates, CancellationToken ct)
+    private async Task<List<EntityCandidate>> DeduplicateWithEmbeddingsAsync(List<EntityCandidate> candidates,
+        CancellationToken ct)
     {
         if (candidates.Count <= 1) return candidates;
 
         // Embed all entity names
         var embeddings = await _embedder.EmbedBatchAsync(candidates.Select(c => c.Name), ct);
-        
+
         var merged = new List<EntityCandidate>();
         var used = new HashSet<int>();
 
-        for (int i = 0; i < candidates.Count; i++)
+        for (var i = 0; i < candidates.Count; i++)
         {
             if (used.Contains(i)) continue;
-            
+
             var canonical = candidates[i];
             used.Add(i);
 
             // Find similar entities and merge them
-            for (int j = i + 1; j < candidates.Count; j++)
+            for (var j = i + 1; j < candidates.Count; j++)
             {
                 if (used.Contains(j)) continue;
-                
+
                 var similarity = CosineSimilarity(embeddings[i], embeddings[j]);
                 var stringSim = NormalizedLevenshtein(canonical.Name, candidates[j].Name);
-                
+
                 if (similarity >= MinEmbeddingSimilarity || stringSim >= 0.8)
                 {
                     // Merge: combine counts, chunks, signals
@@ -341,14 +343,15 @@ public sealed class EntityExtractor : IEntityExtractor
                     used.Add(j);
                 }
             }
-            
+
             merged.Add(canonical);
         }
-        
+
         return merged;
     }
 
-    private IEnumerable<(string Source, string Target, string Type, string[] ChunkIds)> ExtractLinks(string text, string chunkId)
+    private IEnumerable<(string Source, string Target, string Type, string[] ChunkIds)> ExtractLinks(string text,
+        string chunkId)
     {
         // Internal links provide explicit "references" relationships
         foreach (Match m in InternalLinkRx.Matches(text))
@@ -384,24 +387,24 @@ public sealed class EntityExtractor : IEntityExtractor
         // Process in batches of 50 to avoid prompt size issues
         const int batchSize = 50;
         var lookup = entities.ToDictionary(e => e.Name, StringComparer.OrdinalIgnoreCase);
-        
-        for (int i = 0; i < entities.Count; i += batchSize)
+
+        for (var i = 0; i < entities.Count; i += batchSize)
         {
             var batch = entities.Skip(i).Take(batchSize).ToList();
             var list = string.Join("\n", batch.Select(e => $"- {e.Name}"));
 
             const string schema = """{"name":"...","type":"...","desc":"..."}""";
             var response = await _llm!.GenerateAsync($"""
-                Classify these technical entities. Return JSONL only (one JSON object per line).
-                No markdown, no commentary.
-                
-                Schema: {schema}
-                Types: technology, framework, library, language, tool, database, service, concept
-                
-                Entities:
-                {list}
-                """, 0.2, ct);
-            
+                                                      Classify these technical entities. Return JSONL only (one JSON object per line).
+                                                      No markdown, no commentary.
+
+                                                      Schema: {schema}
+                                                      Types: technology, framework, library, language, tool, database, service, concept
+
+                                                      Entities:
+                                                      {list}
+                                                      """, 0.2, ct);
+
             _llmCallCount++;
 
             // Parse JSONL response (tolerant of LLM quirks)
@@ -409,12 +412,12 @@ public sealed class EntityExtractor : IEntityExtractor
             {
                 var trimmed = line.Trim();
                 if (!trimmed.StartsWith('{')) continue;
-                
+
                 try
                 {
-                    using var doc = System.Text.Json.JsonDocument.Parse(trimmed);
+                    using var doc = JsonDocument.Parse(trimmed);
                     var root = doc.RootElement;
-                    
+
                     if (root.TryGetProperty("name", out var nameProp))
                     {
                         var name = nameProp.GetString();
@@ -427,7 +430,7 @@ public sealed class EntityExtractor : IEntityExtractor
                         }
                     }
                 }
-                catch (System.Text.Json.JsonException)
+                catch (JsonException)
                 {
                     // Fallback: try pipe-delimited format
                     var parts = trimmed.Split('|');
@@ -448,14 +451,12 @@ public sealed class EntityExtractor : IEntityExtractor
     private static void ClassifyBySignals(List<EntityCandidate> entities)
     {
         foreach (var e in entities)
-        {
             if (e.Signals.Contains("inline_code"))
                 e.Type = "code";
             else if (e.Signals.Contains("heading"))
                 e.Type = "concept";
             else if (e.Signals.Contains("high_idf"))
                 e.Type = "technology";
-        }
     }
 
     private async Task<int> StoreLinkRelationshipsAsync(
@@ -480,9 +481,13 @@ public sealed class EntityExtractor : IEntityExtractor
                 await _db.UpsertEntityAsync(targetId, target, targetType, null, chunkIds);
             }
             else if (entityNames.Contains(target))
+            {
                 targetId = EntityId(target);
+            }
             else
+            {
                 continue;
+            }
 
             var sourceId = EntityId(source);
             if (!entityNames.Contains(source))
@@ -491,6 +496,7 @@ public sealed class EntityExtractor : IEntityExtractor
             await _db.UpsertRelationshipAsync($"r_{sourceId}_{targetId}", sourceId, targetId, relType, null, chunkIds);
             count++;
         }
+
         return count;
     }
 
@@ -502,7 +508,8 @@ public sealed class EntityExtractor : IEntityExtractor
         var count = 0;
 
         // Only significant co-occurrences (appear together 2+ times)
-        foreach (var ((a, b), occurrences) in coOccur.Where(kv => kv.Value >= 2).OrderByDescending(kv => kv.Value).Take(500))
+        foreach (var ((a, b), occurrences) in coOccur.Where(kv => kv.Value >= 2).OrderByDescending(kv => kv.Value)
+                     .Take(500))
         {
             if (!lookup.TryGetValue(a, out var ea) || !lookup.TryGetValue(b, out var eb))
                 continue;
@@ -515,30 +522,41 @@ public sealed class EntityExtractor : IEntityExtractor
             await _db.UpsertRelationshipAsync($"r_{srcId}_{tgtId}", srcId, tgtId, "co_occurs_with", null, chunkIds);
             count++;
         }
+
         return count;
     }
 
-    private static string EntityId(string name) =>
-        $"e_{Regex.Replace(name.ToLowerInvariant(), @"[^a-z0-9]", "_")}";
+    private static string EntityId(string name)
+    {
+        return $"e_{Regex.Replace(name.ToLowerInvariant(), @"[^a-z0-9]", "_")}";
+    }
 
     private static float CosineSimilarity(float[] a, float[] b)
     {
         float dot = 0, na = 0, nb = 0;
-        for (int i = 0; i < a.Length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+        for (var i = 0; i < a.Length; i++)
+        {
+            dot += a[i] * b[i];
+            na += a[i] * a[i];
+            nb += b[i] * b[i];
+        }
+
         return dot / (MathF.Sqrt(na) * MathF.Sqrt(nb) + 1e-10f);
     }
 
     private static double NormalizedLevenshtein(string a, string b)
     {
-        a = a.ToLowerInvariant(); b = b.ToLowerInvariant();
-        var m = a.Length; var n = b.Length;
+        a = a.ToLowerInvariant();
+        b = b.ToLowerInvariant();
+        var m = a.Length;
+        var n = b.Length;
         var d = new int[m + 1, n + 1];
-        for (int i = 0; i <= m; i++) d[i, 0] = i;
-        for (int j = 0; j <= n; j++) d[0, j] = j;
-        for (int i = 1; i <= m; i++)
-            for (int j = 1; j <= n; j++)
-                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
-                    d[i - 1, j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
+        for (var i = 0; i <= m; i++) d[i, 0] = i;
+        for (var j = 0; j <= n; j++) d[0, j] = j;
+        for (var i = 1; i <= m; i++)
+        for (var j = 1; j <= n; j++)
+            d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                d[i - 1, j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
         return 1.0 - (double)d[m, n] / Math.Max(m, n);
     }
 }

@@ -10,18 +10,24 @@
                         <a href="#" class="flex items-center gap-1"
                            @@click.prevent="item.type === 'collection' ? navigateToCollection() : navigateToFolder(item.type === 'folder' ? item.id : null)">
                             <template x-if="item.type === 'root'">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                     stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                                 </svg>
                             </template>
                             <template x-if="item.type === 'collection'">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                                 </svg>
                             </template>
                             <template x-if="item.type === 'folder'">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
                                 </svg>
                             </template>
                             <span x-text="item.name" class="truncate max-w-32"></span>
@@ -38,8 +44,10 @@
     <!-- Filter: Type -->
     <div class="dropdown dropdown-end">
         <label tabindex="0" class="btn btn-ghost btn-sm gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                 stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
             </svg>
             Type
             <template x-if="filters.type.length > 0">
@@ -50,31 +58,31 @@
             <label class="label cursor-pointer justify-start gap-2 py-1">
                 <input type="checkbox" class="checkbox checkbox-xs" value="pdf"
                        :checked="filters.type.includes('pdf')"
-                       @@change="toggleFilter('type', 'pdf')" />
+                       @@change="toggleFilter('type', 'pdf')"/>
                 <span class="label-text text-sm">PDF</span>
             </label>
             <label class="label cursor-pointer justify-start gap-2 py-1">
                 <input type="checkbox" class="checkbox checkbox-xs" value="docx"
                        :checked="filters.type.includes('docx')"
-                       @@change="toggleFilter('type', 'docx')" />
+                       @@change="toggleFilter('type', 'docx')"/>
                 <span class="label-text text-sm">Word</span>
             </label>
             <label class="label cursor-pointer justify-start gap-2 py-1">
                 <input type="checkbox" class="checkbox checkbox-xs" value="markdown"
                        :checked="filters.type.includes('markdown')"
-                       @@change="toggleFilter('type', 'markdown')" />
+                       @@change="toggleFilter('type', 'markdown')"/>
                 <span class="label-text text-sm">Markdown</span>
             </label>
             <label class="label cursor-pointer justify-start gap-2 py-1">
                 <input type="checkbox" class="checkbox checkbox-xs" value="image"
                        :checked="filters.type.includes('image')"
-                       @@change="toggleFilter('type', 'image')" />
+                       @@change="toggleFilter('type', 'image')"/>
                 <span class="label-text text-sm">Images</span>
             </label>
             <label class="label cursor-pointer justify-start gap-2 py-1">
                 <input type="checkbox" class="checkbox checkbox-xs" value="audio"
                        :checked="filters.type.includes('audio')"
-                       @@change="toggleFilter('type', 'audio')" />
+                       @@change="toggleFilter('type', 'audio')"/>
                 <span class="label-text text-sm">Audio</span>
             </label>
         </div>
@@ -92,25 +100,25 @@
             <label class="label cursor-pointer justify-start gap-2 py-1">
                 <input type="checkbox" class="checkbox checkbox-xs" value="completed"
                        :checked="filters.status.includes('completed')"
-                       @@change="toggleFilter('status', 'completed')" />
+                       @@change="toggleFilter('status', 'completed')"/>
                 <span class="label-text text-sm">Completed</span>
             </label>
             <label class="label cursor-pointer justify-start gap-2 py-1">
                 <input type="checkbox" class="checkbox checkbox-xs" value="processing"
                        :checked="filters.status.includes('processing')"
-                       @@change="toggleFilter('status', 'processing')" />
+                       @@change="toggleFilter('status', 'processing')"/>
                 <span class="label-text text-sm">Processing</span>
             </label>
             <label class="label cursor-pointer justify-start gap-2 py-1">
                 <input type="checkbox" class="checkbox checkbox-xs" value="pending"
                        :checked="filters.status.includes('pending')"
-                       @@change="toggleFilter('status', 'pending')" />
+                       @@change="toggleFilter('status', 'pending')"/>
                 <span class="label-text text-sm">Pending</span>
             </label>
             <label class="label cursor-pointer justify-start gap-2 py-1">
                 <input type="checkbox" class="checkbox checkbox-xs" value="failed"
                        :checked="filters.status.includes('failed')"
-                       @@change="toggleFilter('status', 'failed')" />
+                       @@change="toggleFilter('status', 'failed')"/>
                 <span class="label-text text-sm">Failed</span>
             </label>
         </div>
@@ -122,14 +130,17 @@
            placeholder="*.pdf"
            x-model="globPattern"
            @@keyup.enter="loadContents()"
-           @@keyup.escape="globPattern = ''; loadContents()" />
+           @@keyup.escape="globPattern = ''; loadContents()"/>
 
     <!-- Command Palette Search -->
     <div class="relative flex-1 max-w-md">
         <div class="join w-full">
             <div class="relative flex-1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg xmlns="http://www.w3.org/2000/svg"
+                     class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
                 <input type="text"
                        class="input input-sm input-bordered w-full pl-9 pr-16"
@@ -138,7 +149,7 @@
                        @@keyup.enter="executeSearch()"
                        @@keyup.escape="clearSearch()"
                        @@focus="showSearchHints = true"
-                       @@blur="setTimeout(() => showSearchHints = false, 200)" />
+                       @@blur="setTimeout(() => showSearchHints = false, 200)"/>
                 <kbd class="kbd kbd-xs absolute right-2 top-1/2 -translate-y-1/2 text-base-content/40">Ctrl+K</kbd>
             </div>
             <button class="btn btn-sm btn-primary join-item" @@click="executeSearch()" :disabled="!searchQuery.trim()">
@@ -176,16 +187,20 @@
                 :class="viewMode === 'list' ? 'btn-active' : 'btn-ghost'"
                 @@click="setViewMode('list')"
                 title="List view">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                 stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
             </svg>
         </button>
         <button class="btn btn-sm join-item"
                 :class="viewMode === 'grid' ? 'btn-active' : 'btn-ghost'"
                 @@click="setViewMode('grid')"
                 title="Grid view">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                 stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
             </svg>
         </button>
     </div>

@@ -5,14 +5,14 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.DocSummarizer.Images.Services.VisionLlm;
 
 /// <summary>
-/// Ollama implementation of IVisionLlmClient.
-/// Communicates with Ollama API for vision model inference.
+///     Ollama implementation of IVisionLlmClient.
+///     Communicates with Ollama API for vision model inference.
 /// </summary>
 public class OllamaVisionClient : IVisionLlmClient
 {
     private readonly HttpClient _httpClient;
-    private readonly string _model;
     private readonly ILogger<OllamaVisionClient>? _logger;
+    private readonly string _model;
 
     public OllamaVisionClient(
         HttpClient httpClient,
@@ -24,7 +24,7 @@ public class OllamaVisionClient : IVisionLlmClient
         _logger = logger;
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<bool> CheckAvailabilityAsync(CancellationToken ct = default)
     {
         try
@@ -38,7 +38,7 @@ public class OllamaVisionClient : IVisionLlmClient
         }
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<string> ExtractTextAsync(string imagePath, CancellationToken ct = default)
     {
         try
@@ -49,7 +49,8 @@ public class OllamaVisionClient : IVisionLlmClient
             var request = new
             {
                 model = _model,
-                prompt = "Extract all visible text from this image. Return only the text content, preserving layout and structure. Be comprehensive and accurate.",
+                prompt =
+                    "Extract all visible text from this image. Return only the text content, preserving layout and structure. Be comprehensive and accurate.",
                 images = new[] { base64Image },
                 stream = false
             };
@@ -72,7 +73,7 @@ public class OllamaVisionClient : IVisionLlmClient
         }
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<float[]?> GenerateEmbeddingAsync(string imagePath, CancellationToken ct = default)
     {
         try
@@ -105,7 +106,7 @@ public class OllamaVisionClient : IVisionLlmClient
         }
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<string?> GenerateDescriptionAsync(string imagePath, CancellationToken ct = default)
     {
         try
@@ -116,17 +117,15 @@ public class OllamaVisionClient : IVisionLlmClient
             var request = new
             {
                 model = _model,
-                prompt = "Describe this image in detail for search indexing. Include: objects, people, setting, actions, mood, colors, text visible.",
+                prompt =
+                    "Describe this image in detail for search indexing. Include: objects, people, setting, actions, mood, colors, text visible.",
                 images = new[] { base64Image },
                 stream = false
             };
 
             var response = await _httpClient.PostAsJsonAsync("/api/generate", request, ct);
 
-            if (!response.IsSuccessStatusCode)
-            {
-                return null;
-            }
+            if (!response.IsSuccessStatusCode) return null;
 
             var result = await response.Content.ReadFromJsonAsync<OllamaGenerateResponse>(ct);
             return result?.Response;
@@ -139,9 +138,11 @@ public class OllamaVisionClient : IVisionLlmClient
     }
 
     private record OllamaEmbeddingResponse(
-        [property: JsonPropertyName("embedding")] float[] Embedding);
+        [property: JsonPropertyName("embedding")]
+        float[] Embedding);
 
     private record OllamaGenerateResponse(
-        [property: JsonPropertyName("response")] string Response,
+        [property: JsonPropertyName("response")]
+        string Response,
         [property: JsonPropertyName("done")] bool Done);
 }

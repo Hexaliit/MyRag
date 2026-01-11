@@ -48,7 +48,7 @@ function Download-File
     Invoke-WebRequest -Uri $Url -OutFile $OutputPath -UseBasicParsing
 
     $FileSize = (Get-Item $OutputPath).Length / 1MB
-    Write-Host "✓ Downloaded successfully ($([math]::Round($FileSize, 2)) MB)" -ForegroundColor Green
+    Write-Host "✓ Downloaded successfully ($([math]::Round($FileSize, 2) ) MB)" -ForegroundColor Green
     Write-Host ""
 }
 
@@ -66,7 +66,7 @@ Write-Host ""
 Write-Host "Files downloaded:" -ForegroundColor Cyan
 Get-ChildItem $ModelsDir | ForEach-Object {
     $SizeMB = [math]::Round($_.Length / 1MB, 2)
-    Write-Host "  - $($_.Name) ($SizeMB MB)" -ForegroundColor White
+    Write-Host "  - $( $_.Name ) ($SizeMB MB)" -ForegroundColor White
 }
 Write-Host ""
 Write-Host "You can now run the semantic search demo!" -ForegroundColor Green

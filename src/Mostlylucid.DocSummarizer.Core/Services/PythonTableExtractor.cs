@@ -7,7 +7,7 @@ using Mostlylucid.DocSummarizer.Core.Models;
 namespace Mostlylucid.DocSummarizer.Core.Services;
 
 /// <summary>
-/// Base class for Python-based table extractors using subprocess
+///     Base class for Python-based table extractors using subprocess
 /// </summary>
 public abstract class PythonTableExtractor : ITableExtractor
 {
@@ -20,13 +20,14 @@ public abstract class PythonTableExtractor : ITableExtractor
         PythonExecutable = pythonExecutable ?? FindPythonExecutable();
     }
 
-    public abstract IReadOnlyList<string> SupportedExtensions { get; }
-    public abstract string Name { get; }
     protected abstract string PythonScriptName { get; }
     protected abstract string[] RequiredPythonPackages { get; }
 
+    public abstract IReadOnlyList<string> SupportedExtensions { get; }
+    public abstract string Name { get; }
+
     /// <summary>
-    /// Check if Python and required packages are available
+    ///     Check if Python and required packages are available
     /// </summary>
     public virtual async Task<bool> IsAvailableAsync(CancellationToken ct = default)
     {
@@ -72,10 +73,7 @@ public abstract class PythonTableExtractor : ITableExtractor
         {
             // Get Python script path
             var scriptPath = GetPythonScriptPath();
-            if (!File.Exists(scriptPath))
-            {
-                throw new FileNotFoundException($"Python script not found: {scriptPath}");
-            }
+            if (!File.Exists(scriptPath)) throw new FileNotFoundException($"Python script not found: {scriptPath}");
 
             // Prepare arguments
             var args = PrepareArguments(filePath, options);
@@ -84,7 +82,6 @@ public abstract class PythonTableExtractor : ITableExtractor
             var result = await RunPythonScriptAsync(scriptPath, args, ct);
 
             if (!result.Success)
-            {
                 return new TableExtractionResult
                 {
                     SourcePath = filePath,
@@ -92,7 +89,6 @@ public abstract class PythonTableExtractor : ITableExtractor
                     Duration = stopwatch.Elapsed,
                     Errors = new List<string> { result.Error ?? "Unknown error" }
                 };
-            }
 
             // Parse JSON output
             var tables = ParseJsonOutput(result.Output, filePath);
@@ -122,38 +118,26 @@ public abstract class PythonTableExtractor : ITableExtractor
     }
 
     /// <summary>
-    /// Prepare command-line arguments for Python script
+    ///     Prepare command-line arguments for Python script
     /// </summary>
     protected virtual string PrepareArguments(string filePath, TableExtractionOptions options)
     {
         var sb = new StringBuilder();
         sb.Append($"--input \"{filePath}\" ");
 
-        if (options.Pages != null && options.Pages.Count > 0)
-        {
-            sb.Append($"--pages {string.Join(",", options.Pages)} ");
-        }
+        if (options.Pages != null && options.Pages.Count > 0) sb.Append($"--pages {string.Join(",", options.Pages)} ");
 
-        if (options.MinRows > 0)
-        {
-            sb.Append($"--min-rows {options.MinRows} ");
-        }
+        if (options.MinRows > 0) sb.Append($"--min-rows {options.MinRows} ");
 
-        if (options.MinColumns > 0)
-        {
-            sb.Append($"--min-cols {options.MinColumns} ");
-        }
+        if (options.MinColumns > 0) sb.Append($"--min-cols {options.MinColumns} ");
 
-        if (options.EnableOcr)
-        {
-            sb.Append("--ocr ");
-        }
+        if (options.EnableOcr) sb.Append("--ocr ");
 
         return sb.ToString().Trim();
     }
 
     /// <summary>
-    /// Parse JSON output from Python script
+    ///     Parse JSON output from Python script
     /// </summary>
     protected virtual List<ExtractedTable> ParseJsonOutput(string json, string sourcePath)
     {
@@ -195,7 +179,7 @@ public abstract class PythonTableExtractor : ITableExtractor
     }
 
     /// <summary>
-    /// Get path to Python script
+    ///     Get path to Python script
     /// </summary>
     protected virtual string GetPythonScriptPath()
     {
@@ -205,7 +189,7 @@ public abstract class PythonTableExtractor : ITableExtractor
     }
 
     /// <summary>
-    /// Run Python script with arguments
+    ///     Run Python script with arguments
     /// </summary>
     protected async Task<(bool Success, string Output, string? Error)> RunPythonScriptAsync(
         string scriptPath,
@@ -217,7 +201,7 @@ public abstract class PythonTableExtractor : ITableExtractor
     }
 
     /// <summary>
-    /// Run Python command
+    ///     Run Python command
     /// </summary>
     protected async Task<(bool Success, string Output, string? Error)> RunPythonCommandAsync(
         string arguments,
@@ -238,8 +222,14 @@ public abstract class PythonTableExtractor : ITableExtractor
         var outputBuilder = new StringBuilder();
         var errorBuilder = new StringBuilder();
 
-        process.OutputDataReceived += (sender, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
-        process.ErrorDataReceived += (sender, e) => { if (e.Data != null) errorBuilder.AppendLine(e.Data); };
+        process.OutputDataReceived += (sender, e) =>
+        {
+            if (e.Data != null) outputBuilder.AppendLine(e.Data);
+        };
+        process.ErrorDataReceived += (sender, e) =>
+        {
+            if (e.Data != null) errorBuilder.AppendLine(e.Data);
+        };
 
         process.Start();
         process.BeginOutputReadLine();
@@ -254,7 +244,7 @@ public abstract class PythonTableExtractor : ITableExtractor
     }
 
     /// <summary>
-    /// Find Python executable
+    ///     Find Python executable
     /// </summary>
     private static string FindPythonExecutable()
     {
@@ -262,7 +252,6 @@ public abstract class PythonTableExtractor : ITableExtractor
         var candidates = new[] { "python3", "python", "py" };
 
         foreach (var candidate in candidates)
-        {
             try
             {
                 var psi = new ProcessStartInfo
@@ -278,23 +267,19 @@ public abstract class PythonTableExtractor : ITableExtractor
                 if (process != null)
                 {
                     process.WaitForExit(1000);
-                    if (process.ExitCode == 0)
-                    {
-                        return candidate;
-                    }
+                    if (process.ExitCode == 0) return candidate;
                 }
             }
             catch
             {
                 // Try next candidate
             }
-        }
 
         return "python3"; // Default fallback
     }
 
     /// <summary>
-    /// Python script JSON output format
+    ///     Python script JSON output format
     /// </summary>
     protected class PythonTableOutput
     {

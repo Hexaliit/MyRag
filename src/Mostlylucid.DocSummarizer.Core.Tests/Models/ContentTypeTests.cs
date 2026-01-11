@@ -1,10 +1,10 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Models;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Models;
 
 /// <summary>
-/// Tests for ContentType enum values and usage
+///     Tests for ContentType enum values and usage
 /// </summary>
 public class ContentTypeTests
 {

@@ -5,11 +5,12 @@ using Spectre.Console;
 namespace LucidRAG.ImageCli.Services.OutputFormatters;
 
 /// <summary>
-/// Formats image analysis results as Spectre.Console tables.
+///     Formats image analysis results as Spectre.Console tables.
 /// </summary>
 public class TableFormatter : IOutputFormatter
 {
-    public string FormatSingle(string filePath, ImageProfile profile, string? llmCaption = null, string? extractedText = null, GifMotionProfile? gifMotion = null, List<EvidenceClaim>? evidenceClaims = null)
+    public string FormatSingle(string filePath, ImageProfile profile, string? llmCaption = null,
+        string? extractedText = null, GifMotionProfile? gifMotion = null, List<EvidenceClaim>? evidenceClaims = null)
     {
         var table = new Table()
             .Border(TableBorder.Rounded)
@@ -37,12 +38,12 @@ public class TableFormatter : IOutputFormatter
 
         // Sharpness
         var sharpnessDesc = profile.LaplacianVariance < 100 ? "Blurry" :
-                           profile.LaplacianVariance < 500 ? "Soft" : "Sharp";
+            profile.LaplacianVariance < 500 ? "Soft" : "Sharp";
         table.AddRow("Sharpness", $"{profile.LaplacianVariance:F1} ([green]{sharpnessDesc}[/])");
 
         // Text likelihood
         var textLikely = profile.TextLikeliness > 0.4 ? "High" :
-                        profile.TextLikeliness > 0.2 ? "Medium" : "Low";
+            profile.TextLikeliness > 0.2 ? "Medium" : "Low";
         table.AddRow("Text Likeliness", $"{profile.TextLikeliness:F3} ([yellow]{textLikely}[/])");
 
         // Color analysis - include hex to distinguish same-name colors
@@ -57,10 +58,7 @@ public class TableFormatter : IOutputFormatter
         table.AddRow("Grayscale", profile.IsMostlyGrayscale ? "[green]Yes[/]" : "[red]No[/]");
 
         // Perceptual hash
-        if (!string.IsNullOrEmpty(profile.PerceptualHash))
-        {
-            table.AddRow("Perceptual Hash", profile.PerceptualHash);
-        }
+        if (!string.IsNullOrEmpty(profile.PerceptualHash)) table.AddRow("Perceptual Hash", profile.PerceptualHash);
 
         // GIF motion data if available
         if (gifMotion != null)
@@ -85,10 +83,11 @@ public class TableFormatter : IOutputFormatter
             };
 
             var motionColor = gifMotion.MotionMagnitude > 10 ? "green" :
-                            gifMotion.MotionMagnitude > 5 ? "yellow" : "dim";
+                gifMotion.MotionMagnitude > 5 ? "yellow" : "dim";
 
             table.AddRow("  Motion Direction", $"[{motionColor}]{motionIcon} {gifMotion.MotionDirection}[/]");
-            table.AddRow("  Motion Magnitude", $"{gifMotion.MotionMagnitude:F2} px/frame (max: {gifMotion.MaxMotionMagnitude:F2})");
+            table.AddRow("  Motion Magnitude",
+                $"{gifMotion.MotionMagnitude:F2} px/frame (max: {gifMotion.MaxMotionMagnitude:F2})");
             table.AddRow("  Motion Coverage", $"{gifMotion.MotionPercentage:F1}% of frames");
             table.AddRow("  Confidence", $"{gifMotion.Confidence:P0}");
 
@@ -99,8 +98,10 @@ public class TableFormatter : IOutputFormatter
                 table.AddEmptyRow();
                 table.AddRow("[cyan]Animation Complexity[/]", "");
                 table.AddRow("  Animation Type", complexity.AnimationType);
-                table.AddRow("  Overall Complexity", $"{complexity.OverallComplexity:F2} ({(complexity.OverallComplexity < 0.3 ? "Simple" : complexity.OverallComplexity < 0.6 ? "Moderate" : "Complex")})");
-                table.AddRow("  Visual Stability", $"{complexity.VisualStability:F2} ({(complexity.VisualStability > 0.7 ? "Stable" : complexity.VisualStability > 0.4 ? "Moderate" : "Chaotic")})");
+                table.AddRow("  Overall Complexity",
+                    $"{complexity.OverallComplexity:F2} ({(complexity.OverallComplexity < 0.3 ? "Simple" : complexity.OverallComplexity < 0.6 ? "Moderate" : "Complex")})");
+                table.AddRow("  Visual Stability",
+                    $"{complexity.VisualStability:F2} ({(complexity.VisualStability > 0.7 ? "Stable" : complexity.VisualStability > 0.4 ? "Moderate" : "Chaotic")})");
                 table.AddRow("  Color Variation", $"{complexity.ColorVariation:F2}");
                 table.AddRow("  Scene Changes", complexity.SceneChangeCount.ToString());
                 table.AddRow("  Avg Frame Difference", $"{complexity.AverageFrameDifference:F3}");
@@ -129,18 +130,14 @@ public class TableFormatter : IOutputFormatter
                 table.AddRow($"  • [cyan]{sources}[/]", Markup.Escape(claim.Text) + evidenceText);
             }
 
-            if (evidenceClaims.Count > 5)
-            {
-                table.AddRow("", $"[dim]... and {evidenceClaims.Count - 5} more claims[/]");
-            }
+            if (evidenceClaims.Count > 5) table.AddRow("", $"[dim]... and {evidenceClaims.Count - 5} more claims[/]");
         }
 
         // OCR text if available
         if (!string.IsNullOrEmpty(extractedText))
         {
             table.AddEmptyRow();
-            var preview = extractedText.Length > 200 ?
-                extractedText[..200] + "..." : extractedText;
+            var preview = extractedText.Length > 200 ? extractedText[..200] + "..." : extractedText;
             table.AddRow("[green]Extracted Text[/]", Markup.Escape(preview));
         }
 
@@ -182,7 +179,7 @@ public class TableFormatter : IOutputFormatter
             summary.AddRow("[cyan]Type Distribution[/]", "");
             foreach (var group in typeGroups)
             {
-                var percentage = (group.Count() * 100.0 / successCount);
+                var percentage = group.Count() * 100.0 / successCount;
                 summary.AddRow($"  {group.Key}", $"{group.Count()} ({percentage:F1}%)");
             }
 
@@ -193,8 +190,10 @@ public class TableFormatter : IOutputFormatter
                 summary.AddEmptyRow();
                 summary.AddRow("[cyan]Animated Images (GIF/WebP)[/]", "");
                 summary.AddRow("  Count", animatedImages.Count.ToString());
-                summary.AddRow("  Avg Motion Magnitude", animatedImages.Average(r => r.GifMotion!.MotionMagnitude).ToString("F2") + " px/frame");
-                summary.AddRow("  Avg Frame Count", animatedImages.Average(r => r.GifMotion!.FrameCount).ToString("F0"));
+                summary.AddRow("  Avg Motion Magnitude",
+                    animatedImages.Average(r => r.GifMotion!.MotionMagnitude).ToString("F2") + " px/frame");
+                summary.AddRow("  Avg Frame Count",
+                    animatedImages.Average(r => r.GifMotion!.FrameCount).ToString("F0"));
                 summary.AddRow("  Avg FPS", animatedImages.Average(r => r.GifMotion!.Fps).ToString("F1"));
 
                 // Motion direction distribution
@@ -202,10 +201,7 @@ public class TableFormatter : IOutputFormatter
                     .GroupBy(r => r.GifMotion!.MotionDirection)
                     .OrderByDescending(g => g.Count())
                     .Take(3);
-                foreach (var dir in motionDirs)
-                {
-                    summary.AddRow($"    {dir.Key}", dir.Count().ToString());
-                }
+                foreach (var dir in motionDirs) summary.AddRow($"    {dir.Key}", dir.Count().ToString());
             }
 
             // Average metrics
@@ -237,7 +233,6 @@ public class TableFormatter : IOutputFormatter
             details.AddColumn("Status");
 
             foreach (var result in resultsList.Take(50)) // Limit to 50 for readability
-            {
                 if (result.Profile != null)
                 {
                     var status = result.WasEscalated ? "[yellow]✓ LLM[/]" : "[green]✓[/]";
@@ -261,7 +256,7 @@ public class TableFormatter : IOutputFormatter
                         };
 
                         var color = result.GifMotion.MotionMagnitude > 10 ? "green" :
-                                   result.GifMotion.MotionMagnitude > 5 ? "yellow" : "dim";
+                            result.GifMotion.MotionMagnitude > 5 ? "yellow" : "dim";
 
                         motionDisplay = $"[{color}]{icon} {result.GifMotion.MotionMagnitude:F1}[/]";
                     }
@@ -288,12 +283,8 @@ public class TableFormatter : IOutputFormatter
                         $"[red]✗ {Markup.Escape(result.Error ?? "Unknown error")}[/]"
                     );
                 }
-            }
 
-            if (resultsList.Count > 50)
-            {
-                details.Caption($"[dim]Showing first 50 of {resultsList.Count} results[/]");
-            }
+            if (resultsList.Count > 50) details.Caption($"[dim]Showing first 50 of {resultsList.Count} results[/]");
 
             AnsiConsole.Write(details);
         }

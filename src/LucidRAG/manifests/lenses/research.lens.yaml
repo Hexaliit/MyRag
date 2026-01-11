@@ -31,7 +31,7 @@ scoring:
       weight: 1.0
       min_threshold: 0.5     # Only high-quality matches
 
-    "retrieval.dense.abstract_match":  # If we embed abstracts separately
+    "retrieval.dense.abstract_match": # If we embed abstracts separately
       weight: 1.0
       boost: 2.5             # Abstract matches are VERY relevant
       min_threshold: 0.7
@@ -53,11 +53,11 @@ scoring:
       normalize: true
       decay: logarithmic     # Diminishing returns for very high citation counts
 
-    "graph.co_citation":     # Papers cited together with query papers
+    "graph.co_citation": # Papers cited together with query papers
       weight: 1.0
       boost: 2.2
 
-    "graph.author_authority":  # H-index, citation metrics
+    "graph.author_authority": # H-index, citation metrics
       weight: 1.0
       boost: 1.5
       normalize: true
@@ -75,7 +75,7 @@ scoring:
       weight: 1.0
       boost: 1.4
 
-    "entity.metric.*":       # Performance metrics, benchmarks
+    "entity.metric.*": # Performance metrics, benchmarks
       weight: 1.0
       boost: 1.3
 
@@ -85,7 +85,7 @@ scoring:
       decay: linear          # Slight preference for recent work
       min_threshold: 0.0
 
-    "temporal.venue_prestige":  # Conference/journal ranking
+    "temporal.venue_prestige": # Conference/journal ranking
       weight: 1.0
       boost: 1.7
       normalize: true
@@ -99,7 +99,7 @@ scoring:
       weight: 1.0
       boost: 1.4
 
-    "structure.has_code":     # Papers with code implementations
+    "structure.has_code": # Papers with code implementations
       weight: 1.0
       boost: 1.6
 
@@ -112,7 +112,7 @@ scoring:
       weight: 1.0
       boost: 2.0             # Peer-reviewed papers get strong boost
 
-    "quality.reproducibility_score":  # If available
+    "quality.reproducibility_score": # If available
       weight: 1.0
       boost: 1.4
       normalize: true

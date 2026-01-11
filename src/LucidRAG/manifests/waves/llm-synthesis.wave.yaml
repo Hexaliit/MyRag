@@ -56,7 +56,7 @@ emits:
       type: string
     - key: synthesis.llm.confidence
       type: number
-      confidence_range: [0.0, 1.0]
+      confidence_range: [ 0.0, 1.0 ]
     - key: synthesis.llm.tokens_used
       type: number
     - key: synthesis.llm.completed

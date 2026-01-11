@@ -78,22 +78,22 @@ builder.Services.AddDocSummarizer(
 
 ## Embedding Models
 
-| Model | Dimensions | Max Tokens | Size | Use Case |
-|-------|-----------|------------|------|----------|
-| `AllMiniLmL6V2` | 384 | 256 | ~23MB | Fast general-purpose (default) |
-| `BgeSmallEnV15` | 384 | 512 | ~34MB | Best quality for size |
-| `GteSmall` | 384 | 512 | ~34MB | Good all-around |
-| `MultiQaMiniLm` | 384 | 512 | ~23MB | QA-optimized |
-| `ParaphraseMiniLmL3` | 384 | 128 | ~17MB | Smallest/fastest |
+| Model                | Dimensions | Max Tokens | Size  | Use Case                       |
+|----------------------|------------|------------|-------|--------------------------------|
+| `AllMiniLmL6V2`      | 384        | 256        | ~23MB | Fast general-purpose (default) |
+| `BgeSmallEnV15`      | 384        | 512        | ~34MB | Best quality for size          |
+| `GteSmall`           | 384        | 512        | ~34MB | Good all-around                |
+| `MultiQaMiniLm`      | 384        | 512        | ~23MB | QA-optimized                   |
+| `ParaphraseMiniLmL3` | 384        | 128        | ~17MB | Smallest/fastest               |
 
 ## Summarization Modes
 
-| Mode | LLM Required | Best For |
-|------|-------------|----------|
-| `Bert` | No | Fast extraction, offline use |
-| `BertHybrid` | Yes | Balance of speed and fluency |
-| `BertRag` | Yes | Production systems, large documents |
-| `Auto` | Varies | Automatic mode selection |
+| Mode         | LLM Required | Best For                            |
+|--------------|--------------|-------------------------------------|
+| `Bert`       | No           | Fast extraction, offline use        |
+| `BertHybrid` | Yes          | Balance of speed and fluency        |
+| `BertRag`    | Yes          | Production systems, large documents |
+| `Auto`       | Varies       | Automatic mode selection            |
 
 ```csharp
 // Pure BERT - no LLM needed, fastest
@@ -170,66 +170,68 @@ foreach (var segment in extraction.TopBySalience)
 
 ## OpenTelemetry Observability
 
-The library includes built-in OpenTelemetry instrumentation for distributed tracing and metrics. All instrumentation follows OpenTelemetry semantic conventions.
+The library includes built-in OpenTelemetry instrumentation for distributed tracing and metrics. All instrumentation
+follows OpenTelemetry semantic conventions.
 
 ### Activity Sources (Distributed Tracing)
 
-| Source Name | Activities | Description |
-|-------------|------------|-------------|
-| `Mostlylucid.DocSummarizer` | `SummarizeMarkdown`, `SummarizeFile`, `SummarizeUrl`, `Query` | Main summarization operations |
-| `Mostlylucid.DocSummarizer.Ollama` | `OllamaGenerate`, `OllamaEmbed` | LLM API calls |
-| `Mostlylucid.DocSummarizer.WebFetcher` | `WebFetch`, `FetchWithSecurity` | Web content fetching |
+| Source Name                            | Activities                                                    | Description                   |
+|----------------------------------------|---------------------------------------------------------------|-------------------------------|
+| `Mostlylucid.DocSummarizer`            | `SummarizeMarkdown`, `SummarizeFile`, `SummarizeUrl`, `Query` | Main summarization operations |
+| `Mostlylucid.DocSummarizer.Ollama`     | `OllamaGenerate`, `OllamaEmbed`                               | LLM API calls                 |
+| `Mostlylucid.DocSummarizer.WebFetcher` | `WebFetch`, `FetchWithSecurity`                               | Web content fetching          |
 
-Each activity includes relevant tags (e.g., `url.host`, `http.response.status_code`, `error.type`) for filtering and analysis.
+Each activity includes relevant tags (e.g., `url.host`, `http.response.status_code`, `error.type`) for filtering and
+analysis.
 
 ### Metrics
 
 #### DocumentSummarizerService Metrics
 
-| Metric | Type | Unit | Description |
-|--------|------|------|-------------|
-| `docsummarizer.summarizations` | Counter | requests | Total summarization requests |
-| `docsummarizer.queries` | Counter | requests | Total query requests |
-| `docsummarizer.summarization.duration` | Histogram | ms | Summarization duration |
-| `docsummarizer.document.size` | Histogram | bytes | Document sizes processed |
-| `docsummarizer.errors` | Counter | errors | Total errors by type |
+| Metric                                 | Type      | Unit     | Description                  |
+|----------------------------------------|-----------|----------|------------------------------|
+| `docsummarizer.summarizations`         | Counter   | requests | Total summarization requests |
+| `docsummarizer.queries`                | Counter   | requests | Total query requests         |
+| `docsummarizer.summarization.duration` | Histogram | ms       | Summarization duration       |
+| `docsummarizer.document.size`          | Histogram | bytes    | Document sizes processed     |
+| `docsummarizer.errors`                 | Counter   | errors   | Total errors by type         |
 
 #### OllamaService Metrics
 
-| Metric | Type | Unit | Description |
-|--------|------|------|-------------|
-| `docsummarizer.ollama.generate.requests` | Counter | requests | LLM generation requests |
-| `docsummarizer.ollama.embed.requests` | Counter | requests | Embedding requests |
-| `docsummarizer.ollama.generate.duration` | Histogram | ms | Generation duration |
-| `docsummarizer.ollama.embed.duration` | Histogram | ms | Embedding duration |
-| `docsummarizer.ollama.prompt.tokens` | Histogram | tokens | Prompt token counts |
-| `docsummarizer.ollama.response.tokens` | Histogram | tokens | Response token counts |
-| `docsummarizer.ollama.errors` | Counter | errors | LLM errors by type |
-| `docsummarizer.ollama.circuit_breaker` | Counter | transitions | Circuit breaker state changes |
+| Metric                                   | Type      | Unit        | Description                   |
+|------------------------------------------|-----------|-------------|-------------------------------|
+| `docsummarizer.ollama.generate.requests` | Counter   | requests    | LLM generation requests       |
+| `docsummarizer.ollama.embed.requests`    | Counter   | requests    | Embedding requests            |
+| `docsummarizer.ollama.generate.duration` | Histogram | ms          | Generation duration           |
+| `docsummarizer.ollama.embed.duration`    | Histogram | ms          | Embedding duration            |
+| `docsummarizer.ollama.prompt.tokens`     | Histogram | tokens      | Prompt token counts           |
+| `docsummarizer.ollama.response.tokens`   | Histogram | tokens      | Response token counts         |
+| `docsummarizer.ollama.errors`            | Counter   | errors      | LLM errors by type            |
+| `docsummarizer.ollama.circuit_breaker`   | Counter   | transitions | Circuit breaker state changes |
 
 #### WebFetcher Metrics
 
-| Metric | Type | Unit | Description |
-|--------|------|------|-------------|
-| `docsummarizer.webfetch.requests` | Counter | requests | Web fetch requests |
-| `docsummarizer.webfetch.duration` | Histogram | ms | Fetch duration |
-| `docsummarizer.webfetch.errors` | Counter | errors | Fetch errors by type |
-| `docsummarizer.webfetch.retries` | Counter | retries | Retry attempts |
-| `docsummarizer.webfetch.ratelimits` | Counter | responses | HTTP 429 rate limit hits |
-| `docsummarizer.webfetch.circuit_breaker` | Counter | transitions | Circuit breaker state changes |
+| Metric                                   | Type      | Unit        | Description                   |
+|------------------------------------------|-----------|-------------|-------------------------------|
+| `docsummarizer.webfetch.requests`        | Counter   | requests    | Web fetch requests            |
+| `docsummarizer.webfetch.duration`        | Histogram | ms          | Fetch duration                |
+| `docsummarizer.webfetch.errors`          | Counter   | errors      | Fetch errors by type          |
+| `docsummarizer.webfetch.retries`         | Counter   | retries     | Retry attempts                |
+| `docsummarizer.webfetch.ratelimits`      | Counter   | responses   | HTTP 429 rate limit hits      |
+| `docsummarizer.webfetch.circuit_breaker` | Counter   | transitions | Circuit breaker state changes |
 
 ### Metric Dimensions (Tags)
 
 Common tags available on metrics:
 
-| Tag | Metrics | Values |
-|-----|---------|--------|
-| `mode` | summarizations, webfetch | `Bert`, `BertRag`, `MapReduce`, `Simple`, `Playwright` |
-| `error.type` | errors | `security`, `http`, `timeout`, `operation`, `unknown` |
-| `url.host` | webfetch | Target hostname |
-| `model` | ollama | LLM model name |
-| `state` | circuit_breaker | `opened`, `closed`, `half-opened` |
-| `attempt` | retries | Retry attempt number |
+| Tag          | Metrics                  | Values                                                 |
+|--------------|--------------------------|--------------------------------------------------------|
+| `mode`       | summarizations, webfetch | `Bert`, `BertRag`, `MapReduce`, `Simple`, `Playwright` |
+| `error.type` | errors                   | `security`, `http`, `timeout`, `operation`, `unknown`  |
+| `url.host`   | webfetch                 | Target hostname                                        |
+| `model`      | ollama                   | LLM model name                                         |
+| `state`      | circuit_breaker          | `opened`, `closed`, `half-opened`                      |
+| `attempt`    | retries                  | Retry attempt number                                   |
 
 ### Example: Wire up in ASP.NET Core
 

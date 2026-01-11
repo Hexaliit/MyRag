@@ -7,15 +7,15 @@ using Mostlylucid.DocSummarizer.Images.Config;
 namespace Mostlylucid.DocSummarizer.Images.Services;
 
 /// <summary>
-/// Factory for creating ONNX InferenceSessions with optimal execution providers.
-/// Supports cross-platform GPU acceleration: DirectML (Windows), CUDA (Linux), CoreML (macOS).
+///     Factory for creating ONNX InferenceSessions with optimal execution providers.
+///     Supports cross-platform GPU acceleration: DirectML (Windows), CUDA (Linux), CoreML (macOS).
 /// </summary>
 public class OnnxSessionFactory
 {
     private readonly OnnxExecutionConfig _config;
+    private readonly object _detectionLock = new();
     private readonly ILogger<OnnxSessionFactory>? _logger;
     private OnnxExecutionProvider? _detectedProvider;
-    private readonly object _detectionLock = new();
 
     public OnnxSessionFactory(
         IOptions<ImageConfig> config,
@@ -26,23 +26,17 @@ public class OnnxSessionFactory
     }
 
     /// <summary>
-    /// Create SessionOptions with the best available execution provider.
+    ///     Create SessionOptions with the best available execution provider.
     /// </summary>
     public SessionOptions CreateSessionOptions()
     {
         var options = new SessionOptions();
 
         // Enable graph optimization
-        if (_config.EnableGraphOptimization)
-        {
-            options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-        }
+        if (_config.EnableGraphOptimization) options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
 
         // Set CPU thread count
-        if (_config.CpuThreads > 0)
-        {
-            options.IntraOpNumThreads = _config.CpuThreads;
-        }
+        if (_config.CpuThreads > 0) options.IntraOpNumThreads = _config.CpuThreads;
 
         // Try to add GPU execution provider
         var provider = GetEffectiveProvider();
@@ -52,7 +46,7 @@ public class OnnxSessionFactory
     }
 
     /// <summary>
-    /// Create an InferenceSession with optimal settings.
+    ///     Create an InferenceSession with optimal settings.
     /// </summary>
     public InferenceSession CreateSession(string modelPath)
     {
@@ -61,21 +55,15 @@ public class OnnxSessionFactory
     }
 
     /// <summary>
-    /// Get the execution provider that will be used.
+    ///     Get the execution provider that will be used.
     /// </summary>
     public OnnxExecutionProvider GetEffectiveProvider()
     {
-        if (_config.PreferredProvider != OnnxExecutionProvider.Auto)
-        {
-            return _config.PreferredProvider;
-        }
+        if (_config.PreferredProvider != OnnxExecutionProvider.Auto) return _config.PreferredProvider;
 
         lock (_detectionLock)
         {
-            if (_detectedProvider.HasValue)
-            {
-                return _detectedProvider.Value;
-            }
+            if (_detectedProvider.HasValue) return _detectedProvider.Value;
 
             _detectedProvider = DetectBestProvider();
             _logger?.LogInformation("Auto-detected ONNX execution provider: {Provider}", _detectedProvider);
@@ -91,7 +79,8 @@ public class OnnxSessionFactory
             // Try CUDA first on Windows (better for NVIDIA GPUs like A4000)
             if (TryDetectCuda())
             {
-                _logger?.LogInformation("NVIDIA GPU detected, using CUDA provider (device {DeviceId})", _config.DeviceId);
+                _logger?.LogInformation("NVIDIA GPU detected, using CUDA provider (device {DeviceId})",
+                    _config.DeviceId);
                 return OnnxExecutionProvider.CUDA;
             }
 
@@ -105,18 +94,12 @@ public class OnnxSessionFactory
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             // Try CUDA on Linux
-            if (TryDetectCuda())
-            {
-                return OnnxExecutionProvider.CUDA;
-            }
+            if (TryDetectCuda()) return OnnxExecutionProvider.CUDA;
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
             // CoreML on macOS
-            if (TryDetectCoreML())
-            {
-                return OnnxExecutionProvider.CoreML;
-            }
+            if (TryDetectCoreML()) return OnnxExecutionProvider.CoreML;
         }
 
         _logger?.LogInformation("No GPU provider detected, using CPU");
@@ -279,7 +262,7 @@ public class OnnxSessionFactory
     }
 
     /// <summary>
-    /// Get a summary of the current ONNX configuration for diagnostics.
+    ///     Get a summary of the current ONNX configuration for diagnostics.
     /// </summary>
     public string GetConfigurationSummary()
     {

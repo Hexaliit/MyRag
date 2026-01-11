@@ -7,25 +7,25 @@ using Microsoft.ML.Tokenizers;
 namespace Mostlylucid.DocSummarizer.Services.Onnx;
 
 /// <summary>
-/// ONNX-based Named Entity Recognition service for enhancing TF-IDF.
-/// Uses BERT-based NER model to identify persons, organizations, locations, etc.
+///     ONNX-based Named Entity Recognition service for enhancing TF-IDF.
+///     Uses BERT-based NER model to identify persons, organizations, locations, etc.
 /// </summary>
 public sealed class OnnxNerService : IDisposable
 {
-    private readonly string _modelPath;
-    private readonly int _maxSequenceLength;
-    private InferenceSession? _session;
-    private Tokenizer? _tokenizer;
-    private string[]? _labels;
-    private bool _initialized;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
-
     // BIO tag pattern
     private static readonly Regex BioTagRx = new(@"^([BI])-(.+)$", RegexOptions.Compiled);
 
     // Default NER labels (CoNLL-2003)
     private static readonly string[] DefaultLabels =
         ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"];
+
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly int _maxSequenceLength;
+    private readonly string _modelPath;
+    private bool _initialized;
+    private string[]? _labels;
+    private InferenceSession? _session;
+    private Tokenizer? _tokenizer;
 
     public OnnxNerService(string? modelPath = null, int maxSequenceLength = 512)
     {
@@ -36,13 +36,19 @@ public sealed class OnnxNerService : IDisposable
     }
 
     /// <summary>
-    /// Check if NER model is available.
+    ///     Check if NER model is available.
     /// </summary>
     public bool IsAvailable => File.Exists(Path.Combine(_modelPath, "model.onnx")) &&
                                File.Exists(Path.Combine(_modelPath, "vocab.txt"));
 
+    public void Dispose()
+    {
+        _session?.Dispose();
+        _initLock.Dispose();
+    }
+
     /// <summary>
-    /// Initialize the NER model and tokenizer.
+    ///     Initialize the NER model and tokenizer.
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -58,7 +64,8 @@ public sealed class OnnxNerService : IDisposable
             var configFile = Path.Combine(_modelPath, "config.json");
 
             if (!File.Exists(modelFile))
-                throw new FileNotFoundException($"NER model not found: {modelFile}. Download from protectai/bert-base-NER-onnx");
+                throw new FileNotFoundException(
+                    $"NER model not found: {modelFile}. Download from protectai/bert-base-NER-onnx");
 
             // Load model
             var options = new SessionOptions
@@ -99,6 +106,7 @@ public sealed class OnnxNerService : IDisposable
                         _labels[int.Parse(prop.Name)] = prop.Value.GetString() ?? "O";
                 }
             }
+
             _labels ??= DefaultLabels;
 
             _initialized = true;
@@ -110,7 +118,7 @@ public sealed class OnnxNerService : IDisposable
     }
 
     /// <summary>
-    /// Extract named entities from text.
+    ///     Extract named entities from text.
     /// </summary>
     public async Task<List<NerEntity>> ExtractEntitiesAsync(string text, CancellationToken ct = default)
     {
@@ -137,7 +145,7 @@ public sealed class OnnxNerService : IDisposable
 
         var tokens = new string[encoded.Count + 2];
         tokens[0] = "[CLS]";
-        for (int i = 0; i < encoded.Count; i++)
+        for (var i = 0; i < encoded.Count; i++)
             tokens[i + 1] = encoded[i].Value;
         tokens[^1] = "[SEP]";
 
@@ -152,7 +160,7 @@ public sealed class OnnxNerService : IDisposable
         // Pad
         var inputIds = new long[targetLength];
         var attentionMask = new long[targetLength];
-        for (int i = 0; i < targetLength; i++)
+        for (var i = 0; i < targetLength; i++)
         {
             inputIds[i] = i < rawIds.Length ? rawIds[i] : 0;
             attentionMask[i] = i < rawIds.Length ? 1 : 0;
@@ -192,18 +200,23 @@ public sealed class OnnxNerService : IDisposable
 
         // First pass: collect predictions with subword info
         var predictions = new List<(string token, string label, float confidence, bool isSubword)>();
-        for (int i = 0; i < seqLen && i < tokens.Length; i++)
+        for (var i = 0; i < seqLen && i < tokens.Length; i++)
         {
             var token = tokens[i];
             if (token is "[CLS]" or "[SEP]" or "[PAD]") continue;
 
             var maxProb = float.MinValue;
             var maxIdx = 0;
-            for (int j = 0; j < numLabels; j++)
+            for (var j = 0; j < numLabels; j++)
             {
                 var prob = logits[0, i, j];
-                if (prob > maxProb) { maxProb = prob; maxIdx = j; }
+                if (prob > maxProb)
+                {
+                    maxProb = prob;
+                    maxIdx = j;
+                }
             }
+
             predictions.Add((token, _labels![maxIdx], Softmax(logits, i, numLabels, maxIdx), token.StartsWith("##")));
         }
 
@@ -211,9 +224,9 @@ public sealed class OnnxNerService : IDisposable
         NerEntity? current = null;
         var currentTokens = new List<string>();
         float confidenceSum = 0;
-        int confidenceCount = 0;
+        var confidenceCount = 0;
 
-        for (int i = 0; i < predictions.Count; i++)
+        for (var i = 0; i < predictions.Count; i++)
         {
             var (token, label, confidence, isSubword) = predictions[i];
             var match = BioTagRx.Match(label);
@@ -262,6 +275,7 @@ public sealed class OnnxNerService : IDisposable
                 confidenceCount = 0;
             }
         }
+
         SaveEntity(entities, ref current, currentTokens, confidenceSum, confidenceCount);
 
         // Post-process: reclassify and filter
@@ -283,6 +297,7 @@ public sealed class OnnxNerService : IDisposable
             if (current.Text.Length >= 2 && !IsNoise(current.Text))
                 list.Add(current);
         }
+
         current = null;
     }
 
@@ -299,7 +314,8 @@ public sealed class OnnxNerService : IDisposable
             "Microsoft", "Google", "Amazon", "Apple", "OpenAI", "Anthropic", "GitHub"
         };
 
-        if (techProducts.Contains(e.Text) || techProducts.Any(p => e.Text.Contains(p, StringComparison.OrdinalIgnoreCase)))
+        if (techProducts.Contains(e.Text) ||
+            techProducts.Any(p => e.Text.Contains(p, StringComparison.OrdinalIgnoreCase)))
             e.Type = "MISC";
         else if (techCompanies.Contains(e.Text))
             e.Type = "ORG";
@@ -325,36 +341,31 @@ public sealed class OnnxNerService : IDisposable
     {
         if (tokens.Count == 0) return "";
         var merged = tokens[0];
-        for (int i = 1; i < tokens.Count; i++)
+        for (var i = 1; i < tokens.Count; i++)
         {
             var token = tokens[i];
             merged += token.StartsWith("##") ? token[2..] : " " + token;
         }
+
         return merged.Trim();
     }
 
     private static float Softmax(Tensor<float> logits, int seqIdx, int numLabels, int targetIdx)
     {
         var maxLogit = float.MinValue;
-        for (int j = 0; j < numLabels; j++)
+        for (var j = 0; j < numLabels; j++)
             maxLogit = Math.Max(maxLogit, logits[0, seqIdx, j]);
 
         var sumExp = 0f;
-        for (int j = 0; j < numLabels; j++)
+        for (var j = 0; j < numLabels; j++)
             sumExp += MathF.Exp(logits[0, seqIdx, j] - maxLogit);
 
         return MathF.Exp(logits[0, seqIdx, targetIdx] - maxLogit) / sumExp;
     }
-
-    public void Dispose()
-    {
-        _session?.Dispose();
-        _initLock.Dispose();
-    }
 }
 
 /// <summary>
-/// Named entity extracted by NER.
+///     Named entity extracted by NER.
 /// </summary>
 public class NerEntity
 {
@@ -364,14 +375,14 @@ public class NerEntity
 }
 
 /// <summary>
-/// NER model download helper.
+///     NER model download helper.
 /// </summary>
 public static class NerModelDownloader
 {
     private const string DefaultRepo = "protectai/bert-base-NER-onnx";
 
     /// <summary>
-    /// Download NER model from HuggingFace if not present.
+    ///     Download NER model from HuggingFace if not present.
     /// </summary>
     public static async Task<bool> EnsureModelAsync(
         string modelPath,
@@ -399,26 +410,30 @@ public static class NerModelDownloader
             if (!File.Exists(modelFile))
             {
                 progress?.Report("Downloading model.onnx...");
-                var bytes = await http.GetByteArrayAsync($"https://huggingface.co/{DefaultRepo}/resolve/main/model.onnx", ct);
+                var bytes = await http.GetByteArrayAsync(
+                    $"https://huggingface.co/{DefaultRepo}/resolve/main/model.onnx", ct);
                 await File.WriteAllBytesAsync(modelFile, bytes, ct);
             }
 
             if (!File.Exists(vocabFile))
             {
                 progress?.Report("Downloading vocab.txt...");
-                var bytes = await http.GetByteArrayAsync($"https://huggingface.co/{DefaultRepo}/resolve/main/vocab.txt", ct);
+                var bytes = await http.GetByteArrayAsync($"https://huggingface.co/{DefaultRepo}/resolve/main/vocab.txt",
+                    ct);
                 await File.WriteAllBytesAsync(vocabFile, bytes, ct);
             }
 
             if (!File.Exists(configFile))
-            {
                 try
                 {
-                    var bytes = await http.GetByteArrayAsync($"https://huggingface.co/{DefaultRepo}/resolve/main/config.json", ct);
+                    var bytes = await http.GetByteArrayAsync(
+                        $"https://huggingface.co/{DefaultRepo}/resolve/main/config.json", ct);
                     await File.WriteAllBytesAsync(configFile, bytes, ct);
                 }
-                catch { /* optional */ }
-            }
+                catch
+                {
+                    /* optional */
+                }
 
             progress?.Report("NER model download complete");
             return true;

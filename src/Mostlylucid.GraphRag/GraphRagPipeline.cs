@@ -9,17 +9,17 @@ using Mostlylucid.GraphRag.Storage;
 namespace Mostlylucid.GraphRag;
 
 /// <summary>
-/// Main orchestrator for the GraphRAG pipeline.
-/// Coordinates indexing, entity extraction, community detection, and querying.
+///     Main orchestrator for the GraphRAG pipeline.
+///     Coordinates indexing, entity extraction, community detection, and querying.
 /// </summary>
 public class GraphRagPipeline : IDisposable
 {
+    private readonly GraphRagConfig _config;
     private readonly GraphRagDb _db;
     private readonly EmbeddingService _embedder;
     private readonly OllamaClient _llm;
-    private readonly SearchService _search;
     private readonly QueryEngine _queryEngine;
-    private readonly GraphRagConfig _config;
+    private readonly SearchService _search;
 
     public GraphRagPipeline(GraphRagConfig config)
     {
@@ -31,8 +31,15 @@ public class GraphRagPipeline : IDisposable
         _queryEngine = new QueryEngine(_db, _search, _llm);
     }
 
+    public void Dispose()
+    {
+        _db.Dispose();
+        _embedder.Dispose();
+        _llm.Dispose();
+    }
+
     /// <summary>
-    /// Initialize the database and embedding model
+    ///     Initialize the database and embedding model
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -41,16 +48,16 @@ public class GraphRagPipeline : IDisposable
     }
 
     /// <summary>
-    /// Run the full indexing pipeline on a directory of markdown files
+    ///     Run the full indexing pipeline on a directory of markdown files
     /// </summary>
     public async Task IndexAsync(string markdownPath, IProgress<PipelineProgress>? progress = null,
         CancellationToken ct = default)
     {
         // Phase 1: Index documents and create chunks with embeddings
         progress?.Report(new PipelineProgress(PipelinePhase.Indexing, 0, "Starting document indexing..."));
-        
+
         var indexer = new MarkdownIndexer(_db, _embedder);
-        await indexer.IndexDirectoryAsync(markdownPath, 
+        await indexer.IndexDirectoryAsync(markdownPath,
             new Progress<IndexProgress>(p => progress?.Report(
                 new PipelineProgress(PipelinePhase.Indexing, p.Percentage, p.Message))), ct);
 
@@ -61,16 +68,16 @@ public class GraphRagPipeline : IDisposable
             ExtractionMode.Hybrid => "Hybrid (heuristic + LLM)",
             _ => "Heuristic"
         };
-        progress?.Report(new PipelineProgress(PipelinePhase.EntityExtraction, 0, 
+        progress?.Report(new PipelineProgress(PipelinePhase.EntityExtraction, 0,
             $"Extracting entities ({modeLabel})..."));
-        
+
         IEntityExtractor extractor = _config.ExtractionMode switch
         {
             ExtractionMode.Llm => new LlmEntityExtractor(_db, _embedder, _llm),
             ExtractionMode.Hybrid => new HybridEntityExtractor(_db, _embedder, _llm),
             _ => new EntityExtractor(_db, _embedder, _llm, _config.ExtractionMode)
         };
-        
+
         var extractionResult = await extractor.ExtractAsync(
             new Progress<ProgressInfo>(p => progress?.Report(
                 new PipelineProgress(PipelinePhase.EntityExtraction, p.Percentage, p.Message))), ct);
@@ -80,12 +87,14 @@ public class GraphRagPipeline : IDisposable
 
         // Phase 3: Detect communities and generate summaries
         progress?.Report(new PipelineProgress(PipelinePhase.CommunityDetection, 0, "Detecting communities..."));
-        
+
         var detector = new CommunityDetector(_db, _llm);
         await detector.DetectAndSummarizeAsync(
             new Progress<ProgressInfo>(p =>
             {
-                var phase = p.Message.Contains("Summariz") ? PipelinePhase.Summarization : PipelinePhase.CommunityDetection;
+                var phase = p.Message.Contains("Summariz")
+                    ? PipelinePhase.Summarization
+                    : PipelinePhase.CommunityDetection;
                 progress?.Report(new PipelineProgress(phase, p.Percentage, p.Message));
             }), ct);
 
@@ -96,21 +105,19 @@ public class GraphRagPipeline : IDisposable
     }
 
     /// <summary>
-    /// Query the indexed corpus
+    ///     Query the indexed corpus
     /// </summary>
-    public Task<QueryResult> QueryAsync(string query, QueryMode? mode = null, 
+    public Task<QueryResult> QueryAsync(string query, QueryMode? mode = null,
         CancellationToken ct = default)
-        => _queryEngine.QueryAsync(query, mode, ct);
+    {
+        return _queryEngine.QueryAsync(query, mode, ct);
+    }
 
     /// <summary>
-    /// Get database statistics
+    ///     Get database statistics
     /// </summary>
-    public Task<DbStats> GetStatsAsync() => _db.GetStatsAsync();
-
-    public void Dispose()
+    public Task<DbStats> GetStatsAsync()
     {
-        _db.Dispose();
-        _embedder.Dispose();
-        _llm.Dispose();
+        return _db.GetStatsAsync();
     }
 }

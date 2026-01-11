@@ -1,8 +1,8 @@
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Simple console-based progress service that works reliably in all terminals.
-/// No ANSI escape codes, no fancy rendering - just clear text output.
+///     Simple console-based progress service that works reliably in all terminals.
+///     No ANSI escape codes, no fancy rendering - just clear text output.
 /// </summary>
 public class SimpleProgressService : IProgressReporter
 {
@@ -18,10 +18,10 @@ public class SimpleProgressService : IProgressReporter
     public void ReportStage(string stage, float progress = 0)
     {
         if (!_verbose) return;
-        
+
         _currentStage = stage;
         var percent = (int)(progress * 100);
-        
+
         // Only report if percentage changed significantly (every 10%)
         if (percent / 10 != _lastPercentReported / 10 || percent == 0 || percent == 100)
         {
@@ -42,9 +42,9 @@ public class SimpleProgressService : IProgressReporter
     public void ReportChunkProgress(int completed, int total)
     {
         if (!_verbose) return;
-        
-        var percent = total > 0 ? (completed * 100) / total : 0;
-        
+
+        var percent = total > 0 ? completed * 100 / total : 0;
+
         // Only report on significant changes
         if (percent / 10 != _lastPercentReported / 10 || completed == total)
         {
@@ -56,7 +56,7 @@ public class SimpleProgressService : IProgressReporter
     public void ReportLog(string message, LogLevel level = LogLevel.Info)
     {
         if (!_verbose && level == LogLevel.Info) return;
-        
+
         var prefix = level switch
         {
             LogLevel.Success => "[OK]",
@@ -64,12 +64,12 @@ public class SimpleProgressService : IProgressReporter
             LogLevel.Error => "[ERROR]",
             _ => "[INFO]"
         };
-        
+
         Console.WriteLine($"  {prefix} {message}");
     }
 
     /// <summary>
-    /// Display a header for a new operation
+    ///     Display a header for a new operation
     /// </summary>
     public static void WriteHeader(string title)
     {
@@ -80,7 +80,7 @@ public class SimpleProgressService : IProgressReporter
     }
 
     /// <summary>
-    /// Display info about the current operation
+    ///     Display info about the current operation
     /// </summary>
     public static void WriteInfo(string label, string value)
     {
@@ -88,7 +88,7 @@ public class SimpleProgressService : IProgressReporter
     }
 
     /// <summary>
-    /// Display a section divider
+    ///     Display a section divider
     /// </summary>
     public static void WriteDivider(string? title = null)
     {
@@ -100,7 +100,7 @@ public class SimpleProgressService : IProgressReporter
     }
 
     /// <summary>
-    /// Display success message
+    ///     Display success message
     /// </summary>
     public static void WriteSuccess(string message)
     {
@@ -108,7 +108,7 @@ public class SimpleProgressService : IProgressReporter
     }
 
     /// <summary>
-    /// Display error message
+    ///     Display error message
     /// </summary>
     public static void WriteError(string message)
     {
@@ -116,7 +116,7 @@ public class SimpleProgressService : IProgressReporter
     }
 
     /// <summary>
-    /// Display warning message
+    ///     Display warning message
     /// </summary>
     public static void WriteWarning(string message)
     {
@@ -124,21 +124,21 @@ public class SimpleProgressService : IProgressReporter
     }
 
     /// <summary>
-    /// Simple progress bar using ASCII characters
+    ///     Simple progress bar using ASCII characters
     /// </summary>
     public static void WriteProgressBar(int current, int total, string? label = null)
     {
-        var percent = total > 0 ? (current * 100) / total : 0;
+        var percent = total > 0 ? current * 100 / total : 0;
         var filled = percent / 5; // 20 char bar
         var bar = new string('#', filled) + new string('-', 20 - filled);
-        
-        var text = label != null 
+
+        var text = label != null
             ? $"  [{bar}] {percent,3}% ({current}/{total}) {label}"
             : $"  [{bar}] {percent,3}% ({current}/{total})";
-            
+
         // Use carriage return to update in place (works in most terminals)
         Console.Write($"\r{text}");
-        
+
         if (current >= total)
             Console.WriteLine(); // New line when complete
     }

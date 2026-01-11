@@ -69,9 +69,6 @@ internal static class ServiceCollectionExtensions
     public static void TryAddSingleton<TService>(this IServiceCollection services)
         where TService : class
     {
-        if (!services.Any(sd => sd.ServiceType == typeof(TService)))
-        {
-            services.AddSingleton<TService>();
-        }
+        if (!services.Any(sd => sd.ServiceType == typeof(TService))) services.AddSingleton<TService>();
     }
 }

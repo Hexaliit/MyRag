@@ -84,13 +84,13 @@ public class QdrantHttpClient
         response.EnsureSuccessStatusCode();
     }
 
-public async Task DeleteCollectionAsync(string name)
+    public async Task DeleteCollectionAsync(string name)
     {
         var response = await _http.DeleteAsync($"{_baseUrl}/collections/{name}");
         // Don't throw if collection doesn't exist
         if (response.StatusCode != HttpStatusCode.NotFound) response.EnsureSuccessStatusCode();
     }
-    
+
     public async Task<QdrantCollectionDetails?> GetCollectionInfoAsync(string name)
     {
         try
@@ -99,9 +99,10 @@ public async Task DeleteCollectionAsync(string name)
             if (response.StatusCode == HttpStatusCode.NotFound)
                 return null;
             response.EnsureSuccessStatusCode();
-            
+
             var json = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize(json, DocSummarizerJsonContext.Default.QdrantCollectionDetailsResponse);
+            var result =
+                JsonSerializer.Deserialize(json, DocSummarizerJsonContext.Default.QdrantCollectionDetailsResponse);
             return result?.Result;
         }
         catch

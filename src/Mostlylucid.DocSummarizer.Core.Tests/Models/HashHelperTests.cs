@@ -1,5 +1,5 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Models;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Models;
 

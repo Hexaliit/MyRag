@@ -3,8 +3,8 @@ using Mostlylucid.DataSummarizer.Models;
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Profiles data segments and computes centroids for similarity/drift analysis.
-/// Enables cohort analysis, A/B comparison, and time-window drift detection.
+///     Profiles data segments and computes centroids for similarity/drift analysis.
+///     Enables cohort analysis, A/B comparison, and time-window drift detection.
 /// </summary>
 public class SegmentProfiler
 {
@@ -16,8 +16,8 @@ public class SegmentProfiler
     }
 
     /// <summary>
-    /// Compute centroid (statistical center) from a profile.
-    /// Centroid = normalized vector of [numeric means, categorical mode indices, null rates]
+    ///     Compute centroid (statistical center) from a profile.
+    ///     Centroid = normalized vector of [numeric means, categorical mode indices, null rates]
     /// </summary>
     public ProfileCentroid ComputeCentroid(DataProfile profile, string? segmentName = null)
     {
@@ -51,9 +51,7 @@ public class SegmentProfiler
                     colCentroid.Skewness = col.Skewness;
                     // Normalized value for distance calculations (z-score of mean relative to range)
                     if (col.Min.HasValue && col.Max.HasValue && col.Max != col.Min)
-                    {
                         colCentroid.NormalizedCenter = (col.Mean - col.Min) / (col.Max - col.Min);
-                    }
                     break;
 
                 case ColumnType.Categorical:
@@ -64,6 +62,7 @@ public class SegmentProfiler
                         colCentroid.CategoricalDistribution = col.TopValues
                             .ToDictionary(v => v.Value, v => v.Percent / 100.0);
                     }
+
                     colCentroid.Cardinality = (int)col.UniqueCount;
                     colCentroid.Entropy = col.Entropy;
                     break;
@@ -78,6 +77,7 @@ public class SegmentProfiler
                         var midTicks = (col.MinDate.Value.Ticks + col.MaxDate.Value.Ticks) / 2;
                         colCentroid.DateCenter = new DateTime(midTicks);
                     }
+
                     break;
 
                 case ColumnType.Text:
@@ -96,16 +96,16 @@ public class SegmentProfiler
     }
 
     /// <summary>
-    /// Compute distance between two centroids (0 = identical, 1 = maximally different)
+    ///     Compute distance between two centroids (0 = identical, 1 = maximally different)
     /// </summary>
     public double ComputeDistance(ProfileCentroid a, ProfileCentroid b)
     {
         // Match columns by name
         var aByName = a.Columns.ToDictionary(c => c.ColumnName, StringComparer.OrdinalIgnoreCase);
         var bByName = b.Columns.ToDictionary(c => c.ColumnName, StringComparer.OrdinalIgnoreCase);
-        
+
         var commonColumns = aByName.Keys.Intersect(bByName.Keys, StringComparer.OrdinalIgnoreCase).ToList();
-        
+
         if (commonColumns.Count == 0)
             return 1.0; // No common columns = maximally different
 
@@ -115,20 +115,20 @@ public class SegmentProfiler
         {
             var colA = aByName[colName];
             var colB = bByName[colName];
-            
+
             var colDistance = ComputeColumnDistance(colA, colB);
             distances.Add(colDistance);
         }
 
         // Penalize for missing columns
         var missingPenalty = 1.0 - (double)commonColumns.Count / Math.Max(a.Columns.Count, b.Columns.Count);
-        
+
         var avgDistance = distances.Average();
         return Math.Min(1.0, avgDistance + missingPenalty * 0.2);
     }
 
     /// <summary>
-    /// Compute distance between two column centroids
+    ///     Compute distance between two column centroids
     /// </summary>
     private double ComputeColumnDistance(ColumnCentroid a, ColumnCentroid b)
     {
@@ -142,12 +142,10 @@ public class SegmentProfiler
         {
             // Normalized center difference
             if (a.NormalizedCenter.HasValue && b.NormalizedCenter.HasValue)
-            {
                 components.Add(Math.Abs(a.NormalizedCenter.Value - b.NormalizedCenter.Value));
-            }
-            
+
             // Spread ratio (coefficient of variation comparison)
-            if (a.NumericCenter.HasValue && b.NumericCenter.HasValue && 
+            if (a.NumericCenter.HasValue && b.NumericCenter.HasValue &&
                 a.NumericSpread.HasValue && b.NumericSpread.HasValue &&
                 a.NumericCenter != 0 && b.NumericCenter != 0)
             {
@@ -168,14 +166,14 @@ public class SegmentProfiler
         {
             // Mode frequency difference
             components.Add(Math.Abs((a.CategoricalModeFrequency ?? 0) - (b.CategoricalModeFrequency ?? 0)));
-            
+
             // Distribution divergence (simplified Jensen-Shannon)
             if (a.CategoricalDistribution != null && b.CategoricalDistribution != null)
             {
                 var jsd = ComputeJensenShannonDivergence(a.CategoricalDistribution, b.CategoricalDistribution);
                 components.Add(jsd);
             }
-            
+
             // Cardinality ratio
             if (a.Cardinality > 0 && b.Cardinality > 0)
             {
@@ -203,10 +201,10 @@ public class SegmentProfiler
     }
 
     /// <summary>
-    /// Compute Jensen-Shannon divergence between two categorical distributions
+    ///     Compute Jensen-Shannon divergence between two categorical distributions
     /// </summary>
     private double ComputeJensenShannonDivergence(
-        Dictionary<string, double> p, 
+        Dictionary<string, double> p,
         Dictionary<string, double> q)
     {
         var allKeys = p.Keys.Union(q.Keys).ToList();
@@ -219,7 +217,7 @@ public class SegmentProfiler
         // Normalize
         var pSum = pVec.Sum();
         var qSum = qVec.Sum();
-        for (int i = 0; i < pVec.Length; i++)
+        for (var i = 0; i < pVec.Length; i++)
         {
             pVec[i] /= pSum;
             qVec[i] /= qSum;
@@ -230,7 +228,7 @@ public class SegmentProfiler
 
         // JSD = (KL(P||M) + KL(Q||M)) / 2
         double klPM = 0, klQM = 0;
-        for (int i = 0; i < m.Length; i++)
+        for (var i = 0; i < m.Length; i++)
         {
             if (pVec[i] > 0 && m[i] > 0)
                 klPM += pVec[i] * Math.Log(pVec[i] / m[i]);
@@ -244,7 +242,7 @@ public class SegmentProfiler
     }
 
     /// <summary>
-    /// Compute overlap ratio between two date ranges
+    ///     Compute overlap ratio between two date ranges
     /// </summary>
     private double ComputeDateOverlap(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd)
     {
@@ -261,7 +259,7 @@ public class SegmentProfiler
     }
 
     /// <summary>
-    /// Compute a flat vector representation of the centroid for ML/clustering
+    ///     Compute a flat vector representation of the centroid for ML/clustering
     /// </summary>
     private double[] ComputeCentroidVector(ProfileCentroid centroid)
     {
@@ -276,16 +274,16 @@ public class SegmentProfiler
         {
             vector.Add(col.NullRate);
             vector.Add(col.UniqueRate);
-            
+
             // Type indicator (one-hot style)
             vector.Add(col.ColumnType == ColumnType.Numeric ? 1.0 : 0.0);
             vector.Add(col.ColumnType == ColumnType.Categorical ? 1.0 : 0.0);
             vector.Add(col.ColumnType == ColumnType.DateTime ? 1.0 : 0.0);
-            
+
             // Numeric features
             vector.Add(col.NormalizedCenter ?? 0.5);
             vector.Add(Math.Min(1.0, (col.Skewness ?? 0) / 3.0 + 0.5)); // Normalized skewness
-            
+
             // Categorical features
             vector.Add(col.CategoricalModeFrequency ?? 0);
             vector.Add(Math.Min(1.0, (col.Entropy ?? 0) / 5.0)); // Normalized entropy
@@ -295,14 +293,14 @@ public class SegmentProfiler
     }
 
     /// <summary>
-    /// Find the most similar stored profile to a given centroid
+    ///     Find the most similar stored profile to a given centroid
     /// </summary>
     public (StoredProfileInfo? Profile, double Similarity) FindMostSimilar(
-        ProfileCentroid centroid, 
+        ProfileCentroid centroid,
         ProfileStore store,
         double minSimilarity = 0.5)
     {
-        var allProfiles = store.ListAll(100);
+        var allProfiles = store.ListAll();
         StoredProfileInfo? bestMatch = null;
         double bestSimilarity = 0;
 
@@ -326,10 +324,10 @@ public class SegmentProfiler
     }
 
     /// <summary>
-    /// Compare two profiles and return detailed segment comparison
+    ///     Compare two profiles and return detailed segment comparison
     /// </summary>
     public SegmentComparison CompareSegments(
-        DataProfile segmentA, 
+        DataProfile segmentA,
         DataProfile segmentB,
         string? nameA = null,
         string? nameB = null)
@@ -365,19 +363,20 @@ public class SegmentProfiler
                 ColumnName = colName,
                 ColumnType = colA.ColumnType,
                 Distance = colDistance,
-                
+
                 // Numeric comparisons
                 MeanA = colA.NumericCenter,
                 MeanB = colB.NumericCenter,
-                MeanDelta = colA.NumericCenter.HasValue && colB.NumericCenter.HasValue 
-                    ? colB.NumericCenter - colA.NumericCenter : null,
-                
+                MeanDelta = colA.NumericCenter.HasValue && colB.NumericCenter.HasValue
+                    ? colB.NumericCenter - colA.NumericCenter
+                    : null,
+
                 // Categorical comparisons
                 ModeA = colA.CategoricalMode,
                 ModeB = colB.CategoricalMode,
                 ModeFrequencyA = colA.CategoricalModeFrequency,
                 ModeFrequencyB = colB.CategoricalModeFrequency,
-                
+
                 // Null rate comparison
                 NullRateA = colA.NullRate,
                 NullRateB = colB.NullRate,
@@ -401,28 +400,27 @@ public class SegmentProfiler
         var insights = new List<string>();
 
         // Size difference
-        var sizeDiff = (double)(comparison.SegmentBRowCount - comparison.SegmentARowCount) / comparison.SegmentARowCount * 100;
+        var sizeDiff = (double)(comparison.SegmentBRowCount - comparison.SegmentARowCount) /
+            comparison.SegmentARowCount * 100;
         if (Math.Abs(sizeDiff) > 20)
-        {
-            insights.Add($"Segment sizes differ by {sizeDiff:+0.0;-0.0}% ({comparison.SegmentARowCount:N0} vs {comparison.SegmentBRowCount:N0} rows)");
-        }
+            insights.Add(
+                $"Segment sizes differ by {sizeDiff:+0.0;-0.0}% ({comparison.SegmentARowCount:N0} vs {comparison.SegmentBRowCount:N0} rows)");
 
         // Most different columns
         var topDiffs = comparison.ColumnComparisons.Take(3).Where(c => c.Distance > 0.3).ToList();
         foreach (var col in topDiffs)
-        {
             if (col.ColumnType == ColumnType.Numeric && col.MeanDelta.HasValue)
             {
-                var pctChange = col.MeanA.HasValue && col.MeanA != 0 
-                    ? col.MeanDelta.Value / col.MeanA.Value * 100 
+                var pctChange = col.MeanA.HasValue && col.MeanA != 0
+                    ? col.MeanDelta.Value / col.MeanA.Value * 100
                     : 0;
-                insights.Add($"'{col.ColumnName}' mean shifted by {pctChange:+0.0;-0.0}% ({col.MeanA:F2} → {col.MeanB:F2})");
+                insights.Add(
+                    $"'{col.ColumnName}' mean shifted by {pctChange:+0.0;-0.0}% ({col.MeanA:F2} → {col.MeanB:F2})");
             }
             else if (col.ColumnType == ColumnType.Categorical && col.ModeA != col.ModeB)
             {
                 insights.Add($"'{col.ColumnName}' mode changed from '{col.ModeA}' to '{col.ModeB}'");
             }
-        }
 
         // Null rate changes
         var nullChanges = comparison.ColumnComparisons
@@ -430,9 +428,7 @@ public class SegmentProfiler
             .OrderByDescending(c => Math.Abs(c.NullRateDelta))
             .Take(2);
         foreach (var col in nullChanges)
-        {
             insights.Add($"'{col.ColumnName}' null rate changed by {col.NullRateDelta * 100:+0.0;-0.0}pp");
-        }
 
         // Overall assessment
         if (comparison.Similarity >= 0.9)
@@ -451,7 +447,7 @@ public class SegmentProfiler
 #region Models
 
 /// <summary>
-/// Statistical centroid of a data profile - the "center" of the data
+///     Statistical centroid of a data profile - the "center" of the data
 /// </summary>
 public class ProfileCentroid
 {
@@ -461,15 +457,15 @@ public class ProfileCentroid
     public int ColumnCount { get; set; }
     public DateTime ComputedAt { get; set; }
     public List<ColumnCentroid> Columns { get; set; } = [];
-    
+
     /// <summary>
-    /// Flat vector representation for ML/clustering
+    ///     Flat vector representation for ML/clustering
     /// </summary>
     public double[] Vector { get; set; } = [];
 }
 
 /// <summary>
-/// Centroid data for a single column
+///     Centroid data for a single column
 /// </summary>
 public class ColumnCentroid
 {
@@ -477,7 +473,7 @@ public class ColumnCentroid
     public ColumnType ColumnType { get; set; }
     public double NullRate { get; set; }
     public double UniqueRate { get; set; }
-    
+
     // Numeric columns
     public double? NumericCenter { get; set; } // Mean
     public double? NumericSpread { get; set; } // StdDev
@@ -486,27 +482,27 @@ public class ColumnCentroid
     public double? NumericMedian { get; set; }
     public double? Skewness { get; set; }
     public double? NormalizedCenter { get; set; } // 0-1 scaled
-    
+
     // Categorical columns
     public string? CategoricalMode { get; set; }
     public double? CategoricalModeFrequency { get; set; }
     public Dictionary<string, double>? CategoricalDistribution { get; set; }
     public int Cardinality { get; set; }
     public double? Entropy { get; set; }
-    
+
     // DateTime columns
     public DateTime? DateRangeStart { get; set; }
     public DateTime? DateRangeEnd { get; set; }
     public DateTime? DateCenter { get; set; }
     public int? DateSpanDays { get; set; }
-    
+
     // Text columns
     public double? TextAvgLength { get; set; }
     public int? TextMaxLength { get; set; }
 }
 
 /// <summary>
-/// Result of comparing two data segments
+///     Result of comparing two data segments
 /// </summary>
 public class SegmentComparison
 {
@@ -514,42 +510,42 @@ public class SegmentComparison
     public string SegmentBName { get; set; } = "";
     public long SegmentARowCount { get; set; }
     public long SegmentBRowCount { get; set; }
-    
+
     /// <summary>
-    /// Overall distance between segments (0 = identical, 1 = maximally different)
+    ///     Overall distance between segments (0 = identical, 1 = maximally different)
     /// </summary>
     public double OverallDistance { get; set; }
-    
+
     /// <summary>
-    /// Overall similarity (1 - distance)
+    ///     Overall similarity (1 - distance)
     /// </summary>
     public double Similarity { get; set; }
-    
+
     public DateTime ComparedAt { get; set; }
     public List<ColumnComparison> ColumnComparisons { get; set; } = [];
     public List<string> Insights { get; set; } = [];
 }
 
 /// <summary>
-/// Comparison of a single column between two segments
+///     Comparison of a single column between two segments
 /// </summary>
 public class ColumnComparison
 {
     public string ColumnName { get; set; } = "";
     public ColumnType ColumnType { get; set; }
     public double Distance { get; set; }
-    
+
     // Numeric
     public double? MeanA { get; set; }
     public double? MeanB { get; set; }
     public double? MeanDelta { get; set; }
-    
+
     // Categorical
     public string? ModeA { get; set; }
     public string? ModeB { get; set; }
     public double? ModeFrequencyA { get; set; }
     public double? ModeFrequencyB { get; set; }
-    
+
     // Null rates
     public double NullRateA { get; set; }
     public double NullRateB { get; set; }

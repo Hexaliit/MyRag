@@ -1,11 +1,11 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Tests.Config;
 
 /// <summary>
-/// Tests for DocSummarizerConfig defaults ensuring safe configuration
+///     Tests for DocSummarizerConfig defaults ensuring safe configuration
 /// </summary>
 public class DocSummarizerConfigTests
 {

@@ -4,7 +4,7 @@ using Mostlylucid.DataSummarizer.Services.Onnx;
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Factory for creating embedding services
+///     Factory for creating embedding services
 /// </summary>
 public static class EmbeddingServiceFactory
 {
@@ -12,11 +12,11 @@ public static class EmbeddingServiceFactory
     private static readonly SemaphoreSlim _lock = new(1, 1);
 
     /// <summary>
-    /// Get or create an embedding service based on settings.
-    /// If config is null or ONNX is disabled, uses hash-based embeddings.
+    ///     Get or create an embedding service based on settings.
+    ///     If config is null or ONNX is disabled, uses hash-based embeddings.
     /// </summary>
     public static async Task<IEmbeddingService> GetOrCreateAsync(
-        OnnxConfig? config = null, 
+        OnnxConfig? config = null,
         bool verbose = false,
         CancellationToken ct = default)
     {
@@ -36,13 +36,12 @@ public static class EmbeddingServiceFactory
             }
 
             if (config.Enabled)
-            {
                 try
                 {
                     // Add a timeout for initialization (30 seconds) to avoid blocking tests/CI
                     using var initCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     initCts.CancelAfter(TimeSpan.FromSeconds(30));
-                    
+
                     var onnxService = new OnnxEmbeddingService(config, verbose);
                     await onnxService.InitializeAsync(initCts.Token);
                     _instance = onnxService;
@@ -51,19 +50,18 @@ public static class EmbeddingServiceFactory
                 catch (OperationCanceledException)
                 {
                     if (verbose)
-                    {
-                        Console.WriteLine("[EmbeddingFactory] ONNX initialization timed out, falling back to hash-based embeddings");
-                    }
+                        Console.WriteLine(
+                            "[EmbeddingFactory] ONNX initialization timed out, falling back to hash-based embeddings");
                 }
                 catch (Exception ex)
                 {
                     if (verbose)
                     {
-                        Console.WriteLine($"[EmbeddingFactory] ONNX embedding service failed to initialize: {ex.Message}");
+                        Console.WriteLine(
+                            $"[EmbeddingFactory] ONNX embedding service failed to initialize: {ex.Message}");
                         Console.WriteLine("[EmbeddingFactory] Falling back to hash-based embeddings");
                     }
                 }
-            }
 
             // Fallback to hash-based embeddings
             _instance = new HashEmbeddingService();
@@ -77,7 +75,7 @@ public static class EmbeddingServiceFactory
     }
 
     /// <summary>
-    /// Create a new embedding service (does not cache/reuse instance)
+    ///     Create a new embedding service (does not cache/reuse instance)
     /// </summary>
     public static async Task<IEmbeddingService> CreateAsync(
         OnnxConfig? config = null,
@@ -88,7 +86,6 @@ public static class EmbeddingServiceFactory
         config ??= new OnnxConfig { Enabled = useOnnx };
 
         if (config.Enabled)
-        {
             try
             {
                 var onnxService = new OnnxEmbeddingService(config, verbose);
@@ -98,11 +95,8 @@ public static class EmbeddingServiceFactory
             catch (Exception ex)
             {
                 if (verbose)
-                {
                     Console.WriteLine($"[EmbeddingFactory] ONNX failed: {ex.Message}, using hash-based fallback");
-                }
             }
-        }
 
         var hashService = new HashEmbeddingService();
         await hashService.InitializeAsync(ct);
@@ -110,14 +104,11 @@ public static class EmbeddingServiceFactory
     }
 
     /// <summary>
-    /// Reset the cached instance (useful for testing)
+    ///     Reset the cached instance (useful for testing)
     /// </summary>
     public static void Reset()
     {
-        if (_instance is IDisposable disposable)
-        {
-            disposable.Dispose();
-        }
+        if (_instance is IDisposable disposable) disposable.Dispose();
         _instance = null;
     }
 }

@@ -4,9 +4,9 @@ using System.Text;
 namespace Mostlylucid.DataSummarizer.Services;
 
 /// <summary>
-/// Hash-based embedding service for fallback when ONNX is not available or disabled.
-/// Uses locality-sensitive hashing to create approximate embeddings.
-/// Not suitable for semantic similarity but works for basic retrieval.
+///     Hash-based embedding service for fallback when ONNX is not available or disabled.
+///     Uses locality-sensitive hashing to create approximate embeddings.
+///     Not suitable for semantic similarity but works for basic retrieval.
 /// </summary>
 public class HashEmbeddingService : IEmbeddingService
 {
@@ -52,8 +52,10 @@ public class HashEmbeddingService : IEmbeddingService
     {
         var sb = new StringBuilder();
         foreach (var ch in text)
-        {
-            if (char.IsLetterOrDigit(ch)) sb.Append(char.ToLowerInvariant(ch));
+            if (char.IsLetterOrDigit(ch))
+            {
+                sb.Append(char.ToLowerInvariant(ch));
+            }
             else
             {
                 if (sb.Length > 0)
@@ -62,7 +64,7 @@ public class HashEmbeddingService : IEmbeddingService
                     sb.Clear();
                 }
             }
-        }
+
         if (sb.Length > 0) yield return sb.ToString();
     }
 
@@ -78,9 +80,6 @@ public class HashEmbeddingService : IEmbeddingService
     {
         var norm = MathF.Sqrt(vector.Sum(v => v * v));
         if (norm <= 0) return;
-        for (var i = 0; i < vector.Length; i++)
-        {
-            vector[i] /= norm;
-        }
+        for (var i = 0; i < vector.Length; i++) vector[i] /= norm;
     }
 }

@@ -20,68 +20,68 @@ public record Signal
 
 ### Identity Signals
 
-| Key | Type | Source |
-|-----|------|--------|
-| `identity.width` | int | IdentityWave |
-| `identity.height` | int | IdentityWave |
-| `identity.format` | string | IdentityWave |
-| `identity.is_animated` | bool | IdentityWave |
-| `identity.frame_count` | int | IdentityWave |
-| `identity.type` | string | TypeClassificationWave |
+| Key                        | Type   | Source                 |
+|----------------------------|--------|------------------------|
+| `identity.width`           | int    | IdentityWave           |
+| `identity.height`          | int    | IdentityWave           |
+| `identity.format`          | string | IdentityWave           |
+| `identity.is_animated`     | bool   | IdentityWave           |
+| `identity.frame_count`     | int    | IdentityWave           |
+| `identity.type`            | string | TypeClassificationWave |
 | `identity.type_confidence` | double | TypeClassificationWave |
 
 ### Color Signals
 
-| Key | Type | Source |
-|-----|------|--------|
-| `color.dominant.hex` | string | ColorWave |
-| `color.dominant.name` | string | ColorWave |
+| Key                         | Type   | Source    |
+|-----------------------------|--------|-----------|
+| `color.dominant.hex`        | string | ColorWave |
+| `color.dominant.name`       | string | ColorWave |
 | `color.dominant.percentage` | double | ColorWave |
-| `color.palette` | List | ColorWave |
-| `color.saturation.average` | double | ColorWave |
+| `color.palette`             | List   | ColorWave |
+| `color.saturation.average`  | double | ColorWave |
 
 ### Quality Signals
 
-| Key | Type | Source |
-|-----|------|--------|
-| `quality.sharpness` | double | QualityWave |
-| `quality.is_blurry` | bool | QualityWave |
+| Key                   | Type   | Source      |
+|-----------------------|--------|-------------|
+| `quality.sharpness`   | double | QualityWave |
+| `quality.is_blurry`   | bool   | QualityWave |
 | `quality.noise_level` | double | QualityWave |
 
 ### OCR Signals
 
-| Key | Type | Source |
-|-----|------|--------|
-| `ocr.text` | string | OcrWave |
-| `ocr.confidence` | double | OcrWave |
-| `ocr.word_count` | int | OcrWave |
-| `ocr.ml.text` | string | MlOcrWave |
+| Key                  | Type   | Source        |
+|----------------------|--------|---------------|
+| `ocr.text`           | string | OcrWave       |
+| `ocr.confidence`     | double | OcrWave       |
+| `ocr.word_count`     | int    | OcrWave       |
+| `ocr.ml.text`        | string | MlOcrWave     |
 | `ocr.florence2.text` | string | Florence2Wave |
 
 ### Caption Signals
 
-| Key | Type | Source |
-|-----|------|--------|
-| `caption.text` | string | VisionLlmWave |
-| `caption.detailed` | string | VisionLlmWave |
+| Key                  | Type   | Source        |
+|----------------------|--------|---------------|
+| `caption.text`       | string | VisionLlmWave |
+| `caption.detailed`   | string | VisionLlmWave |
 | `caption.confidence` | double | VisionLlmWave |
 
 ### Motion Signals
 
-| Key | Type | Source |
-|-----|------|--------|
-| `motion.is_animated` | bool | MotionWave |
-| `motion.frame_count` | int | MotionWave |
-| `motion.duration` | double | MotionWave |
+| Key                       | Type   | Source     |
+|---------------------------|--------|------------|
+| `motion.is_animated`      | bool   | MotionWave |
+| `motion.frame_count`      | int    | MotionWave |
+| `motion.duration`         | double | MotionWave |
 | `motion.motion_intensity` | double | MotionWave |
-| `motion.motion_type` | string | MotionWave |
+| `motion.motion_type`      | string | MotionWave |
 
 ### Embedding Signals
 
-| Key | Type | Source |
-|-----|------|--------|
-| `embedding.clip` | float[] | EmbeddingWave |
-| `embedding.dimensions` | int | EmbeddingWave |
+| Key                    | Type    | Source        |
+|------------------------|---------|---------------|
+| `embedding.clip`       | float[] | EmbeddingWave |
+| `embedding.dimensions` | int     | EmbeddingWave |
 
 ## Collections
 
@@ -92,13 +92,13 @@ Pre-defined signal groups using `@` prefix:
 var result = await analyzer.AnalyzeBySignalsAsync(path, "@alttext");
 ```
 
-| Collection | Signals |
-|------------|---------|
-| `@minimal` | `identity.*`, `quality.sharpness` |
+| Collection | Signals                                       |
+|------------|-----------------------------------------------|
+| `@minimal` | `identity.*`, `quality.sharpness`             |
 | `@alttext` | `caption.text`, `ocr.text`, `color.dominant*` |
-| `@motion` | `motion.*`, `identity.frame_count` |
-| `@full` | All signals |
-| `@tool` | Optimized for automation |
+| `@motion`  | `motion.*`, `identity.frame_count`            |
+| `@full`    | All signals                                   |
+| `@tool`    | Optimized for automation                      |
 
 ## Glob Patterns
 

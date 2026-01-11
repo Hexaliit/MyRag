@@ -1,3 +1,4 @@
+using System.Text;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -6,23 +7,22 @@ using Spectre.Console;
 namespace LucidRAG.ImageCli.Services;
 
 /// <summary>
-/// Renders low-resolution image previews in the console using Unicode block characters.
-/// Enables conversational filtering with visual feedback.
-///
-/// Techniques:
-/// - Unicode half-blocks (▀▄) for 2 pixels per character (double vertical resolution)
-/// - ANSI 256-color palette for color approximation
-/// - Aspect ratio preservation
-/// - Multiple rendering modes (blocks, ASCII, Braille)
+///     Renders low-resolution image previews in the console using Unicode block characters.
+///     Enables conversational filtering with visual feedback.
+///     Techniques:
+///     - Unicode half-blocks (▀▄) for 2 pixels per character (double vertical resolution)
+///     - ANSI 256-color palette for color approximation
+///     - Aspect ratio preservation
+///     - Multiple rendering modes (blocks, ASCII, Braille)
 /// </summary>
 public class ConsoleImageRenderer
 {
-    private const int DefaultWidth = 80;  // Terminal width in characters
+    private const int DefaultWidth = 80; // Terminal width in characters
     private const int DefaultHeight = 40; // Terminal height in characters
 
     /// <summary>
-    /// Render an image to console using Unicode half-blocks with colors.
-    /// Uses ▀ (upper half block) with foreground and background colors to represent 2 vertical pixels per character.
+    ///     Render an image to console using Unicode half-blocks with colors.
+    ///     Uses ▀ (upper half block) with foreground and background colors to represent 2 vertical pixels per character.
     /// </summary>
     public static void RenderToConsole(
         string imagePath,
@@ -50,8 +50,8 @@ public class ConsoleImageRenderer
     }
 
     /// <summary>
-    /// Render using colored Unicode half-blocks (best quality).
-    /// Each character represents 2 vertical pixels using ▀ with different fg/bg colors.
+    ///     Render using colored Unicode half-blocks (best quality).
+    ///     Each character represents 2 vertical pixels using ▀ with different fg/bg colors.
     /// </summary>
     private static void RenderColorBlocks(Image<Rgb24> image, int maxWidth, int maxHeight)
     {
@@ -64,9 +64,9 @@ public class ConsoleImageRenderer
         using var resized = image.Clone(ctx => ctx.Resize(width, height));
 
         // Render using half-blocks (▀)
-        for (int y = 0; y < height; y += 2)
+        for (var y = 0; y < height; y += 2)
         {
-            for (int x = 0; x < width; x++)
+            for (var x = 0; x < width; x++)
             {
                 // Get top and bottom pixels
                 var topPixel = resized[x, y];
@@ -77,14 +77,16 @@ public class ConsoleImageRenderer
                 var bottomColor = RgbToAnsiColor(bottomPixel);
 
                 // Use upper half block (▀) with top color as foreground, bottom color as background
-                AnsiConsole.Markup($"[rgb({topPixel.R},{topPixel.G},{topPixel.B}) on rgb({bottomPixel.R},{bottomPixel.G},{bottomPixel.B})]▀[/]");
+                AnsiConsole.Markup(
+                    $"[rgb({topPixel.R},{topPixel.G},{topPixel.B}) on rgb({bottomPixel.R},{bottomPixel.G},{bottomPixel.B})]▀[/]");
             }
+
             AnsiConsole.WriteLine();
         }
     }
 
     /// <summary>
-    /// Render using grayscale blocks with varying intensity.
+    ///     Render using grayscale blocks with varying intensity.
     /// </summary>
     private static void RenderGrayscaleBlocks(Image<Rgb24> image, int maxWidth, int maxHeight)
     {
@@ -96,24 +98,25 @@ public class ConsoleImageRenderer
         // Grayscale characters from light to dark
         var chars = new[] { ' ', '░', '▒', '▓', '█' };
 
-        for (int y = 0; y < height; y++)
+        for (var y = 0; y < height; y++)
         {
-            for (int x = 0; x < width; x++)
+            for (var x = 0; x < width; x++)
             {
                 var pixel = resized[x, y];
                 var brightness = (pixel.R + pixel.G + pixel.B) / 3;
-                var charIndex = (chars.Length - 1) - (brightness * chars.Length / 256);
+                var charIndex = chars.Length - 1 - brightness * chars.Length / 256;
                 charIndex = Math.Clamp(charIndex, 0, chars.Length - 1);
 
                 AnsiConsole.Markup($"[grey{brightness * 100 / 255}]{chars[charIndex]}[/]");
             }
+
             AnsiConsole.WriteLine();
         }
     }
 
     /// <summary>
-    /// Render using ASCII characters based on brightness.
-    /// Classic ASCII art style.
+    ///     Render using ASCII characters based on brightness.
+    ///     Classic ASCII art style.
     /// </summary>
     private static void RenderAscii(Image<Rgb24> image, int maxWidth, int maxHeight)
     {
@@ -125,24 +128,25 @@ public class ConsoleImageRenderer
         // ASCII characters from light to dark (by visual density)
         var chars = " .:-=+*#%@";
 
-        for (int y = 0; y < height; y++)
+        for (var y = 0; y < height; y++)
         {
-            for (int x = 0; x < width; x++)
+            for (var x = 0; x < width; x++)
             {
                 var pixel = resized[x, y];
                 var brightness = (pixel.R + pixel.G + pixel.B) / 3;
-                var charIndex = (chars.Length - 1) - (brightness * chars.Length / 256);
+                var charIndex = chars.Length - 1 - brightness * chars.Length / 256;
                 charIndex = Math.Clamp(charIndex, 0, chars.Length - 1);
 
                 Console.Write(chars[charIndex]);
             }
+
             Console.WriteLine();
         }
     }
 
     /// <summary>
-    /// Render using Braille characters (Unicode U+2800-U+28FF).
-    /// Highest resolution: 2x4 pixels per character = 8x resolution boost.
+    ///     Render using Braille characters (Unicode U+2800-U+28FF).
+    ///     Highest resolution: 2x4 pixels per character = 8x resolution boost.
     /// </summary>
     private static void RenderBraille(Image<Rgb24> image, int maxWidth, int maxHeight)
     {
@@ -161,46 +165,45 @@ public class ConsoleImageRenderer
 
         var dotValues = new[] { 0x01, 0x02, 0x04, 0x40, 0x08, 0x10, 0x20, 0x80 };
 
-        for (int y = 0; y < height; y += 4)
+        for (var y = 0; y < height; y += 4)
         {
-            for (int x = 0; x < width; x += 2)
+            for (var x = 0; x < width; x += 2)
             {
-                int brailleChar = 0x2800; // Braille pattern blank
+                var brailleChar = 0x2800; // Braille pattern blank
 
                 // Check each of 8 dot positions
-                for (int dy = 0; dy < 4 && y + dy < height; dy++)
+                for (var dy = 0; dy < 4 && y + dy < height; dy++)
+                for (var dx = 0; dx < 2 && x + dx < width; dx++)
                 {
-                    for (int dx = 0; dx < 2 && x + dx < width; dx++)
-                    {
-                        var pixel = resized[x + dx, y + dy];
-                        var brightness = (pixel.R + pixel.G + pixel.B) / 3;
+                    var pixel = resized[x + dx, y + dy];
+                    var brightness = (pixel.R + pixel.G + pixel.B) / 3;
 
-                        // Threshold: if bright, set dot
-                        if (brightness > 128)
-                        {
-                            var dotIndex = dy * 2 + dx;
-                            brailleChar |= dotValues[dotIndex];
-                        }
+                    // Threshold: if bright, set dot
+                    if (brightness > 128)
+                    {
+                        var dotIndex = dy * 2 + dx;
+                        brailleChar |= dotValues[dotIndex];
                     }
                 }
 
                 Console.Write((char)brailleChar);
             }
+
             Console.WriteLine();
         }
     }
 
     /// <summary>
-    /// Generate a compact preview string for inline display (single line).
+    ///     Generate a compact preview string for inline display (single line).
     /// </summary>
     public static string GenerateCompactPreview(string imagePath, int width = 32)
     {
         using var image = Image.Load<Rgb24>(imagePath);
         using var resized = image.Clone(ctx => ctx.Resize(width, 1));
 
-        var preview = new System.Text.StringBuilder();
+        var preview = new StringBuilder();
 
-        for (int x = 0; x < width; x++)
+        for (var x = 0; x < width; x++)
         {
             var pixel = resized[x, 0];
             preview.Append($"[rgb({pixel.R},{pixel.G},{pixel.B})]█[/]");
@@ -210,16 +213,16 @@ public class ConsoleImageRenderer
     }
 
     /// <summary>
-    /// Get a color bar representation of the image's dominant colors.
+    ///     Get a color bar representation of the image's dominant colors.
     /// </summary>
     public static string GenerateColorBar(string imagePath, int segments = 16)
     {
         using var image = Image.Load<Rgb24>(imagePath);
         using var resized = image.Clone(ctx => ctx.Resize(segments, 1));
 
-        var bar = new System.Text.StringBuilder();
+        var bar = new StringBuilder();
 
-        for (int x = 0; x < segments; x++)
+        for (var x = 0; x < segments; x++)
         {
             var pixel = resized[x, 0];
             bar.Append($"[rgb({pixel.R},{pixel.G},{pixel.B})]▌[/]");
@@ -229,7 +232,7 @@ public class ConsoleImageRenderer
     }
 
     /// <summary>
-    /// Calculate target dimensions preserving aspect ratio.
+    ///     Calculate target dimensions preserving aspect ratio.
     /// </summary>
     private static (int width, int height) CalculateTargetDimensions(
         int sourceWidth,
@@ -258,7 +261,7 @@ public class ConsoleImageRenderer
     }
 
     /// <summary>
-    /// Convert RGB to nearest ANSI 256-color code.
+    ///     Convert RGB to nearest ANSI 256-color code.
     /// </summary>
     private static int RgbToAnsiColor(Rgb24 rgb)
     {
@@ -272,30 +275,32 @@ public class ConsoleImageRenderer
         var g = (int)Math.Round(rgb.G / 255.0 * 5);
         var b = (int)Math.Round(rgb.B / 255.0 * 5);
 
-        return 16 + (36 * r) + (6 * g) + b;
+        return 16 + 36 * r + 6 * g + b;
     }
 
     /// <summary>
-    /// Create a bordered preview panel for conversational display.
+    ///     Create a bordered preview panel for conversational display.
     /// </summary>
     public static Panel CreatePreviewPanel(string imagePath, string? caption = null)
     {
         using var image = Image.Load<Rgb24>(imagePath);
         var (width, height) = CalculateTargetDimensions(image.Width, image.Height, 60, 30);
 
-        var preview = new System.Text.StringBuilder();
+        var preview = new StringBuilder();
 
         using var resized = image.Clone(ctx => ctx.Resize(width, height * 2));
 
-        for (int y = 0; y < height * 2; y += 2)
+        for (var y = 0; y < height * 2; y += 2)
         {
-            for (int x = 0; x < width; x++)
+            for (var x = 0; x < width; x++)
             {
                 var topPixel = resized[x, y];
                 var bottomPixel = y + 1 < height * 2 ? resized[x, y + 1] : topPixel;
 
-                preview.Append($"[rgb({topPixel.R},{topPixel.G},{topPixel.B}) on rgb({bottomPixel.R},{bottomPixel.G},{bottomPixel.B})]▀[/]");
+                preview.Append(
+                    $"[rgb({topPixel.R},{topPixel.G},{topPixel.B}) on rgb({bottomPixel.R},{bottomPixel.G},{bottomPixel.B})]▀[/]");
             }
+
             preview.AppendLine();
         }
 
@@ -312,27 +317,27 @@ public class ConsoleImageRenderer
 }
 
 /// <summary>
-/// Rendering modes for console image display.
+///     Rendering modes for console image display.
 /// </summary>
 public enum RenderMode
 {
     /// <summary>
-    /// Colored Unicode blocks (best quality, requires true color support).
+    ///     Colored Unicode blocks (best quality, requires true color support).
     /// </summary>
     ColorBlocks,
 
     /// <summary>
-    /// Grayscale Unicode blocks.
+    ///     Grayscale Unicode blocks.
     /// </summary>
     GrayscaleBlocks,
 
     /// <summary>
-    /// ASCII art characters.
+    ///     ASCII art characters.
     /// </summary>
     Ascii,
 
     /// <summary>
-    /// Braille characters (highest resolution, 2x4 pixels per character).
+    ///     Braille characters (highest resolution, 2x4 pixels per character).
     /// </summary>
     Braille
 }

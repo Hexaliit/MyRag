@@ -14,21 +14,17 @@ using SixLabors.ImageSharp.Processing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Complex mode wave - segments document and processes each region in parallel
-/// Priority: 45 (runs after routing, before standard OCR)
+///     Complex mode wave - segments document and processes each region in parallel
+///     Priority: 45 (runs after routing, before standard OCR)
 /// </summary>
 public class ComplexModeWave : IAnalysisWave
 {
-    private readonly DocumentLayoutAnalyzer _layoutAnalyzer;
-    private readonly IOcrEngine? _ocrEngine;
-    private readonly Florence2CaptionService? _florence2Service;
-    private readonly VisionLlmService? _visionLlmService;
     private readonly ImageConfig _config;
+    private readonly Florence2CaptionService? _florence2Service;
+    private readonly DocumentLayoutAnalyzer _layoutAnalyzer;
     private readonly ILogger<ComplexModeWave>? _logger;
-
-    public string Name => "ComplexModeWave";
-    public int Priority => 45; // After routing, before OCR
-    public IReadOnlyList<string> Tags => new[] { "complex", "segmentation", "parallel" };
+    private readonly IOcrEngine? _ocrEngine;
+    private readonly VisionLlmService? _visionLlmService;
 
     public ComplexModeWave(
         IOcrEngine? ocrEngine = null,
@@ -44,6 +40,10 @@ public class ComplexModeWave : IAnalysisWave
         _visionLlmService = visionLlmService;
         _layoutAnalyzer = new DocumentLayoutAnalyzer(logger as ILogger<DocumentLayoutAnalyzer>);
     }
+
+    public string Name => "ComplexModeWave";
+    public int Priority => 45; // After routing, before OCR
+    public IReadOnlyList<string> Tags => new[] { "complex", "segmentation", "parallel" };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -213,10 +213,7 @@ public class ComplexModeWave : IAnalysisWave
 
         var tasks = new List<Task<SegmentResult>>();
 
-        foreach (var segment in segments)
-        {
-            tasks.Add(ProcessSegmentAsync(imagePath, segment, ct));
-        }
+        foreach (var segment in segments) tasks.Add(ProcessSegmentAsync(imagePath, segment, ct));
 
         results.AddRange(await Task.WhenAll(tasks));
 
@@ -236,10 +233,7 @@ public class ComplexModeWave : IAnalysisWave
             var segmentPath = await CropSegmentAsync(imagePath, segment, ct);
 
             // Convert to grayscale if no color (optimization)
-            if (!segment.IsColor)
-            {
-                segmentPath = await ConvertToGrayscaleAsync(segmentPath, ct);
-            }
+            if (!segment.IsColor) segmentPath = await ConvertToGrayscaleAsync(segmentPath, ct);
 
             var result = segment.Type switch
             {
@@ -294,7 +288,13 @@ public class ComplexModeWave : IAnalysisWave
         await image.SaveAsPngAsync(grayPath, ct);
 
         // Delete original color version
-        try { File.Delete(imagePath); } catch { }
+        try
+        {
+            File.Delete(imagePath);
+        }
+        catch
+        {
+        }
 
         return grayPath;
     }
@@ -305,7 +305,6 @@ public class ComplexModeWave : IAnalysisWave
         CancellationToken ct)
     {
         if (_ocrEngine == null)
-        {
             return new SegmentResult
             {
                 Id = segment.Id,
@@ -313,7 +312,6 @@ public class ComplexModeWave : IAnalysisWave
                 Content = "[OCR engine not available]",
                 Confidence = 0
             };
-        }
 
         // Extract text using OCR (synchronous, run in task)
         var regions = await Task.Run(() => _ocrEngine.ExtractTextWithCoordinates(segmentPath), ct);
@@ -339,10 +337,9 @@ public class ComplexModeWave : IAnalysisWave
         // Try Florence-2 first (fast)
         if (_florence2Service != null)
         {
-            var florenceResult = await _florence2Service.GetCaptionAsync(segmentPath, detailed: true, enhanceWithColors: true, ct);
+            var florenceResult = await _florence2Service.GetCaptionAsync(segmentPath, true, true, ct);
 
             if (florenceResult.Success && !string.IsNullOrWhiteSpace(florenceResult.Caption))
-            {
                 return new SegmentResult
                 {
                     Id = segment.Id,
@@ -353,7 +350,6 @@ public class ComplexModeWave : IAnalysisWave
                     ImagePath = segmentPath,
                     Method = "florence2"
                 };
-            }
         }
 
         // Escalate to Vision LLM if available
@@ -519,7 +515,6 @@ public class ComplexModeWave : IAnalysisWave
             };
 
             if (result.Method != null)
-            {
                 yield return new Signal
                 {
                     Key = $"complex.segment.{result.ZOrder}.method",
@@ -528,7 +523,6 @@ public class ComplexModeWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { "complex", "segment" }
                 };
-            }
         }
     }
 
@@ -538,7 +532,6 @@ public class ComplexModeWave : IAnalysisWave
         var ordered = results.OrderBy(r => r.ZOrder).ToList();
 
         foreach (var result in ordered)
-        {
             switch (result.Type)
             {
                 case SegmentType.TextBlock:
@@ -551,14 +544,10 @@ public class ComplexModeWave : IAnalysisWave
                     document.AppendLine($"![{result.Type}]({result.ImagePath})");
 
                     // Find associated caption
-                    var caption = ordered.FirstOrDefault(
-                        r => r.Type == SegmentType.Caption && r.RelatedTo == result.Id
+                    var caption = ordered.FirstOrDefault(r => r.Type == SegmentType.Caption && r.RelatedTo == result.Id
                     );
 
-                    if (caption != null)
-                    {
-                        document.AppendLine($"*{caption.Content}*");
-                    }
+                    if (caption != null) document.AppendLine($"*{caption.Content}*");
 
                     document.AppendLine($"**Description**: {result.Content}");
                     document.AppendLine();
@@ -570,7 +559,6 @@ public class ComplexModeWave : IAnalysisWave
                     document.AppendLine();
                     break;
             }
-        }
 
         return document.ToString();
     }

@@ -5,9 +5,9 @@ using FluentAssertions;
 namespace LucidRAG.Tests.Services;
 
 /// <summary>
-/// Unit tests for WebCrawlerService helper methods.
-/// Since the service has many private methods, we test the public behavior
-/// through carefully crafted scenarios, and extract testable logic where possible.
+///     Unit tests for WebCrawlerService helper methods.
+///     Since the service has many private methods, we test the public behavior
+///     through carefully crafted scenarios, and extract testable logic where possible.
 /// </summary>
 public class WebCrawlerServiceTests
 {
@@ -26,17 +26,17 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <body>
-                <nav>Navigation menu</nav>
-                <article>
-                    <h1>Article Title</h1>
-                    <p>This is the article content that should be extracted.</p>
-                </article>
-                <footer>Footer content</footer>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <body>
+                       <nav>Navigation menu</nav>
+                       <article>
+                           <h1>Article Title</h1>
+                           <p>This is the article content that should be extracted.</p>
+                       </article>
+                       <footer>Footer content</footer>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
 
         // Act
@@ -54,17 +54,17 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <body>
-                <div class="sidebar">Sidebar content</div>
-                <div class="post-content">
-                    <h2>Blog Post</h2>
-                    <p>Main blog content here.</p>
-                </div>
-                <div class="comments">Comment section</div>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <body>
+                       <div class="sidebar">Sidebar content</div>
+                       <div class="post-content">
+                           <h2>Blog Post</h2>
+                           <p>Main blog content here.</p>
+                       </div>
+                       <div class="comments">Comment section</div>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
 
         // Act
@@ -82,17 +82,17 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <body>
-                <header>Header</header>
-                <main>
-                    <h1>Main Content</h1>
-                    <p>This is in the main element.</p>
-                </main>
-                <aside>Sidebar</aside>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <body>
+                       <header>Header</header>
+                       <main>
+                           <h1>Main Content</h1>
+                           <p>This is in the main element.</p>
+                       </main>
+                       <aside>Sidebar</aside>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
 
         // Act
@@ -109,19 +109,19 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <head>
-                <style>.hidden { display: none; }</style>
-            </head>
-            <body>
-                <article>
-                    <script>alert('XSS');</script>
-                    <p>Visible content</p>
-                    <style>.inline { color: red; }</style>
-                </article>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <head>
+                       <style>.hidden { display: none; }</style>
+                   </head>
+                   <body>
+                       <article>
+                           <script>alert('XSS');</script>
+                           <p>Visible content</p>
+                           <style>.inline { color: red; }</style>
+                       </article>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
 
         // Act
@@ -139,18 +139,18 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <body>
-                <nav class="navigation">
-                    <a href="/">Home</a>
-                    <a href="/about">About</a>
-                </nav>
-                <article>
-                    <p>Article content</p>
-                </article>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <body>
+                       <nav class="navigation">
+                           <a href="/">Home</a>
+                           <a href="/about">About</a>
+                       </nav>
+                       <article>
+                           <p>Article content</p>
+                       </article>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
 
         // Act
@@ -171,15 +171,15 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <body>
-                <a href="/page1">Page 1</a>
-                <a href="/page2">Page 2</a>
-                <a href="https://example.com/page3">Page 3</a>
-                <a href="https://external.com/page">External</a>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <body>
+                       <a href="/page1">Page 1</a>
+                       <a href="/page2">Page 2</a>
+                       <a href="https://example.com/page3">Page 3</a>
+                       <a href="https://external.com/page">External</a>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
         var baseUrl = "https://example.com/";
         var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "example.com" };
@@ -199,14 +199,14 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <body>
-                <a href="#section1">Section 1</a>
-                <a href="#section2">Section 2</a>
-                <a href="/page#section">Page with anchor</a>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <body>
+                       <a href="#section1">Section 1</a>
+                       <a href="#section2">Section 2</a>
+                       <a href="/page#section">Page with anchor</a>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
         var baseUrl = "https://example.com/";
         var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "example.com" };
@@ -226,15 +226,15 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <body>
-                <a href="page1">Relative</a>
-                <a href="./page2">Dot relative</a>
-                <a href="../page3">Parent relative</a>
-                <a href="/absolute">Absolute</a>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <body>
+                       <a href="page1">Relative</a>
+                       <a href="./page2">Dot relative</a>
+                       <a href="../page3">Parent relative</a>
+                       <a href="/absolute">Absolute</a>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
         var baseUrl = "https://example.com/blog/post/";
         var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "example.com" };
@@ -254,16 +254,16 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <body>
-                <a href="mailto:test@example.com">Email</a>
-                <a href="javascript:void(0)">JS</a>
-                <a href="tel:+1234567890">Phone</a>
-                <a href="ftp://files.example.com/file">FTP</a>
-                <a href="https://example.com/valid">Valid</a>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <body>
+                       <a href="mailto:test@example.com">Email</a>
+                       <a href="javascript:void(0)">JS</a>
+                       <a href="tel:+1234567890">Phone</a>
+                       <a href="ftp://files.example.com/file">FTP</a>
+                       <a href="https://example.com/valid">Valid</a>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
         var baseUrl = "https://example.com/";
         var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "example.com" };
@@ -281,15 +281,15 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <body>
-                <a href="">Empty</a>
-                <a>No href</a>
-                <a href="   ">Whitespace</a>
-                <a href="/valid">Valid</a>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <body>
+                       <a href="">Empty</a>
+                       <a>No href</a>
+                       <a href="   ">Whitespace</a>
+                       <a href="/valid">Valid</a>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
         var baseUrl = "https://example.com/";
         var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "example.com" };
@@ -310,12 +310,12 @@ public class WebCrawlerServiceTests
     {
         // Arrange
         var html = """
-            <html>
-            <body>
-                <a href="/page?query=1#section">With query and fragment</a>
-            </body>
-            </html>
-            """;
+                   <html>
+                   <body>
+                       <a href="/page?query=1#section">With query and fragment</a>
+                   </body>
+                   </html>
+                   """;
         var document = await _browsingContext.OpenAsync(req => req.Content(html));
         var baseUrl = "https://example.com/";
         var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "example.com" };
@@ -379,22 +379,18 @@ public class WebCrawlerServiceTests
     #region Helper Methods (extracted from WebCrawlerService for testing)
 
     /// <summary>
-    /// Extracts content from document - mirrors WebCrawlerService.ExtractContent
+    ///     Extracts content from document - mirrors WebCrawlerService.ExtractContent
     /// </summary>
     private static string ExtractContent(IDocument document, string? selector)
     {
         // Remove unwanted elements first
-        foreach (var el in document.QuerySelectorAll("script, style, nav, header, footer, aside, .sidebar, .navigation, .menu, .ad, .advertisement"))
-        {
+        foreach (var el in document.QuerySelectorAll(
+                     "script, style, nav, header, footer, aside, .sidebar, .navigation, .menu, .ad, .advertisement"))
             el.Remove();
-        }
 
         IElement? contentElement = null;
 
-        if (!string.IsNullOrEmpty(selector))
-        {
-            contentElement = document.QuerySelector(selector);
-        }
+        if (!string.IsNullOrEmpty(selector)) contentElement = document.QuerySelector(selector);
 
         // Fallback selectors
         contentElement ??= document.QuerySelector("article");
@@ -410,7 +406,7 @@ public class WebCrawlerServiceTests
     }
 
     /// <summary>
-    /// Extracts links from document - mirrors WebCrawlerService.ExtractLinks
+    ///     Extracts links from document - mirrors WebCrawlerService.ExtractLinks
     /// </summary>
     private static IEnumerable<string> ExtractLinks(IDocument document, string baseUrl, HashSet<string> allowedHosts)
     {
@@ -443,7 +439,7 @@ public class WebCrawlerServiceTests
     }
 
     /// <summary>
-    /// Sanitizes filename - mirrors WebCrawlerService.SanitizeFilename
+    ///     Sanitizes filename - mirrors WebCrawlerService.SanitizeFilename
     /// </summary>
     private static string SanitizeFilename(string title)
     {

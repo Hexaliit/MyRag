@@ -7,8 +7,8 @@ using Mostlylucid.DocSummarizer.Images.Models;
 namespace Mostlylucid.DocSummarizer.Images.Services;
 
 /// <summary>
-/// Service for building vision LLM prompts from configurable templates.
-/// Uses weighted signal selection to include only relevant context.
+///     Service for building vision LLM prompts from configurable templates.
+///     Uses weighted signal selection to include only relevant context.
 /// </summary>
 public class PromptTemplateService
 {
@@ -22,9 +22,9 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// Build a prompt for the vision LLM based on image profile and output format.
-    /// Uses weighted signal selection to include only relevant context per image type.
-    /// Applies TOON-like compression principles for token efficiency.
+    ///     Build a prompt for the vision LLM based on image profile and output format.
+    ///     Uses weighted signal selection to include only relevant context per image type.
+    ///     Applies TOON-like compression principles for token efficiency.
     /// </summary>
     public string BuildPrompt(
         ImageProfile profile,
@@ -41,9 +41,9 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// TOON-style compact prompt: ~50% fewer tokens than verbose format.
-    /// Principles: one-time headers, no verbose syntax, bullet efficiency.
-    /// PURPOSE-DRIVEN: Different formats answer different questions.
+    ///     TOON-style compact prompt: ~50% fewer tokens than verbose format.
+    ///     Principles: one-time headers, no verbose syntax, bullet efficiency.
+    ///     PURPOSE-DRIVEN: Different formats answer different questions.
     /// </summary>
     private string BuildCompactPrompt(
         ImageProfile profile,
@@ -59,7 +59,7 @@ public class PromptTemplateService
 
         // Determine if actually animated (not just detected as photo)
         var isActuallyAnimated = profile.Format?.Equals("GIF", StringComparison.OrdinalIgnoreCase) == true ||
-                                  profile.Format?.Equals("WEBP", StringComparison.OrdinalIgnoreCase) == true;
+                                 profile.Format?.Equals("WEBP", StringComparison.OrdinalIgnoreCase) == true;
 
         var sb = new StringBuilder();
 
@@ -96,10 +96,10 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// Build purpose-driven rules based on output format.
-    /// WCAG Alt text = subjects-first, under 125 chars, observable context OK
-    /// Caption = subjects-then-setting, factual
-    /// Social = engaging, context-aggregation-ok
+    ///     Build purpose-driven rules based on output format.
+    ///     WCAG Alt text = subjects-first, under 125 chars, observable context OK
+    ///     Caption = subjects-then-setting, factual
+    ///     Social = engaging, context-aggregation-ok
     /// </summary>
     private string BuildPurposeDrivenRules(OutputFormatTemplate? format, string outputKey)
     {
@@ -108,16 +108,14 @@ public class PromptTemplateService
             return "factual-only|no-names|1-2 sentences|ONLY what you see";
 
         // If format has rules, use them directly
-        if (format.Rules?.Length > 0)
-        {
-            return string.Join("|", format.Rules);
-        }
+        if (format.Rules?.Length > 0) return string.Join("|", format.Rules);
 
         // Purpose-specific default rules (WCAG-compliant for alttext)
         return outputKey.ToLowerInvariant() switch
         {
             // WCAG 2.1 compliant: subjects first, observable context, no inventory
-            "alttext" => "subjects-first|NO-image-of-prefix|observable-context-ok|no-inventory|no-names|under-125-chars",
+            "alttext" =>
+                "subjects-first|NO-image-of-prefix|observable-context-ok|no-inventory|no-names|under-125-chars",
             "caption" => "subjects-first|then-setting|factual|no-names|2-3 sentences",
             "socialmedia" => "engaging|brief|context-aggregation-ok|no-hashtags|1-2 sentences",
             _ => "factual-only|no-names|1-2 sentences|ONLY what you see"
@@ -125,7 +123,7 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// Build compact signal string using glob patterns: "motion:left-rapid|colors:blue,gray|text:high"
+    ///     Build compact signal string using glob patterns: "motion:left-rapid|colors:blue,gray|text:high"
     /// </summary>
     private string BuildCompactSignals(
         ImageProfile profile,
@@ -156,25 +154,20 @@ public class PromptTemplateService
             if (categoryValues.ContainsKey(category)) continue;
 
             var value = GetCompactSignalValueForGlob(globPattern, category, profile, motion, extractedText);
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                categoryValues[category] = (weight, value);
-            }
+            if (!string.IsNullOrWhiteSpace(value)) categoryValues[category] = (weight, value);
         }
 
         // Build output sorted by weight
         foreach (var (category, (weight, value)) in categoryValues.OrderByDescending(kv => kv.Value.weight))
-        {
             if (!string.IsNullOrWhiteSpace(value))
                 parts.Add($"{category}:{value}");
-        }
 
         return string.Join("|", parts);
     }
 
     /// <summary>
-    /// Extract category name from glob pattern.
-    /// "motion.*" -> "motion", "color.dominant*" -> "color", "quality.edge*" -> "edges"
+    ///     Extract category name from glob pattern.
+    ///     "motion.*" -> "motion", "color.dominant*" -> "color", "quality.edge*" -> "edges"
     /// </summary>
     private static string GetCategoryFromGlob(string glob)
     {
@@ -199,7 +192,7 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// Get compact signal value for a glob pattern.
+    ///     Get compact signal value for a glob pattern.
     /// </summary>
     private string? GetCompactSignalValueForGlob(
         string globPattern,
@@ -225,13 +218,14 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// Get compact signal value (short form).
+    ///     Get compact signal value (short form).
     /// </summary>
     private string? GetCompactSignalValue(string key, ImageProfile profile, GifMotionProfile? motion, string? text)
     {
         return key.ToLowerInvariant() switch
         {
-            "motion" when motion != null => $"{motion.MotionDirection}-{(motion.MotionMagnitude > 3 ? "rapid" : "slow")}-{motion.FrameCount}f",
+            "motion" when motion != null =>
+                $"{motion.MotionDirection}-{(motion.MotionMagnitude > 3 ? "rapid" : "slow")}-{motion.FrameCount}f",
             "colors" when profile.DominantColors?.Any() == true =>
                 string.Join(",", profile.DominantColors.Take(2).Select(c => c.Name.Split(' ')[0].ToLower())),
             "text" when profile.TextLikeliness > 0.3 =>
@@ -244,7 +238,7 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// Verbose prompt format (original, for comparison/debugging).
+    ///     Verbose prompt format (original, for comparison/debugging).
     /// </summary>
     private string BuildVerbosePrompt(
         ImageProfile profile,
@@ -289,6 +283,7 @@ public class PromptTemplateService
             foreach (var rule in formatTemplate.Rules)
                 sb.AppendLine($"- {rule}");
         }
+
         sb.AppendLine();
 
         if (typeTemplate?.Example != null)
@@ -302,8 +297,8 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// Build signal context based on weighted relevance for the image type.
-    /// Only includes signals with weight >= threshold.
+    ///     Build signal context based on weighted relevance for the image type.
+    ///     Only includes signals with weight >= threshold.
     /// </summary>
     private string BuildSignalContext(
         ImageProfile profile,
@@ -323,10 +318,7 @@ public class PromptTemplateService
                 continue;
 
             var context = FormatSignal(signalKey, weight, profile, motion, extractedText);
-            if (!string.IsNullOrWhiteSpace(context))
-            {
-                signalParts.Add((weight, context));
-            }
+            if (!string.IsNullOrWhiteSpace(context)) signalParts.Add((weight, context));
         }
 
         // Sort by weight descending (most relevant first)
@@ -336,7 +328,7 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// Format a signal category with actual values from the profile.
+    ///     Format a signal category with actual values from the profile.
     /// </summary>
     private string? FormatSignal(
         string signalKey,
@@ -380,7 +372,7 @@ public class PromptTemplateService
 
         var colors = string.Join(", ", profile.DominantColors.Take(3).Select(c => c.Name));
         var saturation = profile.IsMostlyGrayscale ? "grayscale" :
-                         profile.MeanSaturation > 0.5 ? "vibrant" : "muted";
+            profile.MeanSaturation > 0.5 ? "vibrant" : "muted";
 
         return $"Colors: {colors} ({saturation})";
     }
@@ -419,10 +411,7 @@ public class PromptTemplateService
         };
 
         // Only mention if notable
-        if (profile.LaplacianVariance < 100 || profile.LaplacianVariance > 500)
-        {
-            return $"Quality: {sharpness}";
-        }
+        if (profile.LaplacianVariance < 100 || profile.LaplacianVariance > 500) return $"Quality: {sharpness}";
 
         return null;
     }
@@ -458,16 +447,14 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// Get the template key for the detected image type.
+    ///     Get the template key for the detected image type.
     /// </summary>
     private string GetImageTypeKey(ImageProfile profile)
     {
         // Check for animated first (takes priority)
         if (profile.Format?.Equals("GIF", StringComparison.OrdinalIgnoreCase) == true ||
             profile.Format?.Equals("WEBP", StringComparison.OrdinalIgnoreCase) == true)
-        {
             return "animated";
-        }
 
         return profile.DetectedType switch
         {
@@ -484,7 +471,7 @@ public class PromptTemplateService
     }
 
     /// <summary>
-    /// Load templates from embedded JSON or external file.
+    ///     Load templates from embedded JSON or external file.
     /// </summary>
     private PromptTemplates LoadTemplates()
     {
@@ -542,12 +529,40 @@ public class PromptTemplateService
             Version = "1.0",
             ImageTypes = new Dictionary<string, ImageTypeTemplate>
             {
-                ["photo"] = new() { Name = "Photograph", Focus = "main subject, setting, action/pose", SignalWeights = new() { ["colors"] = 0.6, ["quality"] = 0.4 } },
-                ["animated"] = new() { Name = "Animated Image", Focus = "the action/movement, what is happening, and ANY VISIBLE TEXT/SUBTITLES shown (quote the text exactly)", SignalWeights = new() { ["motion"] = 1.0, ["text"] = 1.0, ["colors"] = 0.5 } },
-                ["screenshot"] = new() { Name = "Screenshot", Focus = "UI elements, visible text, application", SignalWeights = new() { ["text"] = 1.0, ["colors"] = 0.4 } },
-                ["diagram"] = new() { Name = "Diagram", Focus = "diagram type, what it represents", SignalWeights = new() { ["text"] = 0.9, ["edges"] = 0.8 } },
-                ["chart"] = new() { Name = "Chart", Focus = "chart type, data shown, key takeaway", SignalWeights = new() { ["text"] = 1.0, ["colors"] = 0.7 } },
-                ["unknown"] = new() { Name = "Image", Focus = "main subject and visible details", SignalWeights = new() { ["colors"] = 0.5, ["text"] = 0.5, ["quality"] = 0.4 } }
+                ["photo"] = new()
+                {
+                    Name = "Photograph", Focus = "main subject, setting, action/pose",
+                    SignalWeights = new Dictionary<string, double> { ["colors"] = 0.6, ["quality"] = 0.4 }
+                },
+                ["animated"] = new()
+                {
+                    Name = "Animated Image",
+                    Focus =
+                        "the action/movement, what is happening, and ANY VISIBLE TEXT/SUBTITLES shown (quote the text exactly)",
+                    SignalWeights = new Dictionary<string, double>
+                        { ["motion"] = 1.0, ["text"] = 1.0, ["colors"] = 0.5 }
+                },
+                ["screenshot"] = new()
+                {
+                    Name = "Screenshot", Focus = "UI elements, visible text, application",
+                    SignalWeights = new Dictionary<string, double> { ["text"] = 1.0, ["colors"] = 0.4 }
+                },
+                ["diagram"] = new()
+                {
+                    Name = "Diagram", Focus = "diagram type, what it represents",
+                    SignalWeights = new Dictionary<string, double> { ["text"] = 0.9, ["edges"] = 0.8 }
+                },
+                ["chart"] = new()
+                {
+                    Name = "Chart", Focus = "chart type, data shown, key takeaway",
+                    SignalWeights = new Dictionary<string, double> { ["text"] = 1.0, ["colors"] = 0.7 }
+                },
+                ["unknown"] = new()
+                {
+                    Name = "Image", Focus = "main subject and visible details",
+                    SignalWeights = new Dictionary<string, double>
+                        { ["colors"] = 0.5, ["text"] = 0.5, ["quality"] = 0.4 }
+                }
             },
             OutputFormats = new Dictionary<string, OutputFormatTemplate>
             {
@@ -597,22 +612,26 @@ public class OutputFormatTemplate
 {
     public string Name { get; set; } = "";
     public string? Description { get; set; }
+
     /// <summary>
-    /// The core PURPOSE of this output format - tells the LLM what question to answer.
-    /// Alt text: "What would someone miss if they couldn't see this?"
-    /// Caption: "Describe the scene for understanding"
-    /// Social: "Capture the moment engagingly"
+    ///     The core PURPOSE of this output format - tells the LLM what question to answer.
+    ///     Alt text: "What would someone miss if they couldn't see this?"
+    ///     Caption: "Describe the scene for understanding"
+    ///     Social: "Capture the moment engagingly"
     /// </summary>
     public string? Purpose { get; set; }
+
     public string Instruction { get; set; } = "";
     public int MaxLength { get; set; } = 200;
     public string[] Rules { get; set; } = Array.Empty<string>();
+
     /// <summary>
-    /// Priority order for elements (what to include first)
+    ///     Priority order for elements (what to include first)
     /// </summary>
     public string[]? PriorityOrder { get; set; }
+
     /// <summary>
-    /// Drop order for compression (what to remove first when too long)
+    ///     Drop order for compression (what to remove first when too long)
     /// </summary>
     public string[]? DropOrder { get; set; }
 }

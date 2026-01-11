@@ -9,7 +9,7 @@ using UglyToad.PdfPig;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Progress info for document conversion
+///     Progress info for document conversion
 /// </summary>
 public class ConversionProgress
 {
@@ -30,24 +30,6 @@ public class DoclingClient : IDisposable
     private readonly HttpClient _http;
     private readonly TimeSpan _pollInterval;
     private readonly TimeSpan _timeout;
-    private bool? _hasGpu;
-    
-    /// <summary>
-    /// Progress callback - receives updates during conversion
-    /// </summary>
-    public Action<ConversionProgress>? OnProgress { get; set; }
-    
-    /// <summary>
-    /// Chunk completion callback - fires when each chunk's markdown is ready.
-    /// Use this for pipelined processing (e.g., start embedding while other chunks convert).
-    /// Parameters: (chunkIndex, startPage, endPage, markdown)
-    /// </summary>
-    public Action<int, int, int, string>? OnChunkComplete { get; set; }
-    
-    /// <summary>
-    /// Whether Docling is running with GPU acceleration (detected on first use)
-    /// </summary>
-    public bool? HasGpu => _hasGpu;
 
     public DoclingClient(DoclingConfig? config = null)
     {
@@ -63,8 +45,28 @@ public class DoclingClient : IDisposable
     {
     }
 
-    public void Dispose() => _http.Dispose();
-    
+    /// <summary>
+    ///     Progress callback - receives updates during conversion
+    /// </summary>
+    public Action<ConversionProgress>? OnProgress { get; set; }
+
+    /// <summary>
+    ///     Chunk completion callback - fires when each chunk's markdown is ready.
+    ///     Use this for pipelined processing (e.g., start embedding while other chunks convert).
+    ///     Parameters: (chunkIndex, startPage, endPage, markdown)
+    /// </summary>
+    public Action<int, int, int, string>? OnChunkComplete { get; set; }
+
+    /// <summary>
+    ///     Whether Docling is running with GPU acceleration (detected on first use)
+    /// </summary>
+    public bool? HasGpu { get; private set; }
+
+    public void Dispose()
+    {
+        _http.Dispose();
+    }
+
     private void Report(int completed, int total, int wave, int totalWaves, string status)
     {
         OnProgress?.Invoke(new ConversionProgress
@@ -92,13 +94,14 @@ public class DoclingClient : IDisposable
 
     private async Task<string> ConvertStandardAsync(string filePath, CancellationToken cancellationToken)
     {
-        return await ConvertStandardAsyncCore(filePath, _config.PdfBackend, cancellationToken, allowFallback: true);
+        return await ConvertStandardAsyncCore(filePath, _config.PdfBackend, cancellationToken, true);
     }
 
-    private async Task<string> ConvertStandardAsyncCore(string filePath, string? backend, CancellationToken cancellationToken, bool allowFallback)
+    private async Task<string> ConvertStandardAsyncCore(string filePath, string? backend,
+        CancellationToken cancellationToken, bool allowFallback)
     {
         Report(0, 1, 1, 1, "Starting conversion...");
-        
+
         var taskId = await StartConversionAsync(filePath, null, null, backend, cancellationToken);
         var result = await WaitForCompletionAsync(taskId, cancellationToken);
 
@@ -107,16 +110,20 @@ public class DoclingClient : IDisposable
         if (allowFallback && filePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) && IsGarbageText(result))
         {
             // Try OCR/docling backend if enabled
-            if (_config.EnableOcrFallback && !string.IsNullOrWhiteSpace(_config.OcrPdfBackend) && !string.Equals(_config.OcrPdfBackend, backend, StringComparison.OrdinalIgnoreCase))
+            if (_config.EnableOcrFallback && !string.IsNullOrWhiteSpace(_config.OcrPdfBackend) &&
+                !string.Equals(_config.OcrPdfBackend, backend, StringComparison.OrdinalIgnoreCase))
             {
                 Report(1, 1, 1, 1, "Garbled text detected - retrying with OCR backend...");
                 try
                 {
-                    var ocrResult = await ConvertStandardAsyncCore(filePath, _config.OcrPdfBackend, cancellationToken, allowFallback: false);
+                    var ocrResult =
+                        await ConvertStandardAsyncCore(filePath, _config.OcrPdfBackend, cancellationToken, false);
                     if (!string.IsNullOrWhiteSpace(ocrResult) && !IsGarbageText(ocrResult))
                         return ocrResult;
                 }
-                catch { }
+                catch
+                {
+                }
             }
 
             Report(1, 1, 1, 1, "Trying PdfPig fallback...");
@@ -126,7 +133,9 @@ public class DoclingClient : IDisposable
                 if (!string.IsNullOrWhiteSpace(pdfPigResult) && !IsGarbageText(pdfPigResult))
                     return pdfPigResult;
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         return result;
@@ -180,21 +189,20 @@ public class DoclingClient : IDisposable
 
             var waveChunks = allChunks.Skip(waveStart).Take(maxConcurrent).ToList();
             var waveDesc = string.Join(", ", waveChunks.Select(c => $"p{c.StartPage}-{c.EndPage}"));
-            
+
             Report(completedChunks, numChunks, waveNumber, totalWaves, $"Wave {waveNumber}/{totalWaves}: {waveDesc}");
 
             // Submit this wave
             foreach (var chunk in waveChunks)
-            {
                 try
                 {
-                    chunk.TaskId = await StartConversionAsync(filePath, chunk.StartPage, chunk.EndPage, _config.PdfBackend, cancellationToken);
+                    chunk.TaskId = await StartConversionAsync(filePath, chunk.StartPage, chunk.EndPage,
+                        _config.PdfBackend, cancellationToken);
                 }
                 catch
                 {
                     chunk.IsFailed = true;
                 }
-            }
 
             // Poll for this wave to complete
             var pendingChunks = waveChunks.Where(c => !string.IsNullOrEmpty(c.TaskId) && !c.IsFailed).ToList();
@@ -212,35 +220,33 @@ public class DoclingClient : IDisposable
                 {
                     var status = await CheckTaskStatusAsync(chunk.TaskId, cancellationToken);
 
-                        if (status == "SUCCESS")
-                        {
-                            chunk.IsComplete = true;
-                            chunk.Result = await GetResultAsync(chunk.TaskId, cancellationToken);
-                            pendingChunks.Remove(chunk);
-                            completedChunks++;
-                            
-                            Report(completedChunks, numChunks, waveNumber, totalWaves, 
-                                $"Wave {waveNumber}/{totalWaves}: {completedChunks}/{numChunks} chunks done");
-                            
-                            // Fire chunk completion callback for pipelined processing
-                            if (OnChunkComplete != null && !string.IsNullOrEmpty(chunk.Result))
+                    if (status == "SUCCESS")
+                    {
+                        chunk.IsComplete = true;
+                        chunk.Result = await GetResultAsync(chunk.TaskId, cancellationToken);
+                        pendingChunks.Remove(chunk);
+                        completedChunks++;
+
+                        Report(completedChunks, numChunks, waveNumber, totalWaves,
+                            $"Wave {waveNumber}/{totalWaves}: {completedChunks}/{numChunks} chunks done");
+
+                        // Fire chunk completion callback for pipelined processing
+                        if (OnChunkComplete != null && !string.IsNullOrEmpty(chunk.Result))
+                            try
                             {
-                                try
-                                {
-                                    OnChunkComplete(chunk.Index, chunk.StartPage, chunk.EndPage, chunk.Result);
-                                }
-                                catch
-                                {
-                                    // Don't let callback errors break conversion
-                                }
+                                OnChunkComplete(chunk.Index, chunk.StartPage, chunk.EndPage, chunk.Result);
                             }
-                        }
+                            catch
+                            {
+                                // Don't let callback errors break conversion
+                            }
+                    }
                     else if (status == "FAILURE" || status == "REVOKED")
                     {
                         chunk.IsFailed = true;
                         pendingChunks.Remove(chunk);
                         completedChunks++; // Count failures too for progress
-                        
+
                         Report(completedChunks, numChunks, waveNumber, totalWaves,
                             $"Wave {waveNumber}/{totalWaves}: chunk failed");
                     }
@@ -250,7 +256,7 @@ public class DoclingClient : IDisposable
 
         var totalElapsed = DateTime.UtcNow - startTime;
         var successCount = allChunks.Count(c => c.IsComplete);
-        Report(numChunks, numChunks, totalWaves, totalWaves, 
+        Report(numChunks, numChunks, totalWaves, totalWaves,
             $"Converted {successCount}/{numChunks} chunks in {totalElapsed.TotalSeconds:F0}s");
 
         var orderedChunks = allChunks
@@ -258,11 +264,11 @@ public class DoclingClient : IDisposable
             .OrderBy(c => c.StartPage)
             .ToList();
 
-        if (orderedChunks.Count == 0) 
+        if (orderedChunks.Count == 0)
             throw new Exception("No chunks were successfully converted");
 
         // Inject page markers into markdown so chunker can extract page numbers
-        var combinedMarkdown = string.Join("\n\n---\n\n", orderedChunks.Select(c => 
+        var combinedMarkdown = string.Join("\n\n---\n\n", orderedChunks.Select(c =>
             $"<!-- PAGE:{c.StartPage}-{c.EndPage} -->\n{c.Result}"));
 
         if (IsGarbageText(combinedMarkdown))
@@ -274,7 +280,9 @@ public class DoclingClient : IDisposable
                 if (!string.IsNullOrWhiteSpace(pdfPigResult) && !IsGarbageText(pdfPigResult))
                     return pdfPigResult;
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         return combinedMarkdown;
@@ -307,7 +315,7 @@ public class DoclingClient : IDisposable
         {
             var maxConcurrent = _config.MaxConcurrentChunks;
             var totalWaves = (int)Math.Ceiling((double)chapters.Count / maxConcurrent);
-            
+
             Report(0, chapters.Count, 0, totalWaves, $"Processing {chapters.Count} chapters");
 
             var chunkTasks = new List<DocxChunkTask>();
@@ -330,14 +338,13 @@ public class DoclingClient : IDisposable
                 waveNumber++;
 
                 var waveChunks = chunkTasks.Skip(waveStart).Take(maxConcurrent).ToList();
-                var chapterNames = string.Join(", ", waveChunks.Select(c => 
+                var chapterNames = string.Join(", ", waveChunks.Select(c =>
                     c.Title.Length > 15 ? c.Title[..15] + "..." : c.Title));
-                
-                Report(completedChunks, chapters.Count, waveNumber, totalWaves, 
+
+                Report(completedChunks, chapters.Count, waveNumber, totalWaves,
                     $"Wave {waveNumber}/{totalWaves}: {chapterNames}");
 
                 foreach (var chunk in waveChunks)
-                {
                     try
                     {
                         chunk.TaskId = await StartConversionAsync(chunk.TempPath, null, null, null, cancellationToken);
@@ -346,7 +353,6 @@ public class DoclingClient : IDisposable
                     {
                         chunk.IsFailed = true;
                     }
-                }
 
                 var pendingChunks = waveChunks.Where(c => !string.IsNullOrEmpty(c.TaskId) && !c.IsFailed).ToList();
                 while (pendingChunks.Any())
@@ -355,7 +361,8 @@ public class DoclingClient : IDisposable
 
                     var elapsed = DateTime.UtcNow - startTime;
                     if (elapsed > _timeout)
-                        throw new TimeoutException($"Split processing timed out after {_timeout.TotalMinutes:F0} minutes");
+                        throw new TimeoutException(
+                            $"Split processing timed out after {_timeout.TotalMinutes:F0} minutes");
 
                     await Task.Delay(_pollInterval, cancellationToken);
 
@@ -369,13 +376,12 @@ public class DoclingClient : IDisposable
                             chunk.Result = await GetResultAsync(chunk.TaskId, cancellationToken);
                             pendingChunks.Remove(chunk);
                             completedChunks++;
-                            
+
                             Report(completedChunks, chapters.Count, waveNumber, totalWaves,
                                 $"Wave {waveNumber}/{totalWaves}: {completedChunks}/{chapters.Count} chapters done");
-                            
+
                             // Fire chunk completion callback for pipelined processing (DOCX)
                             if (OnChunkComplete != null && !string.IsNullOrEmpty(chunk.Result))
-                            {
                                 try
                                 {
                                     OnChunkComplete(chunk.Index, chunk.Index, chunk.Index, chunk.Result);
@@ -384,14 +390,13 @@ public class DoclingClient : IDisposable
                                 {
                                     // Don't let callback errors break conversion
                                 }
-                            }
                         }
                         else if (status == "FAILURE" || status == "REVOKED")
                         {
                             chunk.IsFailed = true;
                             pendingChunks.Remove(chunk);
                             completedChunks++;
-                            
+
                             Report(completedChunks, chapters.Count, waveNumber, totalWaves,
                                 $"Wave {waveNumber}/{totalWaves}: chapter failed");
                         }
@@ -409,7 +414,7 @@ public class DoclingClient : IDisposable
                 .OrderBy(c => c.Index)
                 .ToList();
 
-            if (orderedChunks.Count == 0) 
+            if (orderedChunks.Count == 0)
                 throw new Exception("No chapters were successfully converted");
 
             var sb = new StringBuilder();
@@ -423,7 +428,13 @@ public class DoclingClient : IDisposable
         }
         finally
         {
-            try { Directory.Delete(tempDir, true); } catch { }
+            try
+            {
+                Directory.Delete(tempDir, true);
+            }
+            catch
+            {
+            }
         }
     }
 
@@ -435,7 +446,6 @@ public class DoclingClient : IDisposable
         var startTime = DateTime.UtcNow;
 
         while (!timeoutCts.Token.IsCancellationRequested)
-        {
             try
             {
                 var elapsed = DateTime.UtcNow - startTime;
@@ -448,7 +458,8 @@ public class DoclingClient : IDisposable
                 }
 
                 var statusJson = await statusResponse.Content.ReadAsStringAsync(timeoutCts.Token);
-                var status = JsonSerializer.Deserialize(statusJson, DocSummarizerJsonContext.Default.DoclingStatusResponse);
+                var status =
+                    JsonSerializer.Deserialize(statusJson, DocSummarizerJsonContext.Default.DoclingStatusResponse);
                 var taskStatus = status?.TaskStatus?.ToUpperInvariant();
 
                 if (taskStatus == "SUCCESS")
@@ -460,11 +471,11 @@ public class DoclingClient : IDisposable
                 Report(0, 1, 1, 1, $"Converting... {taskStatus} ({elapsed.TotalSeconds:F0}s)");
                 await Task.Delay(_pollInterval, timeoutCts.Token);
             }
-            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested &&
+                                                     !cancellationToken.IsCancellationRequested)
             {
                 throw new TimeoutException($"Document conversion timed out after {_timeout.TotalMinutes:F0} minutes");
             }
-        }
 
         throw new TimeoutException($"Document conversion timed out after {_timeout.TotalMinutes:F0} minutes");
     }
@@ -524,6 +535,7 @@ public class DoclingClient : IDisposable
                     sb.AppendLine("---");
                     sb.AppendLine();
                 }
+
                 sb.AppendLine(text);
             }
         }
@@ -543,7 +555,6 @@ public class DoclingClient : IDisposable
         string? currentTitle = null;
 
         for (var i = 0; i < elements.Count; i++)
-        {
             if (elements[i] is Paragraph para)
             {
                 var styleId = para.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
@@ -560,7 +571,6 @@ public class DoclingClient : IDisposable
                     currentChapterStart = i;
                 }
             }
-        }
 
         if (currentTitle != null)
             chapters.Add(new DocxChapter(currentTitle, currentChapterStart, elements.Count - 1));
@@ -574,8 +584,8 @@ public class DoclingClient : IDisposable
     {
         var sb = new StringBuilder();
         foreach (var run in para.Elements<Run>())
-            foreach (var text in run.Elements<Text>())
-                sb.Append(text.Text);
+        foreach (var text in run.Elements<Text>())
+            sb.Append(text.Text);
         return sb.ToString().Trim();
     }
 
@@ -605,10 +615,14 @@ public class DoclingClient : IDisposable
             var status = JsonSerializer.Deserialize(json, DocSummarizerJsonContext.Default.DoclingStatusResponse);
             return status?.TaskStatus?.ToUpperInvariant();
         }
-        catch { return null; }
+        catch
+        {
+            return null;
+        }
     }
 
-    private async Task<string> StartConversionAsync(string filePath, int? startPage, int? endPage, string? backend, CancellationToken cancellationToken)
+    private async Task<string> StartConversionAsync(string filePath, int? startPage, int? endPage, string? backend,
+        CancellationToken cancellationToken)
     {
         using var content = new MultipartFormDataContent();
         await using var stream = File.OpenRead(filePath);
@@ -652,17 +666,20 @@ public class DoclingClient : IDisposable
             var response = await _http.GetAsync($"{_baseUrl}/health");
             return response.IsSuccessStatusCode;
         }
-        catch { return false; }
+        catch
+        {
+            return false;
+        }
     }
-    
+
     /// <summary>
-    /// Detect if Docling is running with GPU acceleration and adapt config accordingly.
-    /// Call this before processing to optimize settings.
+    ///     Detect if Docling is running with GPU acceleration and adapt config accordingly.
+    ///     Call this before processing to optimize settings.
     /// </summary>
     public async Task<DoclingCapabilities> DetectCapabilitiesAsync()
     {
         var capabilities = new DoclingCapabilities();
-        
+
         try
         {
             // Try /health endpoint first (standard)
@@ -672,20 +689,18 @@ public class DoclingClient : IDisposable
                 capabilities.Available = false;
                 return capabilities;
             }
-            
+
             capabilities.Available = true;
-            
+
             // Try to get more detailed info - Docling serve may have /info or similar
             // Check response body for GPU indicators
             var healthContent = await response.Content.ReadAsStringAsync();
-            
+
             // Look for GPU/CUDA indicators in health response
             var lowerContent = healthContent.ToLowerInvariant();
             if (lowerContent.Contains("cuda") || lowerContent.Contains("gpu") || lowerContent.Contains("nvidia"))
-            {
                 capabilities.HasGpu = true;
-            }
-            
+
             // Try /v1/info or /info endpoint if available
             try
             {
@@ -694,43 +709,37 @@ public class DoclingClient : IDisposable
                 {
                     var infoContent = await infoResponse.Content.ReadAsStringAsync();
                     var lowerInfo = infoContent.ToLowerInvariant();
-                    
+
                     if (lowerInfo.Contains("cuda") || lowerInfo.Contains("gpu") || lowerInfo.Contains("nvidia"))
-                    {
                         capabilities.HasGpu = true;
-                    }
-                    
+
                     // Try to parse accelerator info
                     if (lowerInfo.Contains("\"accelerator\""))
-                    {
                         capabilities.HasGpu = lowerInfo.Contains("\"cuda\"") || lowerInfo.Contains("\"gpu\"");
-                    }
                 }
             }
             catch
             {
                 // Info endpoint not available, that's fine
             }
-            
+
             // If we still don't know, try a timing-based heuristic
             // GPU conversion is typically 5-10x faster
             if (!capabilities.HasGpu.HasValue && _config.AutoDetectGpu)
-            {
                 capabilities.HasGpu = await DetectGpuByTimingAsync();
-            }
-            
-            _hasGpu = capabilities.HasGpu;
+
+            HasGpu = capabilities.HasGpu;
         }
         catch
         {
             capabilities.Available = false;
         }
-        
+
         return capabilities;
     }
-    
+
     /// <summary>
-    /// Detect GPU by timing a small conversion (fallback method)
+    ///     Detect GPU by timing a small conversion (fallback method)
     /// </summary>
     private Task<bool?> DetectGpuByTimingAsync()
     {
@@ -738,14 +747,14 @@ public class DoclingClient : IDisposable
         // A GPU typically processes pages in <1 second each, CPU takes 3-10 seconds
         return Task.FromResult<bool?>(null); // For now, don't do timing detection - too invasive
     }
-    
+
     /// <summary>
-    /// Get optimal config settings based on detected capabilities
+    ///     Get optimal config settings based on detected capabilities
     /// </summary>
     public DoclingConfig GetOptimizedConfig(DoclingCapabilities? capabilities = null)
     {
-        var hasGpu = capabilities?.HasGpu ?? _hasGpu ?? false;
-        
+        var hasGpu = capabilities?.HasGpu ?? HasGpu ?? false;
+
         // Create a copy of current config with optimized settings
         var optimized = new DoclingConfig
         {
@@ -754,7 +763,7 @@ public class DoclingClient : IDisposable
             PdfBackend = _config.PdfBackend,
             AutoDetectGpu = _config.AutoDetectGpu
         };
-        
+
         if (hasGpu)
         {
             // GPU-optimized settings:
@@ -777,7 +786,7 @@ public class DoclingClient : IDisposable
             optimized.MaxConcurrentChunks = Math.Max(_config.MaxConcurrentChunks, 2);
             optimized.MinPagesForSplit = Math.Min(_config.MinPagesForSplit, 40);
         }
-        
+
         return optimized;
     }
 

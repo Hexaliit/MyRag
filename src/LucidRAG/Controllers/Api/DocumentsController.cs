@@ -1,10 +1,12 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Extensions.Options;
+using System.Text.Json;
 using LucidRAG.Config;
+using LucidRAG.Entities;
 using LucidRAG.Filters;
 using LucidRAG.Models;
 using LucidRAG.Services;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace LucidRAG.Controllers.Api;
 
@@ -20,19 +22,19 @@ public class DocumentsController(
     private readonly RagDocumentsConfig _config = config.Value;
 
     /// <summary>
-    /// Get demo mode status for UI
+    ///     Get demo mode status for UI
     /// </summary>
     [HttpGet("demo-status")]
     public Ok<DemoStatusResponse> GetDemoStatus()
     {
         return TypedResults.Ok(new DemoStatusResponse(
-            DemoMode: _config.DemoMode.Enabled,
-            Message: _config.DemoMode.Enabled ? _config.DemoMode.BannerMessage : null,
-            UploadsEnabled: !_config.DemoMode.Enabled));
+            _config.DemoMode.Enabled,
+            _config.DemoMode.Enabled ? _config.DemoMode.BannerMessage : null,
+            !_config.DemoMode.Enabled));
     }
 
     /// <summary>
-    /// Upload a document (alias for /upload)
+    ///     Upload a document (alias for /upload)
     /// </summary>
     [HttpPost]
     [HttpPost("upload")]
@@ -42,7 +44,8 @@ public class DocumentsController(
         [FromForm] Guid? collectionId = null,
         CancellationToken ct = default)
     {
-        logger.LogInformation("Upload request - File: {FileName}, Size: {Size}, ContentType: {ContentType}, CollectionId: {CollectionId}",
+        logger.LogInformation(
+            "Upload request - File: {FileName}, Size: {Size}, ContentType: {ContentType}, CollectionId: {CollectionId}",
             file?.FileName ?? "NULL",
             file?.Length ?? 0,
             file?.ContentType ?? "NULL",
@@ -63,10 +66,10 @@ public class DocumentsController(
             logger.LogInformation("Document queued successfully: {DocumentId} ({FileName})", documentId, file.FileName);
 
             return TypedResults.Ok(new DocumentUploadResponse(
-                DocumentId: documentId,
-                Filename: file.FileName,
-                Status: "queued",
-                Message: "Document queued for processing"));
+                documentId,
+                file.FileName,
+                "queued",
+                "Document queued for processing"));
         }
         catch (ArgumentException ex)
         {
@@ -87,14 +90,10 @@ public class DocumentsController(
         [FromForm] Guid? collectionId = null,
         CancellationToken ct = default)
     {
-        if (files.Count == 0)
-        {
-            return BadRequest(new { error = "No files provided" });
-        }
+        if (files.Count == 0) return BadRequest(new { error = "No files provided" });
 
         var results = new List<object>();
         foreach (var file in files)
-        {
             try
             {
                 await using var stream = file.OpenReadStream();
@@ -105,14 +104,13 @@ public class DocumentsController(
             {
                 results.Add(new { filename = file.FileName, status = "error", error = ex.Message });
             }
-        }
 
         return Ok(new { documents = results });
     }
 
     /// <summary>
-    /// Import/upsert a document with change detection based on source path.
-    /// If a document with the same sourcePath exists in the collection, it will be updated if content changed.
+    ///     Import/upsert a document with change detection based on source path.
+    ///     If a document with the same sourcePath exists in the collection, it will be updated if content changed.
     /// </summary>
     [HttpPost("import")]
     [RequestSizeLimit(100 * 1024 * 1024)]
@@ -124,10 +122,7 @@ public class DocumentsController(
         [FromForm] DateTimeOffset? sourceModifiedAt = null,
         CancellationToken ct = default)
     {
-        if (file == null || file.Length == 0)
-        {
-            return BadRequest(new { error = "No file provided" });
-        }
+        if (file == null || file.Length == 0) return BadRequest(new { error = "No file provided" });
 
         try
         {
@@ -169,7 +164,7 @@ public class DocumentsController(
     }
 
     /// <summary>
-    /// Batch import with change detection.
+    ///     Batch import with change detection.
     /// </summary>
     [HttpPost("import-batch")]
     [RequestSizeLimit(500 * 1024 * 1024)]
@@ -179,10 +174,7 @@ public class DocumentsController(
         [FromForm] string? sourceBasePath = null,
         CancellationToken ct = default)
     {
-        if (files.Count == 0)
-        {
-            return BadRequest(new { error = "No files provided" });
-        }
+        if (files.Count == 0) return BadRequest(new { error = "No files provided" });
 
         var results = new List<object>();
         var created = 0;
@@ -190,7 +182,6 @@ public class DocumentsController(
         var unchanged = 0;
 
         foreach (var file in files)
-        {
             try
             {
                 var sourcePath = string.IsNullOrEmpty(sourceBasePath)
@@ -224,7 +215,6 @@ public class DocumentsController(
             {
                 results.Add(new { filename = file.FileName, action = "error", error = ex.Message });
             }
-        }
 
         return Ok(new
         {
@@ -237,31 +227,28 @@ public class DocumentsController(
     public async Task<Results<Ok<DocumentResponse>, NotFound<ApiError>>> Get(Guid id, CancellationToken ct = default)
     {
         var document = await documentService.GetDocumentAsync(id, ct);
-        if (document is null)
-        {
-            return TypedResults.NotFound(new ApiError("Document not found", "NOT_FOUND"));
-        }
+        if (document is null) return TypedResults.NotFound(new ApiError("Document not found", "NOT_FOUND"));
 
         return TypedResults.Ok(new DocumentResponse(
-            Id: document.Id,
-            Name: document.Name,
-            OriginalFilename: document.OriginalFilename,
-            Status: document.Status.ToString().ToLowerInvariant(),
-            StatusMessage: document.StatusMessage,
-            Progress: document.ProcessingProgress,
-            SegmentCount: document.SegmentCount,
-            EntityCount: document.EntityCount,
-            FileSizeBytes: document.FileSizeBytes,
-            MimeType: document.MimeType,
-            CreatedAt: document.CreatedAt,
-            ProcessedAt: document.ProcessedAt,
-            CollectionId: document.CollectionId,
-            CollectionName: document.Collection?.Name,
-            SourceUrl: document.SourceUrl));
+            document.Id,
+            document.Name,
+            document.OriginalFilename,
+            document.Status.ToString().ToLowerInvariant(),
+            document.StatusMessage,
+            document.ProcessingProgress,
+            document.SegmentCount,
+            document.EntityCount,
+            document.FileSizeBytes,
+            document.MimeType,
+            document.CreatedAt,
+            document.ProcessedAt,
+            document.CollectionId,
+            document.Collection?.Name,
+            document.SourceUrl));
     }
 
     /// <summary>
-    /// List documents with pagination.
+    ///     List documents with pagination.
     /// </summary>
     [HttpGet]
     public async Task<Ok<PagedResponse<DocumentListItem>>> List(
@@ -276,27 +263,25 @@ public class DocumentsController(
 
         var documents = await documentService.GetDocumentsAsync(collectionId, ct);
 
-        if (!string.IsNullOrEmpty(status) && Enum.TryParse<Entities.DocumentStatus>(status, true, out var statusEnum))
-        {
+        if (!string.IsNullOrEmpty(status) && Enum.TryParse<DocumentStatus>(status, true, out var statusEnum))
             documents = documents.Where(d => d.Status == statusEnum).ToList();
-        }
 
         var total = documents.Count;
         var paged = documents
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(d => new DocumentListItem(
-                Id: d.Id,
-                Name: d.Name,
-                OriginalFilename: d.OriginalFilename,
-                Status: d.Status.ToString().ToLowerInvariant(),
-                StatusMessage: d.StatusMessage,
-                Progress: d.ProcessingProgress,
-                SegmentCount: d.SegmentCount,
-                CreatedAt: d.CreatedAt,
-                CollectionId: d.CollectionId,
-                CollectionName: d.Collection?.Name,
-                SourceUrl: d.SourceUrl));
+                d.Id,
+                d.Name,
+                d.OriginalFilename,
+                d.Status.ToString().ToLowerInvariant(),
+                d.StatusMessage,
+                d.ProcessingProgress,
+                d.SegmentCount,
+                d.CreatedAt,
+                d.CollectionId,
+                d.Collection?.Name,
+                d.SourceUrl));
 
         return TypedResults.Ok(ApiResponseHelpers.Paged(paged, page, pageSize, total, "/api/documents"));
     }
@@ -310,7 +295,7 @@ public class DocumentsController(
 
         await foreach (var update in documentService.StreamProgressAsync(id, ct))
         {
-            var data = System.Text.Json.JsonSerializer.Serialize(new
+            var data = JsonSerializer.Serialize(new
             {
                 type = update.Type.ToString().ToLowerInvariant(),
                 stage = update.Stage,
@@ -329,12 +314,12 @@ public class DocumentsController(
     public async Task<Ok<DeleteResponse>> Delete(Guid id, CancellationToken ct = default)
     {
         await documentService.DeleteDocumentAsync(id, ct);
-        return TypedResults.Ok(new DeleteResponse(Success: true));
+        return TypedResults.Ok(new DeleteResponse(true));
     }
 
     /// <summary>
-    /// Reprocess a document. Use when a document is stuck or failed.
-    /// POST body: { "mode": "full" | "signals" } - defaults to "signals"
+    ///     Reprocess a document. Use when a document is stuck or failed.
+    ///     POST body: { "mode": "full" | "signals" } - defaults to "signals"
     /// </summary>
     [HttpPost("{id:guid}/reprocess")]
     public async Task<Results<Ok<JobResponse>, NotFound<ApiError>>> Reprocess(
@@ -360,21 +345,13 @@ public class DocumentsController(
     }
 
     /// <summary>
-    /// Request model for reprocessing a document.
-    /// </summary>
-    public record ReprocessRequest(string? Mode = null);
-
-    /// <summary>
-    /// Get detailed information about a document including segments, signals, and evidence.
+    ///     Get detailed information about a document including segments, signals, and evidence.
     /// </summary>
     [HttpGet("{id:guid}/details")]
     public async Task<IActionResult> GetDetails(Guid id, CancellationToken ct = default)
     {
         var document = await documentService.GetDocumentAsync(id, ct);
-        if (document is null)
-        {
-            return NotFound(new { error = "Document not found" });
-        }
+        if (document is null) return NotFound(new { error = "Document not found" });
 
         // Get segments for this document
         var segments = await documentService.GetSegmentsAsync(id, ct);
@@ -439,7 +416,7 @@ public class DocumentsController(
     }
 
     /// <summary>
-    /// Get summary for a document (executive summary, topics, entities).
+    ///     Get summary for a document (executive summary, topics, entities).
     /// </summary>
     [HttpGet("{id:guid}/summary")]
     public async Task<IActionResult> GetSummary(Guid id, CancellationToken ct = default)
@@ -471,17 +448,25 @@ public class DocumentsController(
 
         object? topics = null;
         if (topicsSignal?.Value is string topicsJson && !string.IsNullOrEmpty(topicsJson))
-        {
-            try { topics = System.Text.Json.JsonSerializer.Deserialize<object>(topicsJson); }
-            catch { /* ignore parse errors */ }
-        }
+            try
+            {
+                topics = JsonSerializer.Deserialize<object>(topicsJson);
+            }
+            catch
+            {
+                /* ignore parse errors */
+            }
 
         object? openQuestions = null;
         if (questionsSignal?.Value is string questionsJson && !string.IsNullOrEmpty(questionsJson))
-        {
-            try { openQuestions = System.Text.Json.JsonSerializer.Deserialize<object>(questionsJson); }
-            catch { /* ignore parse errors */ }
-        }
+            try
+            {
+                openQuestions = JsonSerializer.Deserialize<object>(questionsJson);
+            }
+            catch
+            {
+                /* ignore parse errors */
+            }
 
         return Ok(new
         {
@@ -521,21 +506,20 @@ public class DocumentsController(
     }
 
     /// <summary>
-    /// Delete all documents. Requires X-Confirm-Delete: true header for safety.
-    /// Use DELETE /api/documents/{id} for single document deletion.
+    ///     Delete all documents. Requires X-Confirm-Delete: true header for safety.
+    ///     Use DELETE /api/documents/{id} for single document deletion.
     /// </summary>
     [HttpDelete]
     public async Task<Results<Ok<BulkDeleteResponse>, BadRequest<ApiError>, StatusCodeHttpResult>> DeleteAll(
-        [FromHeader(Name = "X-Confirm-Delete")] bool confirm = false,
+        [FromHeader(Name = "X-Confirm-Delete")]
+        bool confirm = false,
         [FromQuery] bool clearVectors = true,
         CancellationToken ct = default)
     {
         if (!confirm)
-        {
             return TypedResults.BadRequest(new ApiError(
                 "Bulk delete requires confirmation. Set X-Confirm-Delete: true header.",
                 "CONFIRMATION_REQUIRED"));
-        }
 
         try
         {
@@ -543,9 +527,9 @@ public class DocumentsController(
             logger.LogWarning("DELETE ALL: Deleted {Count} documents and all related data", count);
 
             return TypedResults.Ok(new BulkDeleteResponse(
-                Deleted: count,
-                VectorsCleared: clearVectors,
-                Message: $"Deleted {count} documents and all related data"));
+                count,
+                clearVectors,
+                $"Deleted {count} documents and all related data"));
         }
         catch (Exception ex)
         {
@@ -553,4 +537,9 @@ public class DocumentsController(
             return TypedResults.StatusCode(500);
         }
     }
+
+    /// <summary>
+    ///     Request model for reprocessing a document.
+    /// </summary>
+    public record ReprocessRequest(string? Mode = null);
 }

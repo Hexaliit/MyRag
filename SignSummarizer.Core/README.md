@@ -4,7 +4,8 @@ Sign language recognition system with ONNX-based hand detection and temporal ana
 
 ## Overview
 
-SignSummarizer implements a multi-stage pipeline for real-time sign language recognition using computer vision and machine learning techniques:
+SignSummarizer implements a multi-stage pipeline for real-time sign language recognition using computer vision and
+machine learning techniques:
 
 - **Stage A**: Hand detection and 21-point landmark extraction (per frame)
 - **Stage B**: Landmark canonicalization (scale, rotation, translation normalization)
@@ -25,35 +26,37 @@ Video → Hand Detection → Landmarks → Canonicalization → Segmentation →
 ### Key Components
 
 1. **Models** (`Models/`)
-   - `Point3D` - 3D point with distance calculations
-   - `HandLandmarks` - 21-point hand landmarks with confidence
-   - `FrameLandmarks` - All landmarks for a single frame
-   - `SignAtom` - Atomic sign unit (hold/transition/boundary)
-   - `CanonicalLandmarks` - Normalized hand pose
-   - `PoseFilmstrip` - Keyframe extraction (filmstrip technique)
-   - `NonManualModifiers` - Face/pose modifiers
+    - `Point3D` - 3D point with distance calculations
+    - `HandLandmarks` - 21-point hand landmarks with confidence
+    - `FrameLandmarks` - All landmarks for a single frame
+    - `SignAtom` - Atomic sign unit (hold/transition/boundary)
+    - `CanonicalLandmarks` - Normalized hand pose
+    - `PoseFilmstrip` - Keyframe extraction (filmstrip technique)
+    - `NonManualModifiers` - Face/pose modifiers
 
 2. **Services** (`Services/`)
-   - `OnnxRunner` - Reusable ONNX inference with session pooling
-   - `ModelLoader` - ONNX model management
-   - `HandDetectionService` - Hand detection using ONNX models
-   - `CanonicalizationService` - Landmark normalization
-   - `SegmentationService` - Stream-based atom segmentation
-   - `PoseEmbeddingService` - Vector embedding generation
-   - `FilmstripService` - Keyframe deduplication
-   - `ModifierDetectionService` - Face/pose analysis
-   - `SignVectorStore` - RAG-style vector retrieval
-   - `SignProcessingPipeline` - Main pipeline orchestrator
+    - `OnnxRunner` - Reusable ONNX inference with session pooling
+    - `ModelLoader` - ONNX model management
+    - `HandDetectionService` - Hand detection using ONNX models
+    - `CanonicalizationService` - Landmark normalization
+    - `SegmentationService` - Stream-based atom segmentation
+    - `PoseEmbeddingService` - Vector embedding generation
+    - `FilmstripService` - Keyframe deduplication
+    - `ModifierDetectionService` - Face/pose analysis
+    - `SignVectorStore` - RAG-style vector retrieval
+    - `SignProcessingPipeline` - Main pipeline orchestrator
 
 ## Features
 
 ### Hand Filmstrip Technique
 
-Instead of processing every frame, SignSummarizer extracts only N key poses (6-12) per sign atom, dramatically reducing computational cost while preserving essential motion information.
+Instead of processing every frame, SignSummarizer extracts only N key poses (6-12) per sign atom, dramatically reducing
+computational cost while preserving essential motion information.
 
 ### Vector Store Retrieval
 
 Each sign atom generates an embedding vector stored in a vector store, enabling:
+
 - Similar sign retrieval across all signers
 - Signer-specific variant adaptation
 - RAG-style querying for downstream applications
@@ -61,6 +64,7 @@ Each sign atom generates an embedding vector stored in a vector store, enabling:
 ### Non-Manual Modifiers
 
 Parallel detection of facial expressions and body movements:
+
 - Brow position (raised/furrowed) - questions, conditionals
 - Head motion (nod/shake) - affirmation, negation
 - Mouth shape - intensifiers, adverbs
@@ -117,10 +121,12 @@ Place ONNX models in the models directory:
 ### Model Input/Output
 
 #### Hand Landmark Model
+
 - Input: `[1, 3, 256, 256]` - RGB image normalized to [0,1]
 - Output: `[63]` - 21 keypoints × (x, y, z) coordinates
 
 #### Face/Pose Models
+
 - Input: `[1, 3, 256, 256]` - RGB image
 - Output: Varies by model (landmarks, confidence scores)
 
@@ -182,6 +188,7 @@ dotnet publish SignSummarizer.UI/SignSummarizer.UI.csproj -c Release -r win-x64
 ### Signals First, LLM Second
 
 Following the approach from DocSummarizer.Images, SignSummarizer prioritizes:
+
 1. **Deterministic signals** (landmarks, embeddings, modifiers) - always reliable
 2. **RAG retrieval** - vector similarity for sign matching
 3. **Optional LLM usage** - only for novel sign labeling and complex queries
@@ -189,6 +196,7 @@ Following the approach from DocSummarizer.Images, SignSummarizer prioritizes:
 ### Streaming Architecture
 
 All services support async streaming for real-time processing:
+
 - Frame-by-frame hand detection
 - Incremental atom segmentation
 - Online novelty detection for filmstrip extraction
@@ -196,6 +204,7 @@ All services support async streaming for real-time processing:
 ### Inspectable and Correctable
 
 Every step produces structured, queryable data:
+
 - Frame-level timestamps for replay
 - Confidence scores on all detections
 - Keyframe evidence pointers
@@ -221,6 +230,7 @@ Every step produces structured, queryable data:
 ## References
 
 Based on architecture described in:
+
 - [SIGNAL-ARCHITECTURE.md](../Mostlylucid.DocSummarizer.Images/SIGNAL-ARCHITECTURE.md)
 - [DocSummarizer.Images README](../Mostlylucid.DocSummarizer.Images/README.md)
 

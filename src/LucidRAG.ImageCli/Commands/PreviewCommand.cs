@@ -1,15 +1,12 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
 using LucidRAG.ImageCli.Services;
-using Mostlylucid.DocSummarizer.Images.Services;
-using Mostlylucid.DocSummarizer.Images.Services.Vision;
 using Spectre.Console;
 
 namespace LucidRAG.ImageCli.Commands;
 
 /// <summary>
-/// Command for previewing images in the console with conversational filtering.
-/// Demonstrates low-res pixel art rendering for quick visual feedback.
+///     Command for previewing images in the console with conversational filtering.
+///     Demonstrates low-res pixel art rendering for quick visual feedback.
 /// </summary>
 public static class PreviewCommand
 {
@@ -114,7 +111,8 @@ public static class PreviewCommand
                     ConsoleImageRenderer.RenderToConsole(imagePath, width, height, mode);
 
                     AnsiConsole.WriteLine();
-                    AnsiConsole.MarkupLine($"[dim]Rendering modes: ColorBlocks (best), GrayscaleBlocks, Ascii, Braille (highest resolution)[/]");
+                    AnsiConsole.MarkupLine(
+                        "[dim]Rendering modes: ColorBlocks (best), GrayscaleBlocks, Ascii, Braille (highest resolution)[/]");
                 }
 
                 return Task.FromResult(0);

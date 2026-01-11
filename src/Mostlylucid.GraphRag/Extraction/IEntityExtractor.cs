@@ -1,13 +1,13 @@
 namespace Mostlylucid.GraphRag.Extraction;
 
 /// <summary>
-/// Interface for entity extraction strategies.
-/// Allows swapping between heuristic, LLM, and hybrid approaches.
+///     Interface for entity extraction strategies.
+///     Allows swapping between heuristic, LLM, and hybrid approaches.
 /// </summary>
 public interface IEntityExtractor
 {
     /// <summary>
-    /// Extract entities and relationships from the indexed corpus.
+    ///     Extract entities and relationships from the indexed corpus.
     /// </summary>
     /// <param name="progress">Optional progress reporter</param>
     /// <param name="ct">Cancellation token</param>

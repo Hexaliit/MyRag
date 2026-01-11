@@ -1,32 +1,26 @@
-using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// OCR verification wave using vision LLM to validate and correct OCR results.
-/// Provides concordance checking between Tesseract OCR and vision model.
-///
-/// This implements an offline escalation step where uncertain OCR results
-/// are verified by a more powerful vision model (MiniCPM-V via Ollama).
-///
-/// References:
-/// - MiniCPM-V: https://ollama.com/library/minicpm-v
-/// - OCR verification patterns: Compare fast OCR with slow but accurate vision LLM
+///     OCR verification wave using vision LLM to validate and correct OCR results.
+///     Provides concordance checking between Tesseract OCR and vision model.
+///     This implements an offline escalation step where uncertain OCR results
+///     are verified by a more powerful vision model (MiniCPM-V via Ollama).
+///     References:
+///     - MiniCPM-V: https://ollama.com/library/minicpm-v
+///     - OCR verification patterns: Compare fast OCR with slow but accurate vision LLM
 /// </summary>
 public class OcrVerificationWave : IAnalysisWave
 {
+    private readonly double _confidenceThreshold;
+    private readonly bool _enabled;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OcrVerificationWave>? _logger;
     private readonly string _model;
-    private readonly bool _enabled;
-    private readonly double _confidenceThreshold;
-
-    public string Name => "OcrVerificationWave";
-    public int Priority => 55; // Lower priority than OcrWave (60) - runs after
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "verification" };
 
     public OcrVerificationWave(
         string ollamaBaseUrl = "http://localhost:11434",
@@ -46,6 +40,10 @@ public class OcrVerificationWave : IAnalysisWave
         _logger = logger;
     }
 
+    public string Name => "OcrVerificationWave";
+    public int Priority => 55; // Lower priority than OcrWave (60) - runs after
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "verification" };
+
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
         string imagePath,
         AnalysisContext context,
@@ -53,10 +51,7 @@ public class OcrVerificationWave : IAnalysisWave
     {
         var signals = new List<Signal>();
 
-        if (!_enabled)
-        {
-            return signals;
-        }
+        if (!_enabled) return signals;
 
         // Check if Ollama is available
         var available = await CheckOllamaAvailableAsync(ct);
@@ -69,10 +64,8 @@ public class OcrVerificationWave : IAnalysisWave
         // Get OCR results from context (use the collection signal)
         var ocrRegionsSignal = context.GetBestSignal("ocr.text_regions");
         if (ocrRegionsSignal == null)
-        {
             // No OCR results to verify
             return signals;
-        }
 
         // Check if verification is needed (low confidence OCR results)
         var avgConfidence = ocrRegionsSignal.Confidence;
@@ -153,7 +146,6 @@ public class OcrVerificationWave : IAnalysisWave
 
             // If concordance is low, flag for manual review
             if (concordance < 0.5)
-            {
                 signals.Add(new Signal
                 {
                     Key = "ocr.discordance_detected",
@@ -169,11 +161,10 @@ public class OcrVerificationWave : IAnalysisWave
                         ["vision_text_preview"] = Truncate(visionText, 200)
                     }
                 });
-            }
 
             // Suggest which text to trust
             var suggestedText = concordance < 0.5 && avgConfidence < 0.6
-                ? visionText  // Use vision LLM if concordance is low and OCR confidence is low
+                ? visionText // Use vision LLM if concordance is low and OCR confidence is low
                 : ocrFullText; // Otherwise trust Tesseract
 
             signals.Add(new Signal
@@ -190,7 +181,8 @@ public class OcrVerificationWave : IAnalysisWave
                 }
             });
 
-            _logger?.LogInformation("OCR verification complete: concordance={Concordance:F2}, suggested_source={Source}",
+            _logger?.LogInformation(
+                "OCR verification complete: concordance={Concordance:F2}, suggested_source={Source}",
                 concordance, suggestedText == visionText ? "vision_llm" : "tesseract");
         }
         catch (Exception ex)
@@ -234,7 +226,8 @@ public class OcrVerificationWave : IAnalysisWave
             var request = new
             {
                 model = _model,
-                prompt = "Extract all visible text from this image. Return only the text content, preserving layout and structure. Be comprehensive and accurate.",
+                prompt =
+                    "Extract all visible text from this image. Return only the text content, preserving layout and structure. Be comprehensive and accurate.",
                 images = new[] { base64Image },
                 stream = false
             };
@@ -258,8 +251,8 @@ public class OcrVerificationWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Calculate concordance (similarity) between two text strings.
-    /// Uses simple Jaccard similarity on word sets.
+    ///     Calculate concordance (similarity) between two text strings.
+    ///     Uses simple Jaccard similarity on word sets.
     /// </summary>
     private static double CalculateConcordance(string text1, string text2)
     {
@@ -303,6 +296,7 @@ public class OcrVerificationWave : IAnalysisWave
     }
 
     private record OllamaGenerateResponse(
-        [property: JsonPropertyName("response")] string Response,
+        [property: JsonPropertyName("response")]
+        string Response,
         [property: JsonPropertyName("done")] bool Done);
 }

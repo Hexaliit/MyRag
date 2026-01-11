@@ -5,7 +5,7 @@ using Xunit;
 namespace Mostlylucid.DocSummarizer.Tests.Services;
 
 /// <summary>
-/// Tests for OnnxModelRegistry - validates model metadata
+///     Tests for OnnxModelRegistry - validates model metadata
 /// </summary>
 public class OnnxModelRegistryTests
 {
@@ -18,7 +18,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_ReturnsCorrectDimension(OnnxEmbeddingModel model, int expectedDimension)
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, quantized: true);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, true);
 
         // Assert
         Assert.Equal(expectedDimension, modelInfo.EmbeddingDimension);
@@ -33,7 +33,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_HasValidModelUrl(OnnxEmbeddingModel model)
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, quantized: true);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, true);
         var modelUrl = modelInfo.GetModelUrl();
 
         // Assert
@@ -51,7 +51,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_HasValidVocabUrl(OnnxEmbeddingModel model)
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, quantized: true);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, true);
         var vocabUrl = modelInfo.GetVocabUrl();
 
         // Assert
@@ -69,7 +69,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_HasPositiveMaxSequenceLength(OnnxEmbeddingModel model)
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, quantized: true);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, true);
 
         // Assert
         Assert.True(modelInfo.MaxSequenceLength > 0);
@@ -85,7 +85,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_HasNonEmptyName(OnnxEmbeddingModel model)
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, quantized: true);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, true);
 
         // Assert
         Assert.NotNull(modelInfo.Name);
@@ -96,7 +96,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_Quantized_HasQuantizedInModelFile()
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.AllMiniLmL6V2, quantized: true);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.AllMiniLmL6V2, true);
 
         // Assert - quantized models have "quantized" in file path
         Assert.Contains("quantized", modelInfo.ModelFile);
@@ -106,7 +106,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_NotQuantized_DoesNotHaveQuantizedInModelFile()
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.AllMiniLmL6V2, quantized: false);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.AllMiniLmL6V2, false);
 
         // Assert
         Assert.DoesNotContain("quantized", modelInfo.ModelFile);
@@ -121,7 +121,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_HasExpectedSequenceLength(OnnxEmbeddingModel model, int expectedMaxSeq)
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, quantized: true);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, true);
 
         // Assert
         Assert.Equal(expectedMaxSeq, modelInfo.MaxSequenceLength);
@@ -136,7 +136,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_HasValidHuggingFaceRepo(OnnxEmbeddingModel model)
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, quantized: true);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, true);
 
         // Assert
         Assert.NotNull(modelInfo.HuggingFaceRepo);
@@ -148,7 +148,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_BgeSmall_RequiresInstruction()
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.BgeSmallEnV15, quantized: true);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.BgeSmallEnV15, true);
 
         // Assert
         Assert.True(modelInfo.RequiresInstruction);
@@ -164,7 +164,7 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_NonBgeModels_DoNotRequireInstruction(OnnxEmbeddingModel model)
     {
         // Act
-        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, quantized: true);
+        var modelInfo = OnnxModelRegistry.GetEmbeddingModel(model, true);
 
         // Assert
         Assert.False(modelInfo.RequiresInstruction);
@@ -189,8 +189,8 @@ public class OnnxModelRegistryTests
     public void GetEmbeddingModel_Quantized_HasSmallerSize(OnnxEmbeddingModel model)
     {
         // Act
-        var quantized = OnnxModelRegistry.GetEmbeddingModel(model, quantized: true);
-        var notQuantized = OnnxModelRegistry.GetEmbeddingModel(model, quantized: false);
+        var quantized = OnnxModelRegistry.GetEmbeddingModel(model, true);
+        var notQuantized = OnnxModelRegistry.GetEmbeddingModel(model, false);
 
         // Assert
         Assert.True(quantized.SizeBytes < notQuantized.SizeBytes,

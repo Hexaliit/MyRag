@@ -2,6 +2,6 @@
 
 public class ContactEmailModel : BaseEmailModel
 
-{ 
+{
     public override string Subject => "New Contact";
 }
