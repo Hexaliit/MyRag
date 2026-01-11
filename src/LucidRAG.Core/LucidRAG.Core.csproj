@@ -48,7 +48,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
         <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj" />
-        <ProjectReference Include="..\..\..\lucidrag-videosummarizer\src\VideoSummarizer.Core\VideoSummarizer.Core.csproj" />
+        <ProjectReference Include="..\VideoSummarizer.Core\VideoSummarizer.Core.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Anthropic\Mostlylucid.DocSummarizer.Anthropic.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.OpenAI\Mostlylucid.DocSummarizer.OpenAI.csproj" />
         <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" />
