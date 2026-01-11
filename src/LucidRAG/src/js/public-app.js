@@ -142,6 +142,12 @@ export function publicApp(tenantName) {
             localStorage.setItem('lucidrag-theme', this.theme);
         },
 
+        setTheme(themeName) {
+            this.theme = themeName;
+            document.documentElement.setAttribute('data-theme', themeName);
+            localStorage.setItem('lucidrag-theme', themeName);
+        },
+
         async sendMessage() {
             if (!this.currentMessage.trim() || !this.selectedCollection) return;
 

@@ -86,7 +86,15 @@
                 </template>
 
                 <template x-if="!loading && collections.length === 0">
-                    <p class="text-sm text-base-content/50">No collections available</p>
+                    <div class="text-center py-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-base-content/20 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        <p class="text-sm text-base-content/50 mb-3">No collections yet</p>
+                        <a href="/auth/login" class="btn btn-sm btn-primary">
+                            Sign in to create
+                        </a>
+                    </div>
                 </template>
 
                 <ul class="space-y-1">
@@ -205,22 +213,96 @@
                         </div>
                     </template>
                     <template x-if="!selectedCollection">
-                        <span class="text-base-content/50">Select a collection to start chatting</span>
+                        <span class="text-base-content/50 hidden sm:inline">Select a collection to start chatting</span>
+                        <span class="text-base-content/50 sm:hidden">Select collection</span>
                     </template>
                 </div>
 
                 <!-- Search Controls (shared between admin and public) -->
                 @await Html.PartialAsync("_SearchControls")
 
-                <!-- Theme toggle -->
-                <button @@click="toggleTheme()" class="btn btn-ghost btn-sm btn-square">
-                    <svg x-show="theme === 'light'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                    </svg>
-                    <svg x-show="theme === 'dark'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                </button>
+                <!-- Theme Swapper Dropdown -->
+                <div class="dropdown dropdown-end">
+                    <label tabindex="0" class="btn btn-ghost btn-sm gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                        </svg>
+                        <span class="hidden sm:inline text-xs" x-text="theme"></span>
+                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </label>
+                    <div tabindex="0" class="dropdown-content z-[100] p-2 shadow-xl bg-base-200 rounded-box w-64 max-h-96 overflow-y-auto">
+                        <div class="text-xs font-semibold text-base-content/60 px-2 py-1 uppercase">Special Layouts</div>
+                        <ul class="menu menu-sm">
+                            <li><button @@click="setTheme('chatgpt')" :class="theme === 'chatgpt' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #10a37f; border-color: #10a37f;"></span> ChatGPT Style
+                            </button></li>
+                            <li><button @@click="setTheme('fun')" :class="theme === 'fun' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #ff6b6b; border-color: #ff6b6b;"></span> Fun & Playful
+                            </button></li>
+                            <li><button @@click="setTheme('minimal')" :class="theme === 'minimal' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #18181b; border-color: #18181b;"></span> Minimal
+                            </button></li>
+                        </ul>
+                        <div class="divider my-1"></div>
+                        <div class="text-xs font-semibold text-base-content/60 px-2 py-1 uppercase">Light Themes</div>
+                        <ul class="menu menu-sm">
+                            <li><button @@click="setTheme('light')" :class="theme === 'light' ? 'active' : ''">
+                                <span class="badge badge-sm bg-base-100 border-base-300"></span> Light
+                            </button></li>
+                            <li><button @@click="setTheme('cupcake')" :class="theme === 'cupcake' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #fae7e8; border-color: #fae7e8;"></span> Cupcake
+                            </button></li>
+                            <li><button @@click="setTheme('corporate')" :class="theme === 'corporate' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #4b6bfb; border-color: #4b6bfb;"></span> Corporate
+                            </button></li>
+                            <li><button @@click="setTheme('retro')" :class="theme === 'retro' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #ef9995; border-color: #ef9995;"></span> Retro
+                            </button></li>
+                            <li><button @@click="setTheme('pastel')" :class="theme === 'pastel' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #d1c1d7; border-color: #d1c1d7;"></span> Pastel
+                            </button></li>
+                            <li><button @@click="setTheme('lofi')" :class="theme === 'lofi' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #808080; border-color: #808080;"></span> Lofi
+                            </button></li>
+                            <li><button @@click="setTheme('aqua')" :class="theme === 'aqua' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #09ecf3; border-color: #09ecf3;"></span> Aqua
+                            </button></li>
+                            <li><button @@click="setTheme('valentine')" :class="theme === 'valentine' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #e96d7b; border-color: #e96d7b;"></span> Valentine
+                            </button></li>
+                            <li><button @@click="setTheme('nord')" :class="theme === 'nord' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #5e81ac; border-color: #5e81ac;"></span> Nord
+                            </button></li>
+                        </ul>
+                        <div class="divider my-1"></div>
+                        <div class="text-xs font-semibold text-base-content/60 px-2 py-1 uppercase">Dark Themes</div>
+                        <ul class="menu menu-sm">
+                            <li><button @@click="setTheme('dark')" :class="theme === 'dark' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #2a303c; border-color: #2a303c;"></span> Dark
+                            </button></li>
+                            <li><button @@click="setTheme('synthwave')" :class="theme === 'synthwave' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #e779c1; border-color: #e779c1;"></span> Synthwave
+                            </button></li>
+                            <li><button @@click="setTheme('cyberpunk')" :class="theme === 'cyberpunk' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #ff7598; border-color: #ff7598;"></span> Cyberpunk
+                            </button></li>
+                            <li><button @@click="setTheme('dracula')" :class="theme === 'dracula' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #ff79c6; border-color: #ff79c6;"></span> Dracula
+                            </button></li>
+                            <li><button @@click="setTheme('night')" :class="theme === 'night' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #38bdf8; border-color: #38bdf8;"></span> Night
+                            </button></li>
+                            <li><button @@click="setTheme('coffee')" :class="theme === 'coffee' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #db924b; border-color: #db924b;"></span> Coffee
+                            </button></li>
+                            <li><button @@click="setTheme('sunset')" :class="theme === 'sunset' ? 'active' : ''">
+                                <span class="badge badge-sm" style="background: #ff865b; border-color: #ff865b;"></span> Sunset
+                            </button></li>
+                        </ul>
+                    </div>
+                </div>
 
                 <!-- Login link (if not authenticated) -->
                 @if (!User.Identity?.IsAuthenticated ?? true)

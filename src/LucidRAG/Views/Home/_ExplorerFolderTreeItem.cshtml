@@ -1,55 +1,6 @@
-@* Explorer Folder Tree Item - Recursive folder tree node *@
-@* Used inside x-data="{ expanded: ... }" context *@
+@* Explorer Folder Tree Item - Pure Alpine.js folder tree rendering *@
+@* This file is kept for backwards compatibility but the actual tree is rendered *@
+@* entirely client-side via Alpine.js x-for directives in _FileExplorer.cshtml *@
 
-<div class="pl-2">
-    <div class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-base-300"
-         :class="currentFolderId === folder.id ? 'bg-primary/10 text-primary' : ''"
-         @@click="navigateToFolder(folder.id)"
-         @@dragover.prevent="dropTargetId = folder.id"
-         @@dragleave="dropTargetId = null"
-         @@drop.prevent="handleDrop($event, folder.id)">
-
-        <!-- Expand/collapse toggle -->
-        <template x-if="folder.children?.length > 0">
-            <button class="btn btn-ghost btn-xs btn-circle"
-                    @@click.stop="expanded = !expanded; expandedFolders.has(folder.id) ? expandedFolders.delete(folder.id) : expandedFolders.add(folder.id)">
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     class="h-3 w-3 transition-transform"
-                     :class="expanded ? 'rotate-90' : ''"
-                     fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
-            </button>
-        </template>
-        <template x-if="!folder.children?.length">
-            <span class="w-6"></span>
-        </template>
-
-        <!-- Folder icon -->
-        <svg xmlns="http://www.w3.org/2000/svg"
-             class="h-4 w-4"
-             :class="expanded ? 'text-warning' : 'text-warning/70'"
-             fill="currentColor" viewBox="0 0 24 24">
-            <template x-if="expanded">
-                <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
-            </template>
-            <template x-if="!expanded">
-                <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-            </template>
-        </svg>
-
-        <!-- Folder name -->
-        <span class="text-sm truncate flex-1" x-text="folder.name"></span>
-    </div>
-
-    <!-- Children (recursive) -->
-    <template x-if="expanded && folder.children?.length > 0">
-        <div class="ml-2 border-l border-base-300">
-            <template x-for="child in folder.children" :key="child.id">
-                <div x-data="{ expanded: expandedFolders.has(child.id), folder: child }">
-                    @await Html.PartialAsync("_ExplorerFolderTreeItem")
-                </div>
-            </template>
-        </div>
-    </template>
-</div>
+@* The recursive folder tree is rendered inline in _FileExplorer.cshtml to avoid *@
+@* server-side recursion issues. This partial is no longer used. *@

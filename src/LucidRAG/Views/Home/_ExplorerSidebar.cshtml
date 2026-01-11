@@ -1,0 +1,150 @@
+@* Explorer Sidebar - Filter panel for explorer mode *@
+@* Narrower sidebar with folders, communities, entities, signals filters *@
+@* Note: This inherits x-data from parent ragApp() - no local x-data needed *@
+
+<div class="flex flex-col h-full">
+    <!-- Folders Section -->
+    <div class="p-2 border-b border-base-300">
+        <div class="text-xs text-base-content/50 uppercase tracking-wide mb-2 px-2">Folders</div>
+        <div class="max-h-32 overflow-y-auto">
+            <!-- Root folder -->
+            <div class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-base-300"
+                 :class="!currentFolderId ? 'bg-primary/10 text-primary' : ''"
+                 @@click="navigateToFolder(null)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <span class="text-sm">Root</span>
+            </div>
+            <!-- Folder tree -->
+            <template x-for="folder in folderTree" :key="folder.id">
+                <div class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-base-300 pl-4"
+                     :class="currentFolderId === folder.id ? 'bg-primary/10 text-primary' : ''"
+                     @@click="navigateToFolder(folder.id)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning/70" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                    </svg>
+                    <span class="text-sm truncate" x-text="folder.name"></span>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Communities Section -->
+    <div class="p-2 border-b border-base-300" x-show="communities.length > 0">
+        <div class="flex items-center justify-between mb-2 px-2">
+            <div class="text-xs text-base-content/50 uppercase tracking-wide">Communities</div>
+            <button class="btn btn-ghost btn-xs" @@click="communitiesExpanded = !communitiesExpanded">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform" :class="communitiesExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+        </div>
+        <div class="max-h-32 overflow-y-auto" x-show="communitiesExpanded" x-collapse>
+            <div class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-base-300"
+                 :class="!currentCommunityId ? 'bg-primary/10' : ''"
+                 @@click="currentCommunityId = null; loadExplorerContents()">
+                <span class="text-sm">All</span>
+            </div>
+            <template x-for="community in communities" :key="community.id">
+                <div class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-base-300"
+                     :class="currentCommunityId === community.id ? 'bg-primary/10' : ''"
+                     @@click="currentCommunityId = community.id; loadExplorerContents()"
+                     :title="community.summary">
+                    <span class="w-2 h-2 rounded-full bg-success shrink-0"></span>
+                    <span class="text-sm truncate flex-1" x-text="community.name"></span>
+                    <span class="badge badge-xs badge-ghost" x-text="community.entityCount"></span>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Entities Section -->
+    <div class="p-2 border-b border-base-300" x-show="entityGroups && Object.keys(entityGroups).length > 0">
+        <div class="flex items-center justify-between mb-2 px-2">
+            <div class="text-xs text-base-content/50 uppercase tracking-wide">Entities</div>
+            <button class="btn btn-ghost btn-xs" @@click="entitiesExpanded = !entitiesExpanded">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform" :class="entitiesExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+        </div>
+        <div class="max-h-40 overflow-y-auto space-y-1" x-show="entitiesExpanded" x-collapse>
+            <template x-for="(entities, type) in entityGroups" :key="type">
+                <div class="collapse collapse-arrow bg-base-200/50 rounded-lg">
+                    <input type="checkbox" class="min-h-0" />
+                    <div class="collapse-title min-h-0 py-1 px-2 text-sm flex items-center gap-2">
+                        <span x-html="getEntityIcon(type)"></span>
+                        <span x-text="type" class="capitalize"></span>
+                        <span class="badge badge-xs badge-ghost ml-auto" x-text="entities.length"></span>
+                    </div>
+                    <div class="collapse-content px-2 pb-2">
+                        <template x-for="entity in entities.slice(0, 8)" :key="entity.id">
+                            <div class="flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer hover:bg-base-300 text-xs"
+                                 :class="selectedEntities.has(entity.id) ? 'bg-secondary/20' : ''"
+                                 @@click="toggleEntityFilter(entity.id, type)">
+                                <span class="truncate flex-1" x-text="entity.name"></span>
+                                <span class="text-base-content/40" x-text="entity.mentionCount"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Signals Section -->
+    <div class="p-2 border-b border-base-300">
+        <div class="flex items-center justify-between mb-2 px-2">
+            <div class="text-xs text-base-content/50 uppercase tracking-wide">Signals</div>
+            <button class="btn btn-ghost btn-xs" @@click="signalsExpanded = !signalsExpanded">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform" :class="signalsExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+        </div>
+        <div class="space-y-2 px-2" x-show="signalsExpanded" x-collapse>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" class="checkbox checkbox-xs checkbox-primary"
+                       :checked="signals.hasImages" @@change="signals.hasImages = !signals.hasImages; loadExplorerContents()" />
+                <span class="text-sm">Has images</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" class="checkbox checkbox-xs checkbox-primary"
+                       :checked="signals.hasTables" @@change="signals.hasTables = !signals.hasTables; loadExplorerContents()" />
+                <span class="text-sm">Has tables</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" class="checkbox checkbox-xs checkbox-primary"
+                       :checked="signals.hasCode" @@change="signals.hasCode = !signals.hasCode; loadExplorerContents()" />
+                <span class="text-sm">Has code</span>
+            </label>
+            <div class="pt-1">
+                <select class="select select-xs select-bordered w-full"
+                        x-model="signals.dateRange" @@change="loadExplorerContents()">
+                    <option value="">Any time</option>
+                    <option value="7d">Last 7 days</option>
+                    <option value="30d">Last 30 days</option>
+                    <option value="90d">Last 90 days</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Button -->
+    <div class="p-3 mt-auto" x-show="canWrite">
+        <button class="btn btn-primary btn-sm w-full gap-2" @@click="$refs.fileInput.click()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            Upload
+        </button>
+        <input type="file" x-ref="fileInput" multiple accept=".pdf,.docx,.doc,.md,.html,.txt,.png,.jpg,.jpeg,.gif,.mp3,.wav,.m4a"
+               class="hidden" @@change="uploadFiles($event.target.files); $event.target.value = ''" />
+    </div>
+
+    <!-- Stats Footer -->
+    <div class="p-2 border-t border-base-300 text-xs text-base-content/60">
+        <span x-text="folders.length + ' folders, ' + explorerDocuments.length + ' files'"></span>
+    </div>
+</div>

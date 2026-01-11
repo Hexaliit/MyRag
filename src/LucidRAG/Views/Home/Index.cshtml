@@ -6,22 +6,23 @@
 }
 
 <div class="flex w-full h-full" x-data="ragApp()">
-    <!-- Left Sidebar: Documents & Explorer -->
-    <aside class="w-80 bg-base-100 border-r border-base-300 flex flex-col">
+    <!-- Left Sidebar: Filters (Explorer) or Document Selection (Chat) -->
+    <aside class="bg-base-100 border-r border-base-300 flex flex-col transition-all duration-200"
+           :class="sidebarMode === 'explorer' ? 'w-64' : 'w-80'">
         <!-- Collection Selector (shared between modes) -->
         @await Html.PartialAsync("_SidebarCollectionSelector")
-
-        <!-- Communities Dropdown (shared) -->
-        @await Html.PartialAsync("_SidebarCommunitiesDropdown")
 
         <!-- Mode Toggle: Chat vs Explorer -->
         @await Html.PartialAsync("_SidebarModeToggle")
 
-        <!-- Swappable Content Area -->
+        <!-- Swappable Sidebar Content -->
         <div id="sidebar-content" class="flex-1 flex flex-col overflow-hidden">
-            <!-- Default: Chat Mode (document selection for chat context) -->
+            <!-- Chat Mode: Document selection for chat context -->
             <template x-if="sidebarMode === 'chat'">
                 <div class="flex flex-col h-full">
+                    <!-- Communities Dropdown -->
+                    @await Html.PartialAsync("_SidebarCommunitiesDropdown")
+
                     <!-- Add Content - Collapsible -->
                     @await Html.PartialAsync("_SidebarAddContent")
 
@@ -78,14 +79,14 @@
                 </div>
             </template>
 
-            <!-- Explorer Mode (file browser) -->
+            <!-- Explorer Mode: Filter sidebar only -->
             <template x-if="sidebarMode === 'explorer'">
-                @await Html.PartialAsync("_FileExplorer")
+                @await Html.PartialAsync("_ExplorerSidebar")
             </template>
         </div>
     </aside>
 
-    <!-- Main: Chat + Evidence Area -->
+    <!-- Main Content Area -->
     <main class="flex-1 flex flex-col bg-base-100 relative"
           @@dragover.prevent="if (!demoMode) isDragging = true"
           @@dragleave.prevent="isDragging = false"
@@ -101,11 +102,20 @@
                 <p class="text-sm opacity-60 mt-2">PDF, DOCX, Markdown, TXT, HTML</p>
             </div>
         </div>
-        <!-- Header with Mode Toggle -->
-        <div class="p-4 border-b border-base-300 flex items-center justify-between">
-            <h2 class="font-semibold flex items-center gap-2">
-                <span>💬</span> Chat
-            </h2>
+
+        <!-- EXPLORER MODE: Full-width file browser -->
+        <template x-if="sidebarMode === 'explorer'">
+            @await Html.PartialAsync("_ExplorerMain")
+        </template>
+
+        <!-- CHAT MODE: Chat interface -->
+        <template x-if="sidebarMode === 'chat'">
+            <div class="flex-1 flex flex-col">
+                <!-- Header with Mode Toggle -->
+                <div class="p-4 border-b border-base-300 flex items-center justify-between">
+                    <h2 class="font-semibold flex items-center gap-2">
+                        <span>💬</span> Chat
+                    </h2>
 
             <!-- View Mode Toggle -->
             <div class="flex items-center gap-4">
@@ -753,6 +763,8 @@
                 </button>
             </div>
         </div>
+            </div>
+        </template>
     </main>
 </div>
 
@@ -898,6 +910,50 @@ function ragApp() {
         // Write permissions (authenticated users can modify)
         canWrite: @(User.Identity?.IsAuthenticated == true ? "true" : "false"),
 
+        // ===== EXPLORER STATE =====
+        // Navigation
+        currentFolderId: null,
+        currentCommunityId: null,
+        breadcrumb: [],
+
+        // Explorer view settings
+        explorerViewMode: localStorage.getItem('explorer-view') || 'list',
+        explorerMode: 'browse', // 'browse' | 'search'
+        sortBy: localStorage.getItem('explorer-sort') || 'name',
+        sortOrder: localStorage.getItem('explorer-order') || 'asc',
+
+        // Filtering
+        explorerFilters: { type: [], status: [] },
+        globPattern: '',
+        signals: { hasImages: false, hasTables: false, hasCode: false, dateRange: '' },
+
+        // Entity filtering
+        selectedEntities: new Set(),
+        entityGroups: {},
+        allEntities: [],
+
+        // Sidebar expansion states
+        communitiesExpanded: true,
+        entitiesExpanded: true,
+        signalsExpanded: false,
+
+        // Explorer data
+        communities: [],
+        folderTree: [],
+        folders: [],
+        explorerDocuments: [],
+        expandedFolders: new Set(),
+        explorerLoading: false,
+
+        // Search
+        searchQuery: '',
+        searchResults: [],
+        queryDecomposition: [],
+        showSearchHints: false,
+
+        // Explorer stats
+        explorerStats: { folders: 0, documents: 0, totalSizeBytes: 0 },
+
         // Collection state
         collections: [],
         currentCollectionId: null,
@@ -1000,6 +1056,211 @@ function ragApp() {
             }
             // Restore conversation from cookie
             await this.restoreConversation();
+
+            // Setup Ctrl+K keyboard shortcut for search
+            document.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                    e.preventDefault();
+                    const searchInput = document.querySelector('[x-model="searchQuery"]');
+                    if (searchInput) searchInput.focus();
+                }
+            });
+        },
+
+        // ===== EXPLORER METHODS =====
+        async loadExplorerContents() {
+            this.explorerLoading = true;
+            try {
+                const params = new URLSearchParams();
+                if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
+                if (this.currentFolderId) params.append('folderId', this.currentFolderId);
+                if (this.currentCommunityId) params.append('communityId', this.currentCommunityId);
+                params.append('sort', this.sortBy);
+                params.append('order', this.sortOrder);
+                if (this.signals.hasImages) params.append('hasImages', 'true');
+                if (this.signals.hasTables) params.append('hasTables', 'true');
+                if (this.signals.dateRange) params.append('dateRange', this.signals.dateRange);
+                if (this.selectedEntities.size > 0) {
+                    params.append('entityIds', [...this.selectedEntities].join(','));
+                }
+
+                const response = await fetch(`/api/explorer?${params}`);
+                const data = await response.json();
+
+                this.folders = data.folders || [];
+                this.explorerDocuments = data.documents || [];
+                this.explorerStats = { folders: this.folders.length, documents: this.explorerDocuments.length };
+            } catch (e) {
+                console.error('Failed to load explorer contents:', e);
+            } finally {
+                this.explorerLoading = false;
+            }
+        },
+
+        async loadEntities() {
+            try {
+                const params = new URLSearchParams();
+                if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
+                params.append('limit', '100');
+
+                const response = await fetch(`/api/explorer/entities?${params}`);
+                const data = await response.json();
+
+                this.entityGroups = data.entities || {};
+                this.allEntities = [];
+                for (const [type, entities] of Object.entries(this.entityGroups)) {
+                    for (const entity of entities) {
+                        this.allEntities.push({ ...entity, type });
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load entities:', e);
+            }
+        },
+
+        async loadFolderTree() {
+            try {
+                const response = await fetch(`/api/folders/tree?collectionId=${this.currentCollectionId || ''}`);
+                const data = await response.json();
+                this.folderTree = data.folders || [];
+            } catch (e) {
+                console.error('Failed to load folder tree:', e);
+            }
+        },
+
+        navigateToFolder(folderId) {
+            this.currentFolderId = folderId;
+            this.loadExplorerContents();
+        },
+
+        hasActiveFilters() {
+            return this.explorerFilters.type.length > 0 ||
+                   this.explorerFilters.status.length > 0 ||
+                   this.currentCommunityId ||
+                   this.selectedEntities.size > 0 ||
+                   this.signals.hasImages ||
+                   this.signals.hasTables ||
+                   this.signals.hasCode ||
+                   this.signals.dateRange;
+        },
+
+        clearAllFilters() {
+            this.explorerFilters = { type: [], status: [] };
+            this.currentCommunityId = null;
+            this.selectedEntities.clear();
+            this.selectedEntities = new Set();
+            this.signals = { hasImages: false, hasTables: false, hasCode: false, dateRange: '' };
+            this.loadExplorerContents();
+        },
+
+        toggleEntityFilter(entityId, type) {
+            if (this.selectedEntities.has(entityId)) {
+                this.selectedEntities.delete(entityId);
+            } else {
+                this.selectedEntities.add(entityId);
+            }
+            this.selectedEntities = new Set(this.selectedEntities);
+            this.loadExplorerContents();
+        },
+
+        getEntityName(entityId) {
+            const entity = this.allEntities.find(e => e.id === entityId);
+            return entity?.name || 'Entity';
+        },
+
+        getEntityIcon(type) {
+            const icons = {
+                person: '<svg class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>',
+                organization: '<svg class="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>',
+                location: '<svg class="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /></svg>',
+                concept: '<svg class="h-4 w-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>',
+            };
+            return icons[type?.toLowerCase()] || '<svg class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>';
+        },
+
+        async executeSearch() {
+            if (!this.searchQuery.trim()) return;
+            this.explorerLoading = true;
+            this.explorerMode = 'search';
+            try {
+                const params = new URLSearchParams();
+                params.append('query', this.searchQuery);
+                if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
+
+                const response = await fetch(`/api/explorer/search?${params}`);
+                const data = await response.json();
+
+                this.searchResults = data.results || [];
+                this.queryDecomposition = data.queryPlan?.steps || [];
+            } catch (e) {
+                console.error('Search failed:', e);
+            } finally {
+                this.explorerLoading = false;
+            }
+        },
+
+        clearSearch() {
+            this.searchQuery = '';
+            this.searchResults = [];
+            this.explorerMode = 'browse';
+            this.loadExplorerContents();
+        },
+
+        toggleDocSelection(docId) {
+            if (this.selectedDocIds.has(docId)) {
+                this.selectedDocIds.delete(docId);
+            } else {
+                this.selectedDocIds.add(docId);
+            }
+            this.selectedDocIds = new Set(this.selectedDocIds);
+        },
+
+        chatWithSelection() {
+            // Switch to chat mode with selection
+            this.sidebarMode = 'chat';
+        },
+
+        getFileIcon(mimeType) {
+            const iconMap = {
+                'application/pdf': '<svg class="h-full w-full text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zm-3 12v-2h4v2H10zm0-4V10h6v2h-6z"/></svg>',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '<svg class="h-full w-full text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg>',
+                'text/markdown': '<svg class="h-full w-full text-gray-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg>',
+            };
+            if (mimeType?.startsWith('image/')) {
+                return '<svg class="h-full w-full text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+            }
+            return iconMap[mimeType] || '<svg class="h-full w-full text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg>';
+        },
+
+        getStatusBadgeClass(status) {
+            const classes = {
+                'completed': 'badge-success',
+                'ready': 'badge-success',
+                'processing': 'badge-info',
+                'pending': 'badge-warning',
+                'failed': 'badge-error'
+            };
+            return classes[status?.toLowerCase()] || 'badge-ghost';
+        },
+
+        formatFileSize(bytes) {
+            if (!bytes) return '';
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return Math.round(bytes / Math.pow(1024, i)) + ' ' + sizes[i];
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString();
+        },
+
+        // Called when switching to explorer mode
+        async onExplorerModeActivated() {
+            await this.loadFolderTree();
+            await this.loadEntities();
+            await this.loadExplorerContents();
         },
 
         initSignalR() {

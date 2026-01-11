@@ -40,6 +40,12 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
     // Salient terms for autocomplete
     public DbSet<CollectionSalientTerm> SalientTerms => Set<CollectionSalientTerm>();
 
+    // Feature embeddings for semantic similarity (pgvector)
+    public DbSet<FeatureEmbedding> FeatureEmbeddings => Set<FeatureEmbedding>();
+
+    // Intra-document segment graphs
+    public DbSet<SegmentLink> SegmentLinks => Set<SegmentLink>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -48,6 +54,11 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
         if (Database.IsSqlite())
         {
             ApplySqliteDateTimeOffsetConverters(modelBuilder);
+        }
+        else
+        {
+            // Enable pgvector extension for PostgreSQL
+            modelBuilder.HasPostgresExtension("vector");
         }
 
         var isSqlite = Database.IsSqlite();
@@ -461,6 +472,66 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.HasOne(e => e.Collection)
                 .WithMany()
                 .HasForeignKey(e => e.CollectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // FeatureEmbedding - pgvector semantic similarity
+        modelBuilder.Entity<FeatureEmbedding>(entity =>
+        {
+            entity.ToTable("feature_embeddings");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.FeatureText).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.NormalizedText).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.FeatureType).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.EmbeddingModel).HasMaxLength(128);
+
+            // pgvector column - only for PostgreSQL
+            if (isSqlite)
+            {
+                // SQLite doesn't support pgvector - ignore the Vector property entirely
+                entity.Ignore(e => e.Embedding);
+            }
+            else
+            {
+                entity.Property(e => e.Embedding).HasColumnType("vector(384)");
+            }
+
+            if (!isSqlite) entity.Property(e => e.Metadata).HasColumnType("jsonb");
+
+            // Indexes for efficient queries
+            entity.HasIndex(e => new { e.CollectionId, e.NormalizedText, e.FeatureType }).IsUnique();
+            entity.HasIndex(e => new { e.CollectionId, e.FeatureType });
+            entity.HasIndex(e => e.UpdatedAt);
+
+            // HNSW index for pgvector similarity search - created via migration SQL
+            // CREATE INDEX ON feature_embeddings USING hnsw (embedding vector_cosine_ops);
+
+            entity.HasOne(e => e.Collection)
+                .WithMany()
+                .HasForeignKey(e => e.CollectionId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // SegmentLink - Intra-document segment graph
+        modelBuilder.Entity<SegmentLink>(entity =>
+        {
+            entity.ToTable("segment_links");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SourceSegmentHash).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.TargetSegmentHash).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.LinkType).HasMaxLength(32).IsRequired();
+
+            if (!isSqlite) entity.Property(e => e.Metadata).HasColumnType("jsonb");
+
+            // Indexes for efficient graph traversal
+            entity.HasIndex(e => e.DocumentId);
+            entity.HasIndex(e => e.SourceSegmentHash);
+            entity.HasIndex(e => e.TargetSegmentHash);
+            entity.HasIndex(e => new { e.SourceSegmentHash, e.TargetSegmentHash }).IsUnique();
+
+            entity.HasOne(e => e.Document)
+                .WithMany()
+                .HasForeignKey(e => e.DocumentId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

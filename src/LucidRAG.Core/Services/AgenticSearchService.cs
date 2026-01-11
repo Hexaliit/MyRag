@@ -278,16 +278,17 @@ public class AgenticSearchService(
                 Timestamp: DateTimeOffset.UtcNow);
         }
 
-        // Check if no results and low confidence - also ask for clarification
-        if (searchResult.Results.Count == 0 || (searchResult.QueryPlan?.Confidence ?? 1.0) < 0.4)
+        // Check if no results - ask for clarification
+        // Note: Only check result count, not confidence. If we have results, proceed with synthesis.
+        // Low confidence with results should still attempt to answer (synthesis can determine relevance).
+        if (searchResult.Results.Count == 0)
         {
             var noResultsMessage = "I couldn't find relevant information in the uploaded documents. Could you try:\n" +
                 "- Rephrasing your question\n" +
                 "- Being more specific about what you're looking for\n" +
                 "- Asking about topics covered in the documents";
 
-            logger.LogInformation("Low confidence or no results for query: {Query} (confidence: {Confidence})",
-                request.Query, searchResult.QueryPlan?.Confidence);
+            logger.LogInformation("No results found for query: {Query}", request.Query);
 
             await conversationService.AddMessageAsync(conversationId.Value, "assistant", noResultsMessage, ct: ct);
 
@@ -315,19 +316,11 @@ public class AgenticSearchService(
             }
         }
 
-        // Build sources for response - filter by minimum relevance score
-        const double minRelevanceScore = 0.4; // Minimum cosine similarity to include as evidence
-        var relevantResults = searchResult.Results
-            .Where(r => r.Score >= minRelevanceScore)
-            .Take(5)
-            .ToList();
-
-        // Log if we filtered out low-relevance results
-        if (searchResult.Results.Count > relevantResults.Count)
-        {
-            logger.LogDebug("Filtered {Removed} low-relevance results (below {Threshold})",
-                searchResult.Results.Count - relevantResults.Count, minRelevanceScore);
-        }
+        // Build sources for response
+        // Note: Score is either cosine similarity (semantic mode) or RRF score (hybrid mode).
+        // RRF scores are inherently low (0.01-0.06) due to the 1/(k+rank) formula.
+        // We rely on RRF ranking for relevance instead of filtering by score threshold.
+        var relevantResults = searchResult.Results.Take(5).ToList();
 
         var sources = relevantResults
             .Select((r, i) => new SourceCitation(

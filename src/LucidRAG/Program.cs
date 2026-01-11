@@ -7,6 +7,7 @@ using Mostlylucid.DocSummarizer.Extensions;
 using Mostlylucid.DocSummarizer.Images.Extensions;
 using Mostlylucid.DocSummarizer.Anthropic.Extensions;
 using Mostlylucid.DocSummarizer.OpenAI.Extensions;
+using VideoSummarizer.Core.Extensions;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.Summarizer.Core.Extensions;
 using LucidRAG.Config;
@@ -94,6 +95,7 @@ else if (multitenancyEnabled)
         var interceptor = sp.GetRequiredService<TenantSchemaInterceptor>();
         options.UseNpgsql(connectionString, npgsqlOptions =>
                {
+                   npgsqlOptions.UseVector();
                    npgsqlOptions.EnableRetryOnFailure(
                        maxRetryCount: 5,
                        maxRetryDelay: TimeSpan.FromSeconds(30),
@@ -108,6 +110,7 @@ else
     builder.Services.AddDbContext<RagDocumentsDbContext>(options =>
         options.UseNpgsql(connectionString, npgsqlOptions =>
         {
+            npgsqlOptions.UseVector();
             npgsqlOptions.EnableRetryOnFailure(
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(30),
@@ -120,6 +123,9 @@ builder.Services.AddDocSummarizer(builder.Configuration.GetSection("DocSummarize
 
 // DocSummarizer.Images - always add for image handling
 builder.Services.AddDocSummarizerImages(builder.Configuration.GetSection("Images"));
+
+// VideoSummarizer - video processing pipeline (mp4, mkv, etc.)
+builder.Services.AddVideoSummarizer();
 
 // Pipeline registry for unified content processing (routes .gif, .png, etc. to ImagePipeline)
 builder.Services.AddPipelineRegistry();
@@ -349,11 +355,13 @@ try
     {
         var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
 
-        // Check if documents table exists by querying information_schema
+        // Check if documents table exists - use different query for SQLite vs PostgreSQL
         var conn = db.Database.GetDbConnection();
         await conn.OpenAsync();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'documents'";
+        cmd.CommandText = standaloneMode
+            ? "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='documents'"
+            : "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'documents'";
         var tableExists = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
         await conn.CloseAsync();
 

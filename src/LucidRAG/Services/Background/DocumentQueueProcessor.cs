@@ -256,6 +256,7 @@ public class DocumentQueueProcessor(
                     document.VectorStoreDocId,
                     vectorStore,
                     embeddingService,
+                    logger,
                     ct);
 
                 // Create a minimal DocumentSummary for compatibility with downstream code
@@ -458,6 +459,7 @@ public class DocumentQueueProcessor(
         string docId,
         IVectorStore vectorStore,
         IEmbeddingService embeddingService,
+        ILogger logger,
         CancellationToken ct)
     {
         var segments = new List<Mostlylucid.DocSummarizer.Models.Segment>();
@@ -497,15 +499,28 @@ public class DocumentQueueProcessor(
             segments.Add(segment);
         }
 
-        // Index in vector store (now with embeddings)
-        Console.WriteLine($"[DEBUG] Upserting {segments.Count} segments to vector store, first segment has embedding: {segments.FirstOrDefault()?.Embedding != null}");
-        if (segments.Count > 0)
+        // Apply segment selection BEFORE indexing - only index segments that will have evidence
+        // This ensures every Qdrant result has corresponding text in evidence repository
+        var selector = new LucidRAG.Core.Services.SegmentSelector(
+            salienceThreshold: 0.05,
+            similarityThreshold: 0.80,
+            maxSegmentsPerDocument: 250
+        );
+        var selectedSegments = selector.SelectForEvidence(segments);
+
+        logger.LogInformation("SegmentSelector: {Selected}/{Total} segments selected for Qdrant indexing",
+            selectedSegments.Count, segments.Count);
+
+        // Index ONLY selected segments in vector store
+        Console.WriteLine($"[DEBUG] Upserting {selectedSegments.Count} selected segments to vector store (from {segments.Count} total)");
+        if (selectedSegments.Count > 0)
         {
-            await vectorStore.UpsertSegmentsAsync("ragdocs", segments, ct);
-            Console.WriteLine($"[DEBUG] Successfully upserted {segments.Count} segments");
+            await vectorStore.UpsertSegmentsAsync("ragdocs", selectedSegments, ct);
+            Console.WriteLine($"[DEBUG] Successfully upserted {selectedSegments.Count} segments");
         }
 
-        return segments;
+        // Return selected segments (these will be stored as evidence)
+        return selectedSegments;
     }
 
     /// <summary>
@@ -534,20 +549,14 @@ public class DocumentQueueProcessor(
             return;
         }
 
-        // Select optimal segments for storage (reduces bloat while maintaining coverage)
-        var selector = new LucidRAG.Core.Services.SegmentSelector(
-            salienceThreshold: 0.05,      // Keep segments with >5% salience
-            similarityThreshold: 0.80,    // Dedupe segments >80% similar (0.92 too aggressive for prose)
-            maxSegmentsPerDocument: 250   // Cap per document
-        );
-        var selectedSegments = selector.SelectForEvidence(segments);
-
+        // NOTE: Segments are already pre-selected before indexing in Qdrant
+        // (see ConvertAndIndexImageChunksAsync) - no need to re-select here
         logger.LogInformation(
-            "SegmentSelector: {Selected}/{Total} segments selected for evidence storage (salience>{Threshold}, similarity<{SimThreshold})",
-            selectedSegments.Count, segments.Count, 0.05, 0.80);
+            "Storing evidence for {Count} pre-selected segments",
+            segments.Count);
 
         var stored = 0;
-        foreach (var segment in selectedSegments)
+        foreach (var segment in segments)
         {
             try
             {

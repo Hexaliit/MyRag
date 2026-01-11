@@ -1,5 +1,8 @@
+using System.Text.Json;
 using AudioSummarizer.Core.Models;
+using AudioSummarizer.Core.Services;
 using AudioSummarizer.Core.Services.Analysis;
+using AudioSummarizer.Core.Services.Voice;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.GraphRag.Extraction;
 using Mostlylucid.Summarizer.Core.Pipeline;
@@ -96,11 +99,16 @@ public class AudioPipeline : PipelineBase
 
         // Extract transcription if available
         var transcriptionText = profile.GetValue<string>("transcription.text");
+        var transcriptionFullData = profile.GetValue<string>("transcription.full_data");
+
         if (!string.IsNullOrWhiteSpace(transcriptionText))
         {
             var confidence = profile.GetValue<double?>("transcription.confidence") ?? 0.0;
             var backend = profile.GetValue<string>("transcription.backend") ?? "unknown";
             var segmentCount = profile.GetValue<int?>("transcription.segment_count") ?? 0;
+
+            // Generate SRT format with diarization if available
+            var (srtContent, vttContent) = GenerateSrtWithDiarization(profile, transcriptionFullData);
 
             chunks.Add(new ContentChunk
             {
@@ -116,7 +124,10 @@ public class AudioPipeline : PipelineBase
                     ["source"] = "transcription",
                     ["backend"] = backend,
                     ["segment_count"] = segmentCount,
-                    ["transcription.confidence"] = confidence
+                    ["transcription.confidence"] = confidence,
+                    ["transcription.srt"] = srtContent,
+                    ["transcription.vtt"] = vttContent,
+                    ["transcription.full_data"] = transcriptionFullData
                 }
             });
         }
@@ -286,5 +297,90 @@ public class AudioPipeline : PipelineBase
         var durationSpan = TimeSpan.FromSeconds(duration);
         return $"Audio: {Path.GetFileName(filePath)}, Format: {format.ToUpperInvariant()}, " +
                $"Duration: {durationSpan:mm\\:ss}, Type: {contentType}, Sample Rate: {sampleRate} Hz";
+    }
+
+    /// <summary>
+    /// Generate SRT and WebVTT formats with speaker diarization merged in.
+    /// </summary>
+    private (string? Srt, string? Vtt) GenerateSrtWithDiarization(AudioProfile profile, string? transcriptionJson)
+    {
+        if (string.IsNullOrWhiteSpace(transcriptionJson))
+            return (null, null);
+
+        try
+        {
+            // Parse transcript segments from JSON
+            var transcriptData = JsonSerializer.Deserialize<TranscriptJsonData>(transcriptionJson, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (transcriptData?.Segments == null || transcriptData.Segments.Count == 0)
+                return (null, null);
+
+            var segments = transcriptData.Segments.Select(s => new TranscriptSegment
+            {
+                Start = s.Start,
+                End = s.End,
+                Text = s.Text ?? "",
+                Confidence = s.Confidence ?? 0
+            }).ToList();
+
+            // Parse speaker turns from diarization (if available)
+            List<SpeakerTurn>? speakerTurns = null;
+            var speakerTurnsJson = profile.GetValue<string>("speaker.turns");
+            if (!string.IsNullOrWhiteSpace(speakerTurnsJson))
+            {
+                var turnsData = JsonSerializer.Deserialize<List<SpeakerTurnJsonData>>(speakerTurnsJson, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                speakerTurns = turnsData?.Select(t => new SpeakerTurn
+                {
+                    SpeakerId = t.SpeakerId ?? "UNKNOWN",
+                    StartSeconds = t.StartSeconds,
+                    EndSeconds = t.EndSeconds,
+                    Confidence = t.Confidence ?? 0
+                }).ToList();
+            }
+
+            // Generate SRT and VTT using the formatter
+            var formatter = new SrtFormatter();
+            var srt = formatter.FormatToSrt(segments, speakerTurns, includeSpeakerLabels: speakerTurns?.Count > 0);
+            var vtt = formatter.FormatToWebVtt(segments, speakerTurns, includeSpeakerLabels: speakerTurns?.Count > 0);
+
+            return (srt, vtt);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to generate SRT/VTT from transcript data");
+            return (null, null);
+        }
+    }
+
+    // JSON deserialization helpers
+    private class TranscriptJsonData
+    {
+        public string? Text { get; set; }
+        public string? Language { get; set; }
+        public double? Confidence { get; set; }
+        public List<TranscriptSegmentJson>? Segments { get; set; }
+    }
+
+    private class TranscriptSegmentJson
+    {
+        public double Start { get; set; }
+        public double End { get; set; }
+        public string? Text { get; set; }
+        public double? Confidence { get; set; }
+    }
+
+    private class SpeakerTurnJsonData
+    {
+        public string? SpeakerId { get; set; }
+        public double StartSeconds { get; set; }
+        public double EndSeconds { get; set; }
+        public double? Confidence { get; set; }
     }
 }

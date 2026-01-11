@@ -143,6 +143,8 @@ public static class EvidenceTypes
 
     // Audio Evidence
     public const string Transcript = "transcript";
+    public const string TranscriptSrt = "transcript_srt";         // SRT subtitle format (with speaker labels)
+    public const string TranscriptVtt = "transcript_vtt";         // WebVTT subtitle format
     public const string TranscriptSegments = "transcript_segments";
     public const string SpeakerDiarization = "speaker_diarization";
     public const string SpeakerSample = "speaker_sample";         // Audio clip of speaker

@@ -124,19 +124,50 @@
            @@keyup.enter="loadContents()"
            @@keyup.escape="globPattern = ''; loadContents()" />
 
-    <!-- Semantic Search -->
-    <div class="join">
-        <input type="text"
-               class="input input-sm input-bordered join-item w-40 lg:w-56"
-               placeholder="Search documents..."
-               x-model="searchQuery"
-               @@keyup.enter="executeSearch()"
-               @@keyup.escape="clearSearch()" />
-        <button class="btn btn-sm btn-primary join-item" @@click="executeSearch()">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-        </button>
+    <!-- Command Palette Search -->
+    <div class="relative flex-1 max-w-md">
+        <div class="join w-full">
+            <div class="relative flex-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input type="text"
+                       class="input input-sm input-bordered w-full pl-9 pr-16"
+                       placeholder="Search documents... (ask anything)"
+                       x-model="searchQuery"
+                       @@keyup.enter="executeSearch()"
+                       @@keyup.escape="clearSearch()"
+                       @@focus="showSearchHints = true"
+                       @@blur="setTimeout(() => showSearchHints = false, 200)" />
+                <kbd class="kbd kbd-xs absolute right-2 top-1/2 -translate-y-1/2 text-base-content/40">Ctrl+K</kbd>
+            </div>
+            <button class="btn btn-sm btn-primary join-item" @@click="executeSearch()" :disabled="!searchQuery.trim()">
+                Search
+            </button>
+        </div>
+
+        <!-- Search hints dropdown -->
+        <div x-show="showSearchHints && !searchQuery"
+             x-transition:enter="transition ease-out duration-150"
+             x-transition:enter-start="opacity-0 -translate-y-1"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             class="absolute top-full left-0 right-0 mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50 p-3">
+            <div class="text-xs text-base-content/60 mb-2">Try natural language queries:</div>
+            <div class="space-y-1">
+                <button class="btn btn-ghost btn-xs justify-start w-full text-left"
+                        @@click="searchQuery = 'find documents about authentication'; executeSearch()">
+                    "find documents about authentication"
+                </button>
+                <button class="btn btn-ghost btn-xs justify-start w-full text-left"
+                        @@click="searchQuery = 'PDFs with code examples'; executeSearch()">
+                    "PDFs with code examples"
+                </button>
+                <button class="btn btn-ghost btn-xs justify-start w-full text-left"
+                        @@click="searchQuery = 'recent security docs'; executeSearch()">
+                    "recent security docs"
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- View Toggle -->

@@ -33,6 +33,11 @@ public class ExplorerController(
         [FromQuery] string? filterType = null,      // pdf,docx,image,audio
         [FromQuery] string? filterStatus = null,    // completed,processing,failed,pending
         [FromQuery] string? glob = null,            // *.pdf, docs/*.md
+        [FromQuery] bool? hasImages = null,         // Signal: has images
+        [FromQuery] bool? hasTables = null,         // Signal: has tables
+        [FromQuery] bool? hasCode = null,           // Signal: has code (reserved)
+        [FromQuery] string? dateRange = null,       // 7d, 30d, 90d, 1y
+        [FromQuery] string? entityIds = null,       // Comma-separated entity GUIDs
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
@@ -106,6 +111,58 @@ public class ExplorerController(
             var pattern = GlobToLikePattern(glob);
             docQuery = docQuery.Where(d => EF.Functions.ILike(d.Name, pattern) ||
                                            (d.OriginalFilename != null && EF.Functions.ILike(d.OriginalFilename, pattern)));
+        }
+
+        // Apply signal filters
+        if (hasImages == true)
+        {
+            // Filter documents that are images or have embedded images
+            // Check MIME type for images, or has image-related records
+            docQuery = docQuery.Where(d =>
+                d.MimeType != null && d.MimeType.StartsWith("image/"));
+        }
+
+        if (hasTables == true)
+        {
+            // Filter documents that have tables
+            docQuery = docQuery.Where(d => d.TableCount > 0);
+        }
+
+        // Apply date range filter
+        if (!string.IsNullOrEmpty(dateRange))
+        {
+            var cutoffDate = dateRange.ToLowerInvariant() switch
+            {
+                "7d" => DateTime.UtcNow.AddDays(-7),
+                "30d" => DateTime.UtcNow.AddDays(-30),
+                "90d" => DateTime.UtcNow.AddDays(-90),
+                "1y" => DateTime.UtcNow.AddYears(-1),
+                _ => (DateTime?)null
+            };
+
+            if (cutoffDate.HasValue)
+                docQuery = docQuery.Where(d => d.CreatedAt >= cutoffDate.Value);
+        }
+
+        // Apply entity filter (documents linked to specific entities)
+        if (!string.IsNullOrEmpty(entityIds))
+        {
+            var entityGuidList = entityIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => Guid.TryParse(s.Trim(), out var g) ? g : (Guid?)null)
+                .Where(g => g.HasValue)
+                .Select(g => g!.Value)
+                .ToList();
+
+            if (entityGuidList.Count > 0)
+            {
+                var docIdsWithEntities = await db.DocumentEntityLinks
+                    .Where(del => entityGuidList.Contains(del.EntityId))
+                    .Select(del => del.DocumentId)
+                    .Distinct()
+                    .ToListAsync(ct);
+
+                docQuery = docQuery.Where(d => docIdsWithEntities.Contains(d.Id));
+            }
         }
 
         // Apply sorting
@@ -369,6 +426,162 @@ public class ExplorerController(
         {
             success = true,
             moved = documents.Count
+        });
+    }
+
+    /// <summary>
+    /// Get entities grouped by type for sidebar filtering
+    /// </summary>
+    [HttpGet("entities")]
+    public async Task<IActionResult> GetEntities(
+        [FromQuery] Guid? collectionId = null,
+        [FromQuery] string? type = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int limit = 100,
+        CancellationToken ct = default)
+    {
+        // Base query - entities linked to documents in the collection
+        IQueryable<ExtractedEntity> query;
+
+        if (collectionId.HasValue)
+        {
+            // Get entity IDs that are linked to documents in this collection
+            var entityIdsInCollection = db.DocumentEntityLinks
+                .Where(del => del.Document.CollectionId == collectionId)
+                .Select(del => del.EntityId)
+                .Distinct();
+
+            query = db.Entities.Where(e => entityIdsInCollection.Contains(e.Id));
+        }
+        else
+        {
+            query = db.Entities.AsQueryable();
+        }
+
+        if (!string.IsNullOrEmpty(type))
+            query = query.Where(e => e.EntityType == type);
+
+        if (!string.IsNullOrEmpty(search))
+            query = query.Where(e => EF.Functions.ILike(e.CanonicalName, $"%{search}%"));
+
+        // Get entity type counts
+        var typeCountsQuery = collectionId.HasValue
+            ? db.Entities.Where(e => db.DocumentEntityLinks
+                .Any(del => del.EntityId == e.Id && del.Document.CollectionId == collectionId))
+            : db.Entities;
+
+        var typeCounts = await typeCountsQuery
+            .GroupBy(e => e.EntityType)
+            .Select(g => new { type = g.Key, count = g.Count() })
+            .OrderByDescending(x => x.count)
+            .ToListAsync(ct);
+
+        // Get entities with their mention counts, ordered by frequency
+        var entitiesWithCounts = await query
+            .Select(e => new
+            {
+                id = e.Id,
+                name = e.CanonicalName,
+                type = e.EntityType,
+                description = e.Description,
+                mentionCount = db.DocumentEntityLinks
+                    .Where(del => del.EntityId == e.Id &&
+                           (!collectionId.HasValue || del.Document.CollectionId == collectionId))
+                    .Sum(del => del.MentionCount)
+            })
+            .OrderByDescending(e => e.mentionCount)
+            .Take(limit)
+            .ToListAsync(ct);
+
+        // Group entities by type for sidebar display
+        var entitiesGroupedByType = entitiesWithCounts
+            .GroupBy(e => e.type ?? "unknown")
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(e => new
+                {
+                    e.id,
+                    e.name,
+                    e.description,
+                    e.mentionCount
+                }).ToList()
+            );
+
+        return Ok(new
+        {
+            typeCounts,
+            entities = entitiesGroupedByType
+        });
+    }
+
+    /// <summary>
+    /// Get available filter options (file types, date ranges, etc.)
+    /// </summary>
+    [HttpGet("filters")]
+    public async Task<IActionResult> GetFilters(
+        [FromQuery] Guid? collectionId = null,
+        CancellationToken ct = default)
+    {
+        var docQuery = db.Documents.AsQueryable();
+
+        if (collectionId.HasValue)
+            docQuery = docQuery.Where(d => d.CollectionId == collectionId);
+
+        // Get document type counts
+        var typeGroups = await docQuery
+            .Where(d => d.MimeType != null)
+            .GroupBy(d => d.MimeType)
+            .Select(g => new { mimeType = g.Key, count = g.Count() })
+            .ToListAsync(ct);
+
+        var typeCounts = typeGroups
+            .GroupBy(t => GetContentType(t.mimeType))
+            .Select(g => new { type = g.Key, count = g.Sum(x => x.count) })
+            .OrderByDescending(x => x.count)
+            .ToList();
+
+        // Get status counts
+        var statusCounts = await docQuery
+            .GroupBy(d => d.Status)
+            .Select(g => new { status = g.Key.ToString().ToLowerInvariant(), count = g.Count() })
+            .ToListAsync(ct);
+
+        // Get date range
+        var dateRange = await docQuery
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                oldest = g.Min(d => d.CreatedAt),
+                newest = g.Max(d => d.CreatedAt)
+            })
+            .FirstOrDefaultAsync(ct);
+
+        // Get communities for filter
+        var communities = collectionId.HasValue
+            ? await db.Communities
+                .Where(c => c.CollectionId == collectionId)
+                .OrderByDescending(c => c.EntityCount)
+                .Take(30)
+                .Select(c => new
+                {
+                    id = c.Id,
+                    name = c.Name,
+                    summary = c.Summary,
+                    entityCount = c.EntityCount
+                })
+                .ToListAsync(ct)
+            : [];
+
+        return Ok(new
+        {
+            types = typeCounts,
+            statuses = statusCounts,
+            dateRange = new
+            {
+                oldest = dateRange?.oldest,
+                newest = dateRange?.newest
+            },
+            communities
         });
     }
 

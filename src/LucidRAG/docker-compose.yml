@@ -30,7 +30,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
+# DO NOT START THIS IN LOCAL DEV MODE CLAUDE! 
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped

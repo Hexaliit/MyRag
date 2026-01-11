@@ -6,7 +6,7 @@ namespace LucidRAG.Tests.Integration;
 
 /// <summary>
 /// Tests for the development mode auto-login feature.
-/// Requires the server to be running on localhost:5019.
+/// Requires the server to be running on localhost:5080.
 /// </summary>
 [Collection("Browser")]
 [Trait("Category", "Browser")]
@@ -14,7 +14,7 @@ public class AutoLoginTests : IAsyncLifetime
 {
     private IBrowser? _browser;
     private IPage? _page;
-    private const string BaseUrl = "http://localhost:5019";
+    private const string BaseUrl = "http://127.0.0.1:5080";
 
     public async Task InitializeAsync()
     {
