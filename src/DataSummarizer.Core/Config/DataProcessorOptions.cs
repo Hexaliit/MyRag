@@ -34,6 +34,36 @@ public class DataProcessorOptions
     /// Excel options.
     /// </summary>
     public ExcelOptions Excel { get; set; } = new();
+
+    // Analysis options
+
+    /// <summary>
+    /// Maximum number of rows to sample for analysis (0 = all rows).
+    /// Larger samples give more accurate statistics but use more memory.
+    /// </summary>
+    public int SampleSize { get; set; } = 10000;
+
+    /// <summary>
+    /// Enable PII detection wave (emails, phones, SSNs, etc.).
+    /// </summary>
+    public bool EnablePiiDetection { get; set; } = true;
+
+    /// <summary>
+    /// Enable outlier detection wave (IQR-based anomaly detection).
+    /// </summary>
+    public bool EnableOutlierDetection { get; set; } = true;
+
+    /// <summary>
+    /// Enable correlation analysis wave (computes pairwise correlations).
+    /// Can be expensive for datasets with many numeric columns.
+    /// </summary>
+    public bool EnableCorrelation { get; set; } = false;
+
+    /// <summary>
+    /// Use DuckDB for streaming analytics (recommended for large files).
+    /// When false, falls back to in-memory processing.
+    /// </summary>
+    public bool UseDuckDbAnalytics { get; set; } = true;
 }
 
 public class CsvOptions

@@ -40,6 +40,12 @@
 
     <!-- Parquet support -->
     <PackageReference Include="Parquet.Net" Version="5.1.0" />
+
+    <!-- DuckDB for ephemeral streaming analytics -->
+    <PackageReference Include="DuckDB.NET.Data" Version="1.4.4-alpha.2" />
+
+    <!-- Statistics library -->
+    <PackageReference Include="MathNet.Numerics" Version="6.0.0-beta2" />
   </ItemGroup>
 
   <ItemGroup>

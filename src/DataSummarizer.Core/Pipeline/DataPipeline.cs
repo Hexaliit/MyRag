@@ -1,21 +1,29 @@
 using Microsoft.Extensions.Logging;
+using Mostlylucid.DocSummarizer.Data.Models;
 using Mostlylucid.DocSummarizer.Data.Services;
+using Mostlylucid.DocSummarizer.Data.Services.Analysis;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace Mostlylucid.DocSummarizer.Data.Pipeline;
 
 /// <summary>
 /// Pipeline implementation for structured data files (CSV, JSON, Excel, Parquet).
+/// Combines row chunking with wave-based data analysis for rich metadata.
 /// </summary>
 public class DataPipeline : PipelineBase
 {
     private readonly IDataProcessor _dataProcessor;
+    private readonly DataAnalysisOrchestrator? _orchestrator;
     private readonly ILogger<DataPipeline> _logger;
 
-    public DataPipeline(IDataProcessor dataProcessor, ILogger<DataPipeline> logger)
+    public DataPipeline(
+        IDataProcessor dataProcessor,
+        ILogger<DataPipeline> logger,
+        DataAnalysisOrchestrator? orchestrator = null)
     {
         _dataProcessor = dataProcessor;
         _logger = logger;
+        _orchestrator = orchestrator;
     }
 
     /// <inheritdoc />
@@ -36,7 +44,28 @@ public class DataPipeline : PipelineBase
     {
         _logger.LogInformation("Processing data file: {FilePath}", filePath);
 
-        progress?.Report(new PipelineProgress("Processing", "Reading data file", 10));
+        // Step 1: Run wave-based analysis (if orchestrator available)
+        DynamicDataProfile? profile = null;
+        if (_orchestrator != null)
+        {
+            progress?.Report(new PipelineProgress("Analyzing", "Running data analysis waves", 5));
+
+            try
+            {
+                var dataFile = new DataFile(filePath);
+                profile = await _orchestrator.AnalyzeAsync(dataFile, ct);
+
+                _logger.LogInformation("Data analysis complete: {SignalCount} signals in {Time}ms",
+                    profile.GetAllSignals().Count(), profile.ProfileTime.TotalMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Data analysis failed, continuing with basic processing");
+            }
+        }
+
+        // Step 2: Process rows into chunks (legacy processor)
+        progress?.Report(new PipelineProgress("Processing", "Reading data file", 30));
 
         var result = await _dataProcessor.ProcessAsync(filePath, ct);
 
@@ -47,27 +76,76 @@ public class DataPipeline : PipelineBase
 
         progress?.Report(new PipelineProgress("Converting", "Converting to chunks", 80, result.Chunks.Count, result.Chunks.Count));
 
-        // Convert DataChunk to ContentChunk
-        var chunks = result.Chunks.Select((chunk, i) => new ContentChunk
+        // Step 3: Build metadata from analysis profile
+        var analysisMetadata = profile?.ToMetadata() ?? new Dictionary<string, object?>();
+
+        // Step 4: Convert DataChunk to ContentChunk with enriched metadata
+        var chunks = result.Chunks.Select((chunk, i) =>
         {
-            Id = chunk.Id,
-            Text = chunk.Text,
-            ContentType = ContentType.StructuredData,
-            SourcePath = filePath,
-            Index = i,
-            ContentHash = ComputeHash(chunk.Text),
-            Metadata = new Dictionary<string, object?>
+            var metadata = new Dictionary<string, object?>
             {
+                // Basic chunk info
                 ["rowStart"] = chunk.RowStart,
                 ["rowEnd"] = chunk.RowEnd,
                 ["fileType"] = result.FileType,
                 ["rowCount"] = result.RowCount,
                 ["columnCount"] = result.ColumnCount,
                 ["columnNames"] = result.ColumnNames
+            };
+
+            // Add analysis signals for first chunk only (to avoid duplication)
+            if (i == 0 && profile != null)
+            {
+                // Add data domain and characterization
+                var domain = profile.GetValue<string>("characterization.domain");
+                if (domain != null)
+                    metadata["data_domain"] = domain;
+
+                var suggestedAnalytics = profile.GetValue<List<string>>("characterization.suggested_analytics");
+                if (suggestedAnalytics != null)
+                    metadata["suggested_analytics"] = suggestedAnalytics;
+
+                // Add quality summary
+                var duplicateRows = profile.GetValue<int>(DataSignalKeys.DuplicateRows);
+                if (duplicateRows > 0)
+                    metadata["duplicate_rows"] = duplicateRows;
+
+                // Add profile summary text for RAG
+                metadata["profile_summary"] = profile.ToSummaryText();
             }
+
+            return new ContentChunk
+            {
+                Id = chunk.Id,
+                Text = chunk.Text,
+                ContentType = ContentType.StructuredData,
+                SourcePath = filePath,
+                Index = i,
+                ContentHash = ComputeHash(chunk.Text),
+                Metadata = metadata
+            };
         }).ToList();
 
-        _logger.LogInformation("Processed {ChunkCount} chunks from data file", chunks.Count);
+        // Step 5: Add a profile summary chunk if analysis was done
+        if (profile != null)
+        {
+            var summaryText = profile.ToSummaryText();
+            if (!string.IsNullOrWhiteSpace(summaryText))
+            {
+                chunks.Insert(0, new ContentChunk
+                {
+                    Id = $"{Path.GetFileName(filePath)}:profile",
+                    Text = summaryText,
+                    ContentType = ContentType.StructuredData,
+                    SourcePath = filePath,
+                    Index = -1, // Special index for profile chunk
+                    ContentHash = ComputeHash(summaryText),
+                    Metadata = analysisMetadata
+                });
+            }
+        }
+
+        _logger.LogInformation("Processed {ChunkCount} chunks from data file (including profile)", chunks.Count);
 
         return chunks;
     }
