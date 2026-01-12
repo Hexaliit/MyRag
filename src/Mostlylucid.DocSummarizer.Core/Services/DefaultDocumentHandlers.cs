@@ -302,6 +302,7 @@ public static class DefaultDocumentHandlerExtensions
         registry.Register(new HtmlDocumentHandler());
         registry.Register(new PdfDocumentHandler());
         registry.Register(new DocxDocumentHandler());
+        registry.Register(new PptxDocumentHandler());
         return registry;
     }
 }

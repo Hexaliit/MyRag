@@ -58,6 +58,8 @@ public class DataFile
             DataFormat.JsonLines => $"read_json('{EscapePath(FilePath)}', format='nd', auto_detect=true)",
             DataFormat.Parquet => $"read_parquet('{EscapePath(FilePath)}')",
             DataFormat.Excel => throw new NotSupportedException("Excel files require special handling - use ClosedXML"),
+            DataFormat.SQLite => throw new NotSupportedException("SQLite files require special handling - use SqliteDatabaseReader"),
+            DataFormat.Access => throw new NotSupportedException("Access files require special handling - use IDatabaseReader"),
             _ => throw new NotSupportedException($"Unsupported format: {Format}")
         };
     }
@@ -78,6 +80,8 @@ public class DataFile
             ".jsonl" => DataFormat.JsonLines,
             ".parquet" => DataFormat.Parquet,
             ".xlsx" or ".xls" => DataFormat.Excel,
+            ".db" or ".sqlite" or ".sqlite3" => DataFormat.SQLite,
+            ".accdb" or ".mdb" => DataFormat.Access,
             _ => DataFormat.Unknown
         };
     }
@@ -94,5 +98,7 @@ public enum DataFormat
     Json,
     JsonLines,
     Parquet,
-    Excel
+    Excel,
+    SQLite,
+    Access
 }

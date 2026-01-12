@@ -299,6 +299,25 @@ public static class ServiceCollectionExtensions
             return new ClipClassificationWave(clipService, imageConfig, logger);
         });
 
+        // ChartDetectionWave - Specialized chart/graph detection using CLIP classification
+        // Priority 47: Runs after ClipClassificationWave (46), emits chart.detected and chart.type signals
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var clipService = sp.GetRequiredService<ClipZeroShotService>();
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ChartDetectionWave>>();
+            return new ChartDetectionWave(clipService, imageConfig, logger);
+        });
+
+        // ChartExtractionWave - Extracts structured data from detected charts using Vision LLM
+        // Priority 48: Runs after ChartDetectionWave (47), extracts data when chart.needs_extraction is true
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ChartExtractionWave>>();
+            return new ChartExtractionWave(imageConfig, logger);
+        });
+
         // MotionAnalyzer - Optical flow analysis for animated GIFs
         services.TryAddSingleton<MotionAnalyzer>(sp =>
         {

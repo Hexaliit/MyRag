@@ -15,18 +15,23 @@ public class DataProcessorService : IDataProcessor
 {
     private readonly DataProcessorOptions _options;
     private readonly ILogger<DataProcessorService> _logger;
+    private readonly IDatabaseReader? _databaseReader;
 
     private static readonly HashSet<string> SupportedExtensionsSet = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".parquet"
+        ".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".parquet",
+        ".db", ".sqlite", ".sqlite3",  // SQLite databases
+        ".accdb", ".mdb"  // Access databases
     };
 
     public DataProcessorService(
         IOptions<DataProcessorOptions> options,
-        ILogger<DataProcessorService> logger)
+        ILogger<DataProcessorService> logger,
+        IDatabaseReader? databaseReader = null)
     {
         _options = options.Value;
         _logger = logger;
+        _databaseReader = databaseReader;
     }
 
     public IReadOnlySet<string> SupportedExtensions => SupportedExtensionsSet;
@@ -49,7 +54,41 @@ public class DataProcessorService : IDataProcessor
             ".jsonl" => await GetJsonLinesSchemaAsync(filePath, ct),
             ".xlsx" or ".xls" => await GetExcelSchemaAsync(filePath, ct),
             ".parquet" => await GetParquetSchemaAsync(filePath, ct),
+            ".db" or ".sqlite" or ".sqlite3" => await GetDatabaseSchemaAsync(filePath, ct),
+            ".accdb" or ".mdb" => await GetDatabaseSchemaAsync(filePath, ct),
             _ => throw new NotSupportedException($"File type {ext} is not supported")
+        };
+    }
+
+    private async Task<DataSchema> GetDatabaseSchemaAsync(string filePath, CancellationToken ct)
+    {
+        if (_databaseReader == null)
+            throw new NotSupportedException("Database reader not available for database files");
+
+        var dbSchema = await _databaseReader.GetSchemaAsync(filePath, ct);
+
+        // Convert database schema to data schema format
+        // For databases, we represent each table as columns
+        var columns = new List<ColumnInfo>();
+
+        foreach (var table in dbSchema.Tables)
+        {
+            foreach (var col in table.Columns)
+            {
+                columns.Add(new ColumnInfo
+                {
+                    Name = $"{table.Name}.{col.Name}",
+                    DataType = col.DataType,
+                    IsNullable = col.IsNullable
+                });
+            }
+        }
+
+        return new DataSchema
+        {
+            Columns = columns,
+            EstimatedRowCount = (int)dbSchema.TotalRowCount,
+            FileSizeBytes = new FileInfo(filePath).Length
         };
     }
 
@@ -116,12 +155,37 @@ public class DataProcessorService : IDataProcessor
             ".jsonl" => StreamJsonLinesAsync(filePath, ct),
             ".xlsx" or ".xls" => StreamExcelAsync(filePath, ct),
             ".parquet" => StreamParquetAsync(filePath, ct),
+            ".db" or ".sqlite" or ".sqlite3" => StreamDatabaseAsync(filePath, ct),
+            ".accdb" or ".mdb" => StreamDatabaseAsync(filePath, ct),
             _ => throw new NotSupportedException($"File type {ext} is not supported")
         };
 
         await foreach (var row in enumerable)
         {
             yield return row;
+        }
+    }
+
+    private async IAsyncEnumerable<IReadOnlyDictionary<string, object?>> StreamDatabaseAsync(
+        string filePath,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        if (_databaseReader == null)
+            throw new NotSupportedException("Database reader not available for database files");
+
+        // Stream all tables from the database
+        await foreach (var tableData in _databaseReader.StreamTablesAsync(filePath, maxRowsPerTable: _options.ChunkSize * 10, ct: ct))
+        {
+            // Add table name as metadata to each row
+            foreach (var row in tableData.Rows)
+            {
+                // Create a new dictionary with table context
+                var enrichedRow = new Dictionary<string, object?>(row)
+                {
+                    ["__table_name__"] = tableData.TableName
+                };
+                yield return enrichedRow;
+            }
         }
     }
 
@@ -290,8 +354,10 @@ public class DataProcessorService : IDataProcessor
     {
         // Simple schema detection - read first few records
         var rows = new List<IReadOnlyDictionary<string, object?>>();
-        await foreach (var row in StreamJsonAsync(filePath, ct).Take(10))
+        var count = 0;
+        await foreach (var row in StreamJsonAsync(filePath, ct))
         {
+            if (count++ >= 10) break;
             rows.Add(row);
         }
 
@@ -360,9 +426,9 @@ public class DataProcessorService : IDataProcessor
         var lineCount = 0;
         var columns = new HashSet<string>();
 
-        await foreach (var row in StreamJsonLinesAsync(filePath, ct).Take(100))
+        await foreach (var row in StreamJsonLinesAsync(filePath, ct))
         {
-            lineCount++;
+            if (lineCount++ >= 100) break;
             foreach (var key in row.Keys)
                 columns.Add(key);
         }

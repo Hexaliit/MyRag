@@ -35,6 +35,12 @@ public static class ServiceCollectionExtensions
         // Core data processor service (legacy, still available)
         services.AddScoped<IDataProcessor, DataProcessorService>();
 
+        // Database readers (SQLite + Access)
+        services.TryAddSingleton<SqliteDatabaseReader>();
+        services.TryAddSingleton<AccessDatabaseReader>();
+        services.TryAddSingleton<CompositeDatabaseReader>();
+        services.TryAddSingleton<IDatabaseReader>(sp => sp.GetRequiredService<CompositeDatabaseReader>());
+
         // DuckDB analyzer (singleton for connection pooling)
         services.TryAddSingleton<DuckDbAnalyzer>();
 
@@ -44,6 +50,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDataAnalysisWave, SamplingWave>();       // P=100
         services.AddSingleton<IDataAnalysisWave, TypeInferenceWave>();  // P=95
         services.AddSingleton<IDataAnalysisWave, ProfileWave>();        // P=90
+        services.AddSingleton<IDataAnalysisWave, RelationshipWave>();   // P=85 - FK detection for databases
         services.AddSingleton<IDataAnalysisWave, QualityWave>();        // P=80
         services.AddSingleton<IDataAnalysisWave, StatisticsWave>();     // P=70
         services.AddSingleton<IDataAnalysisWave, OutlierWave>();        // P=60
