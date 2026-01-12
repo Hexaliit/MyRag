@@ -18,7 +18,7 @@ else
         <label class="flex items-center gap-2 p-2 rounded hover:bg-base-200 cursor-pointer group"
                :class="selectedDocIds.has('@doc.Id') ? 'bg-primary/10' : ''">
             <input type="checkbox"
-                   class="checkbox checkbox-sm checkbox-primary"
+                   class="checkbox checkbox-sm checkbox-primary bg-base-100 border-base-content/20"
                    :checked="selectedDocIds.has('@doc.Id')"
                    :disabled="@(doc.Status != DocumentStatus.Completed ? "true" : "false")"
                    x-on:change="toggleDocument('@doc.Id', $event.target.checked)"/>

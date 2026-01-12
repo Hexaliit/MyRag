@@ -28,9 +28,10 @@ public class HomeController(
     }
 
     [HttpGet("documents")]
-    public async Task<IActionResult> DocumentList(CancellationToken ct = default)
+    public async Task<IActionResult> DocumentList([FromQuery] string filter = "ready", CancellationToken ct = default)
     {
-        var documents = await documentService.GetDocumentsAsync(ct: ct);
+        var readyOnly = filter == "ready";
+        var documents = await documentService.GetDocumentsAsync(readyOnly: readyOnly, ct: ct);
         return PartialView("_DocumentList", documents);
     }
 

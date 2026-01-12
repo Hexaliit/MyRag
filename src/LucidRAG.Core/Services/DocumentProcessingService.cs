@@ -231,13 +231,18 @@ public class DocumentProcessingService(
             .FirstOrDefaultAsync(d => d.Id == documentId, ct);
     }
 
-    public async Task<List<DocumentEntity>> GetDocumentsAsync(Guid? collectionId = null, CancellationToken ct = default)
+    public async Task<List<DocumentEntity>> GetDocumentsAsync(Guid? collectionId = null, bool readyOnly = false, CancellationToken ct = default)
     {
         var query = db.Documents.Include(d => d.Collection).AsQueryable();
 
         if (collectionId.HasValue)
         {
             query = query.Where(d => d.CollectionId == collectionId);
+        }
+
+        if (readyOnly)
+        {
+            query = query.Where(d => d.Status == DocumentStatus.Completed);
         }
 
         return await query.OrderByDescending(d => d.CreatedAt).ToListAsync(ct);

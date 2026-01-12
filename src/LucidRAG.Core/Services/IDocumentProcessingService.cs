@@ -41,7 +41,7 @@ public interface IDocumentProcessingService
         DateTimeOffset? sourceModifiedAt,
         CancellationToken ct = default);
     Task<DocumentEntity?> GetDocumentAsync(Guid documentId, CancellationToken ct = default);
-    Task<List<DocumentEntity>> GetDocumentsAsync(Guid? collectionId = null, CancellationToken ct = default);
+    Task<List<DocumentEntity>> GetDocumentsAsync(Guid? collectionId = null, bool readyOnly = false, CancellationToken ct = default);
     Task DeleteDocumentAsync(Guid documentId, CancellationToken ct = default);
     IAsyncEnumerable<ProgressUpdate> StreamProgressAsync(Guid documentId, CancellationToken ct = default);
 

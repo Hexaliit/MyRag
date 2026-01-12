@@ -261,7 +261,7 @@ public class DocumentsController(
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var documents = await documentService.GetDocumentsAsync(collectionId, ct);
+        var documents = await documentService.GetDocumentsAsync(collectionId, readyOnly: false, ct);
 
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<DocumentStatus>(status, true, out var statusEnum))
             documents = documents.Where(d => d.Status == statusEnum).ToList();

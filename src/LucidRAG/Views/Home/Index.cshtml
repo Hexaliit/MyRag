@@ -22,31 +22,51 @@
                     <!-- Communities Dropdown -->
                     @await Html.PartialAsync("_SidebarCommunitiesDropdown")
 
-                    <!-- Add Content - Collapsible -->
-                    @await Html.PartialAsync("_SidebarAddContent")
-
-                    <!-- Document Selection Header -->
-                    <div class="px-3 py-2 border-b border-base-300 flex items-center gap-2 text-xs">
-                        <span class="opacity-60">Select for chat:</span>
-                        <button class="btn btn-ghost btn-xs"
-                                @@click="selectAllDocuments()"
-                                title="Select all completed documents">
-                            All
-                        </button>
-                        <button class="btn btn-ghost btn-xs"
-                                @@click="selectedDocIds.clear(); htmx.trigger(document.body, 'documentUploaded');"
-                                title="Clear selection">
-                            None
-                        </button>
-                        <span class="ml-auto badge badge-sm badge-ghost"
-                              x-text="selectedDocIds.size + ' selected'"></span>
+                    <!-- Document Filter & Selection Header -->
+                    <div class="px-3 py-2 border-b border-base-300 space-y-2">
+                        <!-- Status Filter Toggle -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs opacity-60">Show:</span>
+                            <div class="join">
+                                <button class="join-item btn btn-xs"
+                                        :class="docFilter === 'ready' ? 'btn-primary' : 'btn-ghost'"
+                                        @@click="docFilter = 'ready'; refreshDocuments()">
+                                    Ready
+                                </button>
+                                <button class="join-item btn btn-xs"
+                                        :class="docFilter === 'all' ? 'btn-primary' : 'btn-ghost'"
+                                        @@click="docFilter = 'all'; refreshDocuments()">
+                                    All
+                                </button>
+                            </div>
+                            <span class="ml-auto badge badge-sm badge-ghost"
+                                  x-text="documentCount + ' docs'"></span>
+                        </div>
+                        <!-- Selection Controls -->
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="opacity-60">Select:</span>
+                            <button class="btn btn-ghost btn-xs"
+                                    @@click="selectAllDocuments()"
+                                    title="Select all ready documents">
+                                All Ready
+                            </button>
+                            <button class="btn btn-ghost btn-xs"
+                                    @@click="selectedDocIds.clear(); htmx.trigger(document.body, 'documentUploaded');"
+                                    title="Clear selection">
+                                None
+                            </button>
+                            <span class="ml-auto badge badge-sm badge-primary"
+                                  x-text="selectedDocIds.size + ' selected'"></span>
+                        </div>
                     </div>
 
                     @await Html.PartialAsync("_SidebarProcessingStatus")
 
                     <!-- Document List -->
                     <div id="document-list" class="flex-1 overflow-y-auto p-2 space-y-1"
-                         hx-get="/admin/documents" hx-trigger="documentUploaded from:body" hx-swap="innerHTML">
+                         :hx-get="'/admin/documents?filter=' + docFilter"
+                         hx-trigger="documentUploaded from:body, docFilterChanged from:body"
+                         hx-swap="innerHTML">
                         @await Html.PartialAsync("_DocumentList", documents)
                     </div>
 
@@ -1039,6 +1059,7 @@
                 uploads: [],
                 selectedDocIds: new Set(),
                 isDragging: false,
+                docFilter: 'ready', // 'ready' (completed only) or 'all' (including processing)
 
                 // Sidebar mode: 'chat' (document selection) or 'explorer' (file browser)
                 sidebarMode: 'chat',
@@ -1961,7 +1982,7 @@
                         if (response.ok) {
                             const data = await response.json();
                             // Select all completed documents
-                            data.documents
+                            data.data
                                 .filter(d => d.status === 'completed')
                                 .forEach(d => this.selectedDocIds.add(d.id));
                             // Trigger UI refresh
@@ -1970,6 +1991,11 @@
                     } catch (e) {
                         console.error('Failed to select all documents:', e);
                     }
+                },
+
+                // Refresh document list with current filter
+                refreshDocuments() {
+                    htmx.trigger(document.body, 'docFilterChanged');
                 },
 
                 async sendMessage() {
