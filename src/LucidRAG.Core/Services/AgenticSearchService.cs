@@ -476,6 +476,76 @@ public class AgenticSearchService(
         }
     }
 
+    /// <inheritdoc />
+    public async IAsyncEnumerable<ChatStreamChunk> ChatStreamWithSourcesAsync(ChatRequest request, [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var sw = Stopwatch.StartNew();
+        var lens = await ResolveLensAsync(request, ct);
+        var conversationId = request.ConversationId;
+        var isNewConversation = !conversationId.HasValue;
+        if (isNewConversation) { var conv = await conversationService.CreateConversationAsync(request.CollectionId, ct: ct); conversationId = conv.Id; }
+        await conversationService.AddMessageAsync(conversationId.Value, "user", request.Query, ct: ct);
+        string queryToSearch = request.Query;
+        Guid[]? cachedDocumentIds = null;
+        FollowUpDetectionResult? followUpResult = null;
+        if (!isNewConversation)
+        {
+            var previousQuery = await conversationService.GetLastTopicQueryAsync(conversationId.Value, ct);
+            followUpResult = await sentinelService.DetectFollowUpAsync(request.Query, previousQuery, ct: ct);
+            if (followUpResult.IsFollowUp)
+            {
+                if (!string.IsNullOrEmpty(followUpResult.ResolvedQuery)) queryToSearch = followUpResult.ResolvedQuery;
+                if (followUpResult.UseSameDocumentSet) cachedDocumentIds = await conversationService.GetActiveDocumentsAsync(conversationId.Value, ct);
+            }
+        }
+        var collection = request.CollectionId.HasValue ? await db.Collections.FirstOrDefaultAsync(c => c.Id == request.CollectionId.Value, ct) : null;
+        string sysPrompt = !string.IsNullOrEmpty(request.SystemPrompt) ? _prompts.SystemPrompts.GetValueOrDefault(request.SystemPrompt, _prompts.SystemPrompts["Default"]) : lensRender.RenderSystemPrompt(lens, new { tenant_name = "LucidRAG", collection_description = collection?.Description ?? "", collection_name = collection?.Name ?? "documents" });
+        var searchResult = await SearchAsync(new SearchRequest(queryToSearch, request.CollectionId, cachedDocumentIds ?? request.DocumentIds, SearchMode: request.SearchMode), ct);
+        var searchTimeMs = (int)sw.ElapsedMilliseconds;
+        if (!followUpResult?.UseSameDocumentSet == true || isNewConversation || cachedDocumentIds == null)
+        {
+            var docIds = searchResult.Results.Select(r => r.DocumentId).Where(id => id != Guid.Empty).Distinct().ToArray();
+            if (docIds.Length > 0) await conversationService.SetActiveDocumentsAsync(conversationId.Value, docIds, queryToSearch, ct: ct);
+        }
+        var sources = searchResult.Results.Take(5).Select((r, i) => new SourceCitation(i + 1, r.DocumentId, r.DocumentName, r.SegmentId, r.Text.Length > 200 ? r.Text[..197] + "..." : r.Text, r.SectionTitle)).ToList();
+        var thinking = BuildThinkingOutput(request.Query, searchResult);
+        yield return new ChatStreamChunk("sources", Sources: sources, ConversationId: conversationId, ThinkingNote: thinking, SearchTimeMs: searchTimeMs, SegmentCount: searchResult.Results.Count);
+        if (searchResult.QueryPlan?.NeedsClarification == true) { var msg = searchResult.QueryPlan.ClarificationQuestion ?? "Could you please clarify?"; await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct); yield return new ChatStreamChunk("text", Text: msg); yield return new ChatStreamChunk("done"); yield break; }
+        if (searchResult.Results.Count == 0) { var msg = "I couldn't find relevant information."; await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct); yield return new ChatStreamChunk("text", Text: msg); yield return new ChatStreamChunk("done"); yield break; }
+        if (_ragConfig.DemoMode.Enabled && !searchResult.Results.Any(r => r.Score >= _ragConfig.DemoMode.MinRelevanceScore)) { await conversationService.AddMessageAsync(conversationId.Value, "assistant", _ragConfig.DemoMode.OffTopicMessage, ct: ct); yield return new ChatStreamChunk("text", Text: _ragConfig.DemoMode.OffTopicMessage); yield return new ChatStreamChunk("done"); yield break; }
+        var queryType = searchResult.QueryPlan?.QueryType ?? Sentinel.QueryType.Semantic;
+        if (queryType == Sentinel.QueryType.Keyword || queryType == Sentinel.QueryType.Navigation) { var resp = BuildKeywordResponseNoThinking(sources); await conversationService.AddMessageAsync(conversationId.Value, "assistant", resp, ct: ct); foreach (var w in resp.Split(' ')) { if (ct.IsCancellationRequested) yield break; yield return new ChatStreamChunk("text", Text: w + " "); await Task.Delay(10, ct); } yield return new ChatStreamChunk("done"); yield break; }
+        var sourceTextsStr = string.Join("\n\n", sources.Select(s => $"[{s.Number}] ({s.DocumentName}): {s.Text}"));
+        var prompt = $"You are a document-grounded assistant. Answer using ONLY the evidence.\n\n{sysPrompt}\n\nQUESTION: {request.Query}\n\nEVIDENCE:\n{sourceTextsStr}\n\nANSWER:";
+        string? answerToStream = null;
+        var evidenceHash = SynthesisCacheService.ComputeHash(sourceTextsStr);
+        if (synthesisCache.TryGetSynthesis(request.Query, evidenceHash, out var cached))
+        {
+            answerToStream = cached;
+        }
+        else
+        {
+            try
+            {
+                answerToStream = (await llmService.GenerateAsync(prompt, new LlmOptions { Temperature = 0.3 }, ct)).Trim();
+                synthesisCache.SetSynthesis(request.Query, sourceTextsStr, answerToStream, sources.Select(s => s.DocumentId).Distinct().ToArray());
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Streaming LLM failed");
+                answerToStream = sources.Count > 0 ? sources[0].Text : "Error generating response.";
+            }
+        }
+        foreach (var w in answerToStream!.Split(' '))
+        {
+            if (ct.IsCancellationRequested) yield break;
+            yield return new ChatStreamChunk("text", Text: w + " ");
+            await Task.Delay(20, ct);
+        }
+        await conversationService.AddMessageAsync(conversationId.Value, "assistant", answerToStream, JsonSerializer.Serialize(new { sources = sources.Select(s => s.SegmentId) }), ct);
+        yield return new ChatStreamChunk("done");
+    }
+
     private async Task<string> BuildAnswerAsync(string query, List<SourceCitation> sources, string systemPrompt, CancellationToken ct)
     {
         if (sources.Count == 0)

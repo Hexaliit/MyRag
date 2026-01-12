@@ -20,7 +20,24 @@ public interface IAgenticSearchService
     Task<SearchResult> SearchAsync(SearchRequest request, CancellationToken ct = default);
     Task<ChatResponse> ChatAsync(ChatRequest request, CancellationToken ct = default);
     IAsyncEnumerable<string> ChatStreamAsync(ChatRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Streams chat with sources sent first for immediate display.
+    /// </summary>
+    IAsyncEnumerable<ChatStreamChunk> ChatStreamWithSourcesAsync(ChatRequest request, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Structured chunk for streaming chat responses with early source display.
+/// </summary>
+public record ChatStreamChunk(
+    string Type,   // "sources" | "text" | "metadata" | "done"
+    string? Text = null,
+    List<SourceCitation>? Sources = null,
+    Guid? ConversationId = null,
+    string? ThinkingNote = null,
+    int? SearchTimeMs = null,
+    int? SegmentCount = null);
 
 public record SearchRequest(
     string Query,

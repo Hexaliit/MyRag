@@ -2017,6 +2017,18 @@
                     this.graphData = null;
                     this.debugInfo = null;
 
+                    // Create placeholder message for streaming
+                    const assistantMsgId = Date.now() + 1;
+                    const assistantMsg = {
+                        id: assistantMsgId,
+                        role: 'assistant',
+                        content: '',
+                        sources: [],
+                        timestamp: new Date().toISOString(),
+                        isStreaming: true
+                    };
+                    this.messages.push(assistantMsg);
+
                     this.$nextTick(() => {
                         if (this.$refs.chatMessages) {
                             this.$refs.chatMessages.scrollTop = this.$refs.chatMessages.scrollHeight;
@@ -2026,69 +2038,115 @@
                     const startTime = Date.now();
 
                     try {
-                        const response = await fetch('/api/chat', {
+                        // Use streaming endpoint to show sources early
+                        const response = await fetch('/api/chat/stream-with-sources', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({
                                 query,
                                 conversationId: this.conversationId,
                                 documentIds: this.selectedDocIds.size > 0 ? Array.from(this.selectedDocIds) : null,
-                                searchMode: this.searchMode,
-                                includeGraphData: this.graphRagEnabled,
-                                includeDebugInfo: true
+                                searchMode: this.searchMode
                             })
                         });
 
-                        const latencyMs = Date.now() - startTime;
-                        const result = await response.json();
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let buffer = '';
+                        let fullAnswer = '';
+                        let sources = [];
+                        let thinkingNote = null;
+                        let searchTimeMs = 0;
+                        let segmentCount = 0;
 
-                        if (response.ok) {
-                            this.conversationId = result.conversationId;
-                            // Save conversation ID to cookie for persistence
-                            this.setCookie('lucidrag-conversation', result.conversationId);
+                        while (true) {
+                            const {done, value} = await reader.read();
+                            if (done) break;
 
-                            const assistantMsg = {
-                                id: Date.now() + 1,
-                                role: 'assistant',
-                                content: result.answer,
-                                sources: result.sources,
-                                timestamp: result.timestamp || new Date().toISOString(),
-                                thinkingNote: result.thinkingNote,
-                                searchTimeMs: result.searchTimeMs,
-                                segmentCount: result.segmentCount
-                            };
-                            this.messages.push(assistantMsg);
+                            buffer += decoder.decode(value, {stream: true});
+                            const lines = buffer.split('\n');
+                            buffer = lines.pop(); // Keep incomplete line in buffer
 
-                            // Parse answer into sentences for evidence view
-                            this.lastAnswer = this.parseAnswerForEvidence(result);
+                            for (const line of lines) {
+                                if (!line.startsWith('data: ')) continue;
+                                const data = line.slice(6);
+                                if (data === '[DONE]') continue;
 
-                            // Store graph data if available
-                            if (result.graphData) {
-                                this.graphData = result.graphData;
+                                try {
+                                    const chunk = JSON.parse(data);
+
+                                    if (chunk.type === 'sources' && chunk.sources) {
+                                        // Show sources immediately!
+                                        sources = chunk.sources;
+                                        const msgIdx = this.messages.findIndex(m => m.id === assistantMsgId);
+                                        if (msgIdx >= 0) {
+                                            this.messages[msgIdx].sources = sources;
+                                        }
+                                        // Store for evidence view
+                                        this.lastAnswer = {
+                                            fullText: '',
+                                            sentences: [],
+                                            sources: sources
+                                        };
+                                        this.selectedEvidence = sources.length > 0 ? [sources[0]] : [];
+
+                                        // Update metadata
+                                        if (chunk.conversationId) {
+                                            this.conversationId = chunk.conversationId;
+                                            this.setCookie('lucidrag-conversation', chunk.conversationId);
+                                        }
+                                        if (chunk.thinkingNote) thinkingNote = chunk.thinkingNote;
+                                        if (chunk.searchTimeMs) searchTimeMs = chunk.searchTimeMs;
+                                        if (chunk.segmentCount) segmentCount = chunk.segmentCount;
+                                    }
+
+                                    if (chunk.type === 'text' && chunk.text) {
+                                        fullAnswer += chunk.text;
+                                        const msgIdx = this.messages.findIndex(m => m.id === assistantMsgId);
+                                        if (msgIdx >= 0) {
+                                            this.messages[msgIdx].content = fullAnswer;
+                                        }
+                                        // Auto-scroll
+                                        this.$nextTick(() => {
+                                            if (this.$refs.chatMessages) {
+                                                this.$refs.chatMessages.scrollTop = this.$refs.chatMessages.scrollHeight;
+                                            }
+                                        });
+                                    }
+
+                                    if (chunk.type === 'done') {
+                                        // Finalize message
+                                        const msgIdx = this.messages.findIndex(m => m.id === assistantMsgId);
+                                        if (msgIdx >= 0) {
+                                            this.messages[msgIdx].isStreaming = false;
+                                            this.messages[msgIdx].thinkingNote = thinkingNote;
+                                            this.messages[msgIdx].searchTimeMs = searchTimeMs;
+                                            this.messages[msgIdx].segmentCount = segmentCount;
+                                        }
+
+                                        // Parse for evidence view
+                                        this.lastAnswer = this.parseAnswerForEvidence({
+                                            answer: fullAnswer,
+                                            sources: sources
+                                        });
+
+                                        // Store debug info
+                                        this.debugInfo = {
+                                            latencyMs: Date.now() - startTime,
+                                            retrievalHits: sources.length
+                                        };
+                                    }
+                                } catch (parseErr) {
+                                    console.warn('Failed to parse SSE chunk:', parseErr);
+                                }
                             }
-
-                            // Store debug info
-                            this.debugInfo = {
-                                queryEntities: result.queryEntities || [],
-                                missingEntities: result.missingEntities || [],
-                                suggestion: result.suggestion || null,
-                                latencyMs: latencyMs,
-                                retrievalHits: result.sources ? result.sources.length : 0,
-                                graphExpansions: result.graphExpansions || 0
-                            };
-                        } else {
-                            this.messages.push({
-                                id: Date.now() + 1,
-                                role: 'assistant',
-                                content: `Error: ${result.error || 'Something went wrong'}`
-                            });
                         }
                     } catch (e) {
-                        this.messages.push({
-                            id: Date.now() + 1,
-                            role: 'assistant',
-                            content: `Error: ${e.message}`
-                        });
+                        const msgIdx = this.messages.findIndex(m => m.id === assistantMsgId);
+                        if (msgIdx >= 0) {
+                            this.messages[msgIdx].content = `Error: ${e.message}`;
+                            this.messages[msgIdx].isStreaming = false;
+                        }
                     } finally {
                         this.isTyping = false;
                         this.$nextTick(() => {
