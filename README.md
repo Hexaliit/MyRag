@@ -1,4 +1,4 @@
-# LucidRAG
+# ***lucid***RAG
 
 <div align="center">
 
@@ -8,9 +8,8 @@
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Docker](https://img.shields.io/docker/pulls/scottgal/lucidrag)](https://hub.docker.com/r/scottgal/lucidrag)
 
-> **PRERELEASE** - Active development. Production-ready features marked with checkmarks.
+> **IN DEVELOPMENT** - This project is under active development and not yet ready for production use. APIs may change without notice. Watch this repo for updates.
 
 </div>
 
@@ -33,25 +32,41 @@ Most RAG systems are basic document-to-vector pipelines. LucidRAG is different:
 
 ---
 
-## Quick Start
+## Getting Started (Development)
 
-### Option 1: Docker (Recommended)
+> **Note:** LucidRAG is in active development. These instructions are for contributors and early testers.
+
+### Prerequisites
+
+- .NET 10.0 SDK
+- PostgreSQL 16+ with pgvector extension
+- Node.js 18+ (for CSS build)
+- Optional: Ollama for local LLM inference
+
+### Running Locally
 
 ```bash
-docker pull scottgal/lucidrag:latest
+# Clone the repository
+git clone https://github.com/scottgal/lucidrag.git
+cd lucidrag
+
+# Set up the database connection in user secrets
 cd src/LucidRAG
-docker-compose up -d
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=LucidRAG;Username=postgres;Password=yourpassword"
+
+# Build and run
+dotnet run --project src/LucidRAG/LucidRAG.csproj
 ```
 
-Open http://localhost:5080 - includes PostgreSQL + Qdrant for persistent embeddings.
+### Standalone Mode (Quick Testing)
 
-### Option 2: Standalone (Zero Config)
+For quick testing without PostgreSQL:
 
 ```bash
 dotnet run --project src/LucidRAG/LucidRAG.csproj -- --standalone
 ```
 
-Uses SQLite + InMemory vectors. Great for testing, but embeddings aren't persisted between restarts.
+Uses SQLite + InMemory vectors. **Note:** Embeddings are not persisted between restarts in standalone mode.
 
 ---
 
@@ -400,8 +415,14 @@ MIT License - see [LICENSE](LICENSE)
 
 ---
 
+## Contributing
+
+LucidRAG is in active development and we welcome contributions! Please check the [Issues](https://github.com/scottgal/lucidrag/issues) for areas where help is needed.
+
+---
+
 <div align="center">
 
-**[Demo](https://lucidrag.com)** (coming soon) | **[Docker Hub](https://hub.docker.com/r/scottgal/lucidrag)** | **[Issues](https://github.com/scottgal/lucidrag/issues)**
+**[GitHub](https://github.com/scottgal/lucidrag)** | **[Issues](https://github.com/scottgal/lucidrag/issues)**
 
 </div>
