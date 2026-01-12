@@ -88,12 +88,20 @@ public class AgenticSearchService(
         var allSegments = new List<(Segment Segment, double DenseScore, int Priority)>();
         var collectionName = _docSummarizerConfig.BertRag.CollectionName;
 
-        // Build lookup for VectorStoreDocId -> DocumentEntity (handle duplicates by taking most recent)
-        var documentLookup = await db.Documents
+        // Build lookup for docHash -> DocumentEntity
+        // VectorStoreDocId format is "{name}_{docHash}" (e.g., "1025_e586be1c8a7e5d02")
+        // Segment IDs from Qdrant use just the docHash part (e.g., "e586be1c8a7e5d02_s_0")
+        // So we need to extract the docHash for matching
+        var documents = await db.Documents
             .Where(d => d.VectorStoreDocId != null)
-            .GroupBy(d => d.VectorStoreDocId!)
-            .Select(g => g.OrderByDescending(d => d.CreatedAt).First())
-            .ToDictionaryAsync(d => d.VectorStoreDocId!, d => d, ct);
+            .ToListAsync(ct);
+
+        var documentLookup = documents
+            .GroupBy(d => ExtractDocHashFromVectorStoreDocId(d.VectorStoreDocId!))
+            .Where(g => !string.IsNullOrEmpty(g.Key))
+            .ToDictionary(
+                g => g.Key!,
+                g => g.OrderByDescending(d => d.CreatedAt).First());
 
         // Retrieve more candidates for BM25 re-ranking (3x the final count)
         var candidateCount = Math.Max(request.TopK * 3, 50);
@@ -734,8 +742,8 @@ ANSWER:";
     }
 
     /// <summary>
-    /// Extract docId from segment ID (format: {docId}_{type}_{index})
-    /// Example: "10_da69a3ca5838716d_s_42" -> "10_da69a3ca5838716d"
+    /// Extract docHash from segment ID (format: {docHash}_{type}_{index})
+    /// Example: "e586be1c8a7e5d02_s_42" -> "e586be1c8a7e5d02"
     /// </summary>
     private static string? ExtractDocIdFromSegmentId(string segmentId)
     {
@@ -744,6 +752,24 @@ ANSWER:";
         {
             // Take all parts except the last two (type and index)
             return string.Join("_", parts.Take(parts.Length - 2));
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Extract docHash from VectorStoreDocId (format: {name}_{docHash})
+    /// Example: "1025_e586be1c8a7e5d02" -> "e586be1c8a7e5d02"
+    /// The docHash is used to match against segment IDs from Qdrant.
+    /// </summary>
+    private static string? ExtractDocHashFromVectorStoreDocId(string vectorStoreDocId)
+    {
+        if (string.IsNullOrEmpty(vectorStoreDocId)) return null;
+
+        var underscoreIndex = vectorStoreDocId.IndexOf('_');
+        if (underscoreIndex > 0 && underscoreIndex < vectorStoreDocId.Length - 1)
+        {
+            // Return everything after the first underscore (the docHash part)
+            return vectorStoreDocId[(underscoreIndex + 1)..];
         }
         return null;
     }

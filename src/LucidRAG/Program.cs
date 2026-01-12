@@ -24,6 +24,7 @@ using Mostlylucid.DocSummarizer.Core.Services;
 using Mostlylucid.DocSummarizer.Extensions;
 using Mostlylucid.DocSummarizer.Images.Extensions;
 using Mostlylucid.DocSummarizer.OpenAI.Extensions;
+using Mostlylucid.DocSummarizer.Data.Extensions;
 using Mostlylucid.Summarizer.Core.Extensions;
 using Mostlylucid.Summarizer.Core.Pipeline;
 using Scalar.AspNetCore;
@@ -121,6 +122,15 @@ builder.Services.AddDocSummarizerImages(builder.Configuration.GetSection("Images
 
 // VideoSummarizer - video processing pipeline (mp4, mkv, etc.)
 builder.Services.AddVideoSummarizer();
+
+// DataSummarizer - data file processing with wave-based analysis (csv, xlsx, json, parquet)
+builder.Services.AddDataSummarizer(opt =>
+{
+    opt.SampleSize = 10000;
+    opt.EnablePiiDetection = true;
+    opt.EnableOutlierDetection = true;
+    opt.EnableCorrelation = false; // Expensive, disabled by default
+});
 
 // Pipeline registry for unified content processing (routes .gif, .png, etc. to ImagePipeline)
 builder.Services.AddPipelineRegistry();
