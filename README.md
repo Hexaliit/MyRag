@@ -7,7 +7,7 @@
 *Multi-document intelligence with GraphRAG entity extraction, 22-wave image analysis, and enterprise multi-tenancy*
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-The_Unlicense-green.svg)](LICENSE)
 
 > **IN DEVELOPMENT** - This project is under active development and not yet ready for production use. APIs may change without notice. Watch this repo for updates.
 
@@ -411,7 +411,7 @@ src/
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+The  UnLicense - see [LICENSE](LICENSE)
 
 ---
 
