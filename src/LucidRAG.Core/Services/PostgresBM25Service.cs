@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using LucidRAG.Entities;
 using LucidRAG.Data;
@@ -30,13 +31,18 @@ public class PostgresBM25Service
 {
     private readonly RagDocumentsDbContext _db;
     private readonly ILogger<PostgresBM25Service> _logger;
+    private readonly string _connectionString;
 
     public PostgresBM25Service(
         RagDocumentsDbContext db,
+        IConfiguration configuration,
         ILogger<PostgresBM25Service> logger)
     {
         _db = db;
         _logger = logger;
+        // Get connection string directly from configuration to ensure password is included
+        _connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("DefaultConnection string not found in configuration");
     }
 
     /// <summary>
@@ -159,8 +165,7 @@ public class PostgresBM25Service
                 LIMIT $2";
 
             // Create a NEW connection to avoid conflicts with EF Core's shared connection
-            var connectionString = _db.Database.GetConnectionString();
-            await using var connection = new Npgsql.NpgsqlConnection(connectionString);
+            await using var connection = new Npgsql.NpgsqlConnection(_connectionString);
             await connection.OpenAsync(ct);
 
             await using var command = new Npgsql.NpgsqlCommand(sql, connection);
@@ -276,8 +281,7 @@ public class PostgresBM25Service
                 LIMIT $4";
 
             // Create a NEW connection to avoid conflicts with EF Core's shared connection
-            var connectionString = _db.Database.GetConnectionString();
-            await using var connection = new Npgsql.NpgsqlConnection(connectionString);
+            await using var connection = new Npgsql.NpgsqlConnection(_connectionString);
             await connection.OpenAsync(ct);
 
             await using var command = new Npgsql.NpgsqlCommand(sql, connection);

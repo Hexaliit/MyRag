@@ -30,6 +30,9 @@ public class DocumentQueueProcessor(
         // Clean up failed documents from previous runs
         await CleanupFailedDocumentsAsync(stoppingToken);
 
+        // Re-queue pending documents from database (survives restarts)
+        await RequeuePendingDocumentsAsync(stoppingToken);
+
         // Start cleanup timer
         var cleanupTimer = new PeriodicTimer(CleanupInterval);
         _ = RunCleanupLoopAsync(cleanupTimer, stoppingToken);
@@ -164,6 +167,71 @@ public class DocumentQueueProcessor(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error during failed document cleanup");
+        }
+    }
+
+    /// <summary>
+    ///     Re-queue pending documents from database on startup.
+    ///     This ensures documents survive server restarts.
+    /// </summary>
+    private async Task RequeuePendingDocumentsAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
+
+            // Find all pending documents that need processing
+            var pendingDocs = await db.Documents
+                .Where(d => d.Status == DocumentStatus.Pending)
+                .OrderBy(d => d.CreatedAt) // Process oldest first
+                .ToListAsync(ct);
+
+            if (pendingDocs.Count == 0)
+            {
+                logger.LogInformation("No pending documents to re-queue on startup");
+                return;
+            }
+
+            logger.LogInformation("Re-queuing {Count} pending documents from database", pendingDocs.Count);
+
+            var queued = 0;
+            foreach (var doc in pendingDocs)
+            {
+                try
+                {
+                    // Only queue if file still exists
+                    if (string.IsNullOrEmpty(doc.FilePath) || !File.Exists(doc.FilePath))
+                    {
+                        logger.LogWarning("Skipping document {DocumentId} - file not found: {FilePath}",
+                            doc.Id, doc.FilePath);
+
+                        // Mark as failed since file is missing
+                        doc.Status = DocumentStatus.Failed;
+                        doc.StatusMessage = "File not found on disk";
+                        continue;
+                    }
+
+                    var job = new DocumentProcessingJob(doc.Id, doc.FilePath, doc.CollectionId);
+                    await queue.EnqueueAsync(job, ct);
+                    queued++;
+
+                    logger.LogDebug("Re-queued document {DocumentId}: {FileName}",
+                        doc.Id, Path.GetFileName(doc.FilePath));
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to re-queue document {DocumentId}", doc.Id);
+                }
+            }
+
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Re-queued {Queued}/{Total} pending documents for processing",
+                queued, pendingDocs.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error during pending document re-queue");
         }
     }
 

@@ -404,13 +404,13 @@ public class AgenticSearchService(
         {
             // Keyword/navigation query - just list matching documents without synthesis
             logger.LogInformation("Query '{Query}' is {Type} - skipping synthesis", request.Query, queryType);
-            answer = BuildKeywordResponse(sources, thinking);
+            answer = BuildKeywordResponseNoThinking(sources);
         }
         else
         {
             // Semantic/comparison/aggregation - use LLM synthesis
             answer = await BuildAnswerAsync(request.Query, sources, systemPrompt, ct);
-            answer = thinking + "\n\n" + answer;
+            // Note: thinking is now returned separately in ThinkingNote, not prepended
         }
 
         // Save assistant message
@@ -432,7 +432,10 @@ public class AgenticSearchService(
             QueryPlan = searchResult.QueryPlan,
             Decomposition = decomposition,
             LensId = lens.Manifest.Id,
-            LensStyles = lens.Styles
+            LensStyles = lens.Styles,
+            ThinkingNote = thinking,
+            SearchTimeMs = (int)searchResult.ResponseTimeMs,
+            SegmentCount = searchResult.Results.Count
         };
     }
 
@@ -887,16 +890,16 @@ ANSWER:";
 
     /// <summary>
     /// Build response for keyword/navigation queries (no synthesis needed).
+    /// Thinking note is now returned separately.
     /// </summary>
-    private static string BuildKeywordResponse(List<SourceCitation> sources, string thinking)
+    private static string BuildKeywordResponseNoThinking(List<SourceCitation> sources)
     {
         if (sources.Count == 0)
         {
-            return thinking + "\n\nNo documents found matching your search.";
+            return "No documents found matching your search.";
         }
 
-        var response = new StringBuilder(thinking);
-        response.AppendLine();
+        var response = new StringBuilder();
         response.AppendLine($"Found **{sources.Count}** matching documents:");
         response.AppendLine();
 

@@ -66,7 +66,13 @@ public class ChatController(
                             priority = sq.Priority
                         })
                     }
-                    : null
+                    : null,
+                // Collapsible thinking note with search metrics
+                thinkingNote = response.ThinkingNote,
+                searchTimeMs = response.SearchTimeMs,
+                segmentCount = response.SegmentCount,
+                // Lens info
+                lensId = response.LensId
             });
         }
         catch (Exception ex)

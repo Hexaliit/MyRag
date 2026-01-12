@@ -187,6 +187,18 @@
                                     <div :class="msg.role === 'user' ? 'chat chat-end' : 'chat chat-start'">
                                         <div class="chat-bubble"
                                              :class="msg.role === 'user' ? 'chat-bubble-primary' : ''">
+                                            <!-- Collapsible thinking note for assistant messages -->
+                                            <template x-if="msg.role === 'assistant' && msg.thinkingNote">
+                                                <details class="mb-2 text-xs opacity-70">
+                                                    <summary class="cursor-pointer hover:opacity-100 select-none">
+                                                        <span class="font-mono">
+                                                            <span x-text="msg.segmentCount"></span> segments in <span x-text="msg.searchTimeMs"></span>ms
+                                                        </span>
+                                                    </summary>
+                                                    <div class="mt-1 p-2 bg-base-300/30 rounded prose prose-xs"
+                                                         x-html="renderMarkdown(msg.thinkingNote)"></div>
+                                                </details>
+                                            </template>
                                             <div class="prose prose-sm max-w-none"
                                                  x-html="msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content"></div>
                                             <template x-if="msg.sources && msg.sources.length > 0">
@@ -2014,7 +2026,10 @@
                                 role: 'assistant',
                                 content: result.answer,
                                 sources: result.sources,
-                                timestamp: result.timestamp || new Date().toISOString()
+                                timestamp: result.timestamp || new Date().toISOString(),
+                                thinkingNote: result.thinkingNote,
+                                searchTimeMs: result.searchTimeMs,
+                                segmentCount: result.segmentCount
                             };
                             this.messages.push(assistantMsg);
 

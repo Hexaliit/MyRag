@@ -14,7 +14,39 @@ public record LensManifest(
     LensScoringConfig Scoring,
     LensTemplatesConfig Templates,
     string? Styles,
-    Dictionary<string, object>? Settings
+    Dictionary<string, object>? Settings,
+    LensPersonality? Personality = null
+);
+
+/// <summary>
+/// Personality configuration for a lens.
+/// Controls tone, language preferences, and response style.
+/// </summary>
+public record LensPersonality(
+    /// <summary>
+    /// Tone of responses: friendly, formal, casual, technical, etc.
+    /// </summary>
+    string? Tone = null,
+
+    /// <summary>
+    /// Spelling variant: british, american, australian, etc.
+    /// </summary>
+    string? SpellingVariant = null,
+
+    /// <summary>
+    /// Specific persona to embody (e.g., "helpful librarian", "tech enthusiast").
+    /// </summary>
+    string? Persona = null,
+
+    /// <summary>
+    /// Communication style preferences (e.g., use bullet points, be concise).
+    /// </summary>
+    List<string>? StyleNotes = null,
+
+    /// <summary>
+    /// Phrases to use or avoid.
+    /// </summary>
+    Dictionary<string, string>? PhrasePreferences = null
 );
 
 /// <summary>

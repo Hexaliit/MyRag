@@ -36,13 +36,94 @@ public class LensRenderService : ILensRenderService
         try
         {
             var template = Template.Parse(lens.SystemPromptTemplate);
-            return template.Render(Hash.FromAnonymousObject(context));
+
+            // Build context hash from provided object
+            var hash = Hash.FromAnonymousObject(context);
+
+            // Inject personality settings if available
+            if (lens.Manifest.Personality != null)
+            {
+                var personality = lens.Manifest.Personality;
+                hash["personality_tone"] = personality.Tone ?? "helpful";
+                hash["personality_spelling"] = personality.SpellingVariant ?? "american";
+                hash["personality_persona"] = personality.Persona ?? "";
+                hash["personality_style_notes"] = personality.StyleNotes ?? new List<string>();
+                hash["personality_phrase_preferences"] = personality.PhrasePreferences ?? new Dictionary<string, string>();
+
+                // Build a comprehensive personality instruction string for LLMs
+                var personalityInstructions = BuildPersonalityInstructions(personality);
+                hash["personality_instructions"] = personalityInstructions;
+            }
+            else
+            {
+                hash["personality_tone"] = "helpful";
+                hash["personality_spelling"] = "american";
+                hash["personality_persona"] = "";
+                hash["personality_style_notes"] = new List<string>();
+                hash["personality_phrase_preferences"] = new Dictionary<string, string>();
+                hash["personality_instructions"] = "";
+            }
+
+            return template.Render(hash);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error rendering system prompt for lens {LensId}", lens.Manifest.Id);
             throw new InvalidOperationException($"Failed to render system prompt for lens '{lens.Manifest.Id}': {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// Builds LLM-friendly personality instructions from the personality config.
+    /// </summary>
+    private static string BuildPersonalityInstructions(LensPersonality personality)
+    {
+        var instructions = new List<string>();
+
+        if (!string.IsNullOrEmpty(personality.Tone))
+        {
+            instructions.Add($"Use a {personality.Tone} tone in your responses.");
+        }
+
+        if (!string.IsNullOrEmpty(personality.SpellingVariant))
+        {
+            var spellingNote = personality.SpellingVariant.ToLowerInvariant() switch
+            {
+                "british" => "Use British English spellings (colour, organisation, centre, etc.).",
+                "american" => "Use American English spellings (color, organization, center, etc.).",
+                "australian" => "Use Australian English spellings (similar to British: colour, organisation, centre, etc.).",
+                _ => $"Use {personality.SpellingVariant} English spellings."
+            };
+            instructions.Add(spellingNote);
+        }
+
+        if (!string.IsNullOrEmpty(personality.Persona))
+        {
+            instructions.Add($"Embody the persona of: {personality.Persona}");
+        }
+
+        if (personality.StyleNotes?.Any() == true)
+        {
+            foreach (var note in personality.StyleNotes)
+            {
+                instructions.Add(note);
+            }
+        }
+
+        if (personality.PhrasePreferences?.Any() == true)
+        {
+            foreach (var (from, to) in personality.PhrasePreferences)
+            {
+                if (string.IsNullOrEmpty(to))
+                    instructions.Add($"Avoid using the phrase \"{from}\".");
+                else
+                    instructions.Add($"Instead of \"{from}\", use \"{to}\".");
+            }
+        }
+
+        return instructions.Count > 0
+            ? "\n## Personality & Style Guidelines\n" + string.Join("\n", instructions.Select(i => $"- {i}"))
+            : "";
     }
 
     public string RenderCitation(LensPackage lens, SourceCitation source)

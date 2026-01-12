@@ -89,6 +89,22 @@ public record ChatResponse(
     /// CSS styles from the active lens (for injection in frontend).
     /// </summary>
     public string? LensStyles { get; init; }
+
+    /// <summary>
+    /// Transparency output showing search metrics and query plan.
+    /// Displayed in a collapsible accordion in the UI.
+    /// </summary>
+    public string? ThinkingNote { get; init; }
+
+    /// <summary>
+    /// Response time in milliseconds for the search phase.
+    /// </summary>
+    public int SearchTimeMs { get; init; }
+
+    /// <summary>
+    /// Number of relevant segments found.
+    /// </summary>
+    public int SegmentCount { get; init; }
 }
 
 /// <summary>

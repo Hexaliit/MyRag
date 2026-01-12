@@ -95,6 +95,12 @@ public sealed class LensManifest
     public LensPoliciesConfig? Policies { get; set; }
 
     /// <summary>
+    /// Personality configuration for the assistant's voice and style.
+    /// </summary>
+    [YamlMember(Alias = "personality")]
+    public LensPersonalityConfig? Personality { get; set; }
+
+    /// <summary>
     /// Default configuration values.
     /// CRITICAL: Must include source_text settings to prevent OCR text overload!
     /// </summary>
@@ -424,4 +430,41 @@ public sealed class SourceTextConfig
     /// Minimum characters for summary to be required.
     /// </summary>
     public int MinCharsForSummary { get; set; } = 500;
+}
+
+/// <summary>
+/// Personality configuration for a lens.
+/// Controls tone, language preferences, and response style.
+/// </summary>
+public sealed class LensPersonalityConfig
+{
+    /// <summary>
+    /// Tone of responses: friendly, formal, casual, technical, etc.
+    /// </summary>
+    [YamlMember(Alias = "tone")]
+    public string? Tone { get; set; }
+
+    /// <summary>
+    /// Spelling variant: british, american, australian, etc.
+    /// </summary>
+    [YamlMember(Alias = "spelling_variant")]
+    public string? SpellingVariant { get; set; }
+
+    /// <summary>
+    /// Specific persona to embody (e.g., "helpful librarian", "tech enthusiast").
+    /// </summary>
+    [YamlMember(Alias = "persona")]
+    public string? Persona { get; set; }
+
+    /// <summary>
+    /// Communication style preferences (e.g., use bullet points, be concise).
+    /// </summary>
+    [YamlMember(Alias = "style_notes")]
+    public List<string>? StyleNotes { get; set; }
+
+    /// <summary>
+    /// Phrases to use or avoid (keys = avoid, values = replace with).
+    /// </summary>
+    [YamlMember(Alias = "phrase_preferences")]
+    public Dictionary<string, string>? PhrasePreferences { get; set; }
 }

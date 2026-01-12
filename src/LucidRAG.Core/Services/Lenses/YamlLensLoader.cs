@@ -51,6 +51,19 @@ public sealed class YamlLensLoader : ILensLoader
 
     private LensPackage ConvertToLensPackage(Manifests.LensManifest manifest)
     {
+        // Convert personality from YAML model to Lenses model
+        global::LucidRAG.Lenses.LensPersonality? personality = null;
+        if (manifest.Personality != null)
+        {
+            personality = new global::LucidRAG.Lenses.LensPersonality(
+                Tone: manifest.Personality.Tone,
+                SpellingVariant: manifest.Personality.SpellingVariant,
+                Persona: manifest.Personality.Persona,
+                StyleNotes: manifest.Personality.StyleNotes,
+                PhrasePreferences: manifest.Personality.PhrasePreferences
+            );
+        }
+
         return new LensPackage
         {
             Manifest = new global::LucidRAG.Lenses.LensManifest(
@@ -72,7 +85,8 @@ public sealed class YamlLensLoader : ILensLoader
                     Response: manifest.Templates.Response != null ? "inline" : null
                 ),
                 Styles: manifest.Styles?.InlineCss != null || manifest.Styles?.CssFile != null ? "inline" : null,
-                Settings: manifest.Defaults
+                Settings: manifest.Defaults,
+                Personality: personality
             ),
             BasePath = "",  // Not needed for YAML-based lenses
             SystemPromptTemplate = manifest.Templates.SystemPrompt ?? "",
