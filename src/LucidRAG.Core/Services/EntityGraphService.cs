@@ -156,8 +156,10 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         // Store document reference in GraphRag
         await _graphDb.UpsertDocumentAsync(docIdStr, $"doc:{documentId}", "", "");
 
-        // Delete any existing chunks for this document (re-indexing)
-        await _graphDb.DeleteDocumentChunksAsync(docIdStr);
+        // Clear ALL chunks before processing this document
+        // This ensures the entity extractor only processes this document's chunks,
+        // not old demo data or chunks from other documents
+        await _graphDb.ClearAllChunksAsync();
 
         // Store chunks with embeddings
         foreach (var chunk in chunks)

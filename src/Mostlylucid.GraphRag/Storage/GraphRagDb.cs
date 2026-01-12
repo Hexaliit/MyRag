@@ -170,6 +170,19 @@ public sealed class GraphRagDb : IDisposable
         await ExecAsync("DELETE FROM chunks WHERE document_id = $1", docId);
     }
 
+    /// <summary>Delete all chunks from the database. Used for per-document entity extraction.</summary>
+    public async Task ClearAllChunksAsync()
+    {
+        // Delete all entity mentions first (foreign key constraint)
+        await ExecAsync("DELETE FROM entity_mentions");
+
+        // Delete all relationship mentions
+        await ExecAsync("DELETE FROM relationship_mentions");
+
+        // Delete all chunks
+        await ExecAsync("DELETE FROM chunks");
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // Chunks
     // ═══════════════════════════════════════════════════════════════════════════
