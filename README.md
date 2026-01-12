@@ -15,11 +15,11 @@
 
 ---
 
-## Why LucidRAG?
+## Why ***lucid***RAG?
 
-Most RAG systems are basic document-to-vector pipelines. LucidRAG is different:
+Most RAG systems are basic document-to-vector pipelines. ***lucid***RAG is different:
 
-| Feature | Basic RAG | LucidRAG |
+| Feature | Basic RAG | ***lucid***RAG |
 |---------|-----------|----------|
 | Search | Semantic only | Hybrid BM25 + Semantic with RRF fusion |
 | Query Processing | Direct embedding | Agentic decomposition (Sentinel) |
@@ -34,7 +34,7 @@ Most RAG systems are basic document-to-vector pipelines. LucidRAG is different:
 
 ## Getting Started (Development)
 
-> **Note:** LucidRAG is in active development. These instructions are for contributors and early testers.
+> **Note:** ***lucid***RAG is in active development. These instructions are for contributors and early testers.
 
 ### Prerequisites
 
@@ -47,15 +47,15 @@ Most RAG systems are basic document-to-vector pipelines. LucidRAG is different:
 
 ```bash
 # Clone the repository
-git clone https://github.com/scottgal/lucidrag.git
-cd lucidrag
+git clone https://github.com/scottgal/***lucid***RAG.git
+cd ***lucid***RAG
 
 # Set up the database connection in user secrets
-cd src/LucidRAG
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=LucidRAG;Username=postgres;Password=yourpassword"
+cd src/***lucid***RAG
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=***lucid***RAG;Username=postgres;Password=yourpassword"
 
 # Build and run
-dotnet run --project src/LucidRAG/LucidRAG.csproj
+dotnet run --project src/***lucid***RAG/***lucid***RAG.csproj
 ```
 
 ### Standalone Mode (Quick Testing)
@@ -63,7 +63,7 @@ dotnet run --project src/LucidRAG/LucidRAG.csproj
 For quick testing without PostgreSQL:
 
 ```bash
-dotnet run --project src/LucidRAG/LucidRAG.csproj -- --standalone
+dotnet run --project src/***lucid***RAG/***lucid***RAG.csproj -- --standalone
 ```
 
 Uses SQLite + InMemory vectors. **Note:** Embeddings are not persisted between restarts in standalone mode.
@@ -72,10 +72,10 @@ Uses SQLite + InMemory vectors. **Note:** Embeddings are not persisted between r
 
 ## Core Components
 
-LucidRAG is built from specialized processing engines, each designed for a specific content type:
+***lucid***RAG is built from specialized processing engines, each designed for a specific content type:
 
 ```
-LucidRAG Platform
+***lucid***RAG Platform
        │
        ├── Web Application (ASP.NET Core 10 + Razor + Alpine.js + Tailwind)
        │      ├── Chat Interface with streaming responses
@@ -215,7 +215,7 @@ Enterprise-ready tenant isolation:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   LucidRAG Instance                  │
+│                   ***lucid***RAG Instance                  │
 ├─────────────────────────────────────────────────────┤
 │  tenant_acme (schema)    │  tenant_globex (schema)  │
 │  ├── collections         │  ├── collections         │
@@ -300,20 +300,20 @@ Enterprise-ready tenant isolation:
 
 ## CLI Tools
 
-### LucidRAG CLI
+### ***lucid***RAG CLI
 
 ```bash
 # Process files (auto-routes by extension)
-lucidrag-cli process document.pdf image.gif data.csv --collection mydata
+***lucid***RAG-cli process document.pdf image.gif data.csv --collection mydata
 
 # Search
-lucidrag-cli search "authentication best practices" --collection mydata
+***lucid***RAG-cli search "authentication best practices" --collection mydata
 
 # Interactive chat
-lucidrag-cli chat --collection mydata
+***lucid***RAG-cli chat --collection mydata
 
 # Run web server
-lucidrag-cli serve --port 5080
+***lucid***RAG-cli serve --port 5080
 ```
 
 ### ImageSummarizer CLI (Standalone)
@@ -342,13 +342,13 @@ imagesummarizer --mcp
 
 ```bash
 # Build solution
-dotnet build LucidRAG.sln
+dotnet build ***lucid***RAG.sln
 
 # Run with hot reload
-dotnet watch run --project src/LucidRAG/LucidRAG.csproj
+dotnet watch run --project src/***lucid***RAG/***lucid***RAG.csproj
 
 # Build CSS (Tailwind + DaisyUI)
-cd src/LucidRAG && npm install && npm run build:css
+cd src/***lucid***RAG && npm install && npm run build:css
 
 # Run tests
 dotnet test --filter "Category!=Browser"
@@ -375,10 +375,10 @@ dotnet test --filter "Category!=Browser"
 
 ```
 src/
-├── LucidRAG/                          # Web application
-├── LucidRAG.Cli/                      # Command-line tool
-├── LucidRAG.Core/                     # Business logic & entities
-├── LucidRAG.Tests/                    # Integration tests
+├── ***lucid***RAG/                          # Web application
+├── ***lucid***RAG.Cli/                      # Command-line tool
+├── ***lucid***RAG.Core/                     # Business logic & entities
+├── ***lucid***RAG.Tests/                    # Integration tests
 │
 ├── Mostlylucid.Summarizer.Core/       # Pipeline interfaces
 ├── Mostlylucid.DocSummarizer.Core/    # Document processing
@@ -402,8 +402,8 @@ src/
 | Workflow | Trigger | Output |
 |----------|---------|--------|
 | `build.yml` | PR/Push | Tests with PostgreSQL containers |
-| `release-lucidrag.yml` | `lucidrag-v*` tag | Docker multi-arch (amd64/arm64) |
-| `release-lucidrag-cli.yml` | `cli-v*` tag | CLI binaries |
+| `release-***lucid***RAG.yml` | `***lucid***RAG-v*` tag | Docker multi-arch (amd64/arm64) |
+| `release-***lucid***RAG-cli.yml` | `cli-v*` tag | CLI binaries |
 | `release-imagesummarizer.yml` | `img-v*` tag | ImageSummarizer releases |
 | `publish-docsummarizer-nuget.yml` | Manual | NuGet packages |
 
@@ -417,12 +417,12 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Contributing
 
-LucidRAG is in active development and we welcome contributions! Please check the [Issues](https://github.com/scottgal/lucidrag/issues) for areas where help is needed.
+***lucid***RAG is in active development and we welcome contributions! Please check the [Issues](https://github.com/scottgal/***lucid***RAG/issues) for areas where help is needed.
 
 ---
 
 <div align="center">
 
-**[GitHub](https://github.com/scottgal/lucidrag)** | **[Issues](https://github.com/scottgal/lucidrag/issues)**
+**[GitHub](https://github.com/scottgal/***lucid***RAG)** | **[Issues](https://github.com/scottgal/***lucid***RAG/issues)**
 
 </div>
