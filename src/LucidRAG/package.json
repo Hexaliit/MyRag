@@ -1,7 +1,7 @@
 {
   "name": "lucidrag",
   "version": "1.0.0",
-  "description": "LucidRAG - Multi-Document RAG with GraphRAG",
+  "description": "lucidRAG - Multi-Document RAG with GraphRAG",
   "type": "module",
   "scripts": {
     "dev": "vite",
