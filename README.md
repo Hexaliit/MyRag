@@ -47,15 +47,15 @@ Most RAG systems are basic document-to-vector pipelines. ***lucid***RAG is diffe
 
 ```bash
 # Clone the repository
-git clone https://github.com/scottgal/***lucid***RAG.git
-cd ***lucid***RAG
+git clone https://github.com/scottgal/LucidRAG.git
+cd LucidRAG
 
 # Set up the database connection in user secrets
-cd src/***lucid***RAG
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=***lucid***RAG;Username=postgres;Password=yourpassword"
+cd src/LucidRAG
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=LucidRAG;Username=postgres;Password=yourpassword"
 
 # Build and run
-dotnet run --project src/***lucid***RAG/***lucid***RAG.csproj
+dotnet run --project src/LucidRAG/LucidRAG.csproj
 ```
 
 ### Standalone Mode (Quick Testing)
@@ -63,7 +63,7 @@ dotnet run --project src/***lucid***RAG/***lucid***RAG.csproj
 For quick testing without PostgreSQL:
 
 ```bash
-dotnet run --project src/***lucid***RAG/***lucid***RAG.csproj -- --standalone
+dotnet run --project src/LucidRAG/LucidRAG.csproj -- --standalone
 ```
 
 Uses SQLite + InMemory vectors. **Note:** Embeddings are not persisted between restarts in standalone mode.
@@ -75,7 +75,7 @@ Uses SQLite + InMemory vectors. **Note:** Embeddings are not persisted between r
 ***lucid***RAG is built from specialized processing engines, each designed for a specific content type:
 
 ```
-***lucid***RAG Platform
+LucidRAG Platform
        │
        ├── Web Application (ASP.NET Core 10 + Razor + Alpine.js + Tailwind)
        │      ├── Chat Interface with streaming responses
@@ -215,7 +215,7 @@ Enterprise-ready tenant isolation:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   ***lucid***RAG Instance                  │
+│                   LucidRAG Instance                 │
 ├─────────────────────────────────────────────────────┤
 │  tenant_acme (schema)    │  tenant_globex (schema)  │
 │  ├── collections         │  ├── collections         │
@@ -300,20 +300,20 @@ Enterprise-ready tenant isolation:
 
 ## CLI Tools
 
-### ***lucid***RAG CLI
+### LucidRAG CLI
 
 ```bash
 # Process files (auto-routes by extension)
-***lucid***RAG-cli process document.pdf image.gif data.csv --collection mydata
+lucidrag-cli process document.pdf image.gif data.csv --collection mydata
 
 # Search
-***lucid***RAG-cli search "authentication best practices" --collection mydata
+lucidrag-cli search "authentication best practices" --collection mydata
 
 # Interactive chat
-***lucid***RAG-cli chat --collection mydata
+lucidrag-cli chat --collection mydata
 
 # Run web server
-***lucid***RAG-cli serve --port 5080
+lucidrag-cli serve --port 5080
 ```
 
 ### ImageSummarizer CLI (Standalone)
@@ -342,13 +342,13 @@ imagesummarizer --mcp
 
 ```bash
 # Build solution
-dotnet build ***lucid***RAG.sln
+dotnet build LucidRAG.sln
 
 # Run with hot reload
-dotnet watch run --project src/***lucid***RAG/***lucid***RAG.csproj
+dotnet watch run --project src/LucidRAG/LucidRAG.csproj
 
 # Build CSS (Tailwind + DaisyUI)
-cd src/***lucid***RAG && npm install && npm run build:css
+cd src/LucidRAG && npm install && npm run build:css
 
 # Run tests
 dotnet test --filter "Category!=Browser"
@@ -375,10 +375,10 @@ dotnet test --filter "Category!=Browser"
 
 ```
 src/
-├── ***lucid***RAG/                          # Web application
-├── ***lucid***RAG.Cli/                      # Command-line tool
-├── ***lucid***RAG.Core/                     # Business logic & entities
-├── ***lucid***RAG.Tests/                    # Integration tests
+├── LucidRAG/                          # Web application
+├── LucidRAG.Cli/                      # Command-line tool
+├── LucidRAG.Core/                     # Business logic & entities
+├── LucidRAG.Tests/                    # Integration tests
 │
 ├── Mostlylucid.Summarizer.Core/       # Pipeline interfaces
 ├── Mostlylucid.DocSummarizer.Core/    # Document processing
@@ -402,8 +402,8 @@ src/
 | Workflow | Trigger | Output |
 |----------|---------|--------|
 | `build.yml` | PR/Push | Tests with PostgreSQL containers |
-| `release-***lucid***RAG.yml` | `***lucid***RAG-v*` tag | Docker multi-arch (amd64/arm64) |
-| `release-***lucid***RAG-cli.yml` | `cli-v*` tag | CLI binaries |
+| `release-lucidrag.yml` | `lucidrag-v*` tag | Docker multi-arch (amd64/arm64) |
+| `release-lucidrag-cli.yml` | `cli-v*` tag | CLI binaries |
 | `release-imagesummarizer.yml` | `img-v*` tag | ImageSummarizer releases |
 | `publish-docsummarizer-nuget.yml` | Manual | NuGet packages |
 
