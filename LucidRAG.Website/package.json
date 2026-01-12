@@ -1,0 +1,26 @@
+{
+  "name": "lucidrag-website",
+  "version": "1.0.0",
+  "description": "LucidRAG - Open-Source Agentic RAG Platform",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:css": "npx tailwindcss -i ./src/css/main.css -o ./dist/css/main.css --minify",
+    "watch:css": "npx tailwindcss -i ./src/css/main.css -o ./dist/css/main.css --watch",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.7",
+    "@tailwindcss/typography": "^0.5.10",
+    "autoprefixer": "^10.4.16",
+    "daisyui": "^4.12.10",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.1",
+    "vite": "^5.4.11"
+  },
+  "dependencies": {
+    "alpinejs": "^3.14.1",
+    "htmx.org": "^2.0.3"
+  }
+}

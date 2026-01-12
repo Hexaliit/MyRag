@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LucidRAG - Open-Source Agentic RAG Platform</title>
+    <meta name="description" content="Multi-document intelligence with GraphRAG entity extraction, 22-wave image analysis, and enterprise multi-tenancy. Zero API keys required.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Raleway:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <link href="../dist/css/main.css" rel="stylesheet">
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+</head>
+<body class="bg-base-100 text-base-content" x-data="mobileMenu()">
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 navbar-backdrop bg-base-100/80 border-b border-base-200/50">
+        <div class="container mx-auto px-4">
+            <div class="navbar">
+                <div class="navbar-start">
+                    <a href="index.html" class="text-2xl font-bold font-brand">
+                        <span class="italic text-base-content/50">lucid</span><span class="text-base-content">RAG</span>
+                    </a>
+                </div>
+                <div class="navbar-center hidden lg:flex">
+                    <ul class="menu menu-horizontal px-1 gap-2">
+                        <li><a href="index.html" class="font-medium">Home</a></li>
+                        <li><a href="features.html" class="font-medium">Features</a></li>
+                        <li><a href="pricing.html" class="font-medium">Pricing</a></li>
+                        <li><a href="architecture.html" class="font-medium">Architecture</a></li>
+                        <li><a href="docs.html" class="font-medium">Documentation</a></li>
+                        <li><a href="comparison.html" class="font-medium">Compare</a></li>
+                    </ul>
+                </div>
+                <div class="navbar-end gap-2">
+                    <a href="https://github.com/scottgal/LucidRAG" target="_blank" class="btn btn-ghost btn-circle" aria-label="GitHub">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-1.23-4.035-2.235-.135-.345-.72-1.23-1.23-1.48-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                        </svg>
+                    </a>
+                    <a href="docs.html" class="btn btn-primary btn-sm">Get Started</a>
+                    <div class="dropdown lg:hidden">
+                        <label tabindex="0" class="btn btn-ghost btn-circle" @click="toggle()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/>
+                            </svg>
+                        </label>
+                        <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow-lg bg-base-100 rounded-box w-52" :class="{ 'hidden': !isOpen }">
+                            <li><a href="index.html" @click="isOpen = false">Home</a></li>
+                            <li><a href="features.html" @click="isOpen = false">Features</a></li>
+                            <li><a href="pricing.html" @click="isOpen = false">Pricing</a></li>
+                            <li><a href="architecture.html" @click="isOpen = false">Architecture</a></li>
+                            <li><a href="docs.html" @click="isOpen = false">Documentation</a></li>
+                            <li><a href="comparison.html" @click="isOpen = false">Compare</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="pt-32 pb-20 px-4 bg-gradient-to-b from-base-100 to-base-200">
+        <div class="container mx-auto">
+            <div class="flex flex-col lg:flex-row items-center gap-12">
+                <div class="lg:w-1/2 animate-fade-in">
+                    <div class="badge badge-primary badge-outline mb-4">Open Source</div>
+                    <h1 class="text-5xl lg:text-6xl font-bold font-brand mb-6">
+                        The Open-Source <br>
+                        <span class="gradient-text from-primary to-secondary">Agentic RAG Platform</span>
+                    </h1>
+                    <p class="text-xl text-base-content/70 mb-8 leading-relaxed">
+                        Multi-document intelligence with GraphRAG entity extraction, 22-wave image analysis, and enterprise multi-tenancy. Zero API keys required.
+                    </p>
+                    <div class="flex flex-wrap gap-4 mb-8">
+                        <a href="docs.html" class="btn btn-primary btn-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                            Get Started
+                        </a>
+                        <a href="https://github.com/scottgal/LucidRAG" target="_blank" class="btn btn-outline btn-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-1.23-4.035-2.235-.135-.345-.72-1.23-1.23-1.48-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                            </svg>
+                            View on GitHub
+                        </a>
+                    </div>
+                    <div class="flex flex-wrap gap-6 text-sm text-base-content/60">
+                        <div class="flex items-center gap-2">
+                            <span class="badge badge-success badge-xs"></span>
+                            .NET 10.0
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="badge badge-success badge-xs"></span>
+                            MIT License
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="badge badge-warning badge-xs"></span>
+                            In Development
+                        </div>
+                    </div>
+                </div>
+                <div class="lg:w-1/2">
+                    <div class="placeholder-image aspect-video text-lg">
+                        <span class="text-center px-4">Chat Interface Screenshot<br><span class="text-sm opacity-70">Hero Image Placeholder (800x600)</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="py-16 bg-base-200">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+                <div class="text-center animate-slide-up">
+                    <div class="text-4xl font-bold text-primary mb-2">5</div>
+                    <div class="text-sm text-base-content/60">Processing Pipelines</div>
+                </div>
+                <div class="text-center animate-slide-up" style="animation-delay: 0.1s">
+                    <div class="text-4xl font-bold text-secondary mb-2">25+</div>
+                    <div class="text-sm text-base-content/60">File Formats</div>
+                </div>
+                <div class="text-center animate-slide-up" style="animation-delay: 0.2s">
+                    <div class="text-4xl font-bold text-accent mb-2">22</div>
+                    <div class="text-sm text-base-content/60">Analysis Waves</div>
+                </div>
+                <div class="text-center animate-slide-up" style="animation-delay: 0.3s">
+                    <div class="text-4xl font-bold text-info mb-2">Zero</div>
+                    <div class="text-sm text-base-content/60">API Keys Required</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison Section -->
+    <section class="py-20 px-4">
+        <div class="container mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl font-bold font-brand mb-4">Why LucidRAG?</h2>
+                <p class="text-lg text-base-content/70 max-w-2xl mx-auto">
+                    Most RAG systems are basic document-to-vector pipelines. LucidRAG is different.
+                </p>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="comparison-table w-full bg-base-100 shadow-xl rounded-lg">
+                    <thead>
+                        <tr class="bg-base-300">
+                            <th class="w-1/4 font-bold">Feature</th>
+                            <th class="w-1/4 font-bold">Basic RAG</th>
+                            <th class="w-1/2 font-bold text-primary bg-primary/5">LucidRAG</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="border-b border-base-200">
+                            <td class="font-medium">Search</td>
+                            <td class="text-base-content/60">Semantic only</td>
+                            <td class="text-primary font-medium">Hybrid BM25 + Semantic with RRF fusion</td>
+                        </tr>
+                        <tr class="border-b border-base-200 bg-base-200/30">
+                            <td class="font-medium">Query Processing</td>
+                            <td class="text-base-content/60">Direct embedding</td>
+                            <td class="text-primary font-medium">Agentic decomposition (Sentinel)</td>
+                        </tr>
+                        <tr class="border-b border-base-200">
+                            <td class="font-medium">Knowledge</td>
+                            <td class="text-base-content/60">Flat chunks</td>
+                            <td class="text-primary font-medium">GraphRAG with entity extraction & communities</td>
+                        </tr>
+                        <tr class="border-b border-base-200 bg-base-200/30">
+                            <td class="font-medium">Images</td>
+                            <td class="text-base-content/60">Not supported</td>
+                            <td class="text-primary font-medium">22-wave ML pipeline (OCR, faces, motion, scenes)</td>
+                        </tr>
+                        <tr class="border-b border-base-200">
+                            <td class="font-medium">Data Files</td>
+                            <td class="text-base-content/60">Not supported</td>
+                            <td class="text-primary font-medium">CSV, Excel, Parquet profiling with DuckDB</td>
+                        </tr>
+                        <tr class="border-b border-base-200 bg-base-200/30">
+                            <td class="font-medium">Audio</td>
+                            <td class="text-base-content/60">Not supported</td>
+                            <td class="text-primary font-medium">Transcription, speakers, music analysis</td>
+                        </tr>
+                        <tr class="border-b border-base-200">
+                            <td class="font-medium">Video</td>
+                            <td class="text-base-content/60">Not supported</td>
+                            <td class="text-primary font-medium">Scene detection, transcript extraction</td>
+                        </tr>
+                        <tr>
+                            <td class="font-medium">Multi-tenancy</td>
+                            <td class="text-base-content/60">Not supported</td>
+                            <td class="text-primary font-medium">Schema-per-tenant with automatic provisioning</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Preview -->
+    <section class="py-20 px-4 bg-base-200">
+        <div class="container mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl font-bold font-brand mb-4">Powerful Features</h2>
+                <p class="text-lg text-base-content/70 max-w-2xl mx-auto">
+                    Everything you need to build intelligent document understanding systems
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <a href="features.html#document-pipeline" class="feature-card card bg-base-100 shadow-lg hover:shadow-xl cursor-pointer">
+                    <div class="card-body">
+                        <div class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="card-title mb-2">Document Pipeline</h3>
+                        <p class="text-base-content/70 text-sm">PDF, DOCX, PPTX, Markdown, HTML, TXT with intelligent chunking and hybrid search</p>
+                    </div>
+                </a>
+
+                <a href="features.html#image-pipeline" class="feature-card card bg-base-100 shadow-lg hover:shadow-xl cursor-pointer">
+                    <div class="card-body">
+                        <div class="w-12 h-12 rounded-lg bg-secondary/10 flex items-center justify-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="card-title mb-2">22-Wave Image Analysis</h3>
+                        <p class="text-base-content/70 text-sm">OCR, face detection, motion analysis, scene recognition, and more</p>
+                    </div>
+                </a>
+
+                <a href="features.html#graphrag" class="feature-card card bg-base-100 shadow-lg hover:shadow-xl cursor-pointer">
+                    <div class="card-body">
+                        <div class="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                            </svg>
+                        </div>
+                        <h3 class="card-title mb-2">GraphRAG Knowledge Graph</h3>
+                        <p class="text-base-content/70 text-sm">Entity extraction with community detection and interactive visualization</p>
+                    </div>
+                </a>
+
+                <a href="features.html#data-profiling" class="feature-card card bg-base-100 shadow-lg hover:shadow-xl cursor-pointer">
+                    <div class="card-body">
+                        <div class="w-12 h-12 rounded-lg bg-info/10 flex items-center justify-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="card-title mb-2">Data Profiling</h3>
+                        <p class="text-base-content/70 text-sm">CSV, Excel, Parquet analysis with DuckDB and constraint validation</p>
+                    </div>
+                </a>
+
+                <a href="features.html#sentinel" class="feature-card card bg-base-100 shadow-lg hover:shadow-xl cursor-pointer">
+                    <div class="card-body">
+                        <div class="w-12 h-12 rounded-lg bg-warning/10 flex items-center justify-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="card-title mb-2">Sentinel Query Engine</h3>
+                        <p class="text-base-content/70 text-sm">Agentic query decomposition with classification and optimization</p>
+                    </div>
+                </a>
+
+                <a href="features.html#explorer" class="feature-card card bg-base-100 shadow-lg hover:shadow-xl cursor-pointer">
+                    <div class="card-body">
+                        <div class="w-12 h-12 rounded-lg bg-error/10 flex items-center justify-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                        </div>
+                        <h3 class="card-title mb-2">Ultimate File Explorer</h3>
+                        <p class="text-base-content/70 text-sm">Search everything across all file types in one place with natural language</p>
+                    </div>
+                </a>
+            </div>
+
+            <div class="text-center mt-12">
+                <a href="features.html" class="btn btn-outline btn-lg">
+                    Explore All Features
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Screenshot Carousel -->
+    <section class="py-20 px-4">
+        <div class="container mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl font-bold font-brand mb-4">See It In Action</h2>
+                <p class="text-lg text-base-content/70 max-w-2xl mx-auto">
+                    A modern, intuitive interface built for productivity
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="space-y-2">
+                    <div class="placeholder-image aspect-video">
+                        <span class="text-sm">Chat Input Screenshot</span>
+                    </div>
+                    <p class="text-center text-sm text-base-content/60">Natural Language Chat</p>
+                </div>
+                <div class="space-y-2">
+                    <div class="placeholder-image aspect-video">
+                        <span class="text-sm">Response View Screenshot</span>
+                    </div>
+                    <p class="text-center text-sm text-base-content/60">Rich Response Display</p>
+                </div>
+                <div class="space-y-2">
+                    <div class="placeholder-image aspect-video">
+                        <span class="text-sm">Evidence View Screenshot</span>
+                    </div>
+                    <p class="text-center text-sm text-base-content/60">Sentence-Level Evidence</p>
+                </div>
+                <div class="space-y-2">
+                    <div class="placeholder-image aspect-video">
+                        <span class="text-sm">Graph View Screenshot</span>
+                    </div>
+                    <p class="text-center text-sm text-base-content/60">Knowledge Graph Visualization</p>
+                </div>
+                <div class="space-y-2">
+                    <div class="placeholder-image aspect-video">
+                        <span class="text-sm">Answer View Screenshot</span>
+                    </div>
+                    <p class="text-center text-sm text-base-content/60">Multi-View Answers</p>
+                </div>
+                <div class="space-y-2 flex items-center justify-center bg-base-200 rounded-lg p-8">
+                    <div class="text-center">
+                        <h3 class="text-2xl font-bold font-brand mb-2">+ More</h3>
+                        <p class="text-base-content/60">File Explorer, Collections, Communities, and more</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-20 px-4 cta-gradient text-primary-content">
+        <div class="container mx-auto text-center">
+            <h2 class="text-4xl font-bold font-brand mb-4">Ready to Get Started?</h2>
+            <p class="text-xl mb-8 opacity-90 max-w-2xl mx-auto">
+                Join the open-source community and start building intelligent document understanding systems today.
+            </p>
+            <div class="flex flex-wrap justify-center gap-4">
+                <a href="docs.html" class="btn btn-neutral btn-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                    </svg>
+                    Read Documentation
+                </a>
+                <a href="https://github.com/scottgal/LucidRAG" target="_blank" class="btn btn-neutral btn-lg btn-outline">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-1.23-4.035-2.235-.135-.345-.72-1.23-1.23-1.48-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                    </svg>
+                    Star on GitHub
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-base-300 py-12 px-4">
+        <div class="container mx-auto">
+            <div class="grid md:grid-cols-4 gap-8 mb-8">
+                <div>
+                    <h4 class="font-bold font-brand text-xl mb-4">
+                        <span class="italic text-gray-400">lucid</span><span class="text-base-content">RAG</span>
+                    </h4>
+                    <p class="text-sm text-base-content/70">
+                        Multi-document intelligence with GraphRAG entity extraction and enterprise features.
+                    </p>
+                </div>
+                <div>
+                    <h4 class="font-semibold mb-4">Product</h4>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="features.html" class="link link-hover">Features</a></li>
+                        <li><a href="pricing.html" class="link link-hover">Pricing</a></li>
+                        <li><a href="architecture.html" class="link link-hover">Architecture</a></li>
+                        <li><a href="comparison.html" class="link link-hover">Compare</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold mb-4">Resources</h4>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="docs.html" class="link link-hover">Documentation</a></li>
+                        <li><a href="https://github.com/scottgal/LucidRAG" target="_blank" class="link link-hover">GitHub</a></li>
+                        <li><a href="https://github.com/scottgal/LucidRAG/issues" target="_blank" class="link link-hover">Issues</a></li>
+                        <li><a href="about.html" class="link link-hover">About</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold mb-4">Status</h4>
+                    <div class="badge badge-warning badge-outline mb-2">In Development</div>
+                    <p class="text-xs text-base-content/60">
+                        APIs may change without notice. Watch the repository for updates.
+                    </p>
+                </div>
+            </div>
+            <div class="border-t border-base-content/20 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                <p class="text-sm text-base-content/60">
+                    &copy; 2026 LucidRAG. Built with .NET 10.0, TailwindCSS, and DaisyUI.
+                </p>
+                <div class="flex gap-4">
+                    <a href="https://github.com/scottgal/LucidRAG" target="_blank" class="btn btn-ghost btn-sm btn-circle" aria-label="GitHub">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-1.23-4.035-2.235-.135-.345-.72-1.23-1.23-1.48-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="./js/main.js"></script>
+</body>
+</html>

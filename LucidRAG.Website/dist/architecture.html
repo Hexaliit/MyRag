@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture - LucidRAG</title>
+    <meta name="description" content="Learn about LucidRAG's unified pipeline architecture, distributed system design, and multi-tenant architecture">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Raleway:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link href="../dist/css/main.css" rel="stylesheet">
+
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+</head>
+<body class="bg-base-100 text-base-content" x-data="mobileMenu()">
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 navbar-backdrop bg-base-100/80 border-b border-base-200/50">
+        <div class="container mx-auto px-4">
+            <div class="navbar">
+                <div class="navbar-start">
+                    <a href="index.html" class="text-2xl font-bold font-brand">
+                        <span class="italic text-base-content/50">lucid</span><span class="text-base-content">RAG</span>
+                    </a>
+                </div>
+                <div class="navbar-center hidden lg:flex">
+                    <ul class="menu menu-horizontal px-1 gap-2">
+                        <li><a href="index.html" class="font-medium">Home</a></li>
+                        <li><a href="features.html" class="font-medium">Features</a></li>
+                        <li><a href="pricing.html" class="font-medium">Pricing</a></li>
+                        <li><a href="architecture.html" class="font-medium font-bold text-primary">Architecture</a></li>
+                        <li><a href="docs.html" class="font-medium">Documentation</a></li>
+                        <li><a href="comparison.html" class="font-medium">Compare</a></li>
+                    </ul>
+                </div>
+                <div class="navbar-end gap-2">
+                    <a href="https://github.com/scottgal/LucidRAG" target="_blank" class="btn btn-ghost btn-circle">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-1.23-4.035-2.235-.135-.345-.72-1.23-1.23-1.48-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                        </svg>
+                    </a>
+                    <a href="docs.html" class="btn btn-primary btn-sm">Get Started</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <section class="pt-32 pb-16 px-4 bg-base-200">
+        <div class="container mx-auto text-center">
+            <h1 class="text-5xl font-bold font-brand mb-4">Architecture</h1>
+            <p class="text-xl text-base-content/70 max-w-3xl mx-auto">
+                Understanding LucidRAG's unified pipeline system and deployment options
+            </p>
+        </div>
+    </section>
+
+    <!-- Unified Pipeline -->
+    <section class="py-16 px-4">
+        <div class="container mx-auto">
+            <h2 class="text-3xl font-bold font-brand mb-8 text-center">Unified Pipeline Architecture</h2>
+            
+            <div class="max-w-4xl mx-auto">
+                <div class="placeholder-image aspect-video mb-8">
+                    <span>Unified Pipeline Diagram<br><span class="text-sm opacity-70">Visual: File Upload → PipelineRegistry → Auto-route → 5 Pipelines → Embeddings + Entities + Evidence</span></span>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="card bg-base-200">
+                        <div class="card-body p-4">
+                            <h3 class="font-semibold text-primary mb-2">Key Principles</h3>
+                            <ul class="text-sm space-y-2 text-base-content/70">
+                                <li>• Unified <code>IPipeline</code> interface</li>
+                                <li>• Auto-routing by file extension</li>
+                                <li>• Signal-based architecture</li>
+                                <li>• Priority-based execution (110 → 5)</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card bg-base-200">
+                        <div class="card-body p-4">
+                            <h3 class="font-semibold text-primary mb-2">5 Processing Pipelines</h3>
+                            <ul class="text-sm space-y-2 text-base-content/70">
+                                <li>• DocumentPipeline (PDF, DOCX, etc.)</li>
+                                <li>• ImagePipeline (22-wave analysis)</li>
+                                <li>• DataPipeline (CSV, Excel, Parquet)</li>
+                                <li>• AudioPipeline (transcription, speakers)</li>
+                                <li>• VideoPipeline (scenes + audio)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- Single Instance (Free) -->
+    <section class="py-16 px-4 bg-base-200">
+        <div class="container mx-auto">
+            <div class="flex items-center gap-4 mb-8">
+                <div class="w-16 h-16 rounded-xl bg-success/10 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-3xl font-bold font-brand">Single Instance (Free Tier)</h2>
+                    <p class="text-base-content/60">All-in-one deployment for small teams</p>
+                </div>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-8 items-center">
+                <div>
+                    <div class="placeholder-image aspect-video">
+                        <span>Single Instance Diagram<br><span class="text-sm opacity-70">Web App → Processing → Vector Store + GraphRAG</span></span>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">What You Get</h3>
+                    <ul class="space-y-3">
+                        <li class="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-sm">All 5 pipelines running on one server</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-sm">SQLite for metadata (standalone) or PostgreSQL (production)</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-sm">InMemory vectors (standalone) or Qdrant (production)</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-sm">Perfect for small teams and proof-of-concept</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- Distributed System (Paid) -->
+    <section class="py-16 px-4">
+        <div class="container mx-auto">
+            <div class="flex items-center gap-4 mb-8">
+                <div class="w-16 h-16 rounded-xl bg-warning/10 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-3xl font-bold font-brand">Distributed System (Paid Tier)</h2>
+                    <p class="text-base-content/60">Horizontal scaling for production workloads</p>
+                </div>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-8 items-center">
+                <div>
+                    <div class="placeholder-image aspect-video mb-4">
+                        <span>Distributed System Diagram<br><span class="text-sm opacity-70">Load Balancer → Web App → Message Queue → [Ingesters + Searchers] → Clustered Storage</span></span>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">What You Get</h3>
+                    <ul class="space-y-3">
+                        <li class="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-sm">Horizontal scaling across multiple servers</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-sm">Separate ingester and searcher services</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-sm">Queue-based job distribution</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-sm">Clustered vector stores and GraphRAG</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-sm">Fault tolerance and high availability</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- Multi-Tenancy -->
+    <section class="py-16 px-4 bg-base-200">
+        <div class="container mx-auto">
+            <div class="flex items-center gap-4 mb-8">
+                <div class="w-16 h-16 rounded-xl bg-error/10 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-3xl font-bold font-brand">Multi-Tenant Architecture</h2>
+                    <p class="text-base-content/60">Schema-per-tenant isolation for enterprise</p>
+                </div>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-8">
+                <div>
+                    <div class="placeholder-image aspect-video">
+                        <span>Multi-Tenant Diagram<br><span class="text-sm opacity-70">LucidRAG Instance → [tenant_acme schema + qdrant:acme_vecs] + [tenant_globex schema + qdrant:globex_vecs]</span></span>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">Features</h3>
+                    <div class="space-y-4">
+                        <div class="card bg-base-100">
+                            <div class="card-body p-4">
+                                <h4 class="font-semibold text-error mb-2">Schema-per-Tenant</h4>
+                                <p class="text-sm text-base-content/70">Complete PostgreSQL schema isolation for each tenant</p>
+                            </div>
+                        </div>
+                        <div class="card bg-base-100">
+                            <div class="card-body p-4">
+                                <h4 class="font-semibold text-error mb-2">Auto-Provisioning</h4>
+                                <p class="text-sm text-base-content/70">Tenant schemas created automatically on first access</p>
+                            </div>
+                        </div>
+                        <div class="card bg-base-100">
+                            <div class="card-body p-4">
+                                <h4 class="font-semibold text-error mb-2">Domain Routing</h4>
+                                <p class="text-sm text-base-content/70">Subdomain or path-based routing (acme.lucidrag.com)</p>
+                            </div>
+                        </div>
+                        <div class="card bg-base-100">
+                            <div class="card-body p-4">
+                                <h4 class="font-semibold text-error mb-2">Per-Tenant Vector Collections</h4>
+                                <p class="text-sm text-base-content/70">Separate Qdrant collections for each tenant</p>
+                            </div>
+                        </div>
+                        <div class="card bg-base-100">
+                            <div class="card-body p-4">
+                                <h4 class="font-semibold text-error mb-2">RBAC</h4>
+                                <p class="text-sm text-base-content/70">Role-based access control per tenant</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-base-300 py-8 px-4 mt-20">
+        <div class="container mx-auto text-center">
+            <p class="text-sm text-base-content/60">
+                &copy; 2026 LucidRAG. <a href="index.html" class="link link-hover">Back to Home</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="./js/main.js"></script>
+</body>
+</html>
