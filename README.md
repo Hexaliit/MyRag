@@ -296,6 +296,36 @@ Enterprise-ready tenant isolation:
 }
 ```
 
+### Unified LLM Providers (Advanced)
+
+For multi-provider setups with named instances and resilience, use the YAML-based configuration:
+
+```yaml
+# Config/llm-providers.yaml
+backends:
+  anthropic:
+    type: anthropic
+    api_key: ${ANTHROPIC_API_KEY}
+    max_retries: 3
+
+providers:
+  fast-local:
+    model: tinyllama
+  general:
+    model: claude-sonnet
+    fallback: gpt-4o-mini
+  smart:
+    model: claude-opus
+```
+
+**Features:**
+- Named providers with tier-based selection (triage, general, synthesis, vision)
+- Polly resilience (retry with exponential backoff, circuit breaker)
+- OpenTelemetry observability (tracing, metrics)
+- Named prompt library with provider-specific overrides
+
+See [docs/UNIFIED_LLM_PROVIDERS.md](docs/UNIFIED_LLM_PROVIDERS.md) for complete documentation.
+
 ---
 
 ## CLI Tools

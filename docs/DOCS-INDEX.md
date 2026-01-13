@@ -61,6 +61,19 @@ Complete documentation for the LucidRAG project and ImageSummarizer OCR tool.
 - **[CLAUDE.md](CLAUDE.md)** - Claude Code integration guide
 - **[src/LucidRAG/README.md](src/LucidRAG/README.md)** - Web application details
 
+### LLM Provider Infrastructure
+- **[UNIFIED_LLM_PROVIDERS.md](UNIFIED_LLM_PROVIDERS.md)** - Unified LLM provider infrastructure
+  - Named providers (fast-local, general, smart, vision)
+  - YAML configuration for backends and models
+  - Named prompt library with templates
+  - Polly resilience (retry, circuit breaker)
+  - OpenTelemetry observability (tracing, metrics)
+- **[PROMPT_TEMPLATE_VARIABLES.md](PROMPT_TEMPLATE_VARIABLES.md)** - Prompt template variable reference
+  - All available variables by task type
+  - RAG synthesis, entity extraction, classification variables
+  - JSON output schemas and examples
+  - Best practices for custom prompts
+
 ### Architecture & Design
 - **[ARCHITECTURE_VISION.md](ARCHITECTURE_VISION.md)** - System architecture and design goals
 - **[SOLID_REVIEW_AND_TESTS.md](SOLID_REVIEW_AND_TESTS.md)** - Code quality review
