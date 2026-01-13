@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+
+        <!-- Package metadata -->
+        <PackageId>LucidRAG.LLM</PackageId>
+        <Description>Unified LLM provider infrastructure for LucidRAG with YAML-based configuration</Description>
+        <Authors>Scott Galloway</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageTags>llm;ai;openai;anthropic;ollama;lmstudio;yaml;configuration</PackageTags>
+    </PropertyGroup>
+
+    <!-- Release configuration: no PDB files -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugSymbols>false</DebugSymbols>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- YAML parsing -->
+        <PackageReference Include="YamlDotNet" Version="16.3.0" />
+
+        <!-- Resilience (Polly) -->
+        <PackageReference Include="Polly.Core" Version="8.6.5" />
+
+        <!-- Microsoft Extensions -->
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Reference existing LLM service implementations -->
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Anthropic\Mostlylucid.DocSummarizer.Anthropic.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.OpenAI\Mostlylucid.DocSummarizer.OpenAI.csproj" />
+    </ItemGroup>
+
+</Project>

@@ -16,6 +16,7 @@ using LucidRAG.Services.Background;
 using LucidRAG.Services.Sentinel;
 using LucidRAG.Services.Storage;
 using LucidRAG.Web.Services;
+using LucidRAG.LLM.Extensions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -147,6 +148,12 @@ switch (llmBackend.ToLowerInvariant())
         break;
     // Default: Ollama is already registered by AddDocSummarizer
 }
+
+// Unified LLM provider infrastructure (YAML-based configuration)
+// Provides named providers (fast-local, general, smart, vision) with Polly resilience
+builder.Services.AddLucidRagLlm(
+    Path.Combine(AppContext.BaseDirectory, "Config", "llm-providers.yaml"),
+    Path.Combine(AppContext.BaseDirectory, "Config", "prompts.yaml"));
 
 // LFU cache for synthesis results
 builder.Services.AddSingleton<SynthesisCacheService>();

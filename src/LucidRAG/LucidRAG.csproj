@@ -81,11 +81,23 @@
     <!-- Project references -->
     <ItemGroup>
         <ProjectReference Include="..\LucidRAG.Core\LucidRAG.Core.csproj"/>
+        <ProjectReference Include="..\LucidRAG.LLM\LucidRAG.LLM.csproj"/>
     </ItemGroup>
 
     <!-- Ensure static files and config are published -->
     <ItemGroup>
         <Content Update="appsettings*.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        </Content>
+        <!-- LLM Provider YAML configuration files -->
+        <Content Include="Config\llm-providers.yaml">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        </Content>
+        <Content Include="Config\prompts.yaml">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             <ExcludeFromSingleFile>true</ExcludeFromSingleFile>

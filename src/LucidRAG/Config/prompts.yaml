@@ -1,0 +1,190 @@
+# Named Prompt Library for LucidRAG
+# Prompts can reference {variables} that are substituted at runtime
+# Provider-specific overrides allow customization per backend
+
+prompts:
+  # Query decomposition for agentic search
+  query_decomposition:
+    name: query_decomposition
+    description: "Decompose complex queries into sub-queries"
+    version: 1
+    json_output: true
+
+    system: |
+      You are a query analyst. Your task is to decompose complex queries into simpler,
+      focused sub-queries that can be independently answered and then merged to form
+      a comprehensive answer.
+
+    template: |
+      Query: {query}
+
+      Additional context:
+      {context}
+
+      Decompose this query into 2-5 focused sub-queries.
+      Return JSON in this format:
+      {
+        "sub_queries": [
+          {"query": "...", "purpose": "...", "priority": 1}
+        ]
+      }
+
+    overrides:
+      anthropic:
+        max_tokens: 2048
+      ollama:
+        temperature: 0.2
+
+  # RAG synthesis - answer from retrieved segments
+  rag_synthesis:
+    name: rag_synthesis
+    description: "Synthesize answer from retrieved segments"
+    version: 1
+
+    system: |
+      You are a helpful assistant that answers questions based on provided context.
+      Only use information from the provided segments. Always cite sources using
+      [Source N] format. If the context doesn't contain enough information to
+      answer, say so clearly.
+
+    template: |
+      Context segments:
+      {segments}
+
+      Question: {question}
+
+      Provide a comprehensive answer with citations.
+
+    overrides:
+      anthropic:
+        max_tokens: 4096
+      openai:
+        max_tokens: 4096
+
+  # Entity extraction for GraphRAG
+  entity_extraction:
+    name: entity_extraction
+    description: "Extract entities and relationships from text"
+    version: 1
+    json_output: true
+
+    system: |
+      You are an entity extraction system. Extract named entities (people, places,
+      organizations, concepts, products, dates, events) and their relationships
+      from the provided text. Focus on entities that would be useful for building
+      a knowledge graph.
+
+    template: |
+      Text:
+      {text}
+
+      Extract entities and relationships.
+      Return JSON in this format:
+      {
+        "entities": [
+          {"name": "...", "type": "person|place|organization|concept|product|date|event", "description": "..."}
+        ],
+        "relationships": [
+          {"source": "...", "target": "...", "relationship": "...", "description": "..."}
+        ]
+      }
+
+    overrides:
+      ollama:
+        temperature: 0.1
+        max_tokens: 2048
+
+  # Document classification
+  document_classification:
+    name: document_classification
+    description: "Classify document type and characteristics"
+    version: 1
+    json_output: true
+    provider: fast-local
+
+    system: |
+      You are a document classifier. Analyze the document preview and classify it.
+
+    template: |
+      First 2000 characters of document:
+      {preview}
+
+      Classify this document.
+      Return JSON:
+      {
+        "type": "technical|narrative|legal|scientific|business|personal|reference",
+        "language": "en|...",
+        "confidence": 0.0-1.0,
+        "keywords": ["..."]
+      }
+
+    overrides:
+      ollama:
+        temperature: 0.1
+
+  # Image captioning (vision)
+  image_caption:
+    name: image_caption
+    description: "Generate alt-text caption for image"
+    version: 1
+    provider: vision
+
+    system: |
+      Generate a concise, WCAG-compliant alt-text caption (max 125 characters).
+      Describe the key visual elements without phrases like "Image shows" or
+      "This is a picture of". Be specific and descriptive.
+
+    template: |
+      Analyze this image and provide a caption.
+
+  # Query clarification
+  query_clarification:
+    name: query_clarification
+    description: "Clarify ambiguous user queries"
+    version: 1
+    json_output: true
+
+    system: |
+      You are a query clarification assistant. Analyze queries for ambiguity
+      and suggest clarifications when needed.
+
+    template: |
+      User query: {query}
+
+      Available document types: {doc_types}
+
+      Analyze if this query is ambiguous. Return JSON:
+      {
+        "is_ambiguous": true|false,
+        "ambiguity_score": 0.0-1.0,
+        "clarification_questions": ["..."],
+        "suggested_refinements": ["..."]
+      }
+
+    overrides:
+      ollama:
+        temperature: 0.2
+
+  # Summary generation
+  summary:
+    name: summary
+    description: "Generate document summary"
+    version: 1
+
+    system: |
+      You are a summarization assistant. Create clear, concise summaries that
+      capture the key points and main arguments of the document.
+
+    template: |
+      Document:
+      {document}
+
+      Create a summary in {length} sentences.
+
+    overrides:
+      anthropic:
+        max_tokens: 1024
+      openai:
+        max_tokens: 1024
+      ollama:
+        max_tokens: 512

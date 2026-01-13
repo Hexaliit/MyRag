@@ -1,0 +1,181 @@
+# LLM Provider Configuration for LucidRAG
+# Unified configuration for OpenAI, Anthropic, Ollama, and LMStudio
+
+# Backend definitions - connection settings for each LLM service
+# Each backend can configure resilience settings (Polly retry/circuit breaker)
+backends:
+  ollama-local:
+    type: ollama
+    base_url: http://localhost:11434
+    timeout_seconds: 120
+    enabled: true
+    # Resilience settings (defaults shown - override as needed)
+    max_retries: 3
+    initial_retry_delay_ms: 500
+    max_retry_delay_ms: 30000
+    circuit_breaker_threshold: 5
+    circuit_breaker_duration_seconds: 30
+
+  ollama-remote:
+    type: ollama
+    base_url: http://gpu-server:11434
+    timeout_seconds: 300
+    enabled: false
+    # Higher tolerance for remote server
+    max_retries: 5
+    circuit_breaker_duration_seconds: 60
+
+  anthropic:
+    type: anthropic
+    base_url: https://api.anthropic.com
+    api_key: ${ANTHROPIC_API_KEY}
+    api_version: "2023-06-01"
+    timeout_seconds: 120
+    enabled: true
+    # Cloud API resilience - handle rate limits gracefully
+    max_retries: 3
+    initial_retry_delay_ms: 1000
+    max_retry_delay_ms: 60000
+
+  openai:
+    type: openai
+    base_url: https://api.openai.com/v1
+    api_key: ${OPENAI_API_KEY}
+    timeout_seconds: 120
+    enabled: true
+    # Cloud API resilience
+    max_retries: 3
+    initial_retry_delay_ms: 1000
+    max_retry_delay_ms: 60000
+
+  lmstudio:
+    type: openai  # LMStudio uses OpenAI-compatible API
+    base_url: http://localhost:1234/v1
+    api_key: ""   # LMStudio doesn't require API key
+    timeout_seconds: 120
+    enabled: false
+
+# Model registry - define models once, reference by name
+models:
+  # Anthropic models
+  claude-opus:
+    backend: anthropic
+    model: claude-3-5-opus-latest
+    context_window: 200000
+    max_tokens: 8192
+    temperature: 0.3
+
+  claude-sonnet:
+    backend: anthropic
+    model: claude-3-5-sonnet-latest
+    context_window: 200000
+    max_tokens: 8192
+    temperature: 0.3
+
+  claude-haiku:
+    backend: anthropic
+    model: claude-3-5-haiku-latest
+    context_window: 200000
+    max_tokens: 4096
+    temperature: 0.3
+
+  # OpenAI models
+  gpt-4o:
+    backend: openai
+    model: gpt-4o
+    context_window: 128000
+    max_tokens: 4096
+    temperature: 0.3
+    capabilities:
+      - vision
+
+  gpt-4o-mini:
+    backend: openai
+    model: gpt-4o-mini
+    context_window: 128000
+    max_tokens: 4096
+    temperature: 0.3
+
+  # Ollama models (local)
+  llama3:
+    backend: ollama-local
+    model: llama3.2:3b
+    context_window: 8192
+    max_tokens: 4096
+    temperature: 0.3
+
+  qwen:
+    backend: ollama-local
+    model: qwen2.5:3b
+    context_window: 8192
+    max_tokens: 4096
+    temperature: 0.3
+
+  tinyllama:
+    backend: ollama-local
+    model: tinyllama
+    context_window: 2048
+    max_tokens: 1024
+    temperature: 0.3
+
+  minicpm-v:
+    backend: ollama-local
+    model: minicpm-v:8b
+    context_window: 8192
+    max_tokens: 4096
+    temperature: 0.3
+    capabilities:
+      - vision
+
+  # LMStudio models
+  lmstudio-default:
+    backend: lmstudio
+    model: local-model
+    context_window: 8192
+    max_tokens: 4096
+    temperature: 0.3
+
+# Named providers - semantic aliases for specific use cases
+providers:
+  # Fast local inference for triage/classification
+  fast-local:
+    model: tinyllama
+    description: "Fast local model for triage and classification"
+
+  # Local general purpose
+  local:
+    model: qwen
+    fallback: llama3
+    description: "Local model for general tasks"
+
+  # General purpose (balanced cost/quality)
+  general:
+    model: claude-sonnet
+    fallback: gpt-4o-mini
+    description: "Balanced cost/quality for general tasks"
+
+  # High quality for complex tasks
+  smart:
+    model: claude-opus
+    fallback: gpt-4o
+    description: "High quality for complex reasoning"
+
+  # Vision capable
+  vision:
+    model: minicpm-v
+    fallback: gpt-4o
+    description: "Vision-capable model for image analysis"
+
+  # Cost-effective cloud
+  budget-cloud:
+    model: claude-haiku
+    fallback: gpt-4o-mini
+    description: "Cost-effective cloud inference"
+
+# Default provider assignments by task tier
+defaults:
+  triage: fast-local      # Quick classification, sentinel queries
+  general: general        # Standard RAG queries, summarization
+  synthesis: smart        # Complex synthesis, agentic tasks
+  vision: vision          # Image analysis
+  fallback: budget-cloud  # When primary fails
