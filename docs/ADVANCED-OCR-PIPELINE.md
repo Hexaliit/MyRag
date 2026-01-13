@@ -557,6 +557,116 @@ For each character position i:
 3. Common word corrections
 4. Dictionary-based Levenshtein matching
 
+## HunyuanOCR VLM Escalation (FUTURE)
+
+> **STATUS: NOT YET IMPLEMENTED** - This is a planned feature for future development.
+
+When local OCR produces garbled text, the pipeline can escalate to [tencent/HunyuanOCR](https://huggingface.co/tencent/HunyuanOCR), a 1B parameter Vision Language Model that runs **locally** via vLLM.
+
+### Why HunyuanOCR?
+
+| Feature | Traditional OCR | HunyuanOCR VLM |
+|---------|-----------------|----------------|
+| **Architecture** | Rule-based + CNN | Vision Language Model (1B params) |
+| **Tables** | Basic extraction | → HTML with structure |
+| **Formulas** | Not supported | → LaTeX |
+| **Flowcharts** | Not supported | → Mermaid |
+| **Privacy** | Local | Local (vLLM server) |
+| **Languages** | Per-model | Multilingual |
+
+### Planned Configuration
+
+```json
+{
+  "Images": {
+    "Ocr": {
+      "EnableHunyuanOcrEscalation": false,
+      "HunyuanVllmBaseUrl": "http://localhost:8000",
+      "HunyuanModelName": "tencent/HunyuanOCR",
+      "HunyuanOcrMode": "text_spotting",  // or "document_parsing", "info_extraction"
+      "HunyuanEscalationThreshold": 0.4,
+      "HunyuanTimeoutSeconds": 60,
+      "HunyuanMaxTokens": 4096
+    }
+  }
+}
+```
+
+### OCR Modes (Planned)
+
+| Mode | Output | Use Case |
+|------|--------|----------|
+| `text_spotting` | Text + bounding boxes | General OCR with coordinates |
+| `document_parsing` | Tables→HTML, Formulas→LaTeX | Academic papers, reports |
+| `info_extraction` | Key-value JSON | Forms, invoices, receipts |
+
+### Server Setup (When Implemented)
+
+**Linux:**
+```bash
+pip install vllm
+vllm serve tencent/HunyuanOCR --port 8000 --gpu-memory-utilization 0.5
+```
+
+**Windows (Docker Desktop 4.54+ with WSL2):**
+```bash
+# Option 1: Docker Model Runner (if model available)
+docker model run tencent/HunyuanOCR
+
+# Option 2: Docker Compose
+docker compose -f hunyuan-ocr.yml up -d
+```
+
+**Windows Docker Compose (hunyuan-ocr.yml):**
+```yaml
+services:
+  hunyuan-ocr:
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    command: --model tencent/HunyuanOCR --port 8000 --gpu-memory-utilization 0.5
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+```
+
+**VRAM Requirements:** ~4GB minimum (1B params in BF16), 8GB+ recommended
+
+### Priority in Pipeline
+
+**Priority 55** - Runs after OcrQualityWave (58), before VisionLlmWave (50)
+
+```
+OcrQualityWave (58) → checks quality
+       ↓
+HunyuanOcrWave (55) → VLM escalation [FUTURE]
+       ↓
+VisionLlmWave (50) → general vision
+```
+
+### Signal Keys (Planned)
+
+| Signal Key | Type | Description |
+|-----------|------|-------------|
+| `ocr.hunyuan.text` | string | Extracted text |
+| `ocr.hunyuan.tables` | List<string> | Tables as HTML |
+| `ocr.hunyuan.formulas` | List<string> | Formulas as LaTeX |
+| `ocr.hunyuan.coordinates` | List | Bounding boxes per text region |
+
+### Resources
+
+- **Model**: https://huggingface.co/tencent/HunyuanOCR
+- **Demo**: https://hunyuan.tencent.com/chat/HunyuanDefault?modelId=HY-OCR-1.0
+- **Parameters**: 1B (BF16)
+- **License**: Check HuggingFace model card
+
+---
+
 ## Known Limitations
 
 1. **ONNX Model Inference**: EAST, CRAFT, and Real-ESRGAN models download but inference not yet implemented. Falls back to Tesseract PSM.

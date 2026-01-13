@@ -212,6 +212,55 @@ public class OcrConfig
     /// </summary>
     public string SpellCheckLanguage { get; set; } = "en_US";
 
+    // ============ Hunyuan OCR Local VLM Escalation ============
+    // Uses tencent/HunyuanOCR from HuggingFace - a 1B parameter Vision Language Model
+    // Runs locally via vLLM server - no data leaves your infrastructure
+    // Capabilities: Document parsing, table→HTML, formula→LaTeX, text spotting
+
+    /// <summary>
+    /// Enable HunyuanOCR VLM escalation for poor-quality OCR results.
+    /// Requires a local vLLM server running tencent/HunyuanOCR model.
+    /// Start server: vllm serve tencent/HunyuanOCR --port 8000
+    /// </summary>
+    public bool EnableHunyuanOcrEscalation { get; set; } = false;
+
+    /// <summary>
+    /// Base URL for the vLLM server running HunyuanOCR.
+    /// Default: http://localhost:8000 (standard vLLM port)
+    /// </summary>
+    public string HunyuanVllmBaseUrl { get; set; } = "http://localhost:8000";
+
+    /// <summary>
+    /// Model name as registered in vLLM (usually the HuggingFace model ID).
+    /// </summary>
+    public string HunyuanModelName { get; set; } = "tencent/HunyuanOCR";
+
+    /// <summary>
+    /// OCR mode for HunyuanOCR. Options:
+    /// - "text_spotting": Detect and recognize text with coordinates
+    /// - "document_parsing": Parse documents (tables→HTML, formulas→LaTeX)
+    /// - "info_extraction": Extract key-value pairs as JSON
+    /// </summary>
+    public string HunyuanOcrMode { get; set; } = "text_spotting";
+
+    /// <summary>
+    /// Minimum OCR quality score (0-1) below which Hunyuan escalation triggers.
+    /// Default: 0.4 (escalate when less than 40% of words are valid)
+    /// </summary>
+    public double HunyuanEscalationThreshold { get; set; } = 0.4;
+
+    /// <summary>
+    /// Timeout in seconds for HunyuanOCR vLLM API calls.
+    /// Local inference typically takes 2-10 seconds depending on image complexity.
+    /// </summary>
+    public int HunyuanTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Maximum tokens for HunyuanOCR generation.
+    /// Higher values needed for document parsing with tables.
+    /// </summary>
+    public int HunyuanMaxTokens { get; set; } = 4096;
+
     /// <summary>
     /// Apply quality mode presets to phase toggles
     /// Called automatically when QualityMode is set
