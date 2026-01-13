@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Pipeline;
 using Mostlylucid.DocSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services.Deduplication;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
@@ -108,6 +109,14 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton<IDocumentSummarizer, DocumentSummarizerService>();
 
+        // Register deduplication service with config from DocSummarizerConfig
+        services.TryAddSingleton<IOptions<DeduplicationConfig>>(sp =>
+        {
+            var docConfig = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
+            return Options.Create(docConfig.Deduplication);
+        });
+        services.TryAddSingleton<IDeduplicationService, DeduplicationService>();
+
         // Register the startup initializer as a hosted service
         services.AddHostedService<DocSummarizerInitializer>();
 
@@ -177,6 +186,15 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddSingleton<IDocumentSummarizer, DocumentSummarizerService>();
+
+        // Register deduplication service with config from DocSummarizerConfig
+        services.TryAddSingleton<IOptions<DeduplicationConfig>>(sp =>
+        {
+            var docConfig = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
+            return Options.Create(docConfig.Deduplication);
+        });
+        services.TryAddSingleton<IDeduplicationService, DeduplicationService>();
+
         services.AddHostedService<DocSummarizerInitializer>();
 
         // Register the pipeline for unified pipeline registry

@@ -163,18 +163,17 @@ public class AgenticSearchService(
                 textLookup.Count, uniqueSegments.Count);
         }
 
-        logger.LogInformation("Search mode: {Mode}, retrieved {Count} unique segments for BM25+RRF",
+        logger.LogInformation("Search mode: {Mode}, retrieved {Count} unique segments for ranking",
             request.SearchMode, uniqueSegments.Count);
 
-        List<SearchResultItem> mergedResults;
+        List<(Segment Segment, double Score)> rankedResults;
 
         if (request.SearchMode == SearchMode.Semantic)
         {
             // Pure semantic mode - no BM25, just dense scores
-            mergedResults = uniqueSegments
+            rankedResults = uniqueSegments
                 .OrderByDescending(x => x.DenseScore)
-                .Take(request.TopK)
-                .Select(x => CreateSearchResultItem(x.Segment, x.DenseScore, documentLookup))
+                .Select(x => (x.Segment, Score: x.DenseScore))
                 .ToList();
         }
         else
@@ -186,14 +185,31 @@ public class AgenticSearchService(
                 uniqueSegments,
                 request.Query,
                 request.SearchMode,
-                request.TopK,
+                request.TopK * 2, // Get more candidates for post-RRF dedup
                 documentLookup,
                 ct);
 
-            mergedResults = rrfResults
-                .Select(x => CreateSearchResultItem(x.Segment, x.RrfScore, documentLookup))
+            rankedResults = rrfResults
+                .Select(x => (x.Segment, Score: x.RrfScore))
                 .ToList();
         }
+
+        // Cross-document semantic deduplication AFTER scoring
+        // Uses the final score (RRF or dense) to pick which duplicate to keep
+        var dedupConfig = _docSummarizerConfig.Deduplication.Retrieval;
+        var beforeDedup = rankedResults.Count;
+        var dedupedResults = DeduplicateByEmbeddingPostRanking(rankedResults, dedupConfig.SimilarityThreshold);
+        if (beforeDedup != dedupedResults.Count)
+        {
+            logger.LogDebug("Post-ranking deduplication: {Before} → {After} segments (removed {Removed} cross-doc duplicates)",
+                beforeDedup, dedupedResults.Count, beforeDedup - dedupedResults.Count);
+        }
+
+        // Take final TopK after deduplication
+        var mergedResults = dedupedResults
+            .Take(request.TopK)
+            .Select(x => CreateSearchResultItem(x.Segment, x.Score, documentLookup))
+            .ToList();
 
         // Log top results for debugging
         if (mergedResults.Count > 0)
@@ -385,19 +401,36 @@ public class AgenticSearchService(
             }
         }
 
-        // Build sources for response
-        // Note: Score is either cosine similarity (semantic mode) or RRF score (hybrid mode).
-        // RRF scores are inherently low (0.01-0.06) due to the 1/(k+rank) formula.
-        // We rely on RRF ranking for relevance instead of filtering by score threshold.
-        var relevantResults = searchResult.Results.Take(5).ToList();
+        // Build sources for response with relevance filtering and deduplication
+        // 1. Filter by minimum relevance score (semantic mode uses cosine similarity 0-1)
+        // 2. Deduplicate semantically similar segments to avoid repetition
+        var retrievalDedupConfig = _docSummarizerConfig.Deduplication.Retrieval;
+        var minRelevanceScore = retrievalDedupConfig.MinRelevanceScore;
+        const double textSimilarityThreshold = 0.7; // Jaccard similarity for text-based dedup
 
-        var sources = relevantResults
+        var relevantResults = searchResult.Results
+            .Where(r => r.Score >= minRelevanceScore)
+            .Take(10) // Take more candidates for deduplication
+            .ToList();
+
+        // If no results meet threshold, return empty (triggers "no info" response)
+        if (relevantResults.Count == 0)
+        {
+            logger.LogInformation("No results above relevance threshold {Threshold} for query: {Query}",
+                minRelevanceScore, request.Query);
+        }
+
+        // Deduplicate by text similarity (greedy selection)
+        var dedupedResults = DeduplicateByTextSimilarity(relevantResults, textSimilarityThreshold);
+
+        var sources = dedupedResults
+            .Take(5) // Final top 5 after dedup
             .Select((r, i) => new SourceCitation(
                 Number: i + 1,
                 DocumentId: r.DocumentId,
                 DocumentName: r.DocumentName,
                 SegmentId: r.SegmentId,
-                Text: r.Text.Length > 200 ? r.Text[..197] + "..." : r.Text,
+                Text: r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text,
                 PageOrSection: r.SectionTitle))
             .ToList();
 
@@ -507,16 +540,25 @@ public class AgenticSearchService(
             var docIds = searchResult.Results.Select(r => r.DocumentId).Where(id => id != Guid.Empty).Distinct().ToArray();
             if (docIds.Length > 0) await conversationService.SetActiveDocumentsAsync(conversationId.Value, docIds, queryToSearch, ct: ct);
         }
-        var sources = searchResult.Results.Take(5).Select((r, i) => new SourceCitation(i + 1, r.DocumentId, r.DocumentName, r.SegmentId, r.Text.Length > 200 ? r.Text[..197] + "..." : r.Text, r.SectionTitle)).ToList();
+
+        // Apply relevance filtering and deduplication (same as non-streaming)
+        var streamDedupConfig = _docSummarizerConfig.Deduplication.Retrieval;
+        const double textSimilarityThreshold = 0.7; // Jaccard similarity for text-based dedup
+        var relevantResults = searchResult.Results.Where(r => r.Score >= streamDedupConfig.MinRelevanceScore).Take(10).ToList();
+        var dedupedResults = DeduplicateByTextSimilarity(relevantResults, textSimilarityThreshold);
+        var sources = dedupedResults.Take(5).Select((r, i) => new SourceCitation(i + 1, r.DocumentId, r.DocumentName, r.SegmentId, r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text, r.SectionTitle)).ToList();
+
         var thinking = BuildThinkingOutput(request.Query, searchResult);
         yield return new ChatStreamChunk("sources", Sources: sources, ConversationId: conversationId, ThinkingNote: thinking, SearchTimeMs: searchTimeMs, SegmentCount: searchResult.Results.Count);
         if (searchResult.QueryPlan?.NeedsClarification == true) { var msg = searchResult.QueryPlan.ClarificationQuestion ?? "Could you please clarify?"; await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct); yield return new ChatStreamChunk("text", Text: msg); yield return new ChatStreamChunk("done"); yield break; }
-        if (searchResult.Results.Count == 0) { var msg = "I couldn't find relevant information."; await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct); yield return new ChatStreamChunk("text", Text: msg); yield return new ChatStreamChunk("done"); yield break; }
+        if (sources.Count == 0) { var msg = "I don't have relevant information in the available documents to answer that question."; await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct); yield return new ChatStreamChunk("text", Text: msg); yield return new ChatStreamChunk("done"); yield break; }
         if (_ragConfig.DemoMode.Enabled && !searchResult.Results.Any(r => r.Score >= _ragConfig.DemoMode.MinRelevanceScore)) { await conversationService.AddMessageAsync(conversationId.Value, "assistant", _ragConfig.DemoMode.OffTopicMessage, ct: ct); yield return new ChatStreamChunk("text", Text: _ragConfig.DemoMode.OffTopicMessage); yield return new ChatStreamChunk("done"); yield break; }
         var queryType = searchResult.QueryPlan?.QueryType ?? Sentinel.QueryType.Semantic;
         if (queryType == Sentinel.QueryType.Keyword || queryType == Sentinel.QueryType.Navigation) { var resp = BuildKeywordResponseNoThinking(sources); await conversationService.AddMessageAsync(conversationId.Value, "assistant", resp, ct: ct); foreach (var w in resp.Split(' ')) { if (ct.IsCancellationRequested) yield break; yield return new ChatStreamChunk("text", Text: w + " "); await Task.Delay(10, ct); } yield return new ChatStreamChunk("done"); yield break; }
-        var sourceTextsStr = string.Join("\n\n", sources.Select(s => $"[{s.Number}] ({s.DocumentName}): {s.Text}"));
-        var prompt = $"You are a document-grounded assistant. Answer using ONLY the evidence.\n\n{sysPrompt}\n\nQUESTION: {request.Query}\n\nEVIDENCE:\n{sourceTextsStr}\n\nANSWER:";
+
+        // Build prompt for natural synthesis (not segment-by-segment description)
+        var sourceTextsStr = string.Join("\n\n", sources.Select(s => $"[{s.Number}] {s.Text}"));
+        var prompt = $"You are a helpful assistant. Answer this question using ONLY the evidence below.\n\n{sysPrompt}\n\nQUESTION: {request.Query}\n\nEVIDENCE:\n{sourceTextsStr}\n\nSynthesize the evidence into a clear, natural answer. Don't describe each source - combine into a cohesive response. If the evidence doesn't help answer the question, say you don't have that information.\n\nANSWER:";
         string? answerToStream = null;
         var evidenceHash = SynthesisCacheService.ComputeHash(sourceTextsStr);
         if (synthesisCache.TryGetSynthesis(request.Query, evidenceHash, out var cached))
@@ -553,29 +595,27 @@ public class AgenticSearchService(
             return "I couldn't find relevant information in the uploaded documents to answer your question. Please try rephrasing or upload more documents.";
         }
 
-        // Build context from sources
-        var sourceTexts = string.Join("\n\n", sources.Select(s => $"[{s.Number}] ({s.DocumentName}): {s.Text}"));
+        // Build context from sources - use document name only once per document
+        var sourceTexts = string.Join("\n\n", sources.Select(s => $"[{s.Number}] {s.Text}"));
 
         // Create prompt for LLM synthesis - STRICT documents-only answering
-        // The user's raw query is passed through - LLM must answer ONLY from provided evidence
-        var prompt = $@"You are a document-grounded assistant. You MUST answer questions using ONLY the evidence provided below.
+        // Key: Ask for NATURAL synthesis, not segment-by-segment description
+        var prompt = $@"You are a helpful assistant that answers questions using document evidence.
 
 {systemPrompt}
 
-USER QUESTION (answer this exactly as asked):
-{query}
+QUESTION: {query}
 
-DOCUMENT EVIDENCE (these are the ONLY facts you may use):
+EVIDENCE FROM DOCUMENTS:
 {sourceTexts}
 
-CRITICAL INSTRUCTIONS:
-1. Answer ONLY using information found in the DOCUMENT EVIDENCE above
-2. If the evidence contains the answer: explain clearly with [N] citations after each claim
-3. If the evidence does NOT answer the question: say exactly 'I don't have information about [topic] in the provided documents.'
-4. NEVER use your own knowledge - only cite what's in the evidence
-5. NEVER invent, assume, or extrapolate beyond what's explicitly stated
-6. NEVER use meta phrases like 'based on the documents' or 'according to sources'
-7. Write naturally as if the evidence is your only source of knowledge
+INSTRUCTIONS:
+- Synthesize the evidence into a clear, natural response that directly answers the question
+- DO NOT describe each source separately - combine information into a cohesive answer
+- If multiple sources say the same thing, mention it once (not repeatedly)
+- Only mention source numbers [N] at the end if you want to indicate where key facts came from
+- If the evidence does not contain relevant information, say you do not have that information in the documents
+- Write conversationally, as if you simply know this information
 
 ANSWER:";
 
@@ -953,6 +993,195 @@ ANSWER:";
         }
 
         return word;
+    }
+
+    /// <summary>
+    /// Deduplicate segments AFTER ranking, using final score (RRF or dense) to pick winners.
+    /// This enables cross-document deduplication at query time - if two documents have
+    /// nearly identical paragraphs, we keep the one with the higher relevance score.
+    /// </summary>
+    private static List<(Segment Segment, double Score)> DeduplicateByEmbeddingPostRanking(
+        List<(Segment Segment, double Score)> rankedSegments,
+        double similarityThreshold)
+    {
+        if (rankedSegments.Count <= 1) return rankedSegments;
+
+        // Already sorted by score descending from ranking phase
+        var selected = new List<(Segment Segment, double Score)>();
+
+        foreach (var (segment, score) in rankedSegments)
+        {
+            if (segment.Embedding == null || segment.Embedding.Length == 0)
+            {
+                selected.Add((segment, score));
+                continue;
+            }
+
+            // Check if too similar to any already-selected segment
+            var isTooSimilar = false;
+            foreach (var (existing, _) in selected)
+            {
+                if (existing.Embedding == null || existing.Embedding.Length == 0)
+                    continue;
+
+                var similarity = CosineSimilarity(segment.Embedding, existing.Embedding);
+                if (similarity >= similarityThreshold)
+                {
+                    isTooSimilar = true;
+                    break;
+                }
+            }
+
+            if (!isTooSimilar)
+            {
+                selected.Add((segment, score));
+            }
+        }
+
+        return selected;
+    }
+
+    /// <summary>
+    /// Deduplicate segments by embedding cosine similarity.
+    /// Uses greedy selection: keeps highest-scoring segments, skips any subsequent
+    /// segments that are too similar (cosine similarity >= threshold) to already-selected ones.
+    /// This is the primary deduplication method when embeddings are available.
+    /// </summary>
+    private static List<(Segment Segment, double DenseScore)> DeduplicateByEmbedding(
+        List<(Segment Segment, double DenseScore)> segments,
+        double similarityThreshold)
+    {
+        if (segments.Count <= 1) return segments;
+
+        // Sort by score descending to keep highest-scoring segments
+        var sorted = segments.OrderByDescending(x => x.DenseScore).ToList();
+        var selected = new List<(Segment Segment, double DenseScore)>();
+
+        foreach (var (segment, score) in sorted)
+        {
+            if (segment.Embedding == null || segment.Embedding.Length == 0)
+            {
+                // No embedding - can't deduplicate, keep it
+                selected.Add((segment, score));
+                continue;
+            }
+
+            // Check if too similar to any already-selected segment
+            var isTooSimilar = false;
+            foreach (var (existing, _) in selected)
+            {
+                if (existing.Embedding == null || existing.Embedding.Length == 0)
+                    continue;
+
+                var similarity = CosineSimilarity(segment.Embedding, existing.Embedding);
+                if (similarity >= similarityThreshold)
+                {
+                    isTooSimilar = true;
+                    break;
+                }
+            }
+
+            if (!isTooSimilar)
+            {
+                selected.Add((segment, score));
+            }
+        }
+
+        return selected;
+    }
+
+    /// <summary>
+    /// Compute cosine similarity between two embedding vectors.
+    /// Returns value between -1 and 1, where 1 means identical direction.
+    /// </summary>
+    private static double CosineSimilarity(float[] a, float[] b)
+    {
+        if (a.Length != b.Length) return 0.0;
+
+        double dotProduct = 0.0;
+        double normA = 0.0;
+        double normB = 0.0;
+
+        for (int i = 0; i < a.Length; i++)
+        {
+            dotProduct += a[i] * b[i];
+            normA += a[i] * a[i];
+            normB += b[i] * b[i];
+        }
+
+        var denominator = Math.Sqrt(normA) * Math.Sqrt(normB);
+        return denominator > 0 ? dotProduct / denominator : 0.0;
+    }
+
+    /// <summary>
+    /// Deduplicate search results by text similarity using Jaccard index.
+    /// Uses greedy selection: keeps first result, skips any subsequent results
+    /// that are too similar to already-selected ones.
+    /// This is a fallback when embeddings are not available.
+    /// </summary>
+    private static List<SearchResultItem> DeduplicateByTextSimilarity(
+        List<SearchResultItem> results,
+        double similarityThreshold)
+    {
+        if (results.Count <= 1) return results;
+
+        var selected = new List<SearchResultItem>();
+        var selectedTokenSets = new List<HashSet<string>>();
+
+        foreach (var result in results)
+        {
+            var tokens = TokenizeForSimilarity(result.Text);
+
+            // Check if too similar to any already-selected result
+            var isTooSimilar = false;
+            foreach (var existingTokens in selectedTokenSets)
+            {
+                var similarity = JaccardSimilarity(tokens, existingTokens);
+                if (similarity >= similarityThreshold)
+                {
+                    isTooSimilar = true;
+                    break;
+                }
+            }
+
+            if (!isTooSimilar)
+            {
+                selected.Add(result);
+                selectedTokenSets.Add(tokens);
+            }
+        }
+
+        return selected;
+    }
+
+    /// <summary>
+    /// Tokenize text into a set of lowercase words for similarity comparison.
+    /// </summary>
+    private static HashSet<string> TokenizeForSimilarity(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return [];
+
+        return text
+            .ToLowerInvariant()
+            .Split([' ', '\t', '\n', '\r', '.', ',', '!', '?', ';', ':', '"', '\'', '(', ')', '[', ']'],
+                   StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 2) // Skip very short words
+            .ToHashSet();
+    }
+
+    /// <summary>
+    /// Calculate Jaccard similarity between two token sets.
+    /// J(A,B) = |A ∩ B| / |A ∪ B|
+    /// </summary>
+    private static double JaccardSimilarity(HashSet<string> a, HashSet<string> b)
+    {
+        if (a.Count == 0 && b.Count == 0) return 1.0;
+        if (a.Count == 0 || b.Count == 0) return 0.0;
+
+        var intersection = a.Intersect(b).Count();
+        var union = a.Union(b).Count();
+
+        return union > 0 ? (double)intersection / union : 0.0;
     }
 
     /// <summary>

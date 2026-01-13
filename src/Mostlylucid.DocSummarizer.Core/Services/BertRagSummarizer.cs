@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services.Deduplication;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Mostlylucid.Summarizer.Core.Utilities;
 
@@ -31,6 +32,7 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
     // Pipeline version - increment when changing extraction/synthesis logic
     private const string PipelineVersion = "v1";
     private readonly BertRagConfig _bertRagConfig;
+    private readonly DeduplicationConfig _deduplicationConfig;
     private readonly SegmentExtractor _extractor;
     private readonly OllamaService _ollama;
     private readonly OnnxConfig _onnxConfig;
@@ -49,7 +51,8 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
         SummaryTemplate? template = null,
         bool verbose = false,
         IVectorStore? vectorStore = null,
-        BertRagConfig? bertRagConfig = null)
+        BertRagConfig? bertRagConfig = null,
+        DeduplicationConfig? deduplicationConfig = null)
     {
         _extractor = new SegmentExtractor(onnxConfig, extractionConfig, verbose);
         _queryEmbedder = new OnnxEmbeddingService(onnxConfig, verbose);
@@ -59,6 +62,7 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
         _verbose = verbose;
         _vectorStore = vectorStore;
         _bertRagConfig = bertRagConfig ?? new BertRagConfig();
+        _deduplicationConfig = deduplicationConfig ?? new DeduplicationConfig();
         _onnxConfig = onnxConfig;
     }
 
@@ -472,11 +476,165 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
 
         if (_vectorStore != null && _bertRagConfig.PersistVectors && extraction.AllSegments.Count > 0)
         {
-            VerboseHelper.Log(_verbose, "[dim]Storing segments in vector store...[/]");
-            await _vectorStore.UpsertSegmentsAsync(_bertRagConfig.CollectionName, extraction.AllSegments, ct);
+            // Deduplicate segments before storing (intra-document only)
+            // This prevents storing multiple nearly-identical segments from the same document
+            var dedupResult = DeduplicateSegments(extraction.AllSegments, _deduplicationConfig.Ingestion, stableDocId);
+
+            VerboseHelper.Log(_verbose, $"[dim]Deduplication: {dedupResult.OriginalCount} → {dedupResult.FinalCount} segments ({dedupResult.DeduplicationPercentage:F1}% removed)[/]");
+            await _vectorStore.UpsertSegmentsAsync(_bertRagConfig.CollectionName, dedupResult.Items, ct);
         }
 
         return extraction;
+    }
+
+    /// <summary>
+    ///     Deduplicate segments using salience filtering and cosine similarity.
+    ///     Greedy selection: keeps highest-salience segments, skips those too similar to already-selected.
+    ///
+    ///     IMPORTANT: Near-duplicates (same meaning, different text) boost the kept segment's salience.
+    ///     This captures the signal that repeated concepts are important.
+    ///     Exact duplicates (same ContentHash) do NOT boost - they're likely formatting artifacts.
+    /// </summary>
+    /// <summary>
+    ///     Deduplicate segments using configurable settings.
+    ///     Near-duplicates boost salience; exact duplicates are dropped.
+    /// </summary>
+    private static DeduplicationResult<Segment> DeduplicateSegments(
+        List<Segment> segments,
+        IngestionDeduplicationConfig config,
+        string? documentId = null)
+    {
+        var startTime = DateTime.UtcNow;
+
+        if (!config.Enabled || segments.Count <= 1)
+        {
+            return new DeduplicationResult<Segment>(
+                segments,
+                segments.Count,
+                segments.Count,
+                0,
+                0.0,
+                0.0,
+                TimeSpan.Zero,
+                documentId);
+        }
+
+        // Filter by minimum salience (skip very low-value segments)
+        var candidates = segments
+            .Where(s => s.SalienceScore >= config.SalienceThreshold || s.SalienceScore == 0) // 0 = unscored, keep
+            .OrderByDescending(s => s.SalienceScore)
+            .ToList();
+
+        var selected = new List<Segment>();
+        var nearDuplicateCounts = new Dictionary<int, int>(); // index in selected -> count of near-dupes
+        var exactDuplicatesDropped = 0;
+        var nearDuplicatesMerged = 0;
+
+        foreach (var segment in candidates)
+        {
+            if (segment.Embedding == null || segment.Embedding.Length == 0)
+            {
+                // No embedding - can't check similarity, keep it
+                selected.Add(segment);
+                nearDuplicateCounts[selected.Count - 1] = 0;
+                continue;
+            }
+
+            // Check if too similar to any already-selected segment
+            int? matchedIndex = null;
+            var isExactDuplicate = false;
+
+            for (var i = 0; i < selected.Count; i++)
+            {
+                var existing = selected[i];
+                if (existing.Embedding == null || existing.Embedding.Length == 0)
+                    continue;
+
+                var similarity = CosineSimilarity(segment.Embedding, existing.Embedding);
+                if (similarity >= config.SimilarityThreshold)
+                {
+                    matchedIndex = i;
+                    // Check if it's an exact duplicate (same content hash = likely artifact)
+                    isExactDuplicate = !string.IsNullOrEmpty(segment.ContentHash) &&
+                                       segment.ContentHash == existing.ContentHash;
+                    break;
+                }
+            }
+
+            if (matchedIndex == null)
+            {
+                // No match - add as new segment
+                selected.Add(segment);
+                nearDuplicateCounts[selected.Count - 1] = 0;
+            }
+            else if (isExactDuplicate)
+            {
+                // Exact duplicates (same hash) are silently dropped - no boost
+                exactDuplicatesDropped++;
+            }
+            else
+            {
+                // Near-duplicate (similar embedding, different text) - boost the kept segment
+                // This indicates the concept is emphasized/repeated in the document
+                nearDuplicateCounts[matchedIndex.Value]++;
+                nearDuplicatesMerged++;
+            }
+        }
+
+        // Apply salience boosts for near-duplicates
+        var maxBoostApplied = 0.0;
+        if (config.EnableSalienceBoost)
+        {
+            for (var i = 0; i < selected.Count; i++)
+            {
+                var count = nearDuplicateCounts.GetValueOrDefault(i, 0);
+                if (count > 0)
+                {
+                    var boost = CalculateSalienceBoost(count, config);
+                    var originalSalience = selected[i].SalienceScore;
+                    selected[i].SalienceScore *= (1.0 + boost);
+                    // Cap at configured maximum (don't let one concept dominate everything)
+                    selected[i].SalienceScore = Math.Min(selected[i].SalienceScore, config.MaxSalienceBoost);
+
+                    var appliedBoost = selected[i].SalienceScore - originalSalience;
+                    maxBoostApplied = Math.Max(maxBoostApplied, appliedBoost);
+                }
+            }
+        }
+
+        var elapsed = DateTime.UtcNow - startTime;
+        var dedupRatio = segments.Count > 0
+            ? (double)(segments.Count - selected.Count) / segments.Count
+            : 0.0;
+
+        return new DeduplicationResult<Segment>(
+            selected,
+            segments.Count,
+            selected.Count,
+            nearDuplicatesMerged + exactDuplicatesDropped,
+            maxBoostApplied,
+            dedupRatio,
+            elapsed,
+            documentId);
+    }
+
+    /// <summary>
+    ///     Calculate salience boost based on configured decay mode.
+    ///     Linear: constant boost per duplicate
+    ///     Logarithmic: diminishing returns (first duplicates matter most)
+    /// </summary>
+    private static double CalculateSalienceBoost(int nearDuplicateCount, IngestionDeduplicationConfig config)
+    {
+        if (nearDuplicateCount <= 0)
+            return 0.0;
+
+        return config.BoostDecayMode switch
+        {
+            BoostDecayMode.Linear => config.BoostPerNearDuplicate * nearDuplicateCount,
+            BoostDecayMode.Logarithmic => config.BoostPerNearDuplicate *
+                                          Math.Log(1 + nearDuplicateCount, config.LogBase),
+            _ => config.BoostPerNearDuplicate * nearDuplicateCount
+        };
     }
 
     /// <summary>

@@ -87,6 +87,11 @@ public class DocSummarizerConfig
     ///     Adaptive retrieval configuration (auto-scales based on document size/type)
     /// </summary>
     public AdaptiveRetrievalConfig AdaptiveRetrieval { get; set; } = new();
+
+    /// <summary>
+    ///     Deduplication configuration for both ingestion and retrieval phases.
+    /// </summary>
+    public DeduplicationConfig Deduplication { get; set; } = new();
 }
 
 /// <summary>

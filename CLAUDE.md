@@ -116,6 +116,49 @@ Automatic table extraction from PDF and DOCX documents:
 - Table embeddings for semantic search
 - Table-aware queries ("find tables with column X")
 
+### Segment Deduplication
+
+Two-phase deduplication strategy to eliminate redundant content while preserving important signals.
+Fully configurable via `DocSummarizer:Deduplication` section in `appsettings.json`.
+
+**Phase 1 - Ingestion (Intra-Document):**
+- Deduplicates within each document before indexing
+- Near-duplicates (same meaning, different text) boost salience
+- Supports Linear or Logarithmic boost decay modes
+- Exact duplicates (same ContentHash) dropped without boost
+- Configurable: `Deduplication:Ingestion` section
+
+**Phase 2 - Retrieval (Cross-Document):**
+- Deduplicates across documents after RRF ranking
+- Keeps segment with highest RRF score when similar content found
+- Prevents LLM from receiving redundant information
+- Configurable: `Deduplication:Retrieval` section
+
+**Key Services**:
+- `IDeduplicationService` - Injectable service for both phases
+- `DeduplicationConfig` - Full configuration with analytics
+- `DeduplicationResult<T>` - Metrics tracking for observability
+
+**Configuration Example**:
+```json
+{
+  "DocSummarizer": {
+    "Deduplication": {
+      "Ingestion": {
+        "SimilarityThreshold": 0.90,
+        "BoostDecayMode": "Logarithmic"
+      },
+      "Retrieval": {
+        "SimilarityThreshold": 0.90,
+        "MinRelevanceScore": 0.25
+      }
+    }
+  }
+}
+```
+
+**Documentation**: See `docs/DEDUPLICATION_STRATEGY.md`
+
 ---
 
 ## Key Directories
