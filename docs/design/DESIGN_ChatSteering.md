@@ -1,10 +1,11 @@
 # Chat Steering (Design)
 
 ## Summary
-Chat steering lets the user redirect an ongoing conversation without changing the core topic. Examples:
+Chat steering allows the user to adjust retrieval scope and ranking during an ongoing conversation without changing the core topic. Examples:
 - "No, use older documents."
+- "Let's focus on documents older than 2021-01-01."
 - "Focus only on the X document."
-- "Exclude the audit report." 
+- "Exclude the audit report and include the incident postmortem instead."
 
 The system uses the Sentinel with prior document context to generate a new content query plus retrieval constraints. The final synthesis prompt must explicitly account for the steering instruction so the answer reflects the new scope.
 
@@ -32,6 +33,14 @@ The system uses the Sentinel with prior document context to generate a new conte
 - User: "Let's just use the X document."
 - System: filter to that document; if ambiguous, ask a clarification question.
 
+4) Include/exclude swap:
+- User: "Exclude the audit report and include the incident postmortem instead."
+- System: remove audit report, include postmortem, then answer the question.
+
+5) Date constraint:
+- User: "Let's focus on documents older than 2021-01-01."
+- System: re-run the last topic query constrained to documents before the date.
+
 ## Detection and routing
 Add a steering detection stage before follow-up detection.
 
@@ -41,6 +50,17 @@ Pipeline for each message:
    a) Run steering detection (Sentinel) with prior context.
    b) If steering detected, build effective query and retrieval constraints.
    c) Else, fall back to existing follow-up detection.
+
+## Policy and precedence
+Constraint precedence (highest to lowest):
+1) Explicit user constraints in the current message
+2) Sticky steering state
+3) Active document scope
+4) Collection-wide defaults
+
+## Confidence and fallback
+- Use a configurable confidence threshold (example: >= 0.7) for steering acceptance.
+- If below threshold, either request clarification or fall back to follow-up detection.
 
 ## Sentinel steering interpretation
 Introduce a new Sentinel method:
@@ -57,6 +77,7 @@ Output (SteeringPlan):
 - IsSteering: bool
 - Confidence: 0.0 to 1.0
 - Reason: string
+- SteeringEffect: "retrieval" | "synthesis" | "both"
 - EffectiveQuery: string (rewritten content query)
 - Scope:
   - DocumentIdsInclude: Guid[]?
@@ -65,8 +86,15 @@ Output (SteeringPlan):
 - TimeBias:
   - "older" | "newer" | "none"
   - Optional time window hints (before/after)
+- TimeConstraint:
+  - BeforeDate: ISO-8601 string?
+  - AfterDate: ISO-8601 string?
+  - Reference: "explicit" | "document" | "collection"
 - Sticky: bool ("from now on" style)
 - SteeringSummary: short natural language summary
+- NeedsClarification: bool
+- ClarificationQuestion: string?
+- AmbiguousDocuments: string[]? (document name candidates)
 
 ### Steering prompt shape
 The prompt should:
@@ -83,6 +111,10 @@ Steering adjusts retrieval before synthesis:
 - Time bias:
   - For "older" -> invert or down-weight freshness boost in RRF.
   - For "newer" -> increase freshness weight (current behavior is a mild boost).
+- Time constraint:
+  - Apply CreatedAt filter using BeforeDate/AfterDate when provided.
+- SteeringEffect:
+  - "synthesis" -> no retrieval change; adjust response style only.
 
 Implementation note:
 - In RRF, swap the freshness ordering for older bias or apply a negative weight.
@@ -92,6 +124,7 @@ Implementation note:
   - ActiveDocumentIds
   - LastTopicQuery
 - If Sticky steering is enabled, store a small steering state in conversation metadata.
+- Sticky steering persists until explicitly overridden or the topic query changes.
 
 ## Prompting and synthesis
 The synthesis prompt must incorporate steering explicitly:
