@@ -67,7 +67,9 @@ public class ImageEntityExtractor : IEntityExtractor
         if (analysisResult.Signals.TryGetValue("vision.detailed_caption", out var detailed) && detailed != null)
             textParts.Add(detailed.ToString()!);
 
-        if (analysisResult.Signals.TryGetValue("ocr.text", out var ocrText) && ocrText != null)
+        if (analysisResult.Signals.TryGetValue("ocr.markdown", out var ocrMarkdown) && ocrMarkdown != null)
+            textParts.Add(ocrMarkdown.ToString()!);
+        else if (analysisResult.Signals.TryGetValue("ocr.text", out var ocrText) && ocrText != null)
             textParts.Add(ocrText.ToString()!);
 
         if (textParts.Count > 0)

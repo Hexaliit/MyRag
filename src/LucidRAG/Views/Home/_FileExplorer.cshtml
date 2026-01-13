@@ -21,6 +21,25 @@
             </select>
         </div>
 
+        <!-- Processing Documents -->
+        <div class="border-b border-base-300 p-2 space-y-2" x-show="processingDocs.length > 0">
+            <div class="text-xs text-base-content/50 uppercase tracking-wide px-1">Processing</div>
+            <template x-for="doc in processingDocs" :key="doc.id">
+                <div class="bg-base-200/50 rounded-lg p-2 text-sm animate-pulse">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="loading loading-spinner loading-xs text-primary"></span>
+                        <span class="truncate flex-1 font-medium" x-text="doc.name"></span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-base-content/60">
+                        <span x-text="doc.stage || 'Starting...'"></span>
+                        <span x-show="doc.progress > 0" x-text="Math.round(doc.progress * 100) + '%'"></span>
+                    </div>
+                    <progress class="progress progress-primary w-full h-1 mt-1"
+                              :value="doc.progress * 100" max="100"></progress>
+                </div>
+            </template>
+        </div>
+
         <!-- Folder Tree -->
         <div class="flex-1 overflow-y-auto p-2">
             <div class="text-xs text-base-content/50 uppercase tracking-wide mb-2 px-2">Folders</div>
@@ -110,38 +129,65 @@
         <!-- Entities Filter -->
         <div class="border-t border-base-300 p-2" x-show="entityGroups && Object.keys(entityGroups).length > 0">
             <div class="flex items-center justify-between mb-2 px-2">
-                <div class="text-xs text-base-content/50 uppercase tracking-wide">Entities</div>
-                <button class="btn btn-ghost btn-xs" @@click="entitiesExpanded = !entitiesExpanded">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform"
-                         :class="entitiesExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24"
-                         stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                    </svg>
-                </button>
+                <div class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-2">
+                    Entities
+                    <template x-if="selectedEntities.size > 0">
+                        <span class="badge badge-xs badge-secondary" x-text="selectedEntities.size + ' selected'"></span>
+                    </template>
+                </div>
+                <div class="flex items-center gap-1">
+                    <template x-if="selectedEntities.size > 0">
+                        <button class="btn btn-ghost btn-xs text-error"
+                                @@click="selectedEntities.clear(); selectedEntities = new Set(); loadContents()"
+                                title="Clear entity filters">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </template>
+                    <button class="btn btn-ghost btn-xs" @@click="entitiesExpanded = !entitiesExpanded">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform"
+                             :class="entitiesExpanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
-            <div class="max-h-48 overflow-y-auto space-y-1" x-show="entitiesExpanded" x-collapse>
+            <div class="max-h-64 overflow-y-auto space-y-1" x-show="entitiesExpanded" x-collapse>
                 <template x-for="(entities, type) in entityGroups" :key="type">
-                    <div class="collapse collapse-arrow bg-base-200/50 rounded-lg">
-                        <input type="checkbox" class="min-h-0"/>
-                        <div class="collapse-title min-h-0 py-1 px-2 text-sm flex items-center gap-2">
+                    <div class="bg-base-200/30 rounded-lg overflow-hidden">
+                        <!-- Entity type header - always visible -->
+                        <div class="flex items-center gap-2 px-2 py-1.5 text-sm font-medium cursor-pointer hover:bg-base-200/50"
+                             @@click="entityTypeExpanded = entityTypeExpanded === type ? null : type">
                             <span x-html="getEntityIcon(type)"></span>
-                            <span x-text="type" class="capitalize"></span>
-                            <span class="badge badge-xs badge-ghost ml-auto" x-text="entities.length"></span>
+                            <span x-text="type" class="capitalize flex-1"></span>
+                            <span class="badge badge-xs badge-ghost" x-text="entities.length"></span>
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 class="h-3 w-3 transition-transform"
+                                 :class="entityTypeExpanded === type ? 'rotate-180' : ''"
+                                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </div>
-                        <div class="collapse-content px-2 pb-2">
-                            <template x-for="entity in entities.slice(0, 8)" :key="entity.id">
-                                <div
-                                    class="flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer hover:bg-base-300 text-xs"
-                                    :class="selectedEntities.has(entity.id) ? 'bg-secondary/20' : ''"
-                                    @@click="toggleEntityFilter(entity.id, type)">
+                        <!-- Entity items -->
+                        <div class="px-1 pb-1" x-show="entityTypeExpanded === type" x-collapse>
+                            <template x-for="entity in entities.slice(0, 10)" :key="entity.id">
+                                <div class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-base-300 text-xs"
+                                     :class="selectedEntities.has(entity.id) ? 'bg-secondary/20 font-medium' : ''"
+                                     @@click="toggleEntityFilter(entity.id, type)"
+                                     :title="entity.description || entity.name">
+                                    <input type="checkbox" class="checkbox checkbox-xs"
+                                           :checked="selectedEntities.has(entity.id)"
+                                           @@click.stop/>
                                     <span class="truncate flex-1" x-text="entity.name"></span>
-                                    <span class="text-base-content/40" x-text="entity.mentionCount"></span>
+                                    <span class="badge badge-xs badge-ghost" x-text="entity.mentionCount"></span>
                                 </div>
                             </template>
-                            <template x-if="entities.length > 8">
-                                <button class="btn btn-ghost btn-xs w-full mt-1 text-xs"
+                            <template x-if="entities.length > 10">
+                                <button class="btn btn-ghost btn-xs w-full mt-1 text-xs opacity-70 hover:opacity-100"
                                         @@click="showEntityModal(type)">
-                                    Show all <span x-text="entities.length"></span>
+                                    + <span x-text="entities.length - 10"></span> more
                                 </button>
                             </template>
                         </div>
@@ -461,6 +507,7 @@
             // Sidebar expansion states
             communitiesExpanded: true,
             entitiesExpanded: true,
+            entityTypeExpanded: null, // Tracks which entity type is expanded
             signalsExpanded: false,
 
             // Data
@@ -493,6 +540,10 @@
 
             // Stats
             stats: {folders: 0, documents: 0, totalSizeBytes: 0},
+
+            // Processing documents (live status)
+            processingDocs: [],
+            processingEventSources: new Map(),
 
             // Auth
             canWrite: false,
@@ -856,15 +907,28 @@
 
             async handleFileDrop(event) {
                 this.isDraggingFiles = false;
-                if (!this.canWrite) return;
+
+                if (!this.canWrite) {
+                    alert('Upload not available. Please log in or check demo mode settings.');
+                    return;
+                }
 
                 const files = event.dataTransfer?.files;
-                if (!files?.length) return;
+                if (!files?.length) {
+                    console.log('No files in drop event');
+                    return;
+                }
 
+                console.log(`Uploading ${files.length} file(s) via drag-drop`);
                 await this.uploadFiles(files);
             },
 
             async uploadFiles(files) {
+                if (!this.canWrite) {
+                    alert('Upload not available. Please log in or check demo mode settings.');
+                    return;
+                }
+
                 const formData = new FormData();
                 for (const file of files) {
                     formData.append('files', file);
@@ -876,6 +940,9 @@
                     formData.append('folderId', this.currentFolderId);
                 }
 
+                // Show uploading indicator
+                this.loading = true;
+
                 try {
                     const response = await fetch('/api/documents/upload-batch', {
                         method: 'POST',
@@ -883,12 +950,87 @@
                     });
 
                     if (response.ok) {
+                        const result = await response.json();
+                        const queuedDocs = result.documents?.filter(d => d.status === 'queued') || [];
+
+                        // Add to processing list and start tracking
+                        for (const doc of queuedDocs) {
+                            this.trackDocumentProgress(doc.documentId, doc.filename);
+                        }
+
                         htmx.trigger(document.body, 'documentUploaded');
                         await this.loadContents();
+                    } else {
+                        const errorData = await response.json().catch(() => ({}));
+                        const errorMsg = errorData.error || `Upload failed with status ${response.status}`;
+                        console.error('Upload failed:', errorMsg);
+                        alert(`Upload failed: ${errorMsg}`);
                     }
                 } catch (e) {
                     console.error('Upload failed:', e);
+                    alert(`Upload failed: ${e.message || 'Network error'}`);
+                } finally {
+                    this.loading = false;
                 }
+            },
+
+            // Track document processing progress via SSE
+            trackDocumentProgress(documentId, filename) {
+                // Add to processing list
+                this.processingDocs.push({
+                    id: documentId,
+                    name: filename,
+                    stage: 'Queued',
+                    progress: 0
+                });
+
+                // Connect to SSE endpoint
+                const eventSource = new EventSource(`/api/documents/${documentId}/status`);
+
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        const doc = this.processingDocs.find(d => d.id === documentId);
+                        if (doc) {
+                            doc.stage = data.stage || data.message || 'Processing...';
+                            doc.progress = data.progress || 0;
+
+                            // Handle completion
+                            if (data.type === 'completed' || data.type === 'failed') {
+                                this.onProcessingComplete(documentId, data.type === 'completed');
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error parsing SSE data:', e);
+                    }
+                };
+
+                eventSource.onerror = () => {
+                    eventSource.close();
+                    this.processingEventSources.delete(documentId);
+                    // Remove from processing list on error
+                    this.processingDocs = this.processingDocs.filter(d => d.id !== documentId);
+                    this.loadContents(); // Refresh list
+                };
+
+                this.processingEventSources.set(documentId, eventSource);
+            },
+
+            // Handle document processing completion
+            onProcessingComplete(documentId, success) {
+                // Close SSE connection
+                const eventSource = this.processingEventSources.get(documentId);
+                if (eventSource) {
+                    eventSource.close();
+                    this.processingEventSources.delete(documentId);
+                }
+
+                // Remove from processing list
+                this.processingDocs = this.processingDocs.filter(d => d.id !== documentId);
+
+                // Refresh contents to show the completed document
+                this.loadContents();
+                this.loadEntities();
             },
 
             // Context menu
@@ -1021,6 +1163,28 @@
                         return '<svg class="h-5 w-5 text-purple-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
                     default:
                         return '<svg class="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM13 9V3.5L18.5 9H13Z"/></svg>';
+                }
+            },
+
+            getDocTypeBadgeClass(contentType) {
+                switch (contentType) {
+                    case 'pdf':
+                        return 'badge-error';
+                    case 'docx':
+                    case 'doc':
+                        return 'badge-primary';
+                    case 'markdown':
+                        return 'badge-neutral';
+                    case 'image':
+                        return 'badge-success';
+                    case 'audio':
+                        return 'badge-secondary';
+                    case 'text':
+                        return 'badge-ghost';
+                    case 'html':
+                        return 'badge-warning';
+                    default:
+                        return 'badge-ghost';
                 }
             },
 

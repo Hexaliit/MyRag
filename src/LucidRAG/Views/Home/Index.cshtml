@@ -1213,6 +1213,12 @@
                     }
                     // Restore conversation from cookie
                     await this.restoreConversation();
+                    // Listen for document details events from Explorer
+                    window.addEventListener('show-document-details', (e) => {
+                        if (e.detail?.documentId) {
+                            this.showDocumentDetails(e.detail.documentId);
+                        }
+                    });
 
                     // Setup Ctrl+K keyboard shortcut for search
                     document.addEventListener('keydown', (e) => {

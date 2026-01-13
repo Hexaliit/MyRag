@@ -250,6 +250,31 @@ public static class ServiceCollectionExtensions
             return new OcrQualityWave(imageConfig, logger, mlContextChecker, sentinelLlmCorrector);
         });
 
+        // DeepseekOcrWave - OCR via DeepSeek VLM (Ollama)
+        // Priority 53: Runs after NanonetsOcrWave (54), before OlmOcr2Wave (51)
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<DeepseekOcrWave>>();
+            return new DeepseekOcrWave(imageConfig, logger);
+        });
+
+        // OcrBenchmarkWave - Compares multiple OCR systems and generates comparison reports
+        // Priority 45: Runs after all OCR waves (50-65) to collect and compare results
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OcrBenchmarkWave>>();
+            // Create SpellChecker with models directory from config
+            var dictionaryPath = !string.IsNullOrEmpty(imageConfig.Value.Ocr.DictionaryPath)
+                ? imageConfig.Value.Ocr.DictionaryPath
+                : imageConfig.Value.ModelsDirectory != null
+                    ? Path.Combine(imageConfig.Value.ModelsDirectory, "dictionaries")
+                    : null;
+            var spellChecker = new SpellChecker(dictionaryPath, sp.GetService<Microsoft.Extensions.Logging.ILogger<SpellChecker>>());
+            return new OcrBenchmarkWave(imageConfig, spellChecker, logger);
+        });
+
         // FaceDetectionWave - PII-respecting face detection and embedding
         services.AddSingleton<IAnalysisWave>(sp => new FaceDetectionWave());
 
@@ -469,6 +494,22 @@ public static class ServiceCollectionExtensions
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
             var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<Florence2Wave>>();
             return new Florence2Wave(florence2Service, imageConfig, logger);
+        });
+
+        // Nanonets OCR-s Wave (OpenAI-compatible VLM, Markdown OCR)
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<NanonetsOcrWave>>();
+            return new NanonetsOcrWave(imageConfig, logger);
+        });
+
+        // OlmOCR-2 Wave (final OCR escalation before Vision LLM)
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OlmOcr2Wave>>();
+            return new OlmOcr2Wave(imageConfig, logger);
         });
 
         // Vision LLM services for caption/description generation

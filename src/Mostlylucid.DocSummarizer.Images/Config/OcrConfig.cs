@@ -212,6 +212,86 @@ public class OcrConfig
     /// </summary>
     public string SpellCheckLanguage { get; set; } = "en_US";
 
+    // ============ Nanonets OCR-s (OpenAI-compatible VLM) ============
+    // Uses a hosted or local OpenAI-compatible endpoint that supports images.
+    // Optimized for OCR with Markdown output.
+
+    /// <summary>
+    ///     Enable Nanonets OCR-s for OCR escalation.
+    /// </summary>
+    public bool EnableNanonetsOcr { get; set; } = false;
+
+    /// <summary>
+    ///     Base URL for the OpenAI-compatible endpoint serving Nanonets OCR-s.
+    ///     Example: http://localhost:8000 (vLLM) or https://api.nanonets.com
+    /// </summary>
+    public string NanonetsOcrBaseUrl { get; set; } = "http://localhost:8000";
+
+    /// <summary>
+    ///     Model name for Nanonets OCR-s.
+    /// </summary>
+    public string NanonetsOcrModelName { get; set; } = "nanonets-ocr-s";
+
+    /// <summary>
+    ///     API key for Nanonets OCR-s (if required by the endpoint).
+    ///     Leave empty for local unauthenticated endpoints.
+    /// </summary>
+    public string? NanonetsOcrApiKey { get; set; }
+
+    /// <summary>
+    ///     Timeout in seconds for Nanonets OCR-s requests.
+    /// </summary>
+    public int NanonetsOcrTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
+    ///     Maximum tokens for Nanonets OCR-s generation.
+    /// </summary>
+    public int NanonetsOcrMaxTokens { get; set; } = 4096;
+
+    /// <summary>
+    ///     Request Markdown output (tables, headings, lists) from Nanonets OCR-s.
+    /// </summary>
+    public bool NanonetsOcrPreferMarkdown { get; set; } = true;
+
+    // ============ OlmOCR-2 (OpenAI-compatible VLM) ============
+    // Runs as a final OCR escalation before Vision LLM.
+
+    /// <summary>
+    ///     Enable OlmOCR-2 OCR escalation.
+    /// </summary>
+    public bool EnableOlmOcr2 { get; set; } = false;
+
+    /// <summary>
+    ///     Base URL for the OpenAI-compatible endpoint serving OlmOCR-2.
+    /// </summary>
+    public string OlmOcr2BaseUrl { get; set; } = "http://localhost:8000";
+
+    /// <summary>
+    ///     Model name for OlmOCR-2.
+    /// </summary>
+    public string OlmOcr2ModelName { get; set; } = "olmOCR-2";
+
+    /// <summary>
+    ///     API key for OlmOCR-2 (if required by the endpoint).
+    ///     Leave empty for local unauthenticated endpoints.
+    /// </summary>
+    public string? OlmOcr2ApiKey { get; set; }
+
+    /// <summary>
+    ///     Timeout in seconds for OlmOCR-2 requests.
+    /// </summary>
+    public int OlmOcr2TimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
+    ///     Maximum tokens for OlmOCR-2 generation.
+    /// </summary>
+    public int OlmOcr2MaxTokens { get; set; } = 4096;
+
+    /// <summary>
+    ///     Request Markdown output from OlmOCR-2.
+    /// </summary>
+    public bool OlmOcr2PreferMarkdown { get; set; } = true;
+
     /// <summary>
     ///     Apply quality mode presets to phase toggles
     ///     Called automatically when QualityMode is set

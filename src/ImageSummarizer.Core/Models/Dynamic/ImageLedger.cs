@@ -134,7 +134,8 @@ public class ImageLedger
         ledger.Text = new TextLedger
         {
             // Priority: Corrected text from 3-tier pipeline > voting consensus > temporal median > raw OCR
-            ExtractedText = profile.GetValue<string>("ocr.final.corrected_text") // Tier 2/3 corrections
+            ExtractedText = profile.GetValue<string>("ocr.markdown") // Markdown-capable OCR (preferred)
+                ?? profile.GetValue<string>("ocr.final.corrected_text") // Tier 2/3 corrections
                 ?? profile.GetValue<string>("ocr.corrected.text") // Legacy Tier 3 signal
                 ?? profile.GetValue<string>("ocr.voting.consensus_text") // Temporal voting
                 ?? profile.GetValue<string>("ocr.temporal_median.full_text") // Temporal median

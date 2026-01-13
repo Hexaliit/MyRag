@@ -55,8 +55,13 @@ public record Signal
 | `ocr.text` | string | OcrWave |
 | `ocr.confidence` | double | OcrWave |
 | `ocr.word_count` | int | OcrWave |
+| `ocr.markdown` | string | NanonetsOcrWave/OlmOcr2Wave |
 | `ocr.ml.text` | string | MlOcrWave |
 | `ocr.florence2.text` | string | Florence2Wave |
+| `ocr.nanonets.markdown` | string | NanonetsOcrWave |
+| `ocr.nanonets.text` | string | NanonetsOcrWave |
+| `ocr.olmocr2.markdown` | string | OlmOcr2Wave |
+| `ocr.olmocr2.text` | string | OlmOcr2Wave |
 
 ### Caption Signals
 

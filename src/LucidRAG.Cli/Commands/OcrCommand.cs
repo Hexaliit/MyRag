@@ -34,6 +34,17 @@ public static class OcrCommand
         Description = "Data directory for models/cache"
     };
 
+    private static readonly Option<bool> BenchmarkOpt = new("--benchmark", "-b")
+    {
+        Description = "Enable OCR benchmarking - compare all OCR systems and generate report",
+        DefaultValueFactory = _ => false
+    };
+
+    private static readonly Option<string?> BenchmarkOutputOpt = new("--benchmark-output")
+    {
+        Description = "Output path for benchmark report (default: ./OCR Test.md)"
+    };
+
     public static Command Create()
     {
         var command = new Command("ocr", "Extract text from images using advanced OCR pipeline");
@@ -41,6 +52,8 @@ public static class OcrCommand
         command.Options.Add(ShowSignalsOpt);
         command.Options.Add(VerboseOpt);
         command.Options.Add(DataDirOpt);
+        command.Options.Add(BenchmarkOpt);
+        command.Options.Add(BenchmarkOutputOpt);
 
         command.SetAction(async (parseResult, ct) =>
         {
@@ -48,15 +61,24 @@ public static class OcrCommand
             var showSignals = parseResult.GetValue(ShowSignalsOpt);
             var verbose = parseResult.GetValue(VerboseOpt);
             var dataDir = parseResult.GetValue(DataDirOpt);
+            var benchmarkEnabled = parseResult.GetValue(BenchmarkOpt);
+            var benchmarkOutput = parseResult.GetValue(BenchmarkOutputOpt);
 
             var config = new CliConfig
             {
                 DataDirectory = Program.EnsureDataDirectory(dataDir),
-                Verbose = verbose
+                Verbose = verbose,
+                EnableOcrBenchmark = benchmarkEnabled,
+                OcrBenchmarkOutputPath = benchmarkOutput ?? "./OCR Test.md"
             };
 
             AnsiConsole.Write(new FigletText("OCR Pipeline").Color(Color.Cyan1));
-            AnsiConsole.MarkupLine("[dim]Advanced multi-frame OCR with temporal processing[/]\n");
+            AnsiConsole.MarkupLine("[dim]Advanced multi-frame OCR with temporal processing[/]");
+            if (benchmarkEnabled)
+            {
+                AnsiConsole.MarkupLine($"[yellow]Benchmark mode enabled - results will be saved to {config.OcrBenchmarkOutputPath}[/]");
+            }
+            AnsiConsole.WriteLine();
 
             await using var services = CliServiceRegistration.BuildServiceProvider(config, verbose);
             using var scope = services.CreateScope();

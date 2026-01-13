@@ -82,6 +82,7 @@ var bestSignal = dynamicProfile.GetBestSignal("quality.sharpness");
 - `content.text_likeliness` - Probability of containing text (0.0-1.0)
 - `content.llm_caption` - Vision LLM description (confidence: 0.85, source: VisionLLM)
 - `content.extracted_text` - OCR results (confidence: 0.9, source: OCR)
+- `content.extracted_markdown` - OCR results in Markdown (preferred for structured docs)
 
 ### Quality Signals
 - `quality.sharpness` - Laplacian variance (confidence: 0.8)

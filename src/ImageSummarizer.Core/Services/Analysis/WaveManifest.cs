@@ -247,6 +247,105 @@ public static class WaveRegistry
 
         new WaveManifest
         {
+            WaveName = "NanonetsOcrWave",
+            Priority = 54,
+            Tags = ["ocr", "vlm", "nanonets", "content"],
+            Emits = [
+                "ocr.nanonets.markdown",
+                "ocr.nanonets.text",
+                "ocr.markdown",
+                "ocr.text",
+                "ocr.full_text",
+                "content.extracted_text",
+                "content.extracted_markdown"
+            ],
+            Requires = [],
+            Optional = [
+                "content.text_likeliness",
+                "ocr.quality.*",
+                "florence2.ocr_text"
+            ],
+            Description = "OCR via Nanonets OCR-s with Markdown output"
+        },
+
+        new WaveManifest
+        {
+            WaveName = "OlmOcr2Wave",
+            Priority = 51,
+            Tags = ["ocr", "vlm", "olmocr2", "content"],
+            Emits = [
+                "ocr.olmocr2.markdown",
+                "ocr.olmocr2.text",
+                "ocr.markdown",
+                "ocr.text",
+                "ocr.full_text",
+                "content.extracted_text",
+                "content.extracted_markdown"
+            ],
+            Requires = [],
+            Optional = [
+                "content.text_likeliness",
+                "ocr.quality.*",
+                "ocr.nanonets.*",
+                "florence2.ocr_text"
+            ],
+            Description = "OCR via OlmOCR-2 with Markdown output (final OCR escalation)"
+        },
+
+        new WaveManifest
+        {
+            WaveName = "DeepseekOcrWave",
+            Priority = 53,
+            Tags = ["ocr", "vlm", "deepseek", "content"],
+            Emits = [
+                "ocr.deepseek.markdown",
+                "ocr.deepseek.text",
+                "ocr.deepseek.duration_ms",
+                "ocr.markdown",
+                "ocr.text",
+                "ocr.full_text",
+                "content.extracted_text",
+                "content.extracted_markdown"
+            ],
+            Requires = [],
+            Optional = [
+                "content.text_likeliness",
+                "ocr.quality.*",
+                "ocr.nanonets.*",
+                "florence2.ocr_text"
+            ],
+            Description = "OCR via DeepSeek VLM (Ollama) with Markdown output"
+        },
+
+        new WaveManifest
+        {
+            WaveName = "OcrBenchmarkWave",
+            Priority = 45,
+            Tags = ["benchmark", "ocr", "quality"],
+            Emits = [
+                "benchmark.ocr.results",
+                "benchmark.ocr.winner",
+                "benchmark.ocr.winner.accuracy",
+                "benchmark.ocr.*.accuracy",
+                "benchmark.ocr.*.chars",
+                "benchmark.ocr.*.timing",
+                "benchmark.ocr.report_path"
+            ],
+            Requires = [],
+            Optional = [
+                "ocr.full_text",
+                "ocr.voting.consensus_text",
+                "florence2.ocr_text",
+                "ocr.nanonets.text",
+                "ocr.deepseek.text",
+                "ocr.olmocr2.text",
+                "vision.llm.text"
+            ],
+            Description = "Benchmarks OCR systems and generates comparison report for training"
+        },
+
+        new WaveManifest
+        {
             WaveName = "VisionLlmWave",
             Priority = 60,
             Tags = ["vision", "llm", "content"],

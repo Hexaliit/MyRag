@@ -45,6 +45,9 @@ public class SignalResolver
         ["motion.direction"] = 7.0,
 
         // Text content (high priority - explicit content)
+        ["ocr.olmocr2.markdown"] = 9.8,
+        ["ocr.nanonets.markdown"] = 9.7,
+        ["ocr.markdown"] = 9.6,
         ["ocr.voting.consensus_text"] = 9.5,
         ["ocr.corrected.text"] = 9.0,
         ["text.extracted"] = 8.0,

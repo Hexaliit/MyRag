@@ -261,6 +261,138 @@ public class OcrConfig
     /// </summary>
     public int HunyuanMaxTokens { get; set; } = 4096;
 
+    // ============ Nanonets OCR-s (OpenAI-compatible VLM) ============
+    // Uses a hosted or local OpenAI-compatible endpoint that supports images.
+    // Optimized for OCR with Markdown output.
+
+    /// <summary>
+    /// Enable Nanonets OCR-s for OCR escalation.
+    /// </summary>
+    public bool EnableNanonetsOcr { get; set; } = false;
+
+    /// <summary>
+    /// Base URL for the OpenAI-compatible endpoint serving Nanonets OCR-s.
+    /// Example: http://localhost:8000 (vLLM) or https://api.nanonets.com
+    /// </summary>
+    public string NanonetsOcrBaseUrl { get; set; } = "http://localhost:8000";
+
+    /// <summary>
+    /// Model name for Nanonets OCR-s.
+    /// </summary>
+    public string NanonetsOcrModelName { get; set; } = "nanonets-ocr-s";
+
+    /// <summary>
+    /// API key for Nanonets OCR-s (if required by the endpoint).
+    /// Leave empty for local unauthenticated endpoints.
+    /// </summary>
+    public string? NanonetsOcrApiKey { get; set; }
+
+    /// <summary>
+    /// Timeout in seconds for Nanonets OCR-s requests.
+    /// </summary>
+    public int NanonetsOcrTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Maximum tokens for Nanonets OCR-s generation.
+    /// </summary>
+    public int NanonetsOcrMaxTokens { get; set; } = 4096;
+
+    /// <summary>
+    /// Request Markdown output (tables, headings, lists) from Nanonets OCR-s.
+    /// </summary>
+    public bool NanonetsOcrPreferMarkdown { get; set; } = true;
+
+    // ============ OlmOCR-2 (OpenAI-compatible VLM) ============
+    // Runs as a final OCR escalation before Vision LLM.
+
+    /// <summary>
+    /// Enable OlmOCR-2 OCR escalation.
+    /// </summary>
+    public bool EnableOlmOcr2 { get; set; } = false;
+
+    /// <summary>
+    /// Base URL for the OpenAI-compatible endpoint serving OlmOCR-2.
+    /// </summary>
+    public string OlmOcr2BaseUrl { get; set; } = "http://localhost:8000";
+
+    /// <summary>
+    /// Model name for OlmOCR-2.
+    /// </summary>
+    public string OlmOcr2ModelName { get; set; } = "olmOCR-2";
+
+    /// <summary>
+    /// API key for OlmOCR-2 (if required by the endpoint).
+    /// Leave empty for local unauthenticated endpoints.
+    /// </summary>
+    public string? OlmOcr2ApiKey { get; set; }
+
+    /// <summary>
+    /// Timeout in seconds for OlmOCR-2 requests.
+    /// </summary>
+    public int OlmOcr2TimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Maximum tokens for OlmOCR-2 generation.
+    /// </summary>
+    public int OlmOcr2MaxTokens { get; set; } = 4096;
+
+    /// <summary>
+    /// Request Markdown output from OlmOCR-2.
+    /// </summary>
+    public bool OlmOcr2PreferMarkdown { get; set; } = true;
+
+    // ============ DeepSeek OCR (Ollama VLM) ============
+    // Uses deepseek-ocr:latest via Ollama's OpenAI-compatible API.
+    // High-quality OCR optimized for document text extraction.
+
+    /// <summary>
+    /// Enable DeepSeek OCR for OCR escalation.
+    /// Requires Ollama running with deepseek-ocr:latest model.
+    /// </summary>
+    public bool EnableDeepseekOcr { get; set; } = false;
+
+    /// <summary>
+    /// Base URL for the Ollama API serving DeepSeek OCR.
+    /// Default: http://localhost:11434 (standard Ollama port)
+    /// </summary>
+    public string DeepseekOcrBaseUrl { get; set; } = "http://localhost:11434";
+
+    /// <summary>
+    /// Model name for DeepSeek OCR.
+    /// </summary>
+    public string DeepseekOcrModelName { get; set; } = "deepseek-ocr:latest";
+
+    /// <summary>
+    /// API key for DeepSeek OCR (if required by the endpoint).
+    /// Leave empty for local Ollama endpoints.
+    /// </summary>
+    public string? DeepseekOcrApiKey { get; set; }
+
+    /// <summary>
+    /// Timeout in seconds for DeepSeek OCR requests.
+    /// </summary>
+    public int DeepseekOcrTimeoutSeconds { get; set; } = 120;
+
+    /// <summary>
+    /// Maximum tokens for DeepSeek OCR generation.
+    /// </summary>
+    public int DeepseekOcrMaxTokens { get; set; } = 4096;
+
+    /// <summary>
+    /// Request Markdown output from DeepSeek OCR.
+    /// </summary>
+    public bool DeepseekOcrPreferMarkdown { get; set; } = true;
+
+    // ============ OCR Benchmarking ============
+    // Compares multiple OCR systems and generates comparison reports
+    // Useful for training data collection and system evaluation
+
+    /// <summary>
+    /// OCR benchmark configuration for comparing multiple OCR systems.
+    /// When enabled, runs all OCR systems and generates comparison reports.
+    /// </summary>
+    public OcrBenchmarkConfig Benchmark { get; set; } = new();
+
     /// <summary>
     /// Apply quality mode presets to phase toggles
     /// Called automatically when QualityMode is set
@@ -362,4 +494,48 @@ public enum OcrQualityMode
     /// Phases: Quality + ONNX Super-Resolution (Real-ESRGAN), no early exit
     /// </summary>
     Ultra
+}
+
+/// <summary>
+/// Configuration for OCR benchmarking - compares multiple OCR systems
+/// and generates comparison reports for training and evaluation.
+/// </summary>
+public class OcrBenchmarkConfig
+{
+    /// <summary>
+    /// Enable OCR benchmarking. When true, the OcrBenchmarkWave will run
+    /// after all OCR waves and generate a comparison report.
+    /// </summary>
+    public bool Enabled { get; set; } = false;
+
+    /// <summary>
+    /// Path to the Markdown report file.
+    /// Results will be appended to this file for each image processed.
+    /// </summary>
+    public string ReportOutputPath { get; set; } = "./OCR Test.md";
+
+    /// <summary>
+    /// Force all OCR systems to run regardless of escalation logic.
+    /// When false, only systems that would normally run are benchmarked.
+    /// When true, forces all enabled systems to process every image.
+    /// </summary>
+    public bool ForceRunAllSystems { get; set; } = false;
+
+    /// <summary>
+    /// Append results to the report file instead of overwriting.
+    /// Set to false to create a fresh report for each run.
+    /// </summary>
+    public bool AppendToReport { get; set; } = true;
+
+    /// <summary>
+    /// Include full extracted text in the report.
+    /// When false, only shows summary statistics.
+    /// </summary>
+    public bool IncludeFullText { get; set; } = true;
+
+    /// <summary>
+    /// Language code for spell-check accuracy assessment.
+    /// Uses the same dictionary system as OcrQualityWave.
+    /// </summary>
+    public string AccuracyLanguage { get; set; } = "en_US";
 }

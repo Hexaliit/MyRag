@@ -89,6 +89,26 @@ public static class CliServiceRegistration
             opt.Ocr.SpellCheckLanguage = "en_US";
             opt.Ocr.MaxFramesForVoting = 5;
             opt.Ocr.EmitPerformanceMetrics = verbose;
+
+            // OCR Benchmark configuration
+            opt.Ocr.Benchmark.Enabled = config.EnableOcrBenchmark;
+            opt.Ocr.Benchmark.ReportOutputPath = config.OcrBenchmarkOutputPath;
+            opt.Ocr.Benchmark.AppendToReport = true;
+            opt.Ocr.Benchmark.IncludeFullText = true;
+
+            // When benchmarking, enable all OCR systems to compare
+            if (config.EnableOcrBenchmark)
+            {
+                // DeepSeek OCR (Ollama - local)
+                opt.Ocr.EnableDeepseekOcr = true;
+                opt.Ocr.DeepseekOcrBaseUrl = "http://localhost:11434";
+                opt.Ocr.DeepseekOcrModelName = "deepseek-ocr:latest";
+
+                // Enable Vision LLM for comparison (using llava)
+                opt.EnableVisionLlm = true;
+                opt.VisionLlmModel = "llava:7b";
+                opt.VisionLlmTimeout = 120000; // 2 minutes for large images
+            }
         });
 
         // AudioSummarizer.Core - Forensic audio characterization
@@ -146,4 +166,14 @@ public class CliConfig
     public string? OllamaUrl { get; set; } = "http://localhost:11434";
     public string OllamaModel { get; set; } = "llama3.2:3b";
     public bool Verbose { get; set; }
+
+    /// <summary>
+    /// Enable OCR benchmarking to compare all OCR systems.
+    /// </summary>
+    public bool EnableOcrBenchmark { get; set; }
+
+    /// <summary>
+    /// Output path for OCR benchmark report.
+    /// </summary>
+    public string OcrBenchmarkOutputPath { get; set; } = "./OCR Test.md";
 }
