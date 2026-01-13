@@ -3,8 +3,10 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:SignSummarizer.UI.ViewModels"
+             xmlns:anim="https://github.com/whistyun/AnimatedImage.Avalonia"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             x:Class="SignSummarizer.UI.Controls.VideoPlayerControl">
+             x:Class="SignSummarizer.UI.Controls.VideoPlayerControl"
+             x:DataType="vm:VideoPlayerViewModel">
 
     <Design.DataContext>
         <vm:VideoPlayerViewModel />
@@ -28,10 +30,11 @@
                        IsVisible="{Binding IsVideoLoaded}" />
 
                 <!-- Animated GIF support -->
-                <AnimatedImage Name="AnimatedGif"
-                               Stretch="Uniform"
-                               StretchDirection="Both"
-                               IsVisible="{Binding IsGif}" />
+                <Image Name="AnimatedGif"
+                       Stretch="Uniform"
+                       StretchDirection="Both"
+                       anim:ImageBehavior.AnimatedSource="{Binding VideoPath}"
+                       IsVisible="{Binding IsGif}" />
 
                 <!-- Placeholder when no media -->
                 <TextBlock Text="No media loaded"
@@ -53,26 +56,26 @@
                                  Width="200"
                                  Margin="0,10,0,0" />
                 </StackPanel>
-            </Grid>
 
-            <!-- Subtitle Overlay -->
-            <Panel IsVisible="{Binding AreSubtitlesVisible}">
-                <StackPanel HorizontalAlignment="Center"
-                            VerticalAlignment="Bottom"
-                            Margin="20,40,20,20">
-                    <Border Background="#80000000"
-                            Padding="12,8"
-                            CornerRadius="4">
-                        <TextBlock Text="{Binding CurrentSubtitle}"
-                                   Foreground="White"
-                                   FontSize="18"
-                                   FontWeight="Medium"
-                                   TextWrapping="Wrap"
-                                   TextAlignment="Center"
-                                   MaxWidth="700" />
-                    </Border>
-                </StackPanel>
-            </Panel>
+                <!-- Subtitle Overlay -->
+                <Panel IsVisible="{Binding AreSubtitlesVisible}">
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Bottom"
+                                Margin="20,40,20,20">
+                        <Border Background="#80000000"
+                                Padding="12,8"
+                                CornerRadius="4">
+                            <TextBlock Text="{Binding CurrentSubtitle}"
+                                       Foreground="White"
+                                       FontSize="18"
+                                       FontWeight="Medium"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"
+                                       MaxWidth="700" />
+                        </Border>
+                    </StackPanel>
+                </Panel>
+            </Grid>
         </Border>
 
         <!-- Controls -->

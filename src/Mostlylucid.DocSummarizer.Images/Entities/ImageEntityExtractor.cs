@@ -1,7 +1,9 @@
 using Mostlylucid.DocSummarizer.Images.Models;
 using Mostlylucid.DocSummarizer.Images.Orchestration;
+using StyloFlow.Retrieval.Entities;
 // Use explicit namespace for Signal to avoid conflict with Orchestration.Signal
 using StyloSignal = StyloFlow.Retrieval.Analysis.Signal;
+using StyloSignalTags = StyloFlow.Retrieval.Analysis.SignalTags;
 
 namespace Mostlylucid.DocSummarizer.Images.Entities;
 
