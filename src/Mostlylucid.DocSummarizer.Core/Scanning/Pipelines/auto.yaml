@@ -1,0 +1,102 @@
+# Auto Pipeline (Smart Routing)
+# Automatically selects native/vlm path based on document characteristics
+# Uses native extraction first, escalates to VLM OCR if needed
+# Best for: Production use - optimal speed/quality tradeoff
+
+name: auto
+description: Smart routing - starts native, escalates to VLM OCR as needed
+version: 1
+
+signals:
+  # Always available from native extraction
+  - content.markdown
+  - extraction.method
+  - extraction.text_density
+  - extraction.needs_ocr
+  - document.page_count
+  - document.title
+  # OCR signals (when escalated)
+  - ocr.model
+  - ocr.confidence
+  - ocr.pages_processed
+
+waves:
+  # Always run native extraction first (for PDF/DOCX)
+  required:
+    - NativeExtractionWave
+  # Conditional based on escalation signals
+  conditional:
+    - VlmOcrWave
+
+output:
+  format: markdown
+  include_metadata: true
+  include_confidence: true
+  show_extraction_method: true
+
+escalation:
+  enabled: true
+  # Escalate to VLM OCR when:
+  triggers:
+    - signal: extraction.text_density
+      condition: "< 100"
+      target: VlmOcrWave
+      reason: "Low text density suggests scanned document"
+    - signal: extraction.needs_ocr
+      value: true
+      target: VlmOcrWave
+      reason: "Native extraction flagged OCR needed"
+    - signal: content.markdown
+      condition: "Length < 200"
+      target: VlmOcrWave
+      reason: "Very little content extracted"
+  # Skip VLM if native is confident
+  skip_vlm_when:
+    - signal: extraction.text_density
+      condition: "> 500"
+    - confidence: "> 0.85"
+
+# Model selection for VLM OCR (when escalated)
+models:
+  tiers:
+    fast:
+      model: minicpm-v:8b
+      provider: ollama
+      for: "Simple documents, few pages"
+    general:
+      model: qwen2-vl:7b
+      provider: ollama
+      for: "Standard documents"
+    quality:
+      model: olmocr-2
+      provider: ollama
+      for: "Complex documents, many pages"
+    god:
+      model: claude-3-5-sonnet
+      provider: anthropic
+      for: "Critical documents, tables + charts"
+
+  # Auto-selection rules
+  selection:
+    - tier: fast
+      when:
+        - "page_count <= 10"
+        - "no complex tables"
+        - "no charts"
+    - tier: general
+      when:
+        - "page_count > 10"
+        - "page_count <= 50"
+    - tier: quality
+      when:
+        - "has complex tables"
+        - "page_count > 50"
+    - tier: god
+      when:
+        - "has charts AND has complex tables"
+        - "force_high_quality: true"
+
+budget:
+  timeout_ms: 300000      # 5 minutes total
+  max_pages: 100          # Max pages to process
+  max_cost_usd: 1.0       # Max cloud API cost

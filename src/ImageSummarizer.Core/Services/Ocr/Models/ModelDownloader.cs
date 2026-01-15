@@ -40,9 +40,9 @@ public class ModelDownloader
         [ModelType.RealESRGAN] = new ModelInfo
         {
             FileName = "realesrgan-x4.onnx",
-            Url = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-x4plus.onnx",
+            Url = "https://huggingface.co/spaces/Wuvin/Unique3D/resolve/main/ckpt/realesrgan-x4.onnx",
             RequiresConversion = false,
-            ApproximateSize = 60 * 1024 * 1024, // 60MB
+            ApproximateSize = 67 * 1024 * 1024, // 67MB
             Description = "Real-ESRGAN 4x super-resolution"
         },
         [ModelType.TesseractEng] = new ModelInfo
@@ -68,6 +68,14 @@ public class ModelDownloader
             RequiresConversion = false,
             ApproximateSize = 250 * 1024 * 1024, // ~250MB
             Description = "CLIP ViT-B/32 text encoder"
+        },
+        [ModelType.YoloDocLayNet] = new ModelInfo
+        {
+            FileName = "yolov10m-doclaynet.onnx",
+            Url = "https://huggingface.co/Oblix/yolov10m-doclaynet_ONNX_document-layout-analysis/resolve/main/onnx/model.onnx",
+            RequiresConversion = false,
+            ApproximateSize = 62 * 1024 * 1024, // ~62MB
+            Description = "YOLOv10-DocLayNet document layout detector (Text, Title, Table, Figure, List, etc.)"
         }
     };
 
@@ -320,7 +328,13 @@ public enum ModelType
     /// <summary>
     /// CLIP ViT-B/32 text encoder for text embeddings
     /// </summary>
-    ClipTextual
+    ClipTextual,
+
+    /// <summary>
+    /// YOLOv10-DocLayNet document layout detection model
+    /// Detects: Text, Title, Table, Figure, List, Caption, Footnote, Header, Footer
+    /// </summary>
+    YoloDocLayNet
 }
 
 /// <summary>

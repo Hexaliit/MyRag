@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using Tesseract;
@@ -148,6 +149,7 @@ public class OcrWave : IAnalysisWave
         CancellationToken ct = default)
     {
         var signals = new List<Signal>();
+        var sw = Stopwatch.StartNew();
 
         // Use preprocessed image if available (from OcrPreprocessingWave)
         var effectivePath = context.GetCached<string>("preprocessing.enhanced_image_path") ?? imagePath;
@@ -385,6 +387,17 @@ public class OcrWave : IAnalysisWave
 
             _logger?.LogInformation("OCR extracted {RegionCount} text regions from {ImagePath}",
                 textRegions.Count, imagePath);
+
+            // Emit timing signal for benchmark
+            sw.Stop();
+            signals.Add(new Signal
+            {
+                Key = "ocr.tesseract.duration_ms",
+                Value = sw.ElapsedMilliseconds,
+                Confidence = 1.0,
+                Source = Name,
+                Tags = new List<string> { "ocr", "timing", "benchmark" }
+            });
         }
         catch (Exception ex)
         {

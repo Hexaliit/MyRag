@@ -77,6 +77,33 @@ public class OcrPreprocessorConfig
     public bool Enabled { get; set; } = true;
 
     /// <summary>
+    /// Whether to enable ML-based super-resolution for low-resolution images.
+    /// Uses Real-ESRGAN ONNX model for 4x upscaling.
+    /// Default: true.
+    /// </summary>
+    public bool EnableSuperResolution { get; set; } = true;
+
+    /// <summary>
+    /// Minimum resolution (max dimension) below which super-resolution is triggered.
+    /// Images smaller than this in both dimensions will be upscaled.
+    /// Default: 1000 pixels.
+    /// </summary>
+    public int MinResolutionForSuperResolution { get; set; } = 1000;
+
+    /// <summary>
+    /// Minimum estimated DPI below which super-resolution is triggered.
+    /// Standard document scanning is 300 DPI; below 150 DPI text becomes blurry.
+    /// Default: 150 DPI.
+    /// </summary>
+    public int MinDpiForSuperResolution { get; set; } = 150;
+
+    /// <summary>
+    /// Path to the Real-ESRGAN ONNX model for super-resolution.
+    /// If null, will attempt to use ModelDownloader to auto-download.
+    /// </summary>
+    public string? SuperResolutionModelPath { get; set; }
+
+    /// <summary>
     /// Creates a configuration optimized for fast processing.
     /// Uses higher thresholds to trigger preprocessing less often.
     /// </summary>

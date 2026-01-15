@@ -23,6 +23,21 @@ public class ImageConfig
     public bool EnableClipEmbedding { get; set; } = true;
 
     /// <summary>
+    /// Enable layout detection using YOLOv10-DocLayNet model.
+    /// Detects document elements: Text, Title, Table, Figure, List, Caption, etc.
+    /// Auto-downloads model (~62MB) on first use.
+    /// </summary>
+    public bool EnableLayoutDetection { get; set; } = true;
+
+    /// <summary>
+    /// Enable layout-based region routing.
+    /// When true, detected tables are extracted for DataSummarizer,
+    /// and detected figures/pictures are processed recursively by ImageSummarizer.
+    /// Requires EnableLayoutDetection = true.
+    /// </summary>
+    public bool EnableLayoutRouting { get; set; } = true;
+
+    /// <summary>
     /// Text-likeliness threshold (0-1) above which OCR is triggered
     /// </summary>
     public double TextLikelinessThreshold { get; set; } = 0.4;

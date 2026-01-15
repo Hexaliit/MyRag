@@ -66,7 +66,7 @@ public class OcrConfig
     /// Classical: Bicubic + sharpening (Fast/Balanced modes)
     /// ONNX: Real-ESRGAN deep learning upscaling (Quality/Ultra modes)
     /// </summary>
-    public bool EnableSuperResolution { get; set; } = false;
+    public bool EnableSuperResolution { get; set; } = true;
 
     /// <summary>
     /// Enable EAST/CRAFT deep learning text detection (requires ONNX models)
@@ -311,14 +311,16 @@ public class OcrConfig
     public bool EnableOlmOcr2 { get; set; } = false;
 
     /// <summary>
-    /// Base URL for the OpenAI-compatible endpoint serving OlmOCR-2.
+    /// Base URL for the Ollama endpoint serving OlmOCR-2.
+    /// Default is Ollama's default URL. Pull the model with: ollama pull richardyoung/olmocr2
     /// </summary>
-    public string OlmOcr2BaseUrl { get; set; } = "http://localhost:8000";
+    public string OlmOcr2BaseUrl { get; set; } = "http://localhost:11434";
 
     /// <summary>
     /// Model name for OlmOCR-2.
+    /// The model must be pulled first: ollama pull richardyoung/olmocr2
     /// </summary>
-    public string OlmOcr2ModelName { get; set; } = "olmOCR-2";
+    public string OlmOcr2ModelName { get; set; } = "richardyoung/olmocr2";
 
     /// <summary>
     /// API key for OlmOCR-2 (if required by the endpoint).

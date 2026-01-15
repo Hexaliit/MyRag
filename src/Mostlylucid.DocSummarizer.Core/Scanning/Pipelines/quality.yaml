@@ -1,0 +1,67 @@
+# Quality Pipeline (Maximum Accuracy)
+# Uses best available models and multiple passes
+# Best for: Critical documents, legal, medical, financial
+
+name: quality
+description: Maximum accuracy - uses best models, multiple passes
+version: 1
+
+signals:
+  - content.markdown
+  - extraction.method
+  - extraction.text_density
+  - document.page_count
+  - document.title
+  - ocr.model
+  - ocr.confidence
+  - ocr.pages_processed
+  - quality.verification
+
+waves:
+  required:
+    - NativeExtractionWave   # Always try native first
+    - VlmOcrWave             # Always run VLM as verification
+  conditional: []
+
+output:
+  format: markdown
+  include_metadata: true
+  include_confidence: true
+  include_verification: true
+  merge_strategy: best_confidence  # Use highest confidence result
+
+# Always escalate to quality models
+escalation:
+  enabled: true
+  force_quality_tier: true
+  model_preference:
+    - olmocr-2         # Quality tier default
+    - claude-3-5-sonnet  # God tier for complex cases
+
+models:
+  default: olmocr-2
+  provider: ollama
+  tiers:
+    quality:
+      model: olmocr-2
+      provider: ollama
+    god:
+      model: claude-3-5-sonnet
+      provider: anthropic
+
+  # Force quality tier selection
+  force_tier: quality
+
+verification:
+  enabled: true
+  # Compare native vs VLM results
+  compare_results: true
+  # Use higher confidence result
+  merge_strategy: best_confidence
+  # Flag significant differences
+  diff_threshold: 0.2
+
+budget:
+  timeout_ms: 900000    # 15 minutes
+  max_pages: 200        # Allow larger documents
+  max_cost_usd: 10.0    # Higher cost allowed for quality

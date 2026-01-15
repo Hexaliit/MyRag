@@ -1,0 +1,127 @@
+# NativeExtractionWave - Fast native text extraction
+# Uses PdfPig for PDFs, OpenXML for DOCX
+# No external API calls - fully local
+
+name: NativeExtractionWave
+priority: 100  # Runs first
+enabled: true
+
+scope:
+  sink: docsummarizer.documents
+  coordinator: extraction
+  atom: NativeExtraction
+
+triggers:
+  requires: []  # Can run standalone
+  skip_when:
+    - wave.skipped.NativeExtractionWave
+    - route.skip.NativeExtractionWave
+  extensions:
+    - .pdf
+    - .docx
+
+emits:
+  on_start:
+    - extraction.native.started
+
+  on_complete:
+    - key: content.markdown
+      type: string
+      description: Extracted markdown content
+      confidence_range: [0.3, 0.95]
+
+    - key: extraction.method
+      type: string
+      description: Extraction method used (native)
+
+    - key: extraction.text_density
+      type: int
+      description: Characters per page (density indicator)
+
+    - key: extraction.needs_ocr
+      type: bool
+      description: Flag if VLM OCR is needed
+      optional: true
+
+    - key: document.page_count
+      type: int
+      description: Number of pages in document
+
+    - key: document.title
+      type: string
+      description: Document title from metadata
+
+  on_failure:
+    - extraction.native.failed
+
+listens:
+  required: []
+  optional: []
+
+# Escalation signals for downstream waves
+escalation:
+  emit_signals:
+    when:
+      - signal: extraction.text_density
+        condition: "< 100"
+        emit: extraction.needs_ocr
+        value: true
+      - signal: content.markdown
+        condition: "Length < 500"
+        emit: extraction.low_content
+        value: true
+
+cache:
+  enabled: true
+  key_strategy: content_hash
+  ttl_seconds: 86400  # 24 hours
+
+config:
+  bindings:
+    - config_key: EnableNativeExtraction
+      skip_if_false: true
+
+lane:
+  name: cpu
+  max_concurrency: 4  # Local extraction is fast
+
+tags:
+  - extraction
+  - native
+  - fast
+  - pdf
+  - docx
+
+# ============================================
+# DEFAULT CONFIGURATION
+# Override via appsettings.json: DocSummarizer:Scanning:Waves:NativeExtractionWave:*
+# ============================================
+defaults:
+  weights:
+    base: 1.0
+    high_confidence: 1.5
+    low_confidence: 0.5
+
+  confidence:
+    high: 0.95      # High text density (>500 chars/page)
+    medium: 0.85    # Medium density (>300)
+    low: 0.70       # Low density (>100)
+    very_low: 0.50  # Very low density (>50)
+    threshold: 0.30 # Below this needs OCR
+
+  timing:
+    timeout_ms: 30000  # 30 seconds
+    cache_ttl_sec: 86400
+
+  features:
+    detailed_logging: false
+    enable_cache: true
+    can_early_exit: true
+    can_escalate: true
+
+  # Wave-specific parameters
+  parameters:
+    min_text_density_for_ocr: 100        # Below this → escalate to VLM OCR
+    text_normalization: true              # Normalize PDF text spacing
+    extract_metadata: true                # Extract title, author, etc.
+    page_separators: true                 # Add <!-- PAGE:n --> markers

@@ -1,0 +1,197 @@
+# VlmOcrWave - Vision LLM OCR for scanned/complex documents
+# Renders pages as images and uses VLM for markdown extraction
+# Supports multiple providers: Ollama, Anthropic, OpenAI, Nanonets
+
+name: VlmOcrWave
+priority: 50  # Runs after native extraction
+enabled: true
+
+scope:
+  sink: docsummarizer.documents
+  coordinator: extraction
+  atom: VlmOcr
+
+triggers:
+  requires: []  # Can run standalone for images
+  skip_when:
+    - wave.skipped.VlmOcrWave
+    - route.skip.VlmOcrWave
+    # Skip if native extraction was highly confident
+    - extraction.native.high_confidence
+  run_when:
+    # Always run for images
+    - extension: [.png, .jpg, .jpeg, .webp, .gif, .bmp, .tiff, .tif]
+    # Run for documents when escalated
+    - signal: extraction.needs_ocr
+      value: true
+    - signal: extraction.text_density
+      condition: "< 100"
+    - option: ForceVlmOcr
+      value: true
+  extensions:
+    - .png
+    - .jpg
+    - .jpeg
+    - .webp
+    - .gif
+    - .bmp
+    - .tiff
+    - .tif
+    - .pdf
+
+emits:
+  on_start:
+    - ocr.vlm.started
+
+  on_complete:
+    - key: content.markdown
+      type: string
+      description: VLM-extracted markdown content
+      confidence_range: [0.6, 0.95]
+
+    - key: extraction.method
+      type: string
+      description: Extraction method (vlm_ocr)
+
+    - key: ocr.model
+      type: string
+      description: Model used for OCR
+
+    - key: ocr.confidence
+      type: double
+      description: Average OCR confidence score
+
+    - key: ocr.pages_processed
+      type: int
+      description: Number of pages processed
+
+  on_failure:
+    - ocr.vlm.failed
+    - ocr.error
+
+listens:
+  required: []
+  optional:
+    # Signals from native extraction
+    - extraction.text_density
+    - extraction.needs_ocr
+    - document.page_count
+    # Complexity signals
+    - content.has_complex_tables
+    - content.has_charts
+
+# Model tier escalation based on document complexity
+escalation:
+  model_selection:
+    fast:
+      when:
+        - signal: document.page_count
+          condition: "<= 10"
+        - signal: content.has_complex_tables
+          value: false
+      model: minicpm-v:8b
+
+    general:
+      when:
+        - signal: document.page_count
+          condition: "> 10"
+      model: qwen2-vl:7b
+
+    quality:
+      when:
+        - signal: content.has_complex_tables
+          value: true
+        - signal: document.page_count
+          condition: "> 50"
+      model: olmocr-2
+
+    god:
+      when:
+        - signal: content.has_charts
+          value: true
+        - signal: content.has_complex_tables
+          value: true
+      model: anthropic:claude-3-5-sonnet
+
+cache:
+  enabled: true
+  key_strategy: content_hash
+  ttl_seconds: 86400  # 24 hours
+  # Cache rendered page images
+  cache_rendered_pages: false  # Clean up after processing
+
+config:
+  bindings:
+    - config_key: EnableVlmOcr
+      skip_if_false: true
+
+lane:
+  name: gpu
+  max_concurrency: 1  # VLM calls are expensive
+
+tags:
+  - extraction
+  - ocr
+  - vlm
+  - ai
+  - gpu
+
+# ============================================
+# DEFAULT CONFIGURATION
+# Override via appsettings.json: DocSummarizer:Scanning:Waves:VlmOcrWave:*
+# ============================================
+defaults:
+  weights:
+    base: 1.0
+    high_confidence: 2.0
+    low_confidence: 0.5
+
+  confidence:
+    high: 0.90
+    medium: 0.75
+    low: 0.60
+    threshold: 0.50
+
+  timing:
+    timeout_ms: 300000  # 5 minutes - VLM can be slow on many pages
+    page_timeout_ms: 60000  # 1 minute per page
+    cache_ttl_sec: 86400
+
+  features:
+    detailed_logging: false
+    enable_cache: true
+    can_early_exit: false
+    can_escalate: true  # Can escalate to god-tier models
+    parallel_pages: false  # Process pages sequentially
+
+  # Wave-specific parameters
+  parameters:
+    render_dpi: 200                      # DPI for PDF rendering
+    max_render_dimension: 2048           # Max image dimension
+    use_jpeg_compression: true           # Compress rendered images
+    jpeg_quality: 85                     # JPEG quality (if compressed)
+    page_separator: "\n---\n"            # Markdown page separator
+    include_page_markers: true           # Add <!-- PAGE:n --> comments
+    max_tokens: 8192                     # Max tokens per page
+    temperature: 0.1                     # Low temp for accurate extraction
+
+# Model configuration (default Ollama)
+model:
+  provider: ollama
+  name: minicpm-v:8b
+  base_url: http://localhost:11434
+  temperature: 0.1
+  max_tokens: 8192
+  system_prompt: |
+    You are a document OCR specialist. Convert the document image to clean,
+    well-structured Markdown. Preserve:
+    - Headings hierarchy (# ## ###)
+    - Lists (bulleted and numbered)
+    - Tables (using markdown table syntax)
+    - Bold/italic emphasis
+    - Code blocks if present
+
+    Output ONLY the markdown content, no explanations.
+  fallback:
+    - qwen2-vl:7b
+    - olmocr-2

@@ -1,0 +1,32 @@
+# Fast Pipeline (Native Only)
+# Only uses native extraction - no VLM/cloud APIs
+# Best for: Quick processing, text-native PDFs, DOCX files
+
+name: fast
+description: Native extraction only - fastest processing, no API calls
+version: 1
+
+signals:
+  - content.markdown
+  - extraction.method
+  - extraction.text_density
+  - document.page_count
+  - document.title
+
+waves:
+  required:
+    - NativeExtractionWave
+  conditional: []  # No conditional waves
+
+output:
+  format: markdown
+  include_metadata: true
+  include_confidence: true
+
+escalation:
+  enabled: false  # No escalation in fast mode
+
+budget:
+  timeout_ms: 30000   # 30 seconds
+  max_pages: 500      # Can handle large documents
+  max_cost_usd: 0     # No API costs

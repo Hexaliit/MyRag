@@ -86,6 +86,7 @@
 
         <!-- Document Processing -->
         <PackageReference Include="PdfPig" Version="0.1.14-alpha-20251224-7c4f5"/>
+        <PackageReference Include="PDFtoImage" Version="5.2.0"/>
         <PackageReference Include="DocumentFormat.OpenXml" Version="3.4.1"/>
         <PackageReference Include="AngleSharp" Version="1.4.1-beta.506"/>
         <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12"/>
@@ -106,6 +107,9 @@
         <PackageReference Include="System.IO.Hashing" Version="10.0.1"/>
         <PackageReference Include="dotnet-stop-words" Version="1.1.0"/>
 
+        <!-- YAML parsing for wave manifests -->
+        <PackageReference Include="YamlDotNet" Version="16.3.0"/>
+
         <!-- Override vulnerable transitive dependency from Qdrant.Client -->
         <PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1"/>
     </ItemGroup>
@@ -113,6 +117,12 @@
     <!-- Embed word list resources -->
     <ItemGroup>
         <EmbeddedResource Include="Resources\*.txt"/>
+    </ItemGroup>
+
+    <!-- Embed document scanning wave and pipeline YAML definitions -->
+    <ItemGroup>
+        <EmbeddedResource Include="Scanning\Waves\*.wave.yaml"/>
+        <EmbeddedResource Include="Scanning\Pipelines\*.yaml"/>
     </ItemGroup>
 
     <!-- Copy Python table extractor scripts to output -->

@@ -29,6 +29,11 @@ public class DocSummarizerConfig
     public OllamaConfig Ollama { get; set; } = new();
 
     /// <summary>
+    ///     VLM OCR configuration for image-based document extraction
+    /// </summary>
+    public VlmOcrConfig VlmOcr { get; set; } = new();
+
+    /// <summary>
     ///     BERT extractive summarization configuration (used when Mode = Bert)
     /// </summary>
     public BertConfig Bert { get; set; } = new();
@@ -941,6 +946,43 @@ public class RetrievalConfigSection
             MinSimilarity = MinSimilarity
         };
     }
+}
+
+/// <summary>
+///     VLM OCR configuration for vision-based document extraction.
+/// </summary>
+public class VlmOcrConfig
+{
+    /// <summary>
+    ///     Ollama base URL for vision LLM
+    /// </summary>
+    public string BaseUrl { get; set; } = "http://localhost:11434";
+
+    /// <summary>
+    ///     Vision-capable model for OCR (e.g., minicpm-v:8b, llava:7b, qwen2-vl:7b)
+    /// </summary>
+    public string Model { get; set; } = "minicpm-v:8b";
+
+    /// <summary>
+    ///     Request timeout in seconds (VLM OCR can be slow for complex documents)
+    /// </summary>
+    public int TimeoutSeconds { get; set; } = 300;
+
+    /// <summary>
+    ///     Enable VLM OCR for PDF documents that fail native text extraction.
+    /// </summary>
+    public bool EnableForPdf { get; set; } = true;
+
+    /// <summary>
+    ///     Enable VLM OCR for standalone images.
+    /// </summary>
+    public bool EnableForImages { get; set; } = true;
+
+    /// <summary>
+    ///     Minimum text density (chars per page) before triggering VLM fallback.
+    ///     Native extraction below this threshold suggests scanned/image-based content.
+    /// </summary>
+    public int MinTextDensityForNative { get; set; } = 100;
 }
 
 /// <summary>

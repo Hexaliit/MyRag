@@ -1,0 +1,59 @@
+# VLM Pipeline (Force VLM OCR)
+# Skips native extraction, goes directly to VLM OCR
+# Best for: Images, scanned documents, known problematic PDFs
+
+name: vlm
+description: VLM OCR first - best for scanned documents and images
+version: 1
+
+signals:
+  - content.markdown
+  - extraction.method
+  - ocr.model
+  - ocr.confidence
+  - ocr.pages_processed
+
+waves:
+  required:
+    - VlmOcrWave
+  conditional: []  # VLM is the only wave
+
+output:
+  format: markdown
+  include_metadata: true
+  include_confidence: true
+  show_ocr_model: true
+
+escalation:
+  enabled: true
+  # Model escalation within VLM tier
+  model_escalation:
+    - from: minicpm-v:8b
+      to: qwen2-vl:7b
+      when: "confidence < 0.6"
+    - from: qwen2-vl:7b
+      to: olmocr-2
+      when: "confidence < 0.5"
+    - from: olmocr-2
+      to: claude-3-5-sonnet
+      when: "confidence < 0.4"
+
+# Default to fast VLM model
+models:
+  default: minicpm-v:8b
+  provider: ollama
+  tiers:
+    fast:
+      model: minicpm-v:8b
+      provider: ollama
+    quality:
+      model: olmocr-2
+      provider: ollama
+    god:
+      model: claude-3-5-sonnet
+      provider: anthropic
+
+budget:
+  timeout_ms: 600000    # 10 minutes (VLM is slower)
+  max_pages: 50         # Limit pages for VLM
+  max_cost_usd: 5.0     # Allow cloud API usage

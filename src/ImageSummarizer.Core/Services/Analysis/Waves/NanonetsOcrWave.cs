@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
@@ -85,6 +86,7 @@ public class NanonetsOcrWave : IAnalysisWave
         CancellationToken ct = default)
     {
         var signals = new List<Signal>();
+        var sw = Stopwatch.StartNew();
 
         // Use preprocessed image if available (from OcrPreprocessingWave)
         var effectivePath = context.GetCached<string>("preprocessing.enhanced_image_path") ?? imagePath;
@@ -194,6 +196,17 @@ public class NanonetsOcrWave : IAnalysisWave
                     Tags = new List<string> { SignalTags.Content, "markdown" }
                 });
             }
+
+            // Emit timing signal for benchmark
+            sw.Stop();
+            signals.Add(new Signal
+            {
+                Key = "ocr.nanonets.duration_ms",
+                Value = sw.ElapsedMilliseconds,
+                Confidence = 1.0,
+                Source = Name,
+                Tags = new List<string> { "ocr", "timing", "benchmark" }
+            });
         }
         catch (Exception ex)
         {

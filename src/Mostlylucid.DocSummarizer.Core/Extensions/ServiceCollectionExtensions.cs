@@ -4,7 +4,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Config;
+using Mostlylucid.DocSummarizer.Core.Services;
 using Mostlylucid.DocSummarizer.Pipeline;
+using Mostlylucid.DocSummarizer.Scanning;
+using Mostlylucid.DocSummarizer.Scanning.Waves;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Deduplication;
 using Mostlylucid.DocSummarizer.Services.Onnx;
@@ -99,14 +102,6 @@ public static class ServiceCollectionExtensions
             return CreateLlmService(config);
         });
 
-        // Register document handler registry with default handlers (extensibility point for new file types)
-        services.TryAddSingleton<IDocumentHandlerRegistry>(sp =>
-        {
-            var registry = new DocumentHandlerRegistry();
-            registry.RegisterDefaultHandlers();
-            return registry;
-        });
-
         services.TryAddSingleton<IDocumentSummarizer, DocumentSummarizerService>();
 
         // Register deduplication service with config from DocSummarizerConfig
@@ -123,6 +118,59 @@ public static class ServiceCollectionExtensions
         // Register the pipeline for unified pipeline registry
         services.TryAddSingleton<DocumentPipeline>();
         services.AddSingleton<IPipeline>(sp => sp.GetRequiredService<DocumentPipeline>());
+
+        // Register PDF to Markdown conversion services
+        services.TryAddSingleton<PdfPageRenderer>(sp =>
+        {
+            var logger = sp.GetService<ILogger<PdfPageRenderer>>();
+            return new PdfPageRenderer(logger);
+        });
+
+        // Register VLM OCR service for vision-based document extraction
+        services.TryAddSingleton<IVlmOcrService>(sp =>
+        {
+            var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
+            var logger = sp.GetService<ILogger<VlmOcrService>>();
+            return new VlmOcrService(config.VlmOcr, logger);
+        });
+
+        services.TryAddSingleton<DocumentToMarkdownService>(sp =>
+        {
+            var pdfRenderer = sp.GetRequiredService<PdfPageRenderer>();
+            var tableFactory = sp.GetService<ITableExtractorFactory>();
+            var logger = sp.GetService<ILogger<DocumentToMarkdownService>>();
+            var vlmOcrService = sp.GetService<IVlmOcrService>();
+            var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
+
+            var service = new DocumentToMarkdownService(pdfRenderer, tableFactory, logger)
+            {
+                MinTextDensityForNative = config.VlmOcr.MinTextDensityForNative
+            };
+
+            // Wire up VLM OCR callback if service is available
+            if (vlmOcrService != null)
+            {
+                service.VlmOcrCallback = vlmOcrService.OcrImageToMarkdownAsync;
+            }
+
+            return service;
+        });
+
+        // Register document handler registry with enhanced handlers for PDF/image OCR
+        services.TryAddSingleton<IDocumentHandlerRegistry>(sp =>
+        {
+            var markdownService = sp.GetRequiredService<DocumentToMarkdownService>();
+            var pdfLogger = sp.GetService<ILogger<EnhancedPdfDocumentHandler>>();
+            var imageLogger = sp.GetService<ILogger<ImageDocumentHandler>>();
+
+            var registry = new DocumentHandlerRegistry();
+            registry.RegisterDefaultHandlers();
+            registry.RegisterEnhancedHandlers(markdownService, pdfLogger, imageLogger);
+            return registry;
+        });
+
+        // Register document wave scanning system
+        RegisterDocumentWaveServices(services);
 
         return services;
     }
@@ -177,14 +225,6 @@ public static class ServiceCollectionExtensions
             return CreateLlmService(config);
         });
 
-        // Register document handler registry with default handlers (extensibility point for new file types)
-        services.TryAddSingleton<IDocumentHandlerRegistry>(sp =>
-        {
-            var registry = new DocumentHandlerRegistry();
-            registry.RegisterDefaultHandlers();
-            return registry;
-        });
-
         services.TryAddSingleton<IDocumentSummarizer, DocumentSummarizerService>();
 
         // Register deduplication service with config from DocSummarizerConfig
@@ -201,7 +241,118 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<DocumentPipeline>();
         services.AddSingleton<IPipeline>(sp => sp.GetRequiredService<DocumentPipeline>());
 
+        // Register PDF to Markdown conversion services
+        services.TryAddSingleton<PdfPageRenderer>(sp =>
+        {
+            var logger = sp.GetService<ILogger<PdfPageRenderer>>();
+            return new PdfPageRenderer(logger);
+        });
+
+        // Register VLM OCR service for vision-based document extraction
+        services.TryAddSingleton<IVlmOcrService>(sp =>
+        {
+            var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
+            var logger = sp.GetService<ILogger<VlmOcrService>>();
+            return new VlmOcrService(config.VlmOcr, logger);
+        });
+
+        services.TryAddSingleton<DocumentToMarkdownService>(sp =>
+        {
+            var pdfRenderer = sp.GetRequiredService<PdfPageRenderer>();
+            var tableFactory = sp.GetService<ITableExtractorFactory>();
+            var logger = sp.GetService<ILogger<DocumentToMarkdownService>>();
+            var vlmOcrService = sp.GetService<IVlmOcrService>();
+            var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
+
+            var service = new DocumentToMarkdownService(pdfRenderer, tableFactory, logger)
+            {
+                MinTextDensityForNative = config.VlmOcr.MinTextDensityForNative
+            };
+
+            // Wire up VLM OCR callback if service is available
+            if (vlmOcrService != null)
+            {
+                service.VlmOcrCallback = vlmOcrService.OcrImageToMarkdownAsync;
+            }
+
+            return service;
+        });
+
+        // Register document handler registry with enhanced handlers for PDF/image OCR
+        services.TryAddSingleton<IDocumentHandlerRegistry>(sp =>
+        {
+            var markdownService = sp.GetRequiredService<DocumentToMarkdownService>();
+            var pdfLogger = sp.GetService<ILogger<EnhancedPdfDocumentHandler>>();
+            var imageLogger = sp.GetService<ILogger<ImageDocumentHandler>>();
+
+            var registry = new DocumentHandlerRegistry();
+            registry.RegisterDefaultHandlers();
+            registry.RegisterEnhancedHandlers(markdownService, pdfLogger, imageLogger);
+            return registry;
+        });
+
+        // Register document wave scanning system
+        RegisterDocumentWaveServices(services);
+
         return services;
+    }
+
+    /// <summary>
+    /// Registers the document wave scanning system services.
+    /// Includes wave manifest loader, escalation service, orchestrator, and individual waves.
+    /// </summary>
+    private static void RegisterDocumentWaveServices(IServiceCollection services)
+    {
+        // Register wave manifest loader (singleton - loads YAML manifests once)
+        services.TryAddSingleton<DocumentWaveManifestLoader>(sp =>
+        {
+            var loader = new DocumentWaveManifestLoader();
+
+            // Load embedded manifests from assembly resources
+            loader.LoadEmbeddedManifests();
+            loader.LoadEmbeddedPipelines();
+
+            return loader;
+        });
+
+        // Register document escalation configuration
+        services.TryAddSingleton<IOptions<DocumentEscalationConfig>>(sp =>
+        {
+            var docConfig = sp.GetService<IOptions<DocSummarizerConfig>>()?.Value;
+            var config = new DocumentEscalationConfig
+            {
+                Enabled = true,
+                MinTextDensity = docConfig?.VlmOcr.MinTextDensityForNative ?? 100,
+                PreferredVlmModel = docConfig?.VlmOcr.Model ?? "minicpm-v:8b"
+            };
+            return Options.Create(config);
+        });
+
+        // Register escalation service
+        services.TryAddSingleton<IDocumentEscalationService, DocumentEscalationService>();
+
+        // Register individual waves as IDocumentWave
+        services.TryAddSingleton<NativeExtractionWave>();
+        services.AddSingleton<IDocumentWave>(sp => sp.GetRequiredService<NativeExtractionWave>());
+
+        services.TryAddSingleton<VlmOcrWave>(sp =>
+        {
+            var vlmOcrService = sp.GetRequiredService<IVlmOcrService>();
+            var pdfRenderer = sp.GetRequiredService<PdfPageRenderer>();
+            var escalationService = sp.GetRequiredService<IDocumentEscalationService>();
+            var logger = sp.GetService<ILogger<VlmOcrWave>>();
+            return new VlmOcrWave(vlmOcrService, pdfRenderer, escalationService, logger);
+        });
+        services.AddSingleton<IDocumentWave>(sp => sp.GetRequiredService<VlmOcrWave>());
+
+        // Register wave orchestrator
+        services.TryAddSingleton<DocumentWaveOrchestrator>(sp =>
+        {
+            var waves = sp.GetServices<IDocumentWave>();
+            var escalationService = sp.GetRequiredService<IDocumentEscalationService>();
+            var logger = sp.GetService<ILogger<DocumentWaveOrchestrator>>();
+            return new DocumentWaveOrchestrator(waves, escalationService, logger);
+        });
     }
 
     private static IEmbeddingService CreateOnnxEmbeddingService(OnnxConfig config, bool verbose)

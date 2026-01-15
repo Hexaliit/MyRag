@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
+using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using Mostlylucid.DocSummarizer.Services.Preprocessing;
 using OpenCvSharp;
 
@@ -14,9 +15,12 @@ namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 /// </summary>
 public class OcrPreprocessingWave : IAnalysisWave
 {
-    private readonly OcrPreprocessor _preprocessor;
     private readonly OcrPreprocessorConfig _config;
+    private readonly ModelDownloader? _modelDownloader;
     private readonly ILogger<OcrPreprocessingWave>? _logger;
+    private OcrPreprocessor? _preprocessor;
+    private bool _initialized;
+    private readonly object _initLock = new();
 
     public string Name => "OcrPreprocessingWave";
 
@@ -29,13 +33,49 @@ public class OcrPreprocessingWave : IAnalysisWave
 
     public OcrPreprocessingWave(
         OcrPreprocessorConfig? config = null,
+        ModelDownloader? modelDownloader = null,
         ILogger<OcrPreprocessingWave>? logger = null)
     {
         _config = config ?? OcrPreprocessorConfig.Default;
+        _modelDownloader = modelDownloader;
         _logger = logger;
-        _preprocessor = new OcrPreprocessor(
-            _config,
-            logger != null ? new LoggerAdapter<OcrPreprocessor>(logger) : null);
+    }
+
+    /// <summary>
+    /// Ensures the preprocessor is initialized with model downloaded if needed.
+    /// </summary>
+    private async Task EnsureInitializedAsync(CancellationToken ct)
+    {
+        if (_initialized) return;
+
+        lock (_initLock)
+        {
+            if (_initialized) return;
+
+            // Download super-resolution model if enabled and not yet available
+            if (_config.EnableSuperResolution && _modelDownloader != null)
+            {
+                var modelPath = _modelDownloader.GetModelPathAsync(ModelType.RealESRGAN, ct)
+                    .GetAwaiter().GetResult();
+
+                if (!string.IsNullOrEmpty(modelPath))
+                {
+                    _config.SuperResolutionModelPath = modelPath;
+                    _logger?.LogInformation("Super-resolution model available at {Path}", modelPath);
+                }
+                else
+                {
+                    _logger?.LogWarning("Super-resolution model download failed, disabling feature");
+                    _config.EnableSuperResolution = false;
+                }
+            }
+
+            _preprocessor = new OcrPreprocessor(
+                _config,
+                _logger != null ? new LoggerAdapter<OcrPreprocessor>(_logger) : null);
+
+            _initialized = true;
+        }
     }
 
     /// <summary>
@@ -77,6 +117,9 @@ public class OcrPreprocessingWave : IAnalysisWave
 
         try
         {
+            // Ensure model is downloaded and preprocessor is ready
+            await EnsureInitializedAsync(ct);
+
             // Load image
             using var image = Cv2.ImRead(imagePath);
             if (image.Empty())
@@ -87,7 +130,7 @@ public class OcrPreprocessingWave : IAnalysisWave
             }
 
             // Step 1: Fast quality check (~5-10ms)
-            var (needsPreprocessing, qualityReport) = _preprocessor.FastCheck(image);
+            var (needsPreprocessing, qualityReport) = _preprocessor!.FastCheck(image);
 
             // Emit quality assessment signals
             signals.Add(CreateSignal("preprocessing.quality.blur", qualityReport.BlurScore, 1.0,
@@ -151,7 +194,7 @@ public class OcrPreprocessingWave : IAnalysisWave
             _logger?.LogInformation("Running preprocessing on {Path}: Blur={Blur:F1}, Skew={Skew:F1}°, Noise={Noise:F1}",
                 imagePath, qualityReport.BlurScore, qualityReport.SkewAngle, qualityReport.NoiseLevel);
 
-            var result = await Task.Run(() => _preprocessor.Process(image), ct);
+            var result = await Task.Run(() => _preprocessor!.Process(image), ct);
 
             // Emit preprocessing result signals
             signals.Add(CreateSignal("preprocessing.completed", true, result.Confidence,

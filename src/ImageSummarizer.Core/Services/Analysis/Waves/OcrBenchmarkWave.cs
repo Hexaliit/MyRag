@@ -26,12 +26,12 @@ public class OcrBenchmarkWave : IAnalysisWave
     /// </summary>
     private static readonly (string SystemName, string SignalKey, string? TimingSignal)[] OcrSystems =
     {
-        ("Tesseract", "ocr.full_text", null),
-        ("AdvancedOCR", "ocr.voting.consensus_text", null),
+        ("Tesseract", "ocr.full_text", "ocr.tesseract.duration_ms"),
+        ("AdvancedOCR", "ocr.voting.consensus_text", null), // Only runs for animated images
         ("Florence2", "florence2.ocr_text", "florence2.duration_ms"),
-        ("Nanonets", "ocr.nanonets.text", null),
+        ("Nanonets", "ocr.nanonets.text", "ocr.nanonets.duration_ms"),
         ("DeepSeek", "ocr.deepseek.text", "ocr.deepseek.duration_ms"),
-        ("OlmOCR-2", "ocr.olmocr2.text", null),
+        ("OlmOCR-2", "ocr.olmocr2.text", "ocr.olmocr2.duration_ms"),
         ("VisionLLM", "vision.llm.text", "vision.llm.duration_ms"),
     };
 

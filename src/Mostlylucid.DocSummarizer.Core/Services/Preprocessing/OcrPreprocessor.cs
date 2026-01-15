@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+// ReSharper disable TemplateIsNotCompileTimeConstantProblem
+
 namespace Mostlylucid.DocSummarizer.Services.Preprocessing;
 
 /// <summary>
@@ -14,6 +16,7 @@ public class OcrPreprocessor
     private readonly NoiseReducer _noiseReducer = new();
     private readonly InkExtractor _inkExtractor = new();
     private readonly OverCorrectionDetector _overCorrectionDetector = new();
+    private readonly SuperResolutionService? _superResolution;
     private readonly ILogger<OcrPreprocessor>? _logger;
     private readonly OcrPreprocessorConfig _config;
 
@@ -34,6 +37,7 @@ public class OcrPreprocessor
         public double SkewAngle { get; init; }
         public PreprocessingLevel Level { get; init; }
         public bool WasPreprocessed { get; init; }
+        public bool UsedSuperResolution { get; init; }
         public bool OverCorrectionDetected { get; init; }
         public double Confidence { get; init; }
         public TimeSpan ProcessingTime { get; init; }
@@ -43,6 +47,28 @@ public class OcrPreprocessor
     {
         _config = config;
         _logger = logger;
+
+        // Initialize super-resolution if enabled and model path is available
+        if (config.EnableSuperResolution && !string.IsNullOrEmpty(config.SuperResolutionModelPath))
+        {
+            _superResolution = new SuperResolutionService(
+                config.SuperResolutionModelPath,
+                logger != null ? new LoggerAdapter<SuperResolutionService>(logger) : null);
+        }
+    }
+
+    /// <summary>
+    /// Logger adapter to convert generic ILogger to typed ILogger{T}.
+    /// </summary>
+    private class LoggerAdapter<T> : ILogger<T>
+    {
+        private readonly ILogger _inner;
+        public LoggerAdapter(ILogger inner) => _inner = inner;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _inner.BeginScope(state);
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => _inner.IsEnabled(logLevel);
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+            => _inner.Log(logLevel, eventId, state, exception, formatter);
     }
 
     /// <summary>
@@ -87,6 +113,7 @@ public class OcrPreprocessor
                 SkewAngle = 0,
                 Level = PreprocessingLevel.None,
                 WasPreprocessed = false,
+                UsedSuperResolution = false,
                 OverCorrectionDetected = false,
                 Confidence = 1.0,
                 ProcessingTime = sw.Elapsed
@@ -98,9 +125,33 @@ public class OcrPreprocessor
             qualityBefore.BlurScore, qualityBefore.SkewAngle,
             qualityBefore.NoiseLevel, qualityBefore.ContrastScore);
 
-        // Step 2: Rescale if needed
+        // Step 2: ML Super-Resolution for low-res images (before other processing)
         var workImage = image.Clone();
-        if (currentDpi.HasValue && currentDpi.Value < _config.TargetDpi)
+        var usedSuperResolution = false;
+
+        if (_superResolution != null && _config.EnableSuperResolution)
+        {
+            var shouldUpscale = _superResolution.ShouldUpscale(workImage, currentDpi);
+
+            if (shouldUpscale)
+            {
+                _logger?.LogInformation(
+                    "Applying ML super-resolution: {W}x{H} @ {DPI} DPI",
+                    workImage.Width, workImage.Height, currentDpi ?? 0);
+
+                var upscaled = _superResolution.Upscale(workImage);
+                workImage.Dispose();
+                workImage = upscaled;
+                usedSuperResolution = true;
+
+                _logger?.LogInformation(
+                    "Super-resolution complete: now {W}x{H}",
+                    workImage.Width, workImage.Height);
+            }
+        }
+
+        // Step 3: Classical rescale if needed (fallback when no ML super-res)
+        if (!usedSuperResolution && currentDpi.HasValue && currentDpi.Value < _config.TargetDpi)
         {
             var scale = (double)_config.TargetDpi / currentDpi.Value;
             Cv2.Resize(workImage, workImage, new Size(), scale, scale, InterpolationFlags.Cubic);
@@ -170,6 +221,7 @@ public class OcrPreprocessor
             SkewAngle = skewAngle,
             Level = level,
             WasPreprocessed = true,
+            UsedSuperResolution = usedSuperResolution,
             OverCorrectionDetected = overCorrected,
             Confidence = confidence,
             ProcessingTime = sw.Elapsed

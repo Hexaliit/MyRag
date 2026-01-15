@@ -13,6 +13,7 @@ using Mostlylucid.DocSummarizer.Images.Services.Ocr.Detection;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
 using Mostlylucid.DocSummarizer.Images.Services.Vision;
+using Mostlylucid.DocSummarizer.Images.Services.Layout;
 using Mostlylucid.DocSummarizer.Images.Services.Storage;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Pipeline;
@@ -195,21 +196,33 @@ public static class ServiceCollectionExtensions
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>().Value;
             // Use quality mode to select preset, or allow custom config via ImageConfig
-            return imageConfig.Ocr.QualityMode switch
+            var config = imageConfig.Ocr.QualityMode switch
             {
                 OcrQualityMode.Fast => OcrPreprocessorConfig.Fast,
                 OcrQualityMode.Quality => OcrPreprocessorConfig.Quality,
                 _ => OcrPreprocessorConfig.Default
             };
+
+            // Configure super-resolution model path (auto-download if needed)
+            if (imageConfig.Ocr.EnableSuperResolution)
+            {
+                config.EnableSuperResolution = true;
+                config.SuperResolutionModelPath = imageConfig.Ocr.SuperResolutionModelPath
+                    ?? Path.Combine(imageConfig.ModelsDirectory, "realesrgan-x4.onnx");
+            }
+
+            return config;
         });
 
         // OcrPreprocessingWave - Image preprocessing before OCR (deskew, denoise, contrast)
         // Priority 65: Runs before other OCR waves to enhance image quality
+        // Uses ModelDownloader for auto-downloading Real-ESRGAN model for super-resolution
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var config = sp.GetRequiredService<OcrPreprocessorConfig>();
+            var modelDownloader = sp.GetService<ModelDownloader>();
             var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OcrPreprocessingWave>>();
-            return new OcrPreprocessingWave(config, logger);
+            return new OcrPreprocessingWave(config, modelDownloader, logger);
         });
 
         // MlOcrWave - Fast ML-based OCR using OpenCV + Florence-2 (priority 28)
@@ -324,6 +337,75 @@ public static class ServiceCollectionExtensions
             var sessionFactory = sp.GetRequiredService<OnnxSessionFactory>();
             var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ClipEmbeddingWave>>();
             return new ClipEmbeddingWave(imageConfig, modelDownloader, sessionFactory, logger);
+        });
+
+        // LayoutDetectionWave - Document layout detection using YOLOv10-DocLayNet (auto-downloads model)
+        // Priority 64: Runs early before OCR to guide text extraction with layout regions
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
+            var modelDownloader = sp.GetRequiredService<ModelDownloader>();
+            var sessionFactory = sp.GetRequiredService<OnnxSessionFactory>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<LayoutDetectionWave>>();
+            return new LayoutDetectionWave(imageConfig, modelDownloader, sessionFactory, logger);
+        });
+
+        // LayoutRegionExtractor - Crops detected regions for downstream processing
+        services.TryAddSingleton<LayoutRegionExtractor>(sp =>
+        {
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<LayoutRegionExtractor>>();
+            return new LayoutRegionExtractor(logger);
+        });
+
+        // LayoutRoutingWave - Routes extracted regions to DataSummarizer/ImageSummarizer
+        // Priority 63: Runs after LayoutDetectionWave (64) to extract and route tables/figures
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
+            var extractor = sp.GetRequiredService<LayoutRegionExtractor>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<LayoutRoutingWave>>();
+            return new LayoutRoutingWave(imageConfig, extractor, logger);
+        });
+
+        // TableExtractionWave - Converts table images to CSV using Vision LLM
+        // Priority 62: Runs after LayoutRoutingWave (63), outputs CSV for DataSummarizer
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var visionService = sp.GetRequiredService<VisionLlmService>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<TableExtractionWave>>();
+            return new TableExtractionWave(visionService, logger);
+        });
+
+        // TableProfilingWave - Profiles extracted CSVs using DataSummarizer
+        // Priority 61: Runs after TableExtractionWave (62), emits data quality signals
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            // DataSummarizer services are optional - wave will skip if not available
+            var dataProcessor = sp.GetService<Mostlylucid.DocSummarizer.Data.Services.IDataProcessor>();
+            var dataOrchestrator = sp.GetService<Mostlylucid.DocSummarizer.Data.Services.Analysis.DataAnalysisOrchestrator>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<TableProfilingWave>>();
+            return new TableProfilingWave(dataProcessor, dataOrchestrator, logger);
+        });
+
+        // RecursiveImageWave - Processes extracted picture regions recursively
+        // Priority 60: Runs after TableProfilingWave (61), generates captions/embeddings for sub-images
+        // Note: Uses deferred wave resolution to avoid circular dependency issues
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            // Get all waves except RecursiveImageWave itself to prevent infinite recursion
+            var allWaves = sp.GetServices<IAnalysisWave>()
+                .Where(w => w.Name != "RecursiveImageWave")
+                .ToList();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<RecursiveImageWave>>();
+            return new RecursiveImageWave(allWaves, logger);
+        });
+
+        // OcrLayoutValidationWave - Validates OCR output against layout text regions
+        // Priority 55: Runs after OCR waves (60), compares OCR coverage with detected text areas
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OcrLayoutValidationWave>>();
+            return new OcrLayoutValidationWave(logger);
         });
 
         // ClipZeroShotService - Zero-shot classification using CLIP text embeddings

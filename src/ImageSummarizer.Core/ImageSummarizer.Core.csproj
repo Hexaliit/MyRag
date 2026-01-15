@@ -68,6 +68,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+    <ProjectReference Include="..\DataSummarizer.Core\DataSummarizer.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
