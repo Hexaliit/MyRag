@@ -98,33 +98,41 @@ public static class CliServiceRegistration
             opt.Ocr.Benchmark.ForceRunAllSystems = config.EnableOcrBenchmark; // Force all systems when benchmarking
 
             // When benchmarking, enable all OCR systems to compare
+            // Iteration 3: Using minicpm-v:8b (proven fast+accurate) for all VLM slots
             if (config.EnableOcrBenchmark)
             {
-                // DeepSeek OCR slot → Use qwen2.5vl:7b (best-in-class for OCR)
+                // DeepSeek-OCR (real model!) - requires Ollama v0.13.0+
+                // Pull with: ollama pull deepseek-ocr
+                // Specialized for document OCR with Markdown output
+                // Handles PDFs, tables, handwritten text, complex layouts
                 opt.Ocr.EnableDeepseekOcr = true;
                 opt.Ocr.DeepseekOcrBaseUrl = "http://localhost:11434";
-                opt.Ocr.DeepseekOcrModelName = "qwen2.5vl:7b";
+                opt.Ocr.DeepseekOcrModelName = "deepseek-ocr";
                 opt.Ocr.DeepseekOcrTimeoutSeconds = 180;
 
-                // Enable Vision LLM → Use minicpm-v:8b (good general vision)
+                // Vision LLM → minicpm-v:8b (fast, good for OCR)
                 opt.EnableVisionLlm = true;
                 opt.VisionLlmModel = "minicpm-v:8b";
-                opt.VisionLlmTimeout = 180000; // 3 minutes for large images
+                opt.VisionLlmTimeout = 120000;
 
                 // Florence2 OCR (local ONNX model - auto-downloads)
                 opt.EnableFlorence2 = true;
 
-                // Nanonets OCR slot → Use llava:13b (larger context)
+                // Nanonets-OCR-s (real model!) - on Ollama
+                // Pull with: ollama pull benhaotang/Nanonets-OCR-s
+                // 4B param model: LaTeX, tables, markdown output
                 opt.Ocr.EnableNanonetsOcr = true;
                 opt.Ocr.NanonetsOcrBaseUrl = "http://localhost:11434";
-                opt.Ocr.NanonetsOcrModelName = "llava:13b";
+                opt.Ocr.NanonetsOcrModelName = "benhaotang/Nanonets-OCR-s";
                 opt.Ocr.NanonetsOcrTimeoutSeconds = 180;
 
-                // OlmOCR-2 slot → Use llama3.2-vision:11b (Meta's best vision model)
+                // OlmOCR-2 (real model!) - 7B OCR specialist
+                // Pull with: ollama pull richardyoung/olmocr2:7b-q8
+                // 82.4 points on olmOCR-Bench, handles tables/charts/math
                 opt.Ocr.EnableOlmOcr2 = true;
                 opt.Ocr.OlmOcr2BaseUrl = "http://localhost:11434";
-                opt.Ocr.OlmOcr2ModelName = "llama3.2-vision:11b";
-                opt.Ocr.OlmOcr2TimeoutSeconds = 240; // 4 minutes for this large model
+                opt.Ocr.OlmOcr2ModelName = "richardyoung/olmocr2:7b-q8";
+                opt.Ocr.OlmOcr2TimeoutSeconds = 180;
             }
         });
 

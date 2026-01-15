@@ -90,9 +90,12 @@ public class OlmOcr2Wave : IAnalysisWave
     {
         var signals = new List<Signal>();
 
+        // Use preprocessed image if available (from OcrPreprocessingWave)
+        var effectivePath = context.GetCached<string>("preprocessing.enhanced_image_path") ?? imagePath;
+
         try
         {
-            var markdown = await ExtractMarkdownAsync(imagePath, ct);
+            var markdown = await ExtractMarkdownAsync(effectivePath, ct);
             if (string.IsNullOrWhiteSpace(markdown))
                 return signals;
 
@@ -217,47 +220,29 @@ public class OlmOcr2Wave : IAnalysisWave
         var imageBytes = await File.ReadAllBytesAsync(imagePath, ct);
         var base64Image = Convert.ToBase64String(imageBytes);
 
-        var extension = Path.GetExtension(imagePath).ToLowerInvariant();
-        var mediaType = extension switch
-        {
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".png" => "image/png",
-            ".gif" => "image/gif",
-            ".webp" => "image/webp",
-            _ => "image/jpeg"
-        };
-
+        // OlmOCR-2 prompt for markdown extraction
         var prompt = _config.OlmOcr2PreferMarkdown
             ? "Extract all visible text from this image. Return Markdown only. Preserve layout, headings, lists, and tables. Do not wrap the output in code fences or explanations."
             : "Extract all visible text from this image. Return plain text only.";
 
+        // Use Ollama native /api/chat format with images array
         var request = new
         {
             model = _config.OlmOcr2ModelName,
-            temperature = 0.0,
-            max_tokens = _config.OlmOcr2MaxTokens,
+            stream = false,
+            options = new { temperature = 0.0 },
             messages = new[]
             {
                 new
                 {
                     role = "user",
-                    content = new object[]
-                    {
-                        new { type = "text", text = prompt },
-                        new
-                        {
-                            type = "image_url",
-                            image_url = new
-                            {
-                                url = $"data:{mediaType};base64,{base64Image}"
-                            }
-                        }
-                    }
+                    content = prompt,
+                    images = new[] { base64Image }
                 }
             }
         };
 
-        var response = await _httpClient.PostAsJsonAsync("/v1/chat/completions", request, ct);
+        var response = await _httpClient.PostAsJsonAsync("/api/chat", request, ct);
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync(ct);
@@ -265,9 +250,16 @@ public class OlmOcr2Wave : IAnalysisWave
             return string.Empty;
         }
 
-        var result = await response.Content.ReadFromJsonAsync<OpenAiChatResponse>(ct);
-        return result?.Choices?.FirstOrDefault()?.Message?.Content?.Trim() ?? string.Empty;
+        var result = await response.Content.ReadFromJsonAsync<OllamaChatResponse>(ct);
+        return result?.Message?.Content?.Trim() ?? string.Empty;
     }
+
+    // Ollama native API response format
+    private record OllamaChatResponse(
+        [property: JsonPropertyName("message")] OllamaMessage? Message);
+
+    private record OllamaMessage(
+        [property: JsonPropertyName("content")] string Content);
 
     private static string StripCodeFences(string input)
     {
@@ -305,12 +297,4 @@ public class OlmOcr2Wave : IAnalysisWave
         return text.Trim();
     }
 
-    private record OpenAiChatResponse(
-        [property: JsonPropertyName("choices")] List<OpenAiChoice> Choices);
-
-    private record OpenAiChoice(
-        [property: JsonPropertyName("message")] OpenAiMessage Message);
-
-    private record OpenAiMessage(
-        [property: JsonPropertyName("content")] string Content);
 }

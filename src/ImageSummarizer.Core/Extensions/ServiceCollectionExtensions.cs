@@ -17,6 +17,7 @@ using Mostlylucid.DocSummarizer.Images.Services.Storage;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Pipeline;
 using Mostlylucid.DocSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services.Preprocessing;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace Mostlylucid.DocSummarizer.Images.Extensions;
@@ -187,6 +188,28 @@ public static class ServiceCollectionExtensions
             var imageConfig = sp.GetService<IOptions<ImageConfig>>();
             var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<TextDetectionWave>>();
             return new TextDetectionWave(detectionService, imageConfig, logger);
+        });
+
+        // OcrPreprocessorConfig - Configuration for image preprocessing before OCR
+        services.TryAddSingleton(sp =>
+        {
+            var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>().Value;
+            // Use quality mode to select preset, or allow custom config via ImageConfig
+            return imageConfig.Ocr.QualityMode switch
+            {
+                OcrQualityMode.Fast => OcrPreprocessorConfig.Fast,
+                OcrQualityMode.Quality => OcrPreprocessorConfig.Quality,
+                _ => OcrPreprocessorConfig.Default
+            };
+        });
+
+        // OcrPreprocessingWave - Image preprocessing before OCR (deskew, denoise, contrast)
+        // Priority 65: Runs before other OCR waves to enhance image quality
+        services.AddSingleton<IAnalysisWave>(sp =>
+        {
+            var config = sp.GetRequiredService<OcrPreprocessorConfig>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OcrPreprocessingWave>>();
+            return new OcrPreprocessingWave(config, logger);
         });
 
         // MlOcrWave - Fast ML-based OCR using OpenCV + Florence-2 (priority 28)

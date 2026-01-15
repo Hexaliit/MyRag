@@ -149,6 +149,21 @@ public class OcrWave : IAnalysisWave
     {
         var signals = new List<Signal>();
 
+        // Use preprocessed image if available (from OcrPreprocessingWave)
+        var effectivePath = context.GetCached<string>("preprocessing.enhanced_image_path") ?? imagePath;
+        if (effectivePath != imagePath)
+        {
+            _logger?.LogDebug("Using preprocessed image: {Path}", effectivePath);
+            signals.Add(new Signal
+            {
+                Key = "ocr.using_preprocessed",
+                Value = true,
+                Confidence = 1.0,
+                Source = Name,
+                Tags = new List<string> { "ocr", "preprocessing" }
+            });
+        }
+
         if (!_enabled)
         {
             signals.Add(new Signal
@@ -268,7 +283,7 @@ public class OcrWave : IAnalysisWave
             if (opencvRegions != null && opencvRegions.Count > 0)
             {
                 _logger?.LogDebug("Using {Count} OpenCV text regions for targeted Tesseract OCR", opencvRegions.Count);
-                textRegions = await Task.Run(() => ExtractTextFromRegions(imagePath, opencvRegions), ct);
+                textRegions = await Task.Run(() => ExtractTextFromRegions(effectivePath, opencvRegions), ct);
 
                 signals.Add(new Signal
                 {
@@ -285,7 +300,7 @@ public class OcrWave : IAnalysisWave
             }
             else
             {
-                textRegions = await Task.Run(() => ExtractTextWithCoordinates(imagePath), ct);
+                textRegions = await Task.Run(() => ExtractTextWithCoordinates(effectivePath), ct);
             }
 
             if (textRegions.Count == 0)

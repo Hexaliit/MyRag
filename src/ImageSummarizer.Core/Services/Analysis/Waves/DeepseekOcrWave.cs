@@ -89,11 +89,14 @@ public class DeepseekOcrWave : IAnalysisWave
         var signals = new List<Signal>();
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
+        // Use preprocessed image if available (from OcrPreprocessingWave)
+        var effectivePath = context.GetCached<string>("preprocessing.enhanced_image_path") ?? imagePath;
+
         try
         {
-            _logger?.LogInformation("Running DeepSeek OCR on {Path}", imagePath);
+            _logger?.LogInformation("Running DeepSeek OCR on {Path}", effectivePath);
 
-            var markdown = await ExtractMarkdownAsync(imagePath, ct);
+            var markdown = await ExtractMarkdownAsync(effectivePath, ct);
             stopwatch.Stop();
 
             if (string.IsNullOrWhiteSpace(markdown))
@@ -251,47 +254,30 @@ public class DeepseekOcrWave : IAnalysisWave
         var imageBytes = await File.ReadAllBytesAsync(imagePath, ct);
         var base64Image = Convert.ToBase64String(imageBytes);
 
-        var extension = Path.GetExtension(imagePath).ToLowerInvariant();
-        var mediaType = extension switch
-        {
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".png" => "image/png",
-            ".gif" => "image/gif",
-            ".webp" => "image/webp",
-            _ => "image/jpeg"
-        };
-
+        // DeepSeek-OCR uses special prompt format with <|grounding|> token
+        // and Ollama native API format with images array (NOT OpenAI format)
         var prompt = _config.DeepseekOcrPreferMarkdown
-            ? "Extract all visible text from this image. Return Markdown only. Preserve layout, headings, lists, and tables. Do not wrap the output in code fences or explanations."
-            : "Extract all visible text from this image. Return plain text only.";
+            ? "<|grounding|>Convert the document to markdown."
+            : "Free OCR.";
 
+        // Use Ollama native /api/chat format with images array
         var request = new
         {
             model = _config.DeepseekOcrModelName,
-            temperature = 0.0,
-            max_tokens = _config.DeepseekOcrMaxTokens,
+            stream = false,
+            options = new { temperature = 0.0 },
             messages = new[]
             {
                 new
                 {
                     role = "user",
-                    content = new object[]
-                    {
-                        new { type = "text", text = prompt },
-                        new
-                        {
-                            type = "image_url",
-                            image_url = new
-                            {
-                                url = $"data:{mediaType};base64,{base64Image}"
-                            }
-                        }
-                    }
+                    content = prompt,
+                    images = new[] { base64Image }
                 }
             }
         };
 
-        var response = await _httpClient.PostAsJsonAsync("/v1/chat/completions", request, ct);
+        var response = await _httpClient.PostAsJsonAsync("/api/chat", request, ct);
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync(ct);
@@ -299,9 +285,16 @@ public class DeepseekOcrWave : IAnalysisWave
             return string.Empty;
         }
 
-        var result = await response.Content.ReadFromJsonAsync<OpenAiChatResponse>(ct);
-        return result?.Choices?.FirstOrDefault()?.Message?.Content?.Trim() ?? string.Empty;
+        var result = await response.Content.ReadFromJsonAsync<OllamaChatResponse>(ct);
+        return result?.Message?.Content?.Trim() ?? string.Empty;
     }
+
+    // Ollama native API response format
+    private record OllamaChatResponse(
+        [property: JsonPropertyName("message")] OllamaMessage? Message);
+
+    private record OllamaMessage(
+        [property: JsonPropertyName("content")] string Content);
 
     private static string StripCodeFences(string input)
     {

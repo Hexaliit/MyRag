@@ -74,6 +74,9 @@ public class Florence2Wave : IAnalysisWave
     {
         var signals = new List<Signal>();
 
+        // Use preprocessed image if available (from OcrPreprocessingWave)
+        var effectivePath = context.GetCached<string>("preprocessing.enhanced_image_path") ?? imagePath;
+
         // Check if Florence-2 is available
         if (!await _florence2Service.IsAvailableAsync(ct))
         {
@@ -102,7 +105,7 @@ public class Florence2Wave : IAnalysisWave
         {
             // Get caption with OCR using Florence-2
             var result = await _florence2Service.GetCaptionAsync(
-                imagePath,
+                effectivePath,
                 detailed: true,
                 enhanceWithColors: true, // Use ColorWave signals
                 ct: ct);
@@ -259,7 +262,7 @@ public class Florence2Wave : IAnalysisWave
             }
 
             // Run NER-focused entity extraction
-            var nerResult = await _florence2Service.ExtractEntitiesAsync(imagePath, ct);
+            var nerResult = await _florence2Service.ExtractEntitiesAsync(effectivePath, ct);
             if (nerResult.Success && nerResult.Entities.Count > 0)
             {
                 // Emit individual entity signals

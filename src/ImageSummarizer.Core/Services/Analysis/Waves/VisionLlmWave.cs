@@ -73,6 +73,9 @@ public class VisionLlmWave : IAnalysisWave
     {
         var signals = new List<Signal>();
 
+        // Use preprocessed image if available (from OcrPreprocessingWave)
+        var effectivePath = context.GetCached<string>("preprocessing.enhanced_image_path") ?? imagePath;
+
         // Skip if vision LLM is disabled
         if (!Config.EnableVisionLlm)
         {
@@ -100,7 +103,7 @@ public class VisionLlmWave : IAnalysisWave
             {
                 // For animated GIFs, create a filmstrip showing key frames
                 // This lets the LLM see the animation sequence and describe what happens
-                var filmstripResult = await CreateFilmstripForCaptionAsync(imagePath, frameCount, ct);
+                var filmstripResult = await CreateFilmstripForCaptionAsync(effectivePath, frameCount, ct);
                 imageBase64 = filmstripResult.Base64;
                 framesUsed = filmstripResult.FrameCount;
                 _logger?.LogInformation("Created filmstrip with {FrameCount} frames for caption generation", framesUsed);
@@ -108,7 +111,7 @@ public class VisionLlmWave : IAnalysisWave
             else
             {
                 // Static image - use single frame
-                imageBase64 = await ConvertImageToBase64(imagePath, ct);
+                imageBase64 = await ConvertImageToBase64(effectivePath, ct);
             }
 
             // Generate primary caption (with motion context if available)
@@ -146,11 +149,13 @@ public class VisionLlmWave : IAnalysisWave
             // 1. OCR is garbled (needs LLM to clean up)
             // 2. No OCR text but text is likely (OCR failed, try LLM)
             // 3. Animated with no text yet (subtitles may be in later frames not yet OCR'd)
-            var shouldExtractText = ocrGarbled ||
+            // 4. Benchmark mode with ForceRunAllSystems - always extract for comparison
+            var forceBenchmark = Config.Ocr.Benchmark.Enabled && Config.Ocr.Benchmark.ForceRunAllSystems;
+            var shouldExtractText = forceBenchmark || ocrGarbled ||
                                     (textLikeliness > 0.3 && string.IsNullOrWhiteSpace(effectiveOcrText)) ||
                                     (isAnimated && string.IsNullOrWhiteSpace(effectiveOcrText));
 
-            if (hasGoodOcrText)
+            if (hasGoodOcrText && !forceBenchmark)
             {
                 _logger?.LogDebug("Skipping VisionLLM text extraction: OCR already succeeded with '{Text}'",
                     effectiveOcrText?.Substring(0, Math.Min(50, effectiveOcrText?.Length ?? 0)));
