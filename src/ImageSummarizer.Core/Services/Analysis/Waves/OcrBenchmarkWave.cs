@@ -77,9 +77,23 @@ public class OcrBenchmarkWave : IAnalysisWave
 
         _logger?.LogInformation("Running OCR benchmark for {ImagePath}", imagePath);
 
-        // Load spell checker dictionary
+        // Try to load ground truth file (image.txt or image.ext.txt)
+        var groundTruth = await LoadGroundTruthAsync(imagePath, ct);
+        var hasGroundTruth = !string.IsNullOrWhiteSpace(groundTruth);
+
+        if (hasGroundTruth)
+        {
+            _logger?.LogInformation("Ground truth file found for {ImagePath} ({Chars} chars)",
+                imagePath, groundTruth!.Length);
+        }
+        else
+        {
+            _logger?.LogInformation("No ground truth file found for {ImagePath}, using spell-check accuracy", imagePath);
+        }
+
+        // Load spell checker dictionary (fallback when no ground truth)
         var dictionaryLoaded = await _spellChecker.LoadDictionaryAsync(_benchmarkConfig.AccuracyLanguage, ct);
-        if (!dictionaryLoaded)
+        if (!dictionaryLoaded && !hasGroundTruth)
         {
             _logger?.LogWarning("Dictionary not available for {Language}, accuracy will be estimated",
                 _benchmarkConfig.AccuracyLanguage);
@@ -116,10 +130,23 @@ public class OcrBenchmarkWave : IAnalysisWave
                 timingMs = context.GetValue<long>(timingSignal);
             }
 
-            // Calculate accuracy using spell checker
-            var spellResult = dictionaryLoaded
-                ? _spellChecker.CheckTextQuality(text!, _benchmarkConfig.AccuracyLanguage)
-                : EstimateAccuracy(text!);
+            // Calculate accuracy - prefer ground truth, fall back to spell checker
+            double accuracy;
+            bool isGarbled;
+
+            if (hasGroundTruth)
+            {
+                accuracy = CalculateGroundTruthAccuracy(text!, groundTruth!);
+                isGarbled = accuracy < 0.3; // Less than 30% match = garbled
+            }
+            else
+            {
+                var spellResult = dictionaryLoaded
+                    ? _spellChecker.CheckTextQuality(text!, _benchmarkConfig.AccuracyLanguage)
+                    : EstimateAccuracy(text!);
+                accuracy = spellResult.CorrectWordsRatio;
+                isGarbled = spellResult.IsGarbled;
+            }
 
             var wordCount = text!.Split(new[] { ' ', '\n', '\r', '\t' },
                 StringSplitOptions.RemoveEmptyEntries).Length;
@@ -130,19 +157,19 @@ public class OcrBenchmarkWave : IAnalysisWave
                 Text = text,
                 CharCount = text.Length,
                 WordCount = wordCount,
-                Accuracy = spellResult.CorrectWordsRatio,
+                Accuracy = accuracy,
                 TimingMs = timingMs,
                 IsWinner = false, // Set below
                 SourceSignal = signalKey,
                 DidRun = true,
-                IsGarbled = spellResult.IsGarbled
+                IsGarbled = isGarbled
             });
 
             // Emit per-system signals
             signals.Add(new Signal
             {
                 Key = $"benchmark.ocr.{systemName.ToLowerInvariant().Replace("-", "")}.accuracy",
-                Value = spellResult.CorrectWordsRatio,
+                Value = accuracy,
                 Confidence = 1.0,
                 Source = Name,
                 Tags = new List<string> { "benchmark", "ocr", systemName.ToLowerInvariant() }
@@ -245,6 +272,78 @@ public class OcrBenchmarkWave : IAnalysisWave
             winner?.Accuracy ?? 0);
 
         return signals;
+    }
+
+    /// <summary>
+    /// Load ground truth text file if it exists next to the image.
+    /// Looks for: image.txt, image.ext.txt (e.g., photo.jpg.txt)
+    /// </summary>
+    private static async Task<string?> LoadGroundTruthAsync(string imagePath, CancellationToken ct)
+    {
+        // Try image.txt (without extension)
+        var basePath = Path.ChangeExtension(imagePath, ".txt");
+        if (File.Exists(basePath))
+        {
+            return await File.ReadAllTextAsync(basePath, ct);
+        }
+
+        // Try image.ext.txt (with extension)
+        var extPath = imagePath + ".txt";
+        if (File.Exists(extPath))
+        {
+            return await File.ReadAllTextAsync(extPath, ct);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Calculate accuracy by comparing OCR output to ground truth.
+    /// Uses word-level overlap (Jaccard similarity) with normalization.
+    /// </summary>
+    private static double CalculateGroundTruthAccuracy(string ocrText, string groundTruth)
+    {
+        if (string.IsNullOrWhiteSpace(ocrText) || string.IsNullOrWhiteSpace(groundTruth))
+            return 0;
+
+        // Normalize: lowercase, remove extra whitespace, common OCR artifacts
+        static string Normalize(string s) => string.Join(" ",
+            s.ToLowerInvariant()
+             .Replace('\n', ' ')
+             .Replace('\r', ' ')
+             .Replace('\t', ' ')
+             .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+
+        var normalizedOcr = Normalize(ocrText);
+        var normalizedGt = Normalize(groundTruth);
+
+        // Extract words (alphanumeric sequences)
+        static HashSet<string> ExtractWords(string s) =>
+            new(System.Text.RegularExpressions.Regex
+                .Matches(s, @"[\w]+")
+                .Select(m => m.Value.ToLowerInvariant())
+                .Where(w => w.Length >= 2)); // Skip single chars
+
+        var ocrWords = ExtractWords(normalizedOcr);
+        var gtWords = ExtractWords(normalizedGt);
+
+        if (gtWords.Count == 0)
+            return ocrWords.Count == 0 ? 1.0 : 0;
+
+        // Calculate word overlap (recall: how many GT words were found)
+        var matchedWords = ocrWords.Intersect(gtWords).Count();
+        var recall = (double)matchedWords / gtWords.Count;
+
+        // Also consider precision to penalize garbage output
+        var precision = ocrWords.Count > 0 ? (double)matchedWords / ocrWords.Count : 0;
+
+        // F1 score balances precision and recall
+        if (recall + precision == 0)
+            return 0;
+
+        var f1 = 2 * (precision * recall) / (precision + recall);
+
+        return Math.Round(f1, 2);
     }
 
     /// <summary>

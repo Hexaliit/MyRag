@@ -542,3 +542,469 @@ incomeTax.json <|ref|>text<|/ref|><|det|>[[564, 165, 858, 905]]<|/det|>
 
 ---
 
+## Image: 27857671-e13cf85e-6172-11e7-81dd-c2fe5d1dfd2e.jpg
+**Date:** 2026-01-15 10:27:00 UTC
+
+| System | Time (ms) | Chars | Words | Accuracy | Winner |
+|--------|-----------|-------|-------|----------|--------|
+| OlmOCR-2 | 0 | 197 | 21 | 93% | ★ |
+| VisionLLM | 0 | 1992 | 279 | 78% |  |
+| DeepSeek | 8333 | 1686 | 296 | 68% |  |
+| Tesseract | 0 | 125 | 16 | 53% |  |
+| Florence2 | 8631 | 1134 | 124 | 48% |  |
+| Nanonets | 0 | 2191 | 266 | 34% |  |
+| AdvancedOCR | - | - | - | N/A |  |
+
+**Winner:** OlmOCR-2 (93% accuracy)
+
+<details>
+<summary>OlmOCR-2 Output (93%) ★ Winner</summary>
+
+```
+89888 989998888889988888888888 The file is a h9«9989 9898888888888 the files are in the folder for the 'impossible' and 'impossible'988888888888888
+8 98888888998888898888888888888888888888888888888
+```
+
+</details>
+
+<details>
+<summary>VisionLLM Output (78%)</summary>
+
+```
+Title: SCS Agency INVOICE
+Header Information:
+- Company Name: Long Road Sixth Form College.
+Address: Long Road, Cambridge, CB285PX
+- Main Director Telephone: Not provided
+- Website URL: www.scsagency18.blogspot.com
+- Contact Person: Shelley Lucier (SCS Agency Main Director)
+- Date of Invoice: 13/02/15
+Address Information:
+- Name: Shelley Lucier (SCS Agency Main Director)
+- Address: 6 Glebe Road, City: Cambridge | State: Cambridgeshire
+- Zip Code: CB1 7SZ, Phone: Not provided.
+Table Headers:
+- Description
+- Time Spent
+- Price (£ ex. lime)
+- Total(E)
+Table Rows (Services and Corresponding Information):
+1. Image capture & record of meetings...2 hours | £6.00 | £12.00 |
+2. Editing images                    ...4 hours     | £8.50   | £34.00
+3. Initial sticker planning          ..2 hours     | £7.50    | £15.00
+4. Notes being taken                  .1 hour      | £6.00    | £6.00
+5. Initial postcard planning           ...19 min     | £8.33   | £8.33
+6. Newsletters finalising             ..2 hours     | £7.50    | £15.00
+7. Contacting client                  .4 hours     | £15.00  | £60.00
+8. Finalizing ideas (postcards & front and back)   ...39 min   | £20.67 | £20.67
+9. Printing stickers                 ..2 hours    | £10.00  | £20.00
+10. Postcard printing                .45 minutes| £8.33   | £8.33
+11. Travel time - Bus (30 min one way) ...1 hour     | £7.96    | £7.96
+12. Meeting running lime              ..x2        | Not specified
+13. Meeting runnime lime             .4 hours 8:50 | £15.00   | £15.00
+Footer Information:
+- GRAND TOTAL                             ...£1,981.02
+Important Notes (Additional Instructions or Conditions):
+- Sub Total                           : Not provided
+- VAT                                : £394.60
+- Tax:                            .7% of the total is not specified in detail.
+- Total Due                          : € 1,584.82
+Signature:
+- Authorized Signatures
+Footer Text (Standard Business Gratitude):
+Thank You for Your Business!
+```
+
+</details>
+
+<details>
+<summary>DeepSeek Output (68%)</summary>
+
+```
+Do not alter the layout or formatting of the text. **SCS Agency** Long Road Sixth Form College, Long Road, Cambridge, CB2 8PX **Main Director** Tel: 07981423683 Website: www.scsaqency18.bloqspot.co.uk **Name:** Shelby Lucier (SCS Agency Main Director) **Date:** 13/02/15 **Address:** 6 Glebe Road **City:** Cambridge **State:** Cambridgeshire **Zip Code:** CB1 7SZ **Phone:** 07981423683 **Alt. Phone:** 01223 507400 Description | Time Spent | Price (£ x time) | Total (£) -------------|------------|------------------|----------- Image capture & record of meetings | 2 hours | 7.58 | 7.58 Image editing | 4 hours | 15.16 | 22.74 Initial sticker planning | 2 hours | 7.58 | 30.32 Notes being taken | 20 mins | 0.13 | 30.45 Initial postcard planning | 6 hours | 22.74 | 53.19 Note editing & finalising | 1 hour | 3.79 | 56.98 Contacting client | 4 hours | 15.16 | 72.14 Finalising ideas (stickers & postcard - front and back) | 6 hours | 22.74 | 94.88 Printing stickers - 6.5cm width x 600 copies | 1 hour | 54.00 + 3.79 | 152.67 Printing postcards - A5 x 40 copies | 1 hour | 1.800 + 3.79 | 1,956.46 Bus Time Travel - 30 minutes one way (30 min x 4 travels) | 2 hours | 16.80 | 1,973.26 Travel to bus stop from college | 10 mins | 0.06 | 1,973.32 Travel from bus stop to Burwash Manner | 10 mins | 0.06 | 1,973.38 Meeting running time x2 | 2 hours 10 | 7.64 | 1,981.02 **GRAND TOTAL** | | | £1,981.02 **Important Notes:** The guidelines of this invoice are strictly professional. The minimum wage for under 18's in the United Kingdom is £3.79 per hour. **Sub Total:** 1,981.02 **Tax:** 20% VAT = 396.20 **Total Due:** £1,584.82 **Authorized Signatures** **Thank You for Your Business!**
+```
+
+</details>
+
+<details>
+<summary>Tesseract Output (53%)</summary>
+
+```
+Thank
+| for
+Your Business!
+siness!
+Main Director Tele: 07981423683.
+Website: www.scsagency18.bloaspol.c
+yspol.c
+\gency Main |
+```
+
+</details>
+
+<details>
+<summary>Florence2 Output (48%)</summary>
+
+```
+SCS AgencyINVOICELong Road Soth Form College.Cabrbridge.C82 BXMain Director: 07981 42383Website: Shellyucker (SCS Agency Main Director)Date: 13/02/15Address: Shelyucker(SCS agency Main Director).Address: & Giblee RoadState: CambridgeshireZip Code: C81 757Phone: 078143663Alt: Phone: 0123234700Total(E)DescriptionTime SpentPrice (E) line(E]Total(ES)Image capture & record of meetings2 hours75.7.7Image editing2 hours15.8.7Nail sticker planning20 hours7.5.7nail sticker planning20 hours30.7nnail postcard planning20 minutes7.75.8Nail post card planning4 hours15,7nil postcard planning4 hours17.7%24.7Paintings ideas (decks and postcard) and back)4 hours24.74.74Painting ideas (5.5cm x 6cm x 60cm copies4 hours54.7p.67Buses Travel - 30.5 cm x 6 coties1 hour18.0.7-7p,5.7526Travel bus stop for college10 minutes1.7532Travel bus Stop for Bumwah Manner10 minutes0.61.73.2P1.981.92GRAND TOTAL2 hours7:64E1.961.02Important Notes:The guidelines of the invoice are strictly professional. The minimum wageSub Total: 1.9812For under 18's in the United Kingdom is 5.7 p per hour.Total Due, £1.54.42Authorized SignaturesThank You for Your Business!
+```
+
+</details>
+
+<details>
+<summary>Nanonets Output (34%)</summary>
+
+```
+SCS Agency
+Long Road Sixth Form College.
+Long Road.
+Cambridge.
+CB2 8PX Main Director Tele: 07981423683
+Website: www.scsagency18.blogspol.co.uk INVOICE Name: Shelby lucier (SCS Agency Main Director)
+Date: 13/02/15
+Address: 6 Glebe Road
+City: Cambridge
+State: Cambridgeshire
+Zip Code: CB1 7SZ
+Phone: 07981423683
+Alt. Phone: 01223 507400 <table>
+<thead>
+<tr>
+<th>Description</th>
+<th>Time Spent</th>
+<th>Price (£ x time)</th>
+<th>Total(£)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Image capture & record of meetings</td>
+<td>2 hours</td>
+<td>7.58</td>
+<td>7.58</td>
+</tr>
+<tr>
+<td>Image ediling</td>
+<td>4 hours</td>
+<td>15.16</td>
+<td>22.74</td>
+</tr>
+<tr>
+<td>Initial sticker planning</td>
+<td>2 hours</td>
+<td>7.58</td>
+<td>30.32</td>
+</tr>
+<tr>
+<td>Noles being taken</td>
+<td>20 mins</td>
+<td>0.13</td>
+<td>30.45</td>
+</tr>
+<tr>
+<td>Initial p</td>
+<td>Printing postcard - front and b/s</td>
+<td>22.74</td>
+<td>56.78</td>
+</tr>
+<tr>
+<td>Note egg ideas (slickers &amp; A5)</td>
+<td>6 hours</td>
+<td>15.16</td>
+<td>94.88</td>
+</tr>
+<tr>
+<td>Contacts stickers - A5mm wide</td>
+<td>1 hour</td>
+<td>3.79</td>
+<td>152.67</td>
+</tr>
+<tr>
+<td>Finalising & finishing</td>
+<td>4 hours</td>
+<td>22.74</td>
+<td>1.956.46</td>
+</tr>
+<tr>
+<td>Printing client</td>
+<td>1 hour</td>
+<td>54.00</td>
+<td>1.956.46</td>
+</tr>
+<tr>
+<td>Postcard planning ack)</td>
+<td>6 hours</td>
+<td>53.19</td>
+<td>1.973.26</td>
+</tr>
+<tr>
+<td>Bus Time Travel - 30 minutes one way (30 min x 4 travels)</td>
+<td>1 hour</td>
+<td>2 hours</td>
+<td>16.80</td>
+</tr>
+<tr>
+<td>Travel to bus stop from college</td>
+<td>10 mins</td>
+<td>0.06</td>
+<td>1,973.32</td>
+</tr>
+<tr>
+<td>Travel from bus stop to Burwash Manner</td>
+<td>10 mins</td>
+<td>0.06</td>
+<td>1,973.38</td>
+</tr>
+<tr>
+<td>Meeting running time x2</td>
+<td>2 hours</td>
+<td>7.64</td>
+<td>1,981.02</td>
+</tr>
+<tr>
+<td>GRAND TOTAL</td>
+<td></td>
+<td></td>
+<td>£1,981.02</td>
+</tr>
+</tbody>
+</table> Important Notes:
+The guidelines of this invoice are strictly professional. The minimum wage for under 18's in the United Kingdom is £3.79 per hour. Sub Total: 1,981.02
+Tax: 20% VAT = 396.20
+Total Due: £1,584.82 <img>Signature</img>
+Authorized Signatures Thank You for Your Business!
+```
+
+</details>
+
+---
+
+## Image: 27857671-e13cf85e-6172-11e7-81dd-c2fe5d1dfd2e.jpg
+**Date:** 2026-01-15 10:43:18 UTC
+
+| System | Time (ms) | Chars | Words | Accuracy | Winner |
+|--------|-----------|-------|-------|----------|--------|
+| DeepSeek | 8252 | 1686 | 296 | 96% | ★ |
+| Nanonets | 0 | 2191 | 266 | 89% |  |
+| VisionLLM | 0 | 2027 | 214 | 83% |  |
+| Florence2 | 8942 | 1134 | 124 | 37% |  |
+| Tesseract | 0 | 125 | 16 | 13% |  |
+| OlmOCR-2 | 0 | 96 | 18 | 1% |  |
+| AdvancedOCR | - | - | - | N/A |  |
+
+**Winner:** DeepSeek (96% accuracy)
+
+<details>
+<summary>DeepSeek Output (96%) ★ Winner</summary>
+
+```
+Do not alter the layout or formatting of the text. **SCS Agency** Long Road Sixth Form College, Long Road, Cambridge, CB2 8PX **Main Director** Tel: 07981423683 Website: www.scsaqency18.bloqspot.co.uk **Name:** Shelby Lucier (SCS Agency Main Director) **Date:** 13/02/15 **Address:** 6 Glebe Road **City:** Cambridge **State:** Cambridgeshire **Zip Code:** CB1 7SZ **Phone:** 07981423683 **Alt. Phone:** 01223 507400 Description | Time Spent | Price (£ x time) | Total (£) -------------|------------|------------------|----------- Image capture & record of meetings | 2 hours | 7.58 | 7.58 Image editing | 4 hours | 15.16 | 22.74 Initial sticker planning | 2 hours | 7.58 | 30.32 Notes being taken | 20 mins | 0.13 | 30.45 Initial postcard planning | 6 hours | 22.74 | 53.19 Note editing & finalising | 1 hour | 3.79 | 56.98 Contacting client | 4 hours | 15.16 | 72.14 Finalising ideas (stickers & postcard - front and back) | 6 hours | 22.74 | 94.88 Printing stickers - 6.5cm width x 600 copies | 1 hour | 54.00 + 3.79 | 152.67 Printing postcards - A5 x 40 copies | 1 hour | 1.800 + 3.79 | 1,956.46 Bus Time Travel - 30 minutes one way (30 min x 4 travels) | 2 hours | 16.80 | 1,973.26 Travel to bus stop from college | 10 mins | 0.06 | 1,973.32 Travel from bus stop to Burwash Manner | 10 mins | 0.06 | 1,973.38 Meeting running time x2 | 2 hours 10 | 7.64 | 1,981.02 **GRAND TOTAL** | | | £1,981.02 **Important Notes:** The guidelines of this invoice are strictly professional. The minimum wage for under 18's in the United Kingdom is £3.79 per hour. **Sub Total:** 1,981.02 **Tax:** 20% VAT = 396.20 **Total Due:** £1,584.82 **Authorized Signatures** **Thank You for Your Business!**
+```
+
+</details>
+
+<details>
+<summary>Nanonets Output (89%)</summary>
+
+```
+SCS Agency
+Long Road Sixth Form College.
+Long Road.
+Cambridge.
+CB2 8PX Main Director Tele: 07981423683
+Website: www.scsagency18.blogspol.co.uk INVOICE Name: Shelby lucier (SCS Agency Main Director)
+Date: 13/02/15
+Address: 6 Glebe Road
+City: Cambridge
+State: Cambridgeshire
+Zip Code: CB1 7SZ
+Phone: 07981423683
+Alt. Phone: 01223 507400 <table>
+<thead>
+<tr>
+<th>Description</th>
+<th>Time Spent</th>
+<th>Price (£ x time)</th>
+<th>Total(£)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Image capture & record of meetings</td>
+<td>2 hours</td>
+<td>7.58</td>
+<td>7.58</td>
+</tr>
+<tr>
+<td>Image ediling</td>
+<td>4 hours</td>
+<td>15.16</td>
+<td>22.74</td>
+</tr>
+<tr>
+<td>Initial sticker planning</td>
+<td>2 hours</td>
+<td>7.58</td>
+<td>30.32</td>
+</tr>
+<tr>
+<td>Noles being taken</td>
+<td>20 mins</td>
+<td>0.13</td>
+<td>30.45</td>
+</tr>
+<tr>
+<td>Initial p</td>
+<td>Printing postcard - front and b/s</td>
+<td>22.74</td>
+<td>56.78</td>
+</tr>
+<tr>
+<td>Note egg ideas (slickers &amp; A5)</td>
+<td>6 hours</td>
+<td>15.16</td>
+<td>94.88</td>
+</tr>
+<tr>
+<td>Contacts stickers - A5mm wide</td>
+<td>1 hour</td>
+<td>3.79</td>
+<td>152.67</td>
+</tr>
+<tr>
+<td>Finalising & finishing</td>
+<td>4 hours</td>
+<td>22.74</td>
+<td>1.956.46</td>
+</tr>
+<tr>
+<td>Printing client</td>
+<td>1 hour</td>
+<td>54.00</td>
+<td>1.956.46</td>
+</tr>
+<tr>
+<td>Postcard planning ack)</td>
+<td>6 hours</td>
+<td>53.19</td>
+<td>1.973.26</td>
+</tr>
+<tr>
+<td>Bus Time Travel - 30 minutes one way (30 min x 4 travels)</td>
+<td>1 hour</td>
+<td>2 hours</td>
+<td>16.80</td>
+</tr>
+<tr>
+<td>Travel to bus stop from college</td>
+<td>10 mins</td>
+<td>0.06</td>
+<td>1,973.32</td>
+</tr>
+<tr>
+<td>Travel from bus stop to Burwash Manner</td>
+<td>10 mins</td>
+<td>0.06</td>
+<td>1,973.38</td>
+</tr>
+<tr>
+<td>Meeting running time x2</td>
+<td>2 hours</td>
+<td>7.64</td>
+<td>1,981.02</td>
+</tr>
+<tr>
+<td>GRAND TOTAL</td>
+<td></td>
+<td></td>
+<td>£1,981.02</td>
+</tr>
+</tbody>
+</table> Important Notes:
+The guidelines of this invoice are strictly professional. The minimum wage for under 18's in the United Kingdom is £3.79 per hour. Sub Total: 1,981.02
+Tax: 20% VAT = 396.20
+Total Due: £1,584.82 <img>Signature</img>
+Authorized Signatures Thank You for Your Business!
+```
+
+</details>
+
+<details>
+<summary>VisionLLM Output (83%)</summary>
+
+```
+SCS Agency INVOICE
+Long Road Sixth Form College, Long Road,
+Cambridge. CB2 8PX
+Main Director Telelex:07981423683
+Director Telephone: www.scsagency18.blogspot.com
+Date: 13/02/15
+Name: Shelley Lucier (SCS Agency Main Director)
+Address: 6 Glebe Road City: Cambridge State: Cambridgeshire Zip Code:
+City: Cambridge    State:         Alt. Phone:     01223 507400
+Description Description Time Spent £(Ex time) Total(E)
+Image capture & record of meetings        2 hours       7.58      7.58
+Editing image editing                                  4 hours           15.16     22.74.
+Initial sticker planning                                      2 hours            10.33    19.32.
+Notes being lokan                                           20 mins             0,13       30.35
+Initial postcard planning                                    6 hours           22.74     53.19.
+Note edting & finalising                                  1 hour            3,79      56.98
+Contacting client                                                4 hours          15,16        72.14.
+Finalising ideas (stickers& postcard- front and back)   6 hours             22.74     94.88
+Printing stickers - .Scm width x 600 copies              1 hour           54,3+    $=r:3z.
+Printing postcards ASx A&O copics                      1%          1-0o=2d       1,98.57.
+Bus Time Travel -     (one way)(30 min/4 travels)   2 hours           .&e=6w    $3E.
+Travel to bus stop from colom                                             1O mins             0,06         B?.$:3
+Travel from bus stop from Burwash Manner                            10 hrs                    -9.8:$.
+Meeting running time linex2                                         5 hours                .&a$:.i:
+GRAND TOTAL
+Important Notes:
+The guidelines of this invoice are strictly professional.
+Minimum wage:
+Sub Total:    £1,981.02
+Tax:                 $34=00)
+for under 18's in the United Kingdom is £3.79 per hour.
+Total Due:                ¥158,84
+Authorized Signatures:
+Thank You for Your Business!
+```
+
+</details>
+
+<details>
+<summary>Florence2 Output (37%)</summary>
+
+```
+SCS AgencyINVOICELong Road Soth Form College.Cabrbridge.C82 BXMain Director: 07981 42383Website: Shellyucker (SCS Agency Main Director)Date: 13/02/15Address: Shelyucker(SCS agency Main Director).Address: & Giblee RoadState: CambridgeshireZip Code: C81 757Phone: 078143663Alt: Phone: 0123234700Total(E)DescriptionTime SpentPrice (E) line(E]Total(ES)Image capture & record of meetings2 hours75.7.7Image editing2 hours15.8.7Nail sticker planning20 hours7.5.7nail sticker planning20 hours30.7nnail postcard planning20 minutes7.75.8Nail post card planning4 hours15,7nil postcard planning4 hours17.7%24.7Paintings ideas (decks and postcard) and back)4 hours24.74.74Painting ideas (5.5cm x 6cm x 60cm copies4 hours54.7p.67Buses Travel - 30.5 cm x 6 coties1 hour18.0.7-7p,5.7526Travel bus stop for college10 minutes1.7532Travel bus Stop for Bumwah Manner10 minutes0.61.73.2P1.981.92GRAND TOTAL2 hours7:64E1.961.02Important Notes:The guidelines of the invoice are strictly professional. The minimum wageSub Total: 1.9812For under 18's in the United Kingdom is 5.7 p per hour.Total Due, £1.54.42Authorized SignaturesThank You for Your Business!
+```
+
+</details>
+
+<details>
+<summary>Tesseract Output (13%)</summary>
+
+```
+Thank
+| for
+Your Business!
+siness!
+Main Director Tele: 07981423683.
+Website: www.scsagency18.bloaspol.c
+yspol.c
+\gency Main |
+```
+
+</details>
+
+<details>
+<summary>OlmOCR-2 Output (1%)</summary>
+
+```
+p9p 899999999999p苞紊滋润 psoirm p
+p错 pso ‘99999p 91;999 pmlp叮嘱高清, it is 9p: 9 pism p愈 puroam 9 Samp
+```
+
+</details>
+
+---
+

@@ -254,11 +254,11 @@ public class DeepseekOcrWave : IAnalysisWave
         var imageBytes = await File.ReadAllBytesAsync(imagePath, ct);
         var base64Image = Convert.ToBase64String(imageBytes);
 
-        // DeepSeek-OCR uses special prompt format with <|grounding|> token
-        // and Ollama native API format with images array (NOT OpenAI format)
+        // DeepSeek-OCR prompt - do NOT use <|grounding|> as it triggers
+        // coordinate detection mode with <|ref|>/<|det|> tags
         var prompt = _config.DeepseekOcrPreferMarkdown
-            ? "<|grounding|>Convert the document to markdown."
-            : "Free OCR.";
+            ? "Convert this document to markdown. Extract all visible text preserving layout, headings, lists, and tables."
+            : "Extract all visible text from this image.";
 
         // Use Ollama native /api/chat format with images array
         var request = new
