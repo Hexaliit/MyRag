@@ -95,19 +95,36 @@ public static class CliServiceRegistration
             opt.Ocr.Benchmark.ReportOutputPath = config.OcrBenchmarkOutputPath;
             opt.Ocr.Benchmark.AppendToReport = true;
             opt.Ocr.Benchmark.IncludeFullText = true;
+            opt.Ocr.Benchmark.ForceRunAllSystems = config.EnableOcrBenchmark; // Force all systems when benchmarking
 
             // When benchmarking, enable all OCR systems to compare
             if (config.EnableOcrBenchmark)
             {
-                // DeepSeek OCR (Ollama - local)
+                // DeepSeek OCR slot → Use qwen2.5vl:7b (best-in-class for OCR)
                 opt.Ocr.EnableDeepseekOcr = true;
                 opt.Ocr.DeepseekOcrBaseUrl = "http://localhost:11434";
-                opt.Ocr.DeepseekOcrModelName = "deepseek-ocr:latest";
+                opt.Ocr.DeepseekOcrModelName = "qwen2.5vl:7b";
+                opt.Ocr.DeepseekOcrTimeoutSeconds = 180;
 
-                // Enable Vision LLM for comparison (using llava)
+                // Enable Vision LLM → Use minicpm-v:8b (good general vision)
                 opt.EnableVisionLlm = true;
-                opt.VisionLlmModel = "llava:7b";
-                opt.VisionLlmTimeout = 120000; // 2 minutes for large images
+                opt.VisionLlmModel = "minicpm-v:8b";
+                opt.VisionLlmTimeout = 180000; // 3 minutes for large images
+
+                // Florence2 OCR (local ONNX model - auto-downloads)
+                opt.EnableFlorence2 = true;
+
+                // Nanonets OCR slot → Use llava:13b (larger context)
+                opt.Ocr.EnableNanonetsOcr = true;
+                opt.Ocr.NanonetsOcrBaseUrl = "http://localhost:11434";
+                opt.Ocr.NanonetsOcrModelName = "llava:13b";
+                opt.Ocr.NanonetsOcrTimeoutSeconds = 180;
+
+                // OlmOCR-2 slot → Use llama3.2-vision:11b (Meta's best vision model)
+                opt.Ocr.EnableOlmOcr2 = true;
+                opt.Ocr.OlmOcr2BaseUrl = "http://localhost:11434";
+                opt.Ocr.OlmOcr2ModelName = "llama3.2-vision:11b";
+                opt.Ocr.OlmOcr2TimeoutSeconds = 240; // 4 minutes for this large model
             }
         });
 

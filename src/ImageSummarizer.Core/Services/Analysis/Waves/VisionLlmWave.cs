@@ -40,6 +40,10 @@ public class VisionLlmWave : IAnalysisWave
         if (!Config.EnableVisionLlm)
             return false;
 
+        // Force run if benchmark mode with ForceRunAllSystems
+        if (Config.Ocr.Benchmark.Enabled && Config.Ocr.Benchmark.ForceRunAllSystems)
+            return true;
+
         // Skip if auto-routing says to skip this wave
         if (context.IsWaveSkippedByRouting(Name))
         {

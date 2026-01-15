@@ -49,6 +49,10 @@ public class DeepseekOcrWave : IAnalysisWave
         if (!_config.EnableDeepseekOcr)
             return false;
 
+        // Force run if benchmark mode with ForceRunAllSystems
+        if (_config.Benchmark.Enabled && _config.Benchmark.ForceRunAllSystems)
+            return true;
+
         if (context.IsWaveSkippedByRouting(Name))
             return false;
 
@@ -152,41 +156,46 @@ public class DeepseekOcrWave : IAnalysisWave
                 Tags = new List<string> { "ocr", "timing", "deepseek" }
             });
 
-            // Emit generic OCR signals (lower priority than system-specific)
-            signals.Add(new Signal
+            // Only emit generic OCR signals if NOT in benchmark mode
+            // In benchmark mode, each system should only write to its own namespace
+            // to avoid signal pollution (last wave would overwrite Tesseract's ocr.full_text)
+            if (!(_config.Benchmark.Enabled && _config.Benchmark.ForceRunAllSystems))
             {
-                Key = "ocr.markdown",
-                Value = cleanedMarkdown,
-                Confidence = 0.88,
-                Source = Name,
-                Tags = new List<string> { "ocr", "markdown" },
-                Metadata = new Dictionary<string, object>
+                signals.Add(new Signal
                 {
-                    ["model"] = _config.DeepseekOcrModelName
-                }
-            });
+                    Key = "ocr.markdown",
+                    Value = cleanedMarkdown,
+                    Confidence = 0.88,
+                    Source = Name,
+                    Tags = new List<string> { "ocr", "markdown" },
+                    Metadata = new Dictionary<string, object>
+                    {
+                        ["model"] = _config.DeepseekOcrModelName
+                    }
+                });
 
-            signals.Add(new Signal
-            {
-                Key = "ocr.text",
-                Value = plainText,
-                Confidence = 0.83,
-                Source = Name,
-                Tags = new List<string> { "ocr", "text" },
-                Metadata = new Dictionary<string, object>
+                signals.Add(new Signal
                 {
-                    ["model"] = _config.DeepseekOcrModelName
-                }
-            });
+                    Key = "ocr.text",
+                    Value = plainText,
+                    Confidence = 0.83,
+                    Source = Name,
+                    Tags = new List<string> { "ocr", "text" },
+                    Metadata = new Dictionary<string, object>
+                    {
+                        ["model"] = _config.DeepseekOcrModelName
+                    }
+                });
 
-            signals.Add(new Signal
-            {
-                Key = "ocr.full_text",
-                Value = plainText,
-                Confidence = 0.83,
-                Source = Name,
-                Tags = new List<string> { "ocr", SignalTags.Content }
-            });
+                signals.Add(new Signal
+                {
+                    Key = "ocr.full_text",
+                    Value = plainText,
+                    Confidence = 0.83,
+                    Source = Name,
+                    Tags = new List<string> { "ocr", SignalTags.Content }
+                });
+            }
 
             // Emit content signals if not already present
             var existingContent = context.GetValue<string>("content.extracted_text");
