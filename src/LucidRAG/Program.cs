@@ -203,8 +203,8 @@ else
     builder.Services.AddScoped<PostgresBM25Service>(sp => null!);
 
 // Table extraction services
-builder.Services.AddScoped<ITableExtractorFactory,
-    TableExtractorFactory>();
+// TableExtractorFactory must be Singleton to avoid DI scope issues with DocumentToMarkdownService
+builder.Services.AddSingleton<ITableExtractorFactory, TableExtractorFactory>();
 builder.Services.AddScoped<TableProcessingService>();
 
 // Sentinel query decomposition service

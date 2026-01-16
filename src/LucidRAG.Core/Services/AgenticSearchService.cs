@@ -557,8 +557,25 @@ public class AgenticSearchService(
         if (queryType == Sentinel.QueryType.Keyword || queryType == Sentinel.QueryType.Navigation) { var resp = BuildKeywordResponseNoThinking(sources); await conversationService.AddMessageAsync(conversationId.Value, "assistant", resp, ct: ct); foreach (var w in resp.Split(' ')) { if (ct.IsCancellationRequested) yield break; yield return new ChatStreamChunk("text", Text: w + " "); await Task.Delay(10, ct); } yield return new ChatStreamChunk("done"); yield break; }
 
         // Build prompt for natural synthesis (not segment-by-segment description)
+        // IMPORTANT: Never expose internal IDs, scores, or retrieval mechanics to user
         var sourceTextsStr = string.Join("\n\n", sources.Select(s => $"[{s.Number}] {s.Text}"));
-        var prompt = $"You are a helpful assistant. Answer this question using ONLY the evidence below.\n\n{sysPrompt}\n\nQUESTION: {request.Query}\n\nEVIDENCE:\n{sourceTextsStr}\n\nSynthesize the evidence into a clear, natural answer. Don't describe each source - combine into a cohesive response. If the evidence doesn't help answer the question, say you don't have that information.\n\nANSWER:";
+        var prompt = $@"You are a helpful assistant answering questions based on document excerpts.
+
+{sysPrompt}
+
+CRITICAL: Never mention segment IDs, chunk IDs, embeddings, retrieval, or internal tooling. Write as if you read the documents directly. Only use [N] citations at the end of sentences if needed.
+
+BAD: ""In segment 3 it says..."" or ""Source [1] mentions...""
+GOOD: ""The system uses JWT tokens for authentication [3].""
+
+QUESTION: {request.Query}
+
+EXCERPTS:
+{sourceTextsStr}
+
+Synthesize into a natural answer. Combine information cohesively - don't describe each source separately. If evidence doesn't help, say you don't have that information.
+
+ANSWER:";
         string? answerToStream = null;
         var evidenceHash = SynthesisCacheService.ComputeHash(sourceTextsStr);
         if (synthesisCache.TryGetSynthesis(request.Query, evidenceHash, out var cached))
@@ -600,22 +617,35 @@ public class AgenticSearchService(
 
         // Create prompt for LLM synthesis - STRICT documents-only answering
         // Key: Ask for NATURAL synthesis, not segment-by-segment description
-        var prompt = $@"You are a helpful assistant that answers questions using document evidence.
+        // IMPORTANT: Never expose internal IDs, scores, or retrieval mechanics to user
+        var prompt = $@"You are a helpful assistant answering questions based on provided document excerpts.
 
 {systemPrompt}
 
 QUESTION: {query}
 
-EVIDENCE FROM DOCUMENTS:
+EXCERPTS FROM DOCUMENTS:
 {sourceTexts}
 
+CRITICAL RULES:
+- NEVER mention segment IDs, chunk IDs, embeddings, vector search, retrieval, or internal tooling
+- NEVER say things like ""Segment 3 says..."" or ""In chunk 2..."" or ""According to source [1]...""
+- Write as if you read the underlying documents directly
+- If you cite sources, use only bracketed numbers like [1], [2] inline at the end of sentences
+
+STYLE:
+BAD: ""In segment 4 it says that authentication uses JWT tokens.""
+GOOD: ""The system uses JWT tokens for authentication [4].""
+
+BAD: ""Source [1] mentions caching. Source [2] also discusses caching.""
+GOOD: ""Caching is used extensively in the system [1][2].""
+
 INSTRUCTIONS:
-- Synthesize the evidence into a clear, natural response that directly answers the question
-- DO NOT describe each source separately - combine information into a cohesive answer
+- Synthesize excerpts into a clear, natural response that directly answers the question
+- Combine information into a cohesive answer - do not describe each source separately
 - If multiple sources say the same thing, mention it once (not repeatedly)
-- Only mention source numbers [N] at the end if you want to indicate where key facts came from
-- If the evidence does not contain relevant information, say you do not have that information in the documents
-- Write conversationally, as if you simply know this information
+- If the evidence does not contain relevant information, say you do not have that information
+- Write conversationally, as if you simply know this information from reading the documents
 
 ANSWER:";
 
