@@ -50,7 +50,38 @@
 
                 <!-- Upload Tab Content -->
                 <template x-if="contentTab === 'upload'">
-                    <input type="file" id="filepond-input" name="files" multiple/>
+                    <div class="space-y-3">
+                        <!-- FilePond Upload -->
+                        <input type="file" id="filepond-input" name="files" multiple/>
+
+                        <!-- Folder Upload Button -->
+                        <div class="divider text-xs opacity-60 my-2">OR</div>
+
+                        <div class="flex gap-2">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline flex-1 gap-2"
+                                    @@click="$refs.folderInput.click()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                                </svg>
+                                Upload Folder
+                            </button>
+                        </div>
+
+                        <!-- Hidden folder input -->
+                        <input type="file"
+                               x-ref="folderInput"
+                               @@change="uploadFolder($event)"
+                               webkitdirectory
+                               directory
+                               multiple
+                               class="hidden"/>
+
+                        <p class="text-xs text-center opacity-50">
+                            Supports PDF, DOCX, MD, TXT, HTML, images, and data files
+                        </p>
+                    </div>
                 </template>
 
                 <!-- Crawl Tab Content -->

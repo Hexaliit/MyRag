@@ -161,7 +161,7 @@ public static class ServiceCollectionExtensions
         {
             var markdownService = sp.GetRequiredService<DocumentToMarkdownService>();
             var pdfLogger = sp.GetService<ILogger<EnhancedPdfDocumentHandler>>();
-            var imageLogger = sp.GetService<ILogger<ImageDocumentHandler>>();
+            var imageLogger = sp.GetService<ILogger<VlmImageOcrHandler>>();
 
             var registry = new DocumentHandlerRegistry();
             registry.RegisterDefaultHandlers();
@@ -283,7 +283,7 @@ public static class ServiceCollectionExtensions
         {
             var markdownService = sp.GetRequiredService<DocumentToMarkdownService>();
             var pdfLogger = sp.GetService<ILogger<EnhancedPdfDocumentHandler>>();
-            var imageLogger = sp.GetService<ILogger<ImageDocumentHandler>>();
+            var imageLogger = sp.GetService<ILogger<VlmImageOcrHandler>>();
 
             var registry = new DocumentHandlerRegistry();
             registry.RegisterDefaultHandlers();

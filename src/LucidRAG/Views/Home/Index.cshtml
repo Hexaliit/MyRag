@@ -62,6 +62,8 @@
 
                     @await Html.PartialAsync("_SidebarProcessingStatus")
 
+                    @await Html.PartialAsync("_SidebarAddContent")
+
                     <!-- Document List -->
                     <div id="document-list" class="flex-1 overflow-y-auto p-2 space-y-1"
                          :hx-get="'/admin/documents?filter=' + docFilter"
@@ -920,17 +922,43 @@
 
 <!-- Upload Progress Modal -->
 <dialog id="upload-modal" class="modal" x-ref="uploadModal">
-    <div class="modal-box">
+    <div class="modal-box max-w-lg max-h-[70vh]">
         <h3 class="font-bold text-lg mb-4">Uploading Documents</h3>
-        <div class="space-y-3">
+
+        <!-- Progress Summary -->
+        <div class="flex gap-2 mb-3 text-xs flex-wrap">
+            <span class="badge badge-sm" x-show="uploads.filter(u => u.status === 'pending').length > 0">
+                <span x-text="uploads.filter(u => u.status === 'pending').length"></span> pending
+            </span>
+            <span class="badge badge-info badge-sm" x-show="uploads.filter(u => u.status === 'uploading').length > 0">
+                <span x-text="uploads.filter(u => u.status === 'uploading').length"></span> uploading
+            </span>
+            <span class="badge badge-success badge-sm" x-show="uploads.filter(u => u.status === 'queued').length > 0">
+                <span x-text="uploads.filter(u => u.status === 'queued').length"></span> queued
+            </span>
+            <span class="badge badge-ghost badge-sm" x-show="uploads.filter(u => u.status === 'skipped').length > 0">
+                <span x-text="uploads.filter(u => u.status === 'skipped').length"></span> unchanged
+            </span>
+            <span class="badge badge-error badge-sm" x-show="uploads.filter(u => u.status === 'error').length > 0">
+                <span x-text="uploads.filter(u => u.status === 'error').length"></span> errors
+            </span>
+        </div>
+
+        <div class="space-y-2 overflow-y-auto max-h-[40vh]">
             <template x-for="upload in uploads" :key="upload.filename">
-                <div class="flex items-center gap-3">
-                    <span class="truncate flex-1 text-sm" x-text="upload.filename"></span>
+                <div class="flex items-center gap-3 text-sm">
+                    <span class="truncate flex-1" x-text="upload.filename" :title="upload.filename"></span>
+                    <template x-if="upload.status === 'pending'">
+                        <span class="badge badge-ghost badge-sm">Pending</span>
+                    </template>
                     <template x-if="upload.status === 'uploading'">
                         <span class="loading loading-spinner loading-sm"></span>
                     </template>
                     <template x-if="upload.status === 'queued'">
                         <span class="badge badge-success badge-sm">Queued</span>
+                    </template>
+                    <template x-if="upload.status === 'skipped'">
+                        <span class="badge badge-ghost badge-sm" title="File unchanged, skipped">Unchanged</span>
                     </template>
                     <template x-if="upload.status === 'error'">
                         <span class="badge badge-error badge-sm" :title="upload.error">Error</span>
@@ -1969,6 +1997,89 @@
                 closeUploadModal() {
                     this.$refs.uploadModal.close();
                     this.uploads = [];
+                },
+
+                async uploadFolder(event) {
+                    const files = event.target.files;
+                    if (!files || files.length === 0) return;
+
+                    // Filter to supported file types
+                    const supportedExtensions = ['.pdf', '.docx', '.doc', '.md', '.markdown', '.txt', '.html', '.htm',
+                        '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.tif',
+                        '.csv', '.xlsx', '.xls', '.json', '.parquet'];
+                    const filteredFiles = Array.from(files).filter(f => {
+                        const ext = '.' + f.name.split('.').pop().toLowerCase();
+                        return supportedExtensions.includes(ext);
+                    });
+
+                    if (filteredFiles.length === 0) {
+                        alert('No supported files found in the selected folder.\n\nSupported: PDF, DOCX, MD, TXT, HTML, images, CSV, XLSX, JSON, Parquet');
+                        event.target.value = '';
+                        return;
+                    }
+
+                    // Show upload progress
+                    this.uploads = filteredFiles.map(f => ({
+                        filename: f.webkitRelativePath || f.name,
+                        status: 'pending'
+                    }));
+                    this.$refs.uploadModal.showModal();
+
+                    // Get folder base path from first file
+                    const firstPath = filteredFiles[0].webkitRelativePath || '';
+                    const folderName = firstPath.split('/')[0] || 'uploaded';
+
+                    // Upload files in batches (parallel within batch, sequential batches)
+                    const batchSize = 5;
+                    for (let i = 0; i < filteredFiles.length; i += batchSize) {
+                        const batch = filteredFiles.slice(i, Math.min(i + batchSize, filteredFiles.length));
+
+                        await Promise.all(batch.map(async (file, batchIndex) => {
+                            const fileIndex = i + batchIndex;
+                            const relativePath = file.webkitRelativePath || file.name;
+                            this.uploads[fileIndex].status = 'uploading';
+
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            formData.append('sourcePath', relativePath);
+                            if (this.currentCollectionId) {
+                                formData.append('collectionId', this.currentCollectionId);
+                            }
+
+                            try {
+                                const response = await fetch('/api/documents/import', {
+                                    method: 'POST',
+                                    body: formData
+                                });
+                                const result = await response.json();
+
+                                if (response.ok) {
+                                    this.uploads[fileIndex].status = result.action === 'unchanged' ? 'skipped' : 'queued';
+                                    this.uploads[fileIndex].documentId = result.documentId;
+                                    this.uploads[fileIndex].action = result.action;
+                                } else {
+                                    this.uploads[fileIndex].status = 'error';
+                                    this.uploads[fileIndex].error = result.error || 'Upload failed';
+                                }
+                            } catch (e) {
+                                this.uploads[fileIndex].status = 'error';
+                                this.uploads[fileIndex].error = e.message;
+                            }
+                        }));
+                    }
+
+                    // Refresh document list and stats
+                    htmx.trigger(document.body, 'documentUploaded');
+                    this.loadGraphStats();
+                    event.target.value = '';
+
+                    // Show summary
+                    const created = this.uploads.filter(u => u.action === 'created').length;
+                    const updated = this.uploads.filter(u => u.action === 'updated').length;
+                    const unchanged = this.uploads.filter(u => u.status === 'skipped').length;
+                    const errors = this.uploads.filter(u => u.status === 'error').length;
+
+                    console.log(`Folder upload complete: ${created} created, ${updated} updated, ${unchanged} unchanged, ${errors} errors`);
                 },
 
                 toggleDocument(docId, checked) {

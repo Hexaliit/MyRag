@@ -38,7 +38,7 @@ public class DocumentsController(
     /// </summary>
     [HttpPost]
     [HttpPost("upload")]
-    [RequestSizeLimit(100 * 1024 * 1024)] // 100MB
+    [DisableRequestSizeLimit] // Allow streaming for large files
     public async Task<Results<Ok<DocumentUploadResponse>, BadRequest<ApiError>, StatusCodeHttpResult>> Upload(
         IFormFile? file,
         [FromForm] Guid? collectionId = null,
@@ -84,7 +84,7 @@ public class DocumentsController(
     }
 
     [HttpPost("upload-batch")]
-    [RequestSizeLimit(500 * 1024 * 1024)] // 500MB for batch
+    [DisableRequestSizeLimit] // Allow streaming for large batch uploads
     public async Task<IActionResult> UploadBatch(
         IFormFileCollection files,
         [FromForm] Guid? collectionId = null,
@@ -113,7 +113,7 @@ public class DocumentsController(
     ///     If a document with the same sourcePath exists in the collection, it will be updated if content changed.
     /// </summary>
     [HttpPost("import")]
-    [RequestSizeLimit(100 * 1024 * 1024)]
+    [DisableRequestSizeLimit] // Allow streaming for large files
     public async Task<IActionResult> Import(
         IFormFile? file,
         [FromForm] string? sourcePath = null,
@@ -167,7 +167,7 @@ public class DocumentsController(
     ///     Batch import with change detection.
     /// </summary>
     [HttpPost("import-batch")]
-    [RequestSizeLimit(500 * 1024 * 1024)]
+    [DisableRequestSizeLimit] // Allow streaming for large batch uploads
     public async Task<IActionResult> ImportBatch(
         IFormFileCollection files,
         [FromForm] Guid? collectionId = null,

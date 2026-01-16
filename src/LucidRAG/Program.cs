@@ -41,9 +41,24 @@ if (portArg != null && int.TryParse(portArg.Split('=')[1], out var parsedPort))
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel for standalone mode
-if (standaloneMode)
-    builder.WebHost.ConfigureKestrel(options => { options.ListenLocalhost(port); });
+// Configure Kestrel for large file uploads (streaming)
+builder.WebHost.ConfigureKestrel(options =>
+{
+    // Allow large request bodies for file uploads (500MB default, streaming handles larger)
+    options.Limits.MaxRequestBodySize = 500 * 1024 * 1024; // 500MB
+
+    // Configure specific port for standalone mode
+    if (standaloneMode)
+        options.ListenLocalhost(port);
+});
+
+// Configure form options for large file uploads
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 500 * 1024 * 1024; // 500MB for form uploads
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartHeadersLengthLimit = int.MaxValue;
+});
 
 // Serilog
 builder.Host.UseSerilog((context, config) =>

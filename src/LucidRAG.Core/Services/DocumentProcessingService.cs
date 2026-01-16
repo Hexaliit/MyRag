@@ -339,15 +339,14 @@ public class DocumentProcessingService(
             return [];
         }
 
-        // Use search with docId filter to get all segments
+        // Use GetDocumentSegmentsAsync to get all segments for this document
         try
         {
             // Get segment count from document
             if (document.SegmentCount == 0) return [];
 
-            // Search with a high topK and filter by docId
-            var embedding = new float[384]; // ONNX embedding dimension
-            var segments = await vectorStore.SearchAsync(CollectionName, embedding, Math.Max(document.SegmentCount, 100), stableDocId, ct);
+            // Use dedicated method to retrieve all segments for a document
+            var segments = await vectorStore.GetDocumentSegmentsAsync(CollectionName, stableDocId, ct);
             return segments;
         }
         catch (Exception ex)

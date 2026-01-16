@@ -107,14 +107,14 @@ public class EnhancedPdfDocumentHandler : IDocumentHandler
 /// Image document handler that uses VLM OCR to extract text from images.
 /// Supports common image formats: PNG, JPG, JPEG, WebP, GIF, BMP, TIFF.
 /// </summary>
-public class ImageDocumentHandler : IDocumentHandler
+public class VlmImageOcrHandler : IDocumentHandler
 {
     private readonly DocumentToMarkdownService _markdownService;
-    private readonly ILogger<ImageDocumentHandler>? _logger;
+    private readonly ILogger<VlmImageOcrHandler>? _logger;
 
-    public ImageDocumentHandler(
+    public VlmImageOcrHandler(
         DocumentToMarkdownService markdownService,
-        ILogger<ImageDocumentHandler>? logger = null)
+        ILogger<VlmImageOcrHandler>? logger = null)
     {
         _markdownService = markdownService;
         _logger = logger;
@@ -190,10 +190,10 @@ public static class EnhancedDocumentHandlerExtensions
         this IDocumentHandlerRegistry registry,
         DocumentToMarkdownService markdownService,
         ILogger<EnhancedPdfDocumentHandler>? pdfLogger = null,
-        ILogger<ImageDocumentHandler>? imageLogger = null)
+        ILogger<VlmImageOcrHandler>? imageLogger = null)
     {
         registry.Register(new EnhancedPdfDocumentHandler(markdownService, pdfLogger));
-        registry.Register(new ImageDocumentHandler(markdownService, imageLogger));
+        registry.Register(new VlmImageOcrHandler(markdownService, imageLogger));
         return registry;
     }
 }
