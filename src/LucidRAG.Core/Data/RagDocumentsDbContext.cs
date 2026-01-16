@@ -421,11 +421,11 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.HasIndex(e => e.ParentCommunityId);
             entity.HasIndex(e => e.EntityCount);
 
-            // Relationships
+            // Relationships - CollectionId is nullable for global communities
             entity.HasOne(e => e.Collection)
                 .WithMany()
                 .HasForeignKey(e => e.CollectionId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Self-referencing hierarchy
             entity.HasOne(e => e.ParentCommunity)

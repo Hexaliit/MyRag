@@ -225,7 +225,7 @@ namespace LucidRAG.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    CollectionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CollectionId = table.Column<Guid>(type: "uuid", nullable: true),
                     Name = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
                     Summary = table.Column<string>(type: "text", nullable: true),
                     Features = table.Column<string>(type: "jsonb", nullable: true),
@@ -246,7 +246,7 @@ namespace LucidRAG.Migrations
                         column: x => x.CollectionId,
                         principalTable: "collections",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
                         name: "FK_communities_communities_ParentCommunityId",
                         column: x => x.ParentCommunityId,

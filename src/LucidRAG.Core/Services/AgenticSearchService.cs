@@ -585,7 +585,15 @@ ANSWER:";
         {
             try
             {
-                answerToStream = (await llmService.GenerateAsync(prompt, new LlmOptions { Temperature = 0.3 }, ct)).Trim();
+                var synthesisProfile = _docSummarizerConfig.Ollama.GetSynthesisProfile();
+                answerToStream = (await llmService.GenerateAsync(prompt, new LlmOptions
+                {
+                    Model = synthesisProfile.Model,
+                    Temperature = synthesisProfile.Temperature,
+                    MaxTokens = synthesisProfile.MaxTokens
+                }, ct)).Trim();
+                logger.LogDebug("Synthesis using profile {Profile}: model={Model}",
+                    _docSummarizerConfig.Ollama.DefaultSynthesisProfile, synthesisProfile.Model);
                 synthesisCache.SetSynthesis(request.Query, sourceTextsStr, answerToStream, sources.Select(s => s.DocumentId).Distinct().ToArray());
             }
             catch (Exception ex)
@@ -654,8 +662,15 @@ ANSWER:";
                 return cachedAnswer!;
             }
 
-            logger.LogDebug("Generating LLM answer for query: {Query}", query);
-            var answer = await llmService.GenerateAsync(prompt, new LlmOptions { Temperature = 0.3 }, ct);
+            var synthesisProfile = _docSummarizerConfig.Ollama.GetSynthesisProfile();
+            logger.LogDebug("Generating LLM answer for query: {Query} using profile {Profile} ({Model})",
+                query, _docSummarizerConfig.Ollama.DefaultSynthesisProfile, synthesisProfile.Model);
+            var answer = await llmService.GenerateAsync(prompt, new LlmOptions
+            {
+                Model = synthesisProfile.Model,
+                Temperature = synthesisProfile.Temperature,
+                MaxTokens = synthesisProfile.MaxTokens
+            }, ct);
             var trimmedAnswer = answer.Trim();
 
             // Store in cache with document IDs for invalidation tracking
@@ -737,8 +752,10 @@ ANSWER:";
                     documentIds: null, // Not filtering by document here
                     ct);
 
-                // Build lookup: SegmentHash -> BM25 score
-                var hashToIdLookup = evidenceArtifacts.ToDictionary(ea => ea.SegmentHash!, ea => ea.Id);
+                // Build lookup: SegmentHash -> BM25 score (use DistinctBy to handle duplicate hashes)
+                var hashToIdLookup = evidenceArtifacts
+                    .DistinctBy(ea => ea.SegmentHash!)
+                    .ToDictionary(ea => ea.SegmentHash!, ea => ea.Id);
                 var idToScoreLookup = ftsResults.ToDictionary(r => r.artifact.Id, r => r.score);
 
                 bm25ScoreLookup = new Dictionary<string, double>();
@@ -1217,7 +1234,18 @@ ANSWER:";
         var thinking = new StringBuilder();
         thinking.AppendLine("*Thinking...*");
         thinking.AppendLine($"- Query type: **{plan.QueryType}** ({plan.Mode})");
-        thinking.AppendLine($"- Interpreted as: {plan.Intent}");
+
+        // Only show interpreted query if it's meaningfully different from original
+        // Avoid showing hallucinated interpretations from small models
+        var intent = plan.Intent ?? query;
+        var showIntent = !string.IsNullOrEmpty(intent) &&
+            !intent.Equals(query, StringComparison.OrdinalIgnoreCase) &&
+            intent.Length < query.Length * 3; // Avoid verbose reinterpretations
+        if (showIntent)
+            thinking.AppendLine($"- Interpreted as: {intent}");
+        else
+            thinking.AppendLine($"- Interpreted as: {query}");
+
         thinking.AppendLine($"- Confidence: {plan.Confidence:P0}");
 
         if (plan.SubQueries.Count > 0)

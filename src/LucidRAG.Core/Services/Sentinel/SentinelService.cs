@@ -549,10 +549,11 @@ Rules:
 1. Break complex queries into 2-5 focused sub-queries
 2. Set useSparse=true for exact terms, proper nouns, codes
 3. If comparing, create sub-queries for each item
-4. If query is ambiguous, set needsClarification=true
-5. List assumptions about what data exists
+4. ONLY set needsClarification=true when query has multiple CONFLICTING interpretations (e.g., 'Apple' could mean fruit or company). Simple questions like 'What is X?' or 'Explain Y' are NOT ambiguous - answer them with a broad overview.
+5. If confidence >= 0.6, needsClarification MUST be false
+6. List assumptions about what data exists
 
-JSON only, no explanation:";
+JSON only, no explanation: /no_think";
     }
 
     private async Task<string> CallOllamaAsync(string model, string prompt, CancellationToken ct)
@@ -628,16 +629,20 @@ JSON only, no explanation:";
             var isList = ListPattern.IsMatch(originalQuery);
             var queryType = ClassifyQueryType(originalQuery, isComparison, isAggregation, isList);
 
+            // Override clarification if confidence is high enough (user specified 0.6+)
+            var confidence = Math.Clamp(parsed.Confidence, 0.1, 1.0);
+            var needsClarification = parsed.NeedsClarification && confidence < 0.6;
+
             return new QueryPlan
             {
                 OriginalQuery = originalQuery,
                 Intent = parsed.Intent ?? "Information retrieval",
-                Confidence = Math.Clamp(parsed.Confidence, 0.1, 1.0),
+                Confidence = confidence,
                 SubQueries = subQueries,
                 Operations = operations,
                 Assumptions = assumptions,
-                NeedsClarification = parsed.NeedsClarification,
-                ClarificationQuestion = parsed.ClarificationQuestion,
+                NeedsClarification = needsClarification,
+                ClarificationQuestion = needsClarification ? parsed.ClarificationQuestion : null,
                 Mode = ExecutionMode.Hybrid,
                 QueryType = queryType
             };
@@ -994,7 +999,7 @@ JSON only, no explanation:";
 
         try
         {
-            var prompt = $@"Fix any spelling/grammar mistakes in this search query. Return ONLY the corrected query, nothing else. If no fixes needed, return the original.
+            var prompt = $@"Fix any spelling/grammar mistakes in this search query. Return ONLY the corrected query, nothing else. If no fixes needed, return the original. /no_think
 
 Query: {normalizedQuery}
 
@@ -1002,6 +1007,12 @@ Corrected:";
 
             var response = await CallOllamaAsync(_config.TinyModel, prompt, ct);
             var corrected = response.Trim().TrimStart(':').Trim();
+
+            // Strip echoed prompt format if model returned it
+            if (corrected.StartsWith("Query:", StringComparison.OrdinalIgnoreCase))
+                corrected = corrected[6..].Trim();
+            if (corrected.StartsWith("Corrected:", StringComparison.OrdinalIgnoreCase))
+                corrected = corrected[10..].Trim();
 
             // Sanity check - corrected query should be similar length
             if (!string.IsNullOrEmpty(corrected) &&

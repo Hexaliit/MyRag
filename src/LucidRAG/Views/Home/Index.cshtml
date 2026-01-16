@@ -190,10 +190,10 @@
                 </div>
 
                 <!-- Content Area -->
-                <div class="flex-1 flex overflow-hidden">
+                <div class="flex-1 flex overflow-hidden min-h-0">
                     <!-- Answer View -->
                     <template x-if="viewMode === 'answer'">
-                        <div class="flex-1 flex flex-col">
+                        <div class="flex-1 flex flex-col min-h-0">
                             <!-- Messages -->
                             <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4" x-ref="chatMessages">
                                 <template x-if="messages.length === 0">
@@ -259,11 +259,20 @@
                                     </div>
                                 </template>
 
-                                <!-- Typing indicator -->
+                                <!-- Thinking indicator with document count -->
                                 <template x-if="isTyping">
                                     <div class="chat chat-start">
-                                        <div class="chat-bubble">
-                                            <span class="typing-indicator">Thinking</span>
+                                        <div class="chat-bubble bg-base-200 text-base-content/80">
+                                            <div class="flex flex-col gap-1">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="loading loading-dots loading-xs"></span>
+                                                    <span class="text-sm font-medium">
+                                                        <span x-show="selectedDocIds.size > 0" x-text="'Searching ' + selectedDocIds.size + ' documents...'"></span>
+                                                        <span x-show="selectedDocIds.size === 0">Searching all documents...</span>
+                                                    </span>
+                                                </div>
+                                                <div x-show="streamingThinking" class="text-xs opacity-70 italic mt-1 max-w-md truncate" x-text="streamingThinking"></div>
+                                            </div>
                                         </div>
                                     </div>
                                 </template>
@@ -1136,6 +1145,7 @@
                 currentMessage: '',
                 conversationId: null,
                 isTyping: false,
+                streamingThinking: null, // Shows thinking note during stream
                 uploads: [],
                 selectedDocIds: new Set(),
                 isDragging: false,
@@ -2183,6 +2193,7 @@
                     this.messages.push(userMsg);
                     this.currentMessage = '';
                     this.isTyping = true;
+                    this.streamingThinking = null;
                     this.lastAnswer = null;
                     this.selectedSentence = null;
                     this.selectedEvidence = [];
@@ -2267,7 +2278,11 @@
                                             this.conversationId = chunk.conversationId;
                                             this.setCookie('lucidrag-conversation', chunk.conversationId);
                                         }
-                                        if (chunk.thinkingNote) thinkingNote = chunk.thinkingNote;
+                                        if (chunk.thinkingNote) {
+                                            thinkingNote = chunk.thinkingNote;
+                                            // Show compact thinking note during stream
+                                            this.streamingThinking = chunk.thinkingNote.split('\n')[0].substring(0, 100);
+                                        }
                                         if (chunk.searchTimeMs) searchTimeMs = chunk.searchTimeMs;
                                         if (chunk.segmentCount) segmentCount = chunk.segmentCount;
                                     }
@@ -2321,6 +2336,7 @@
                         }
                     } finally {
                         this.isTyping = false;
+                        this.streamingThinking = null;
                         this.$nextTick(() => {
                             if (this.$refs.chatMessages) {
                                 this.$refs.chatMessages.scrollTop = this.$refs.chatMessages.scrollHeight;

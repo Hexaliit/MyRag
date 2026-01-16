@@ -167,7 +167,8 @@ public class OllamaConfig
     public string BaseUrl { get; set; } = "http://localhost:11434";
 
     /// <summary>
-    ///     Model to use for generation (main summarization work)
+    ///     Model to use for generation (main summarization work).
+    ///     This is the default model - use SynthesisProfiles for quality tiers.
     /// </summary>
     public string Model { get; set; } = "llama3.2:3b";
 
@@ -192,6 +193,152 @@ public class OllamaConfig
     ///     Request timeout in seconds
     /// </summary>
     public int TimeoutSeconds { get; set; } = 1200;
+
+    /// <summary>
+    ///     Synthesis quality profiles for RAG response generation.
+    ///     Allows selecting different models based on quality/speed requirements.
+    /// </summary>
+    public SynthesisProfilesConfig SynthesisProfiles { get; set; } = new();
+
+    /// <summary>
+    ///     Default synthesis profile to use. Options: "fast", "balanced", "quality"
+    /// </summary>
+    public string DefaultSynthesisProfile { get; set; } = "balanced";
+
+    /// <summary>
+    ///     Get the synthesis profile by name
+    /// </summary>
+    public SynthesisProfile GetSynthesisProfile(string? profile = null)
+    {
+        var p = (profile ?? DefaultSynthesisProfile).ToLowerInvariant();
+        return p switch
+        {
+            "cpuonly" or "cpu" or "fast" => SynthesisProfiles.CpuOnly,
+            "gpu8gb" or "8gb" => SynthesisProfiles.Gpu8Gb,
+            "gpu16gb" or "16gb" or "balanced" => SynthesisProfiles.Gpu16Gb,
+            "gpu24gb" or "24gb" or "quality" => SynthesisProfiles.Gpu24Gb,
+            "enterprise" or "gpu32gb" or "32gb" => SynthesisProfiles.Enterprise,
+            _ => SynthesisProfiles.Gpu16Gb // Default to 16GB profile
+        };
+    }
+
+    /// <summary>
+    ///     Get the model for the specified synthesis profile
+    /// </summary>
+    public string GetSynthesisModel(string? profile = null) => GetSynthesisProfile(profile).Model;
+
+    /// <summary>
+    ///     Get the max tokens for the specified synthesis profile
+    /// </summary>
+    public int GetSynthesisMaxTokens(string? profile = null) => GetSynthesisProfile(profile).MaxTokens;
+
+    /// <summary>
+    ///     Get the temperature for the specified synthesis profile
+    /// </summary>
+    public double GetSynthesisTemperature(string? profile = null) => GetSynthesisProfile(profile).Temperature;
+}
+
+/// <summary>
+///     Synthesis profile configuration for different hardware tiers.
+///     Profiles range from CPU-only to high-end GPU configurations.
+/// </summary>
+public class SynthesisProfilesConfig
+{
+    /// <summary>
+    ///     CPU-only profile: 16GB RAM, no GPU.
+    ///     Uses tiny models that run efficiently on CPU.
+    ///     ~10-20 tokens/sec on modern CPUs.
+    /// </summary>
+    public SynthesisProfile CpuOnly { get; set; } = new()
+    {
+        Model = "gemma2:2b",
+        MaxTokens = 512,
+        Temperature = 0.3,
+        Description = "CPU-only (16GB RAM) - Fast responses with tiny models"
+    };
+
+    /// <summary>
+    ///     Entry GPU profile: 8GB VRAM (RTX 3070, RTX 4060, etc.)
+    ///     Good balance of speed and quality for consumer GPUs.
+    ///     ~30-50 tokens/sec.
+    /// </summary>
+    public SynthesisProfile Gpu8Gb { get; set; } = new()
+    {
+        Model = "gemma3:4b",
+        MaxTokens = 1024,
+        Temperature = 0.3,
+        Description = "8GB VRAM - Balanced quality for consumer GPUs"
+    };
+
+    /// <summary>
+    ///     Mid-range GPU profile: 12-16GB VRAM (RTX 4070, RTX 4080, A4000, etc.)
+    ///     High quality responses with good speed.
+    ///     ~40-60 tokens/sec.
+    /// </summary>
+    public SynthesisProfile Gpu16Gb { get; set; } = new()
+    {
+        Model = "qwen3:8b",
+        MaxTokens = 2048,
+        Temperature = 0.3,
+        Description = "16GB VRAM - High quality for prosumer GPUs"
+    };
+
+    /// <summary>
+    ///     High-end GPU profile: 24GB VRAM (RTX 4090, A5000, etc.)
+    ///     Premium quality with larger context windows.
+    ///     ~30-50 tokens/sec for larger models.
+    /// </summary>
+    public SynthesisProfile Gpu24Gb { get; set; } = new()
+    {
+        Model = "qwen3:14b",
+        MaxTokens = 4096,
+        Temperature = 0.3,
+        Description = "24GB VRAM - Premium quality for high-end GPUs"
+    };
+
+    /// <summary>
+    ///     Enterprise GPU profile: 32GB+ VRAM with 128GB+ RAM (A100, H100, multi-GPU)
+    ///     Maximum quality with largest models and context windows.
+    ///     Can run 30B+ parameter models.
+    /// </summary>
+    public SynthesisProfile Enterprise { get; set; } = new()
+    {
+        Model = "qwen3:32b",
+        MaxTokens = 8192,
+        Temperature = 0.3,
+        Description = "32GB+ VRAM / 128GB RAM - Enterprise grade with largest models"
+    };
+
+    // Legacy profile names for backwards compatibility
+    public SynthesisProfile Fast => CpuOnly;
+    public SynthesisProfile Balanced => Gpu16Gb;
+    public SynthesisProfile Quality => Gpu24Gb;
+}
+
+/// <summary>
+///     Individual synthesis profile settings
+/// </summary>
+public class SynthesisProfile
+{
+    /// <summary>
+    ///     Ollama model name for this profile
+    /// </summary>
+    public string Model { get; set; } = "qwen2.5:3b";
+
+    /// <summary>
+    ///     Maximum tokens to generate
+    /// </summary>
+    public int MaxTokens { get; set; } = 1024;
+
+    /// <summary>
+    ///     Temperature for generation
+    /// </summary>
+    public double Temperature { get; set; } = 0.3;
+
+    /// <summary>
+    ///     Human-readable description of this profile's intended use
+    /// </summary>
+    public string Description { get; set; } = "";
 }
 
 /// <summary>

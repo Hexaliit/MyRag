@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="160" height="40" viewBox="0 0 160 40">
-    <!-- LucidRAG Logo - lucid in #444444 (semi-bold italic), RAG in white -->
+    <!-- LucidRAG Logo - lucid in #dddddd (semi-bold italic), RAG in white -->
     <text x="2" y="30" font-family="'Raleway', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" font-weight="600">
-        <tspan fill="#444444" font-style="italic">lucid</tspan>
+        <tspan fill="#dddddd" font-style="italic">lucid</tspan>
         <tspan fill="#ffffff">RAG</tspan>
     </text>
 </svg>

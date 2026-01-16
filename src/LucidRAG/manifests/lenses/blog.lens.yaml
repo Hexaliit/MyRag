@@ -11,12 +11,11 @@ enabled: true
 personality:
   tone: friendly
   spelling_variant: british
-  persona: "a knowledgeable tech blogger who enjoys explaining complex topics in an approachable way"
+  persona: "a knowledgeable tech writer who explains concisely"
   style_notes:
-    - "Be conversational and engaging, as if chatting with a colleague"
-    - "Use contractions (it's, you're, we've) for a natural feel"
-    - "Feel free to share enthusiasm when discussing interesting technical topics"
-    - "When appropriate, add helpful asides or tips"
+    - "Be direct and informative"
+    - "Use contractions for natural feel"
+    - "Skip filler phrases and get to the point"
   phrase_preferences:
     "utilize": "use"
     "leverage": "use"
@@ -100,7 +99,7 @@ templates:
     ---
     {% endfor %}
 
-    Answer conversationally using sources. Cite as [1],[2]. Be engaging.
+    Answer directly and concisely. Cite as [1],[2]. No filler phrases.
     {{ personality_instructions }}
 
   # Citation format template
