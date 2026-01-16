@@ -362,6 +362,11 @@ public class DocumentsController(
         // Get evidence artifacts
         var evidence = await documentService.GetEvidenceAsync(id, ct);
 
+        // Get signals from retrieval entity (document ID formatted as "N" is the entity ID)
+        var entityId = id.ToString("N");
+        var retrievalEntity = await retrievalEntityService.GetByIdAsync(entityId, ct);
+        var signals = retrievalEntity?.Signals ?? [];
+
         return Ok(new
         {
             document = new
@@ -411,8 +416,40 @@ public class DocumentsController(
                 confidence = ev.Confidence,
                 createdAt = ev.CreatedAt
             }),
-            evidenceCount = evidence.Count
+            evidenceCount = evidence.Count,
+            signals = signals.Select(s => new
+            {
+                key = s.Key,
+                value = FormatSignalValue(s.Value),
+                confidence = s.Confidence,
+                source = s.Source,
+                timestamp = s.Timestamp
+            }),
+            signalsCount = signals.Count
         });
+    }
+
+    private static object? FormatSignalValue(object? value)
+    {
+        if (value is null) return null;
+        if (value is string strValue)
+        {
+            // Try to parse as JSON for structured display
+            if (strValue.StartsWith("{") || strValue.StartsWith("["))
+            {
+                try
+                {
+                    return JsonSerializer.Deserialize<object>(strValue);
+                }
+                catch
+                {
+                    return strValue;
+                }
+            }
+            // Truncate long string values
+            return strValue.Length > 1000 ? strValue[..1000] + "..." : strValue;
+        }
+        return value;
     }
 
     /// <summary>

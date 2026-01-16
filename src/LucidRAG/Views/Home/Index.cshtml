@@ -573,6 +573,10 @@
                                             @@click="detailsTab = 'segments'">
                                         Segments (<span x-text="documentDetails.totalSegments || 0"></span>)
                                     </button>
+                                    <button class="tab" :class="detailsTab === 'signals' ? 'tab-active' : ''"
+                                            @@click="detailsTab = 'signals'">
+                                        Signals (<span x-text="documentDetails.signalsCount || 0"></span>)
+                                    </button>
                                 </div>
 
                                 <!-- Entities Tab -->
@@ -687,6 +691,54 @@
                                             x-if="!documentDetails.segments || documentDetails.segments.length === 0">
                                             <div class="text-center py-8 opacity-50">
                                                 <p>No segments extracted yet.</p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <!-- Signals Tab -->
+                                <template x-if="detailsTab === 'signals'">
+                                    <div class="space-y-2">
+                                        <template
+                                            x-if="documentDetails.signals && documentDetails.signals.length > 0">
+                                            <template x-for="(signal, idx) in documentDetails.signals"
+                                                      :key="signal.key + idx">
+                                                <div class="card bg-base-200 shadow-sm">
+                                                    <div class="card-body p-3">
+                                                        <div class="flex items-center justify-between">
+                                                            <div class="flex items-center gap-2">
+                                                                <span class="badge badge-info badge-sm" x-text="getSignalCategory(signal.key)"></span>
+                                                                <span class="font-mono text-sm font-semibold" x-text="signal.key"></span>
+                                                            </div>
+                                                            <template x-if="signal.confidence">
+                                                                <span class="text-xs opacity-50">
+                                                                    Confidence: <span x-text="(signal.confidence * 100).toFixed(0) + '%'"></span>
+                                                                </span>
+                                                            </template>
+                                                        </div>
+                                                        <div class="mt-2 text-sm">
+                                                            <template x-if="typeof signal.value === 'object'">
+                                                                <pre class="bg-base-300 p-2 rounded text-xs overflow-x-auto max-h-40"
+                                                                     x-text="JSON.stringify(signal.value, null, 2)"></pre>
+                                                            </template>
+                                                            <template x-if="typeof signal.value !== 'object'">
+                                                                <p class="opacity-70" x-text="signal.value || '(no value)'"></p>
+                                                            </template>
+                                                        </div>
+                                                        <template x-if="signal.source">
+                                                            <p class="text-xs opacity-40 mt-1">
+                                                                Source: <span x-text="signal.source"></span>
+                                                            </p>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </template>
+                                        <template
+                                            x-if="!documentDetails.signals || documentDetails.signals.length === 0">
+                                            <div class="text-center py-8 opacity-50">
+                                                <p>No signals extracted yet.</p>
+                                                <p class="text-xs mt-1">Signals are generated during document processing.</p>
                                             </div>
                                         </template>
                                     </div>
@@ -1256,6 +1308,9 @@
                             if (searchInput) searchInput.focus();
                         }
                     });
+
+                    // Select all completed documents by default
+                    await this.selectAllDocuments();
                 },
 
                 // ===== EXPLORER METHODS =====
@@ -2405,6 +2460,21 @@
                         'date': 'badge-neutral'
                     };
                     return classes[type?.toLowerCase()] || 'badge-ghost';
+                },
+
+                getSignalCategory(key) {
+                    if (!key) return 'signal';
+                    // Extract category from signal key (e.g., "document.topics" -> "document")
+                    const parts = key.split('.');
+                    if (parts.length > 1) return parts[0];
+                    // Common signal prefixes
+                    if (key.startsWith('ocr')) return 'ocr';
+                    if (key.startsWith('vision')) return 'vision';
+                    if (key.startsWith('audio')) return 'audio';
+                    if (key.startsWith('video')) return 'video';
+                    if (key.startsWith('data')) return 'data';
+                    if (key.startsWith('table')) return 'table';
+                    return 'signal';
                 },
 
                 formatSegmentText(text) {
