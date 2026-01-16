@@ -96,11 +96,18 @@ public class SentinelService : ISentinelService
         options ??= new SentinelOptions();
         var sw = Stopwatch.StartNew();
 
-        // Check cache first
-        var cacheKey = $"sentinel:plan:{query.GetHashCode()}:{schema.GetHashCode()}:{options.Mode}";
+        // Step 1: Correct spelling/grammar before processing
+        var correctedQuery = await CorrectSpellingAsync(query, ct);
+        if (correctedQuery != query)
+        {
+            _logger.LogInformation("Query spelling corrected: '{Original}' -> '{Corrected}'", query, correctedQuery);
+        }
+
+        // Check cache first (use corrected query for cache key)
+        var cacheKey = $"sentinel:plan:{correctedQuery.GetHashCode()}:{schema.GetHashCode()}:{options.Mode}";
         if (_config.CachePlans && _cache.TryGetValue<QueryPlan>(cacheKey, out var cached))
         {
-            _logger.LogDebug("Using cached query plan for: {Query}", query);
+            _logger.LogDebug("Using cached query plan for: {Query}", correctedQuery);
             return cached!;
         }
 
@@ -110,23 +117,23 @@ public class SentinelService : ISentinelService
         var mode = options.Mode;
         if (mode == ExecutionMode.Traditional || !_config.Enabled)
         {
-            plan = DecomposeTraditional(query, schema);
-            plan = plan with { PlanningTimeMs = sw.ElapsedMilliseconds };
+            plan = DecomposeTraditional(correctedQuery, schema);
+            plan = plan with { PlanningTimeMs = sw.ElapsedMilliseconds, OriginalQuery = query };
         }
         else
         {
             // Try tiny model first
             try
             {
-                plan = await DecomposeWithLlmAsync(query, schema, options, ct);
+                plan = await DecomposeWithLlmAsync(correctedQuery, schema, options, ct);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "LLM decomposition failed, falling back to traditional");
-                plan = DecomposeTraditional(query, schema);
+                plan = DecomposeTraditional(correctedQuery, schema);
             }
 
-            plan = plan with { PlanningTimeMs = sw.ElapsedMilliseconds };
+            plan = plan with { PlanningTimeMs = sw.ElapsedMilliseconds, OriginalQuery = query };
         }
 
         // Validate assumptions if requested
@@ -966,6 +973,128 @@ JSON only, no explanation:";
 
         var denom = Math.Sqrt(normA) * Math.Sqrt(normB);
         return denom > 0 ? dot / denom : 0;
+    }
+
+    /// <summary>
+    /// Correct spelling and normalize common shorthand in the query.
+    /// Uses a fast LLM call for spelling, plus regex for document type normalization.
+    /// </summary>
+    private async Task<string> CorrectSpellingAsync(string query, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 3)
+            return query;
+
+        // Step 1: Normalize common document type shorthand
+        var normalizedQuery = NormalizeDocumentTypeTerms(query);
+
+        // Step 2: Quick spelling check - only if query looks like it has issues
+        // Skip for very short queries or queries that look fine
+        if (!LooksLikeHasSpellingIssues(normalizedQuery))
+            return normalizedQuery;
+
+        try
+        {
+            var prompt = $@"Fix any spelling/grammar mistakes in this search query. Return ONLY the corrected query, nothing else. If no fixes needed, return the original.
+
+Query: {normalizedQuery}
+
+Corrected:";
+
+            var response = await CallOllamaAsync(_config.TinyModel, prompt, ct);
+            var corrected = response.Trim().TrimStart(':').Trim();
+
+            // Sanity check - corrected query should be similar length
+            if (!string.IsNullOrEmpty(corrected) &&
+                corrected.Length >= normalizedQuery.Length * 0.5 &&
+                corrected.Length <= normalizedQuery.Length * 2)
+            {
+                return corrected;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Spelling correction failed, using original query");
+        }
+
+        return normalizedQuery;
+    }
+
+    /// <summary>
+    /// Normalize common document type shorthand to their full forms.
+    /// E.g., "pdfs" -> "PDF documents", "docs" -> "documents", "word docs" -> "Word documents"
+    /// </summary>
+    private static string NormalizeDocumentTypeTerms(string query)
+    {
+        // Map of shorthand to normalized form - order matters (longer matches first)
+        var replacements = new (Regex pattern, string replacement)[]
+        {
+            (new Regex(@"\bword\s*docs?\b", RegexOptions.IgnoreCase), "Word documents"),
+            (new Regex(@"\bpdf\s*files?\b", RegexOptions.IgnoreCase), "PDF documents"),
+            (new Regex(@"\bpdfs?\b", RegexOptions.IgnoreCase), "PDF documents"),
+            (new Regex(@"\bdocx?\s*files?\b", RegexOptions.IgnoreCase), "Word documents"),
+            (new Regex(@"\bmd\s*files?\b", RegexOptions.IgnoreCase), "Markdown files"),
+            (new Regex(@"\bmarkdowns?\b", RegexOptions.IgnoreCase), "Markdown files"),
+            (new Regex(@"\btext\s*files?\b", RegexOptions.IgnoreCase), "text files"),
+            (new Regex(@"\btxt\s*files?\b", RegexOptions.IgnoreCase), "text files"),
+            (new Regex(@"\bhtml\s*files?\b", RegexOptions.IgnoreCase), "HTML files"),
+            (new Regex(@"\bimages?\b", RegexOptions.IgnoreCase), "images"),
+            (new Regex(@"\bpics?\b", RegexOptions.IgnoreCase), "images"),
+            (new Regex(@"\bpictures?\b", RegexOptions.IgnoreCase), "images"),
+            (new Regex(@"\bphotos?\b", RegexOptions.IgnoreCase), "images"),
+            (new Regex(@"\bspreadsheets?\b", RegexOptions.IgnoreCase), "spreadsheets"),
+            (new Regex(@"\bxls\s*files?\b", RegexOptions.IgnoreCase), "Excel spreadsheets"),
+            (new Regex(@"\bxlsx?\s*files?\b", RegexOptions.IgnoreCase), "Excel spreadsheets"),
+            (new Regex(@"\bcsv\s*files?\b", RegexOptions.IgnoreCase), "CSV data files"),
+            // Generic "docs" should stay last as it's most general
+            (new Regex(@"\bdocs\b", RegexOptions.IgnoreCase), "documents"),
+        };
+
+        var result = query;
+        foreach (var (pattern, replacement) in replacements)
+        {
+            result = pattern.Replace(result, replacement);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Quick heuristic to detect if query likely has spelling issues.
+    /// Avoids LLM call for clean queries.
+    /// </summary>
+    private static bool LooksLikeHasSpellingIssues(string query)
+    {
+        // Check for patterns that suggest typos:
+        // - Multiple consonants in a row (unusual in English)
+        // - Very short words between longer words
+        // - Repeated characters
+        // - Missing spaces (camelCase in middle of sentence)
+
+        // Pattern for unusual character sequences
+        if (Regex.IsMatch(query, @"[bcdfghjklmnpqrstvwxz]{4,}", RegexOptions.IgnoreCase))
+            return true;
+
+        // Check for words that don't look like English
+        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var word in words)
+        {
+            // Skip very short or very long words
+            if (word.Length < 2 || word.Length > 20) continue;
+
+            // Skip numbers and common acronyms
+            if (Regex.IsMatch(word, @"^\d+$|^[A-Z]{2,5}$")) continue;
+
+            // Check for unusual patterns
+            // - No vowels in word of 4+ chars
+            if (word.Length >= 4 && !Regex.IsMatch(word, @"[aeiouAEIOU]"))
+                return true;
+
+            // - Repeated letters (more than 2 of same)
+            if (Regex.IsMatch(word, @"(.)\1{2,}"))
+                return true;
+        }
+
+        return false;
     }
 
     // DTOs for JSON parsing
