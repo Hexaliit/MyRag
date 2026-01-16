@@ -591,11 +591,18 @@ public class QdrantVectorStore : IVectorStore
     /// </summary>
     private static string ExtractDocHash(string segmentId)
     {
-        // Segment ID format: filename_contenthash_type_index
-        // We want just the content hash portion (typically second-to-last group before _s_ or _p_)
+        // Segment ID format can be:
+        // - filename_contenthash_type_index (4+ parts)
+        // - filename_contenthash (2 parts, e.g., "14_217138edd1c840c1")
+        // We want just the content hash portion (16 char hex)
         var parts = segmentId.Split('_');
+
+        // For 2-part format (docId from DocumentSummary.Trace), check if second part is the hash
+        if (parts.Length == 2 && parts[1].Length == 16 && parts[1].All(c => char.IsLetterOrDigit(c)))
+            return parts[1];
+
+        // For 4+ part segment IDs, look for the hash portion
         if (parts.Length >= 4)
-            // Look for the hash portion (16 char hex)
             for (var i = parts.Length - 3; i >= 0; i--)
                 if (parts[i].Length == 16 && parts[i].All(c => char.IsLetterOrDigit(c)))
                     return parts[i];

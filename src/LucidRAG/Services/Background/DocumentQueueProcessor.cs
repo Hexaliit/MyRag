@@ -245,7 +245,17 @@ public class DocumentQueueProcessor(
         var retrievalEntityService = scope.ServiceProvider.GetRequiredService<IRetrievalEntityService>();
         var evidenceRepository = scope.ServiceProvider.GetRequiredService<IEvidenceRepository>();
         var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
-        var pipelineRegistry = scope.ServiceProvider.GetRequiredService<IPipelineRegistry>();
+        // IPipelineRegistry is optional - may fail due to Singleton/Scoped DI conflicts
+        // Fall back to document summarizer for standard files
+        IPipelineRegistry? pipelineRegistry = null;
+        try
+        {
+            pipelineRegistry = scope.ServiceProvider.GetService<IPipelineRegistry>();
+        }
+        catch (InvalidOperationException ex)
+        {
+            logger.LogDebug(ex, "IPipelineRegistry not available, using document summarizer for all files");
+        }
 
         var document = await db.Documents.FindAsync([job.DocumentId], ct);
         if (document is null)
@@ -270,7 +280,7 @@ public class DocumentQueueProcessor(
                 ProgressUpdates.Stage("Processing", "Starting document processing..."), ct);
 
             // Check if file should use pipeline (images/GIFs) or document summarizer
-            var pipeline = pipelineRegistry.FindForFile(job.FilePath);
+            var pipeline = pipelineRegistry?.FindForFile(job.FilePath);
             DocumentSummary? result = null;
             List<Segment>? imageSegments = null; // Store segments for images
 
@@ -396,15 +406,14 @@ public class DocumentQueueProcessor(
             progressChannel.Writer.TryWrite(
                 ProgressUpdates.Stage("Entities", "Extracting entities..."));
 
-            // Get segments from vector store and extract entities
-            // Fetch segments - needed for both entity extraction and evidence storage
+            // Get segments with TEXT for entity extraction and evidence storage
+            // Vector store only contains embeddings (no text for privacy), so we extract directly from file
             List<Segment> segments;
             try
             {
-                logger.LogDebug("Fetching segments for VectorStoreDocId: {DocId}", result.Trace.DocumentId);
+                logger.LogDebug("Extracting segments with text for VectorStoreDocId: {DocId}", result.Trace.DocumentId);
 
                 // For images, we already have the segments from ConvertAndIndexImageChunksAsync
-                // For documents, fetch from vector store
                 if (imageSegments != null)
                 {
                     // Image pipeline - reuse segments we just created
@@ -413,16 +422,19 @@ public class DocumentQueueProcessor(
                 }
                 else
                 {
-                    // Document pipeline - fetch from vector store
-                    segments = await vectorStore.GetDocumentSegmentsAsync("ragdocs", result.Trace.DocumentId, ct);
-                    logger.LogDebug("Retrieved {SegmentCount} segments from vector store for {DocId}",
+                    // Document pipeline - extract segments with text directly from file
+                    // Vector store doesn't store text (for privacy), so we extract fresh
+                    var fileContent = await File.ReadAllTextAsync(job.FilePath, ct);
+                    var extractionResult = await summarizer.ExtractSegmentsAsync(fileContent, result.Trace.DocumentId, ct);
+                    segments = extractionResult.AllSegments;
+                    logger.LogDebug("Extracted {SegmentCount} segments with text from file for {DocId}",
                         segments.Count, result.Trace.DocumentId);
                 }
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex,
-                    "Failed to fetch segments for document {DocumentId}, continuing without evidence storage",
+                    "Failed to extract segments for document {DocumentId}, continuing without evidence storage",
                     job.DocumentId);
                 segments = new List<Segment>();
             }

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace LucidRAG.Multitenancy;
 
@@ -48,8 +49,31 @@ public static class MultitenancyExtensions
     {
         using var scope = services.CreateScope();
         var tenantDb = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<TenantDbContext>>();
 
-        // Apply migrations for tenant management schema
-        await tenantDb.Database.MigrateAsync();
+        // Check if tenants table already exists
+        var conn = tenantDb.Database.GetDbConnection();
+        await conn.OpenAsync();
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants'";
+            var tableExists = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
+
+            if (tableExists)
+            {
+                logger.LogInformation("Tenant management tables already exist");
+                return;
+            }
+
+            // Table doesn't exist, use EnsureCreated to create it
+            logger.LogInformation("Creating tenant management tables...");
+            await tenantDb.Database.EnsureCreatedAsync();
+            logger.LogInformation("Tenant management tables created");
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 }

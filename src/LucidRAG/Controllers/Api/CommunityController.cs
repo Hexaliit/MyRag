@@ -21,15 +21,17 @@ public class CommunityController(
     ILogger<CommunityController> logger) : ControllerBase
 {
     /// <summary>
-    ///     Run community detection on the entity graph using Louvain algorithm for a collection.
+    ///     Run community detection on the entity graph using Louvain algorithm.
+    ///     If collectionId is not provided, runs detection on all entities.
     ///     Creates/updates community structure from the entity graph.
     /// </summary>
     [HttpPost]
     public async Task<Results<Ok<CommunityDetectionResponse>, StatusCodeHttpResult>> DetectCommunities(
-        [FromQuery] Guid collectionId,
-        CancellationToken ct)
+        [FromQuery] Guid? collectionId = null,
+        CancellationToken ct = default)
     {
-        logger.LogInformation("Starting community detection for collection {CollectionId}", collectionId);
+        logger.LogInformation("Starting community detection{ForCollection}",
+            collectionId.HasValue ? $" for collection {collectionId}" : " for all entities");
         var sw = Stopwatch.StartNew();
 
         try

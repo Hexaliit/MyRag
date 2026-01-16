@@ -16,9 +16,9 @@ namespace LucidRAG.Services;
 public interface ICommunityDetectionService
 {
     /// <summary>
-    /// Detect communities in the entity graph for a specific collection
+    /// Detect communities in the entity graph. If collectionId is null, detects across all entities.
     /// </summary>
-    Task<CommunityDetectionResult> DetectCommunitiesAsync(Guid collectionId, CancellationToken ct = default);
+    Task<CommunityDetectionResult> DetectCommunitiesAsync(Guid? collectionId = null, CancellationToken ct = default);
 
     /// <summary>
     /// Get all detected communities for a collection
@@ -76,12 +76,13 @@ public class CommunityDetectionService : ICommunityDetectionService
         _logger = logger;
     }
 
-    public async Task<CommunityDetectionResult> DetectCommunitiesAsync(Guid collectionId, CancellationToken ct = default)
+    public async Task<CommunityDetectionResult> DetectCommunitiesAsync(Guid? collectionId = null, CancellationToken ct = default)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        _logger.LogInformation("Starting community detection for collection {CollectionId}...", collectionId);
+        _logger.LogInformation("Starting community detection{ForCollection}...",
+            collectionId.HasValue ? $" for collection {collectionId}" : " for all entities");
 
-        // Get graph data filtered by collection
+        // Get graph data - if collectionId is null, get all entities
         var graphData = await _graphService.GetGraphDataAsync(collectionId, ct);
         if (graphData.Nodes.Count == 0)
         {
@@ -119,10 +120,14 @@ public class CommunityDetectionService : ICommunityDetectionService
         _logger.LogInformation("Leiden found {CommunityCount} communities with modularity {Modularity:F3}",
             communities.Values.Distinct().Count(), modularity);
 
-        // Clear existing communities for this collection
-        var existingCommunities = await _db.Communities
-            .Where(c => c.CollectionId == collectionId)
-            .ToListAsync(ct);
+        // Clear existing communities for this collection (or all if no collection specified)
+        var existingCommunitiesQuery = _db.Communities.AsQueryable();
+        if (collectionId.HasValue)
+            existingCommunitiesQuery = existingCommunitiesQuery.Where(c => c.CollectionId == collectionId.Value);
+        else
+            existingCommunitiesQuery = existingCommunitiesQuery.Where(c => c.CollectionId == null);
+
+        var existingCommunities = await existingCommunitiesQuery.ToListAsync(ct);
 
         var existingCommunityIds = existingCommunities.Select(c => c.Id).ToList();
         var existingMemberships = await _db.CommunityMemberships

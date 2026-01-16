@@ -559,21 +559,20 @@ public class AgenticSearchService(
         // Build prompt for natural synthesis (not segment-by-segment description)
         // IMPORTANT: Never expose internal IDs, scores, or retrieval mechanics to user
         var sourceTextsStr = string.Join("\n\n", sources.Select(s => $"[{s.Number}] {s.Text}"));
-        var prompt = $@"You are a helpful assistant answering questions based on document excerpts.
+        var prompt = $@"You are a knowledgeable assistant. Answer the question using ONLY the information below.
 
 {sysPrompt}
 
-CRITICAL: Never mention segment IDs, chunk IDs, embeddings, retrieval, or internal tooling. Write as if you read the documents directly. Only use [N] citations at the end of sentences if needed.
-
-BAD: ""In segment 3 it says..."" or ""Source [1] mentions...""
-GOOD: ""The system uses JWT tokens for authentication [3].""
-
 QUESTION: {request.Query}
 
-EXCERPTS:
+INFORMATION:
 {sourceTextsStr}
 
-Synthesize into a natural answer. Combine information cohesively - don't describe each source separately. If evidence doesn't help, say you don't have that information.
+RULES:
+- Answer directly and naturally - write as if you know this information firsthand
+- Add citation numbers [1], [2] at the end of sentences to reference sources
+- NEVER mention ""sources"", ""documents"", ""excerpts"", ""segments"", or ""according to""
+- If the information doesn't answer the question, say ""I don't have information about that.""
 
 ANSWER:";
         string? answerToStream = null;
@@ -618,34 +617,27 @@ ANSWER:";
         // Create prompt for LLM synthesis - STRICT documents-only answering
         // Key: Ask for NATURAL synthesis, not segment-by-segment description
         // IMPORTANT: Never expose internal IDs, scores, or retrieval mechanics to user
-        var prompt = $@"You are a helpful assistant answering questions based on provided document excerpts.
+        var prompt = $@"You are a knowledgeable assistant. Answer the question using ONLY the information below.
 
 {systemPrompt}
 
 QUESTION: {query}
 
-EXCERPTS FROM DOCUMENTS:
+INFORMATION:
 {sourceTexts}
 
-CRITICAL RULES:
-- NEVER mention segment IDs, chunk IDs, embeddings, vector search, retrieval, or internal tooling
-- NEVER say things like ""Segment 3 says..."" or ""In chunk 2..."" or ""According to source [1]...""
-- Write as if you read the underlying documents directly
-- If you cite sources, use only bracketed numbers like [1], [2] inline at the end of sentences
+RULES:
+- Answer directly and naturally - write as if you know this information firsthand
+- Add citation numbers [1], [2] at the end of sentences to reference sources
+- NEVER mention ""sources"", ""documents"", ""excerpts"", ""segments"", or ""according to""
+- NEVER start sentences with ""Source [1] says"" or ""In [1], we learn""
+- If the information doesn't answer the question, say ""I don't have information about that.""
+- Do NOT ask if the answer was helpful or add meta-commentary
 
-STYLE:
-BAD: ""In segment 4 it says that authentication uses JWT tokens.""
-GOOD: ""The system uses JWT tokens for authentication [4].""
-
-BAD: ""Source [1] mentions caching. Source [2] also discusses caching.""
-GOOD: ""Caching is used extensively in the system [1][2].""
-
-INSTRUCTIONS:
-- Synthesize excerpts into a clear, natural response that directly answers the question
-- Combine information into a cohesive answer - do not describe each source separately
-- If multiple sources say the same thing, mention it once (not repeatedly)
-- If the evidence does not contain relevant information, say you do not have that information
-- Write conversationally, as if you simply know this information from reading the documents
+EXAMPLE:
+Question: What database does the system use?
+Bad: ""According to source [1], the system uses PostgreSQL.""
+Good: ""The system uses PostgreSQL for data storage [1].""
 
 ANSWER:";
 

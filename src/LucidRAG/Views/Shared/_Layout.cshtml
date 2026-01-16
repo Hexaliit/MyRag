@@ -74,42 +74,6 @@
         </a>
     </div>
     <div class="flex-none gap-2 flex items-center">
-        <!-- Articles Dropdown -->
-        <div class="dropdown dropdown-end" x-data="articlesDropdown()">
-            <button tabindex="0" class="btn btn-ghost btn-sm text-slate-300 hover:text-white" @@click="loadArticles()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24"
-                     stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/>
-                </svg>
-                Articles
-            </button>
-            <ul tabindex="0"
-                class="dropdown-content z-[100] menu p-2 shadow-lg bg-base-100 rounded-box w-80 max-h-96 overflow-y-auto">
-                <template x-if="loading">
-                    <li class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></li>
-                </template>
-                <template x-if="!loading && articles.length === 0">
-                    <li class="text-center py-4 text-sm opacity-60">No articles found</li>
-                </template>
-                <template x-for="article in articles" :key="article.link">
-                    <li>
-                        <a :href="article.link" target="_blank" class="flex flex-col items-start gap-1">
-                            <span class="font-medium text-sm line-clamp-2" x-text="article.title"></span>
-                            <span class="text-xs opacity-60" x-text="article.date"></span>
-                        </a>
-                    </li>
-                </template>
-                <template x-if="!loading && articles.length > 0">
-                    <li class="border-t border-base-300 mt-2 pt-2">
-                        <a href="https://www.mostlylucid.net/category/RAG" target="_blank" class="text-sm text-primary">
-                            View all RAG articles →
-                        </a>
-                    </li>
-                </template>
-            </ul>
-        </div>
-
         <a href="https://lucidrag.com" target="_blank"
            class="text-slate-300 hover:text-white text-sm font-medium transition-colors"><span
                 class="italic">lucid</span>rag.com</a>
@@ -150,64 +114,6 @@
         }
     })();
 
-    // Articles dropdown - fetches RAG articles from mostlylucid RSS
-    function articlesDropdown() {
-        return {
-            articles: [],
-            loading: false,
-            loaded: false,
-
-            async loadArticles() {
-                if (this.loaded) return;
-                this.loading = true;
-
-                try {
-                    // Use a CORS proxy or server-side endpoint to fetch RSS
-                    const response = await fetch('/api/articles/rag');
-                    if (response.ok) {
-                        this.articles = await response.json();
-                    } else {
-                        // Fallback: hardcoded list of key RAG articles
-                        this.articles = [
-                            {
-                                title: 'Agentic RAG Pipeline',
-                                link: 'https://www.mostlylucid.net/blog/agentic-rag-pipeline',
-                                date: '2024'
-                            },
-                            {
-                                title: 'GraphRAG Entity Extraction',
-                                link: 'https://www.mostlylucid.net/blog/graphrag-entity-extraction',
-                                date: '2024'
-                            },
-                            {
-                                title: 'Multi-Document RAG',
-                                link: 'https://www.mostlylucid.net/blog/multi-document-rag',
-                                date: '2024'
-                            }
-                        ];
-                    }
-                } catch (e) {
-                    console.warn('Could not load articles:', e);
-                    // Fallback list
-                    this.articles = [
-                        {
-                            title: 'Agentic RAG Pipeline',
-                            link: 'https://www.mostlylucid.net/blog/agentic-rag-pipeline',
-                            date: '2024'
-                        },
-                        {
-                            title: 'GraphRAG Entity Extraction',
-                            link: 'https://www.mostlylucid.net/blog/graphrag-entity-extraction',
-                            date: '2024'
-                        }
-                    ];
-                } finally {
-                    this.loading = false;
-                    this.loaded = true;
-                }
-            }
-        };
-    }
 </script>
 </body>
 </html>

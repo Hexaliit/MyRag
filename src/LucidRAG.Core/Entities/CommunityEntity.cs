@@ -9,9 +9,9 @@ public class CommunityEntity
     public Guid Id { get; set; }
 
     /// <summary>
-    /// Collection this community belongs to
+    /// Collection this community belongs to (null for communities spanning all documents)
     /// </summary>
-    public Guid CollectionId { get; set; }
+    public Guid? CollectionId { get; set; }
 
     /// <summary>
     /// LLM-generated name for this community (e.g., "Image Processing Techniques")

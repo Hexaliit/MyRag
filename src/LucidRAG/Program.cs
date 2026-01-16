@@ -367,8 +367,45 @@ app.MapControllerRoute(
 Log.Information("Setting up database...");
 try
 {
-    using (var scope = app.Services.CreateScope())
+    if (multitenancyEnabled && !standaloneMode)
     {
+        // Multi-tenancy mode: ensure tenant tables exist and provision default tenant
+        Log.Information("Multi-tenancy enabled, ensuring tenant infrastructure...");
+
+        // Step 1: Ensure tenant management tables exist (tenants table in public schema)
+        await app.Services.EnsureTenantTablesAsync();
+        Log.Information("Tenant management tables verified");
+
+        // Step 2: Provision "default" tenant if it doesn't exist
+        using var scope = app.Services.CreateScope();
+        var provisioningService = scope.ServiceProvider.GetRequiredService<ITenantProvisioningService>();
+        var defaultTenantExists = await provisioningService.ExistsAsync(TenantConstants.DefaultTenantId);
+
+        if (!defaultTenantExists)
+        {
+            Log.Information("Provisioning default tenant schema...");
+            await provisioningService.ProvisionAsync(
+                TenantConstants.DefaultTenantId,
+                displayName: "Default Tenant",
+                plan: TenantPlans.Free);
+            Log.Information("Default tenant provisioned successfully");
+        }
+        else
+        {
+            // Verify tenant is provisioned (schema exists)
+            var tenant = await provisioningService.GetTenantAsync(TenantConstants.DefaultTenantId);
+            if (tenant != null && !tenant.IsProvisioned)
+            {
+                Log.Information("Default tenant exists but not provisioned, migrating...");
+                await provisioningService.MigrateTenantAsync(TenantConstants.DefaultTenantId);
+            }
+            Log.Information("Default tenant schema verified");
+        }
+    }
+    else
+    {
+        // Non-multi-tenancy or standalone mode: use simple EnsureCreated
+        using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
 
         // Check if documents table exists - use different query for SQLite vs PostgreSQL

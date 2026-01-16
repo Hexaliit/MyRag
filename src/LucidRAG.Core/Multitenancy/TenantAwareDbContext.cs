@@ -154,6 +154,7 @@ public class PostgresTenantDbContextFactory : ITenantDbContextFactory
         var optionsBuilder = new DbContextOptionsBuilder<RagDocumentsDbContext>();
         optionsBuilder.UseNpgsql(connectionString, npgsql =>
         {
+            npgsql.UseVector();
             npgsql.MigrationsHistoryTable("__EFMigrationsHistory", schema);
         });
 
@@ -176,7 +177,10 @@ public class PostgresTenantDbContextFactory : ITenantDbContextFactory
         var connectionString = _configuration.GetConnectionString("DefaultConnection");
 
         var optionsBuilder = new DbContextOptionsBuilder<RagDocumentsDbContext>();
-        optionsBuilder.UseNpgsql(connectionString);
+        optionsBuilder.UseNpgsql(connectionString, npgsql =>
+        {
+            npgsql.UseVector();
+        });
 
         // Create accessor with default tenant
         var tempAccessor = new TenantAccessor
