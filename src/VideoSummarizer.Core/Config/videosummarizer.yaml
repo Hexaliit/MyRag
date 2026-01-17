@@ -1,0 +1,430 @@
+# ============================================================================
+# VideoSummarizer Configuration
+# ============================================================================
+# Master configuration for video processing pipeline.
+# All settings can be overridden via appsettings.json or environment variables.
+
+name: videosummarizer
+version: 1.0
+description: Video processing and indexing for LucidRAG
+
+# ============================================================================
+# PROCESSING OPTIONS
+# ============================================================================
+
+processing:
+  # Keyframe extraction
+  keyframes:
+    enabled: true
+    max_keyframes: 50               # Maximum keyframes per video
+    min_keyframe_interval: 1.0      # Minimum seconds between keyframes
+    resolution: medium              # thumbnail, small, medium, large, original
+    format: jpg                     # jpg, png
+    quality: 85                     # JPEG quality (1-100)
+
+  # Scene detection
+  scenes:
+    enabled: true
+    min_duration: 5.0               # Minimum scene duration (seconds)
+    similarity_threshold: 0.7       # Cosine similarity threshold (0-1)
+    max_scenes: 100                 # Maximum scenes per video
+
+  # Shot detection
+  shots:
+    enabled: true
+    threshold: 30.0                 # Frame difference threshold
+    min_scene_length: 10            # Minimum frames per shot
+    detect_fades: true              # Detect fade transitions
+
+  # Transcription
+  transcription:
+    enabled: true
+    language: auto                  # 'auto' or ISO 639-1 code (en, es, fr, etc.)
+    model: whisper-large-v3         # Whisper model name
+    include_timestamps: true
+    speaker_diarization: true
+    max_speakers: 10
+
+  # OCR (on-screen text)
+  ocr:
+    enabled: true
+    languages: [en]                 # Language codes for OCR
+    track_text: true                # Track text across frames
+    deduplicate: true               # Remove duplicate text detections
+    min_confidence: 0.7
+
+# ============================================================================
+# FACE TRACKING
+# ============================================================================
+
+face_tracking:
+  enabled: true
+
+  # Detection settings
+  detection:
+    min_face_size: 50              # Minimum face size in pixels
+    confidence_threshold: 0.7      # Detection confidence (0-1)
+    model: haar_cascade            # haar_cascade, hog, cnn (future: insightface)
+
+  # Matching settings
+  matching:
+    similarity_threshold: 0.75     # Cosine similarity for face matching (0-1)
+    create_new_if_no_match: true   # Create new identity if no match found
+    update_centroid_on_match: true # Update identity embedding on match
+    max_matches: 5                 # Max candidates to return
+
+  # Track building
+  tracks:
+    max_gap_seconds: 5.0           # Max gap before starting new track
+    min_track_appearances: 2       # Min appearances to form a track
+
+  # Database settings
+  database:
+    persist: true                  # Persist face database across sessions
+    path: "${DATA_DIR}/faces/face_database.json"
+    backup_interval_hours: 24
+
+# ============================================================================
+# SUBTITLE PROCESSING
+# ============================================================================
+
+subtitles:
+  # External subtitle download
+  download:
+    enabled: true
+    languages: [en]                # Preferred languages (ISO 639-1)
+    hearing_impaired: false        # Prefer hearing impaired subtitles
+    auto_select: true              # Auto-select best match
+
+  # SRT parsing
+  parsing:
+    strip_html_tags: true          # Remove HTML formatting
+    strip_ass_tags: true           # Remove ASS/SSA positioning tags
+    normalize_whitespace: true
+
+  # Chunking for RAG
+  chunking:
+    window_seconds: 60.0           # Time window for grouping subtitles
+    overlap_seconds: 5.0           # Overlap between chunks
+    min_chunk_words: 10            # Minimum words per chunk
+
+  # Merge with transcription
+  merge:
+    enabled: true
+    overlap_threshold: 0.5         # Overlap required to merge (0-1)
+    prefer_subtitles: true         # Prefer subtitle text over transcription
+
+# ============================================================================
+# UNIFIED IDENTITY (Cross-Modal)
+# ============================================================================
+
+unified_identity:
+  enabled: true
+
+  # Auto-linking settings
+  auto_link:
+    by_name: true                  # Auto-link identities with matching names
+    by_temporal: true              # Link faces to speakers by timing
+    name_similarity: 0.85          # Fuzzy match threshold for names (0-1)
+    temporal_overlap: 0.5          # Required overlap for temporal linking (0-1)
+
+  # Merge settings
+  merge:
+    require_confirmation: false    # Require user confirmation for merges
+    min_confidence: 0.8            # Minimum confidence for auto-merge
+
+  # Storage
+  storage:
+    persist: true
+    path: "${DATA_DIR}/identities/unified_identities.json"
+
+# ============================================================================
+# ARTIFACT GENERATION
+# ============================================================================
+
+artifacts:
+  # Base output directory
+  output_directory: "${VIDEO_DIR}/.artifacts"
+  cleanup_temp_files: true
+
+  # Scene frames (low-res thumbnails)
+  scene_frames:
+    enabled: true
+    resolution:
+      width: 320
+      height: 180
+    format: jpg
+    quality: 75
+
+  # Keyframes
+  keyframes:
+    enabled: true
+    resolution:
+      width: 640
+      height: 360
+    format: jpg
+    quality: 85
+
+  # Filmstrips (contact sheets)
+  filmstrips:
+    enabled: false
+    columns: 5
+    rows: auto
+    frame_size: 160
+    format: jpg
+
+  # Audio extraction
+  audio:
+    enabled: true
+    format: wav                    # wav, mp3, flac
+    sample_rate: 16000             # For speech recognition
+    channels: 1                    # Mono for transcription
+    normalize: true
+
+  # Text exports
+  text:
+    transcript_txt: true           # Plain text transcript
+    transcript_json: true          # JSON with timestamps
+    subtitle_srt: true             # SRT subtitle file
+    subtitle_vtt: false            # WebVTT subtitles
+    ocr_txt: true                  # OCR extracted text
+    chapters_txt: true             # Chapter markers
+
+  # Markdown document (for DocSummarizer)
+  markdown:
+    enabled: true
+    include_metadata: true
+    include_scenes: true
+    include_transcript: true
+    include_entities: true
+    max_transcript_length: 50000   # Truncate if longer
+
+  # Video clips
+  clips:
+    enabled: false
+    scene_previews: false
+    max_duration: 30.0             # Max clip duration
+    format: mp4
+    codec: h264
+
+# ============================================================================
+# EXTERNAL SERVICES
+# ============================================================================
+
+external_services:
+  # The Movie Database (TMDB)
+  tmdb:
+    enabled: true
+    api_key: "${TMDB_API_KEY}"
+    read_access_token: "${TMDB_READ_ACCESS_TOKEN}"  # Optional, higher rate limits
+    base_url: "https://api.themoviedb.org/3"
+    image_base_url: "https://image.tmdb.org/t/p"
+    rate_limit_per_second: 40
+    cache_results: true
+    cache_ttl_hours: 168           # 1 week
+
+  # Open Movie Database (OMDB)
+  omdb:
+    enabled: true
+    api_key: "${OMDB_API_KEY}"
+    base_url: "https://www.omdbapi.com"
+    cache_results: true
+    cache_ttl_hours: 168
+
+  # OpenSubtitles
+  opensubtitles:
+    enabled: true
+    api_key: "${OPENSUBTITLES_API_KEY}"
+    username: "${OPENSUBTITLES_USERNAME}"
+    password: "${OPENSUBTITLES_PASSWORD}"
+    user_agent: "LucidRAG v1.0"
+    base_url: "https://api.opensubtitles.com/api/v1"
+    rate_limit_per_second: 5
+    download_path: "${DATA_DIR}/subtitles"
+    cache_results: true
+
+# ============================================================================
+# MEDIA LIBRARY
+# ============================================================================
+
+media_library:
+  # Library paths
+  paths:
+    - path: "${MOVIES_PATH}"
+      type: movies
+      enabled: true
+    - path: "${TV_PATH}"
+      type: tv_shows
+      enabled: true
+    - path: "${HOME_VIDEOS_PATH}"
+      type: home_videos
+      enabled: true
+
+  # Scanning options
+  scanning:
+    recursive: true
+    follow_symlinks: false
+    extensions:
+      - .mp4
+      - .mkv
+      - .avi
+      - .mov
+      - .wmv
+      - .webm
+      - .m4v
+      - .mpg
+      - .mpeg
+    ignore_patterns:
+      - "**/sample*"
+      - "**/trailer*"
+      - "**/featurette*"
+      - "**/.*"                    # Hidden files
+    min_file_size_mb: 50           # Skip small files (trailers, samples)
+    max_file_size_gb: 50           # Skip extremely large files
+
+  # Filename parsing
+  parsing:
+    detect_media_type: true        # Auto-detect movie/TV/home video
+    extract_year: true
+    extract_resolution: true
+    extract_quality_info: true
+    strip_release_groups: true
+
+  # Metadata enrichment
+  enrichment:
+    enabled: true
+    auto_search: true              # Auto-search TMDB/OMDB on scan
+    download_posters: false        # Download movie posters
+    download_subtitles: true
+    match_threshold: 0.8           # Confidence for auto-matching
+
+# ============================================================================
+# DOCSUMMARIZER INTEGRATION
+# ============================================================================
+
+docsummarizer:
+  # Enable markdown document generation
+  enabled: true
+
+  # Content to include
+  content:
+    metadata: true
+    scenes: true
+    transcript: true
+    ocr_text: true
+    entities: true
+    chapters: true
+
+  # Processing options
+  processing:
+    chunk_window_seconds: 60.0
+    min_chunk_words: 10
+    max_document_size_kb: 500
+
+  # Entity extraction
+  entities:
+    extract_people: true
+    extract_topics: true
+    extract_organizations: true
+    link_to_unified_identity: true
+
+# ============================================================================
+# FFmpeg SETTINGS
+# ============================================================================
+
+ffmpeg:
+  path: auto                       # 'auto' or explicit path
+  ffprobe_path: auto
+  timeout_seconds: 3600            # 1 hour max per operation
+  hardware_acceleration: auto      # auto, cuda, qsv, vaapi, none
+  threads: auto                    # Number of threads (auto = cpu count)
+
+  # Video normalization
+  normalize:
+    enabled: true
+    target_fps: 30
+    max_resolution: 1080
+    audio_sample_rate: 16000
+
+# ============================================================================
+# PIPELINE PROFILES
+# ============================================================================
+
+profiles:
+  # Fast mode - minimal processing for quick preview
+  fast:
+    description: "Quick preview with minimal processing"
+    processing:
+      keyframes:
+        max_keyframes: 10
+      scenes:
+        enabled: false
+      transcription:
+        enabled: false
+      ocr:
+        enabled: false
+    face_tracking:
+      enabled: false
+    artifacts:
+      scene_frames:
+        enabled: true
+      audio:
+        enabled: false
+      markdown:
+        enabled: false
+
+  # Standard mode - balanced processing
+  standard:
+    description: "Balanced processing for most videos"
+    # Uses default settings
+
+  # Full mode - comprehensive processing
+  full:
+    description: "Full analysis with all features"
+    processing:
+      keyframes:
+        max_keyframes: 100
+      scenes:
+        max_scenes: 200
+      ocr:
+        track_text: true
+    face_tracking:
+      enabled: true
+    artifacts:
+      filmstrips:
+        enabled: true
+      clips:
+        scene_previews: true
+
+  # Meeting mode - optimized for video calls
+  meeting:
+    description: "Optimized for video meetings"
+    processing:
+      keyframes:
+        max_keyframes: 20
+      transcription:
+        speaker_diarization: true
+        max_speakers: 10
+      ocr:
+        enabled: true              # Capture shared screens
+    face_tracking:
+      enabled: true
+      detection:
+        min_face_size: 80          # Larger faces in meetings
+    unified_identity:
+      auto_link:
+        by_temporal: true          # Link faces to speakers
+
+  # Home video mode - for personal videos
+  home_video:
+    description: "For home videos and personal recordings"
+    processing:
+      transcription:
+        language: auto
+    face_tracking:
+      enabled: true
+    external_services:
+      tmdb:
+        enabled: false             # Not relevant for home videos
+      omdb:
+        enabled: false

@@ -1,0 +1,69 @@
+# Face Tracking Wave
+# Tracks faces across video frames and links to persistent face database.
+# Integrates with ImageSummarizer's face detection for cross-video identity.
+
+name: FaceTrackingWave
+priority: 650
+enabled: true
+
+scope:
+  sink: "videosummarizer"
+  coordinator: "pipeline"
+  atom: "face_tracking"
+
+triggers:
+  requires:
+    - signal: "keyframes.paths"
+      condition: "HasValue"
+    - signal: "keyframe_faces"
+      condition: "HasValue"
+  skip_when:
+    - signal: "config.EnableFaceTracking"
+      value: false
+    - signal: "wave.skipped.FaceTrackingWave"
+
+emits:
+  on_start:
+    - "face_tracking.started"
+
+  on_complete:
+    - key: "face_tracking.identities"
+      type: "List<FaceIdentity>"
+      description: "Persistent face identities matched/created"
+
+    - key: "face_tracking.tracks"
+      type: "List<FaceTrack>"
+      description: "Face tracks (continuous appearances)"
+
+    - key: "face_tracking.appearances"
+      type: "List<FaceAppearance>"
+      description: "Individual face appearances in frames"
+
+    - key: "face_tracking.stats"
+      type: "FaceDatabaseStats"
+      description: "Face database statistics"
+
+  on_failure:
+    - "face_tracking.failed"
+
+listens:
+  required:
+    - "keyframes.paths"
+    - "keyframe_faces"
+  optional:
+    - "metadata.cast"         # For cast photo matching
+    - "frame_timestamps"      # For accurate timing
+
+config:
+  bindings:
+    - config_key: "face_tracking.enabled"
+      skip_if_false: true
+    - config_key: "face_tracking.matching.similarity_threshold"
+      default: 0.75
+    - config_key: "face_tracking.tracks.max_gap_seconds"
+      default: 5.0
+
+tags:
+  - "visual"
+  - "faces"
+  - "identity"

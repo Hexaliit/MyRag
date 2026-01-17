@@ -1,10 +1,12 @@
 using AudioSummarizer.Core.Services.Analysis;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Mostlylucid.Summarizer.Core.Pipeline;
 using VideoSummarizer.Core.Coordination;
 using VideoSummarizer.Core.Pipeline;
 using VideoSummarizer.Core.Services;
+using VideoSummarizer.Core.Services.External;
 using VideoSummarizer.Core.Waves;
 
 namespace VideoSummarizer.Core.Extensions;
@@ -22,14 +24,6 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddVideoSummarizer(this IServiceCollection services)
     {
-        // Register YAML manifest loader (reads waves.yaml configuration)
-        services.AddSingleton<VideoWaveManifestLoader>(sp =>
-        {
-            var loader = new VideoWaveManifestLoader();
-            loader.LoadFromEmbedded();
-            return loader;
-        });
-
         // Register FFmpeg analysis service
         services.AddSingleton<FFmpegAnalysisService>();
 
@@ -37,40 +31,30 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<KeyframeDeduplicationService>();
         services.AddSingleton<BatchClipEmbeddingService>();
 
-        // Register video waves - NEW SIGNAL-BASED ARCHITECTURE
-        // Phase 1: Normalization (Priority 1000)
-        services.AddTransient<IVideoWave, NormalizeWave>();
+        // Register media library services
+        services.AddSingleton<MediaFilenameParser>();
+        services.AddSingleton<MediaLibraryScanner>();
+        services.AddSingleton<FaceTrackingService>();
+        services.AddSingleton<SubtitleProcessingService>();
+        services.AddSingleton<MediaMetadataService>();
+        services.AddSingleton<UnifiedIdentityService>();
+        services.AddSingleton<ArtifactGenerationService>();
 
-        // Phase 2: Shot Detection (Priority 900)
-        services.AddTransient<IVideoWave, FFmpegShotDetectionWave>(); // GPU-accelerated
-
-        // Phase 3: Keyframe Pipeline - SIGNAL-BASED DECOMPOSITION (Priority 850-790)
-        services.AddTransient<IVideoWave, IFrameDetectionWave>();      // Priority 850 - emits: keyframes.iframes_detected
-        services.AddTransient<IVideoWave, KeyframeSelectionWave>();    // Priority 840 - requires: shots.detected, iframes
-        services.AddTransient<IVideoWave, ThumbnailExtractionWave>();  // Priority 830 - requires: keyframes.selected
-        services.AddTransient<IVideoWave, DeduplicationWave>();        // Priority 820 - requires: thumbnails
-        services.AddTransient<IVideoWave, FullResExtractionWave>();    // Priority 810 - requires: deduplicated
-        services.AddTransient<IVideoWave, ClipEmbeddingWave>();        // Priority 800 - requires: extracted
-        services.AddTransient<IVideoWave, ImageAnalysisWave>();        // Priority 790 - requires: extracted
-
-        // Legacy monolithic wave (deprecated, kept for compatibility)
-        // services.AddTransient<IVideoWave, KeyframeExtractionWave>();
-
-        // Phase 4: Additional Visual Processing (Priority 790-740)
-        services.AddTransient<IVideoWave, ShotThumbnailWave>();
-        services.AddTransient<IVideoWave, TitleCreditsDetectionWave>();
-        services.AddTransient<IVideoWave, EnhancedCreditsOcrWave>();
-        services.AddTransient<IVideoWave, SubtitleExtractionWave>();
-        services.AddTransient<IVideoWave, ChapterExtractionWave>();
-
-        // Phase 5: Audio Processing (Priority 500)
-        services.AddTransient<IVideoWave, TranscriptionWave>();
-
-        // Phase 6: Semantic Analysis (Priority 400)
-        services.AddTransient<IVideoWave, SceneClusteringWave>();
-
-        // Phase 7: Evidence Generation (Priority 300)
-        services.AddTransient<IVideoWave, EvidenceGenerationWave>();
+        // Register video waves in priority order
+        services.AddTransient<IVideoWave, NormalizeWave>();             // Priority 1000
+        services.AddTransient<IVideoWave, ExternalMetadataWave>();      // Priority 990 - NEW
+        services.AddTransient<IVideoWave, ShotDetectionWave>();         // Priority 900
+        services.AddTransient<IVideoWave, KeyframeExtractionWave>();    // Priority 800
+        services.AddTransient<IVideoWave, ShotThumbnailWave>();         // Priority 790
+        services.AddTransient<IVideoWave, TitleCreditsDetectionWave>(); // Priority 785
+        services.AddTransient<IVideoWave, EnhancedCreditsOcrWave>();    // Priority 780
+        services.AddTransient<IVideoWave, SubtitleExtractionWave>();    // Priority 750
+        services.AddTransient<IVideoWave, ChapterExtractionWave>();     // Priority 740
+        services.AddTransient<IVideoWave, FaceTrackingWave>();          // Priority 650 - NEW
+        services.AddTransient<IVideoWave, SubtitleDownloadWave>();      // Priority 600 - NEW
+        services.AddTransient<IVideoWave, TranscriptionWave>();         // Priority 500
+        services.AddTransient<IVideoWave, SceneClusteringWave>();       // Priority 400
+        services.AddTransient<IVideoWave, EvidenceGenerationWave>();    // Priority 300
 
         // Register wave coordinators
         services.AddTransient<VideoWaveCoordinator>();           // Legacy priority-based (for backward compat)
@@ -79,6 +63,45 @@ public static class ServiceCollectionExtensions
         // Register pipeline (uses signal-aware coordinator by default)
         services.AddScoped<VideoPipeline>();
         services.AddScoped<IPipeline>(sp => sp.GetRequiredService<VideoPipeline>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Add external API clients for metadata enrichment (TMDB, OMDB, OpenSubtitles).
+    /// Call this after AddVideoSummarizer() to enable external metadata features.
+    /// </summary>
+    public static IServiceCollection AddVideoExternalServices(
+        this IServiceCollection services,
+        Action<ExternalServicesOptions>? configure = null)
+    {
+        var options = new ExternalServicesOptions();
+        configure?.Invoke(options);
+
+        // Configure TMDB
+        services.Configure<TmdbOptions>(opt =>
+        {
+            opt.ApiKey = options.TmdbApiKey;
+            opt.ReadAccessToken = options.TmdbReadAccessToken;
+        });
+        services.AddHttpClient<TmdbClient>();
+
+        // Configure OMDB
+        services.Configure<OmdbOptions>(opt =>
+        {
+            opt.ApiKey = options.OmdbApiKey;
+        });
+        services.AddHttpClient<OmdbClient>();
+
+        // Configure OpenSubtitles
+        services.Configure<OpenSubtitlesOptions>(opt =>
+        {
+            opt.ApiKey = options.OpenSubtitlesApiKey;
+            opt.Username = options.OpenSubtitlesUsername;
+            opt.Password = options.OpenSubtitlesPassword;
+            opt.UserAgent = options.OpenSubtitlesUserAgent;
+        });
+        services.AddHttpClient<OpenSubtitlesClient>();
 
         return services;
     }
@@ -122,6 +145,24 @@ public class VideoSummarizerOptions
     public bool EnableTranscription { get; set; } = true;
 
     /// <summary>
+    /// Whether to enable external metadata lookup (TMDB/OMDB).
+    /// Default: true
+    /// </summary>
+    public bool EnableExternalMetadata { get; set; } = true;
+
+    /// <summary>
+    /// Whether to enable automatic subtitle download from OpenSubtitles.
+    /// Default: true
+    /// </summary>
+    public bool EnableSubtitleDownload { get; set; } = true;
+
+    /// <summary>
+    /// Whether to enable face tracking across videos.
+    /// Default: true
+    /// </summary>
+    public bool EnableFaceTracking { get; set; } = true;
+
+    /// <summary>
     /// Maximum number of keyframes to analyze per video.
     /// Default: 50
     /// </summary>
@@ -140,6 +181,12 @@ public class VideoSummarizerOptions
     public double SceneSimilarityThreshold { get; set; } = 0.7;
 
     /// <summary>
+    /// Cosine similarity threshold for face matching.
+    /// Default: 0.75
+    /// </summary>
+    public double FaceSimilarityThreshold { get; set; } = 0.75;
+
+    /// <summary>
     /// FFmpeg executable path. Null = auto-detect.
     /// </summary>
     public string? FFmpegPath { get; set; }
@@ -150,15 +197,49 @@ public class VideoSummarizerOptions
     public string? FFprobePath { get; set; }
 
     /// <summary>
-    /// Use FFmpeg GPU-accelerated shot detection (NVDEC) instead of OpenCV.
-    /// Much faster on NVIDIA GPUs (5-10x speedup).
-    /// Default: true (use GPU when available)
+    /// Preferred languages for subtitle download (ISO 639-1 codes).
+    /// Default: ["en"]
     /// </summary>
-    public bool UseGpuShotDetection { get; set; } = true;
+    public List<string> SubtitleLanguages { get; set; } = ["en"];
+}
+
+/// <summary>
+/// Configuration options for external API services.
+/// </summary>
+public class ExternalServicesOptions
+{
+    /// <summary>
+    /// TMDB API key (v3). Get one at https://www.themoviedb.org/settings/api
+    /// </summary>
+    public string? TmdbApiKey { get; set; }
 
     /// <summary>
-    /// Enable hardware acceleration for video decoding (NVDEC/VAAPI/D3D11VA).
-    /// Default: true
+    /// TMDB API Read Access Token (v4). Optional, provides higher rate limits.
     /// </summary>
-    public bool UseHardwareAcceleration { get; set; } = true;
+    public string? TmdbReadAccessToken { get; set; }
+
+    /// <summary>
+    /// OMDB API key. Get one at https://www.omdbapi.com/apikey.aspx
+    /// </summary>
+    public string? OmdbApiKey { get; set; }
+
+    /// <summary>
+    /// OpenSubtitles API key. Get one at https://www.opensubtitles.com/consumers
+    /// </summary>
+    public string? OpenSubtitlesApiKey { get; set; }
+
+    /// <summary>
+    /// OpenSubtitles username (for download access).
+    /// </summary>
+    public string? OpenSubtitlesUsername { get; set; }
+
+    /// <summary>
+    /// OpenSubtitles password (for download access).
+    /// </summary>
+    public string? OpenSubtitlesPassword { get; set; }
+
+    /// <summary>
+    /// User agent for OpenSubtitles API requests.
+    /// </summary>
+    public string? OpenSubtitlesUserAgent { get; set; } = "LucidRAG v1.0";
 }

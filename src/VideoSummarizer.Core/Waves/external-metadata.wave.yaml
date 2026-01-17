@@ -1,0 +1,84 @@
+# External Metadata Wave
+# Enriches video with metadata from TMDB, OMDB, and other external sources.
+# Fetches movie/TV info, cast, ratings, and poster URLs.
+
+name: ExternalMetadataWave
+priority: 990
+enabled: true
+
+scope:
+  sink: "videosummarizer"
+  coordinator: "pipeline"
+  atom: "external_metadata"
+
+triggers:
+  requires:
+    - signal: "parsed_filename"
+      condition: "HasValue"
+  skip_when:
+    - signal: "config.EnableExternalMetadata"
+      value: false
+    - signal: "wave.skipped.ExternalMetadataWave"
+
+emits:
+  on_start:
+    - "external_metadata.started"
+
+  on_complete:
+    - key: "external_metadata"
+      type: "ExternalMediaMetadata"
+      description: "Combined external metadata from all sources"
+
+    - key: "metadata.tmdb"
+      type: "TmdbResponse"
+      description: "Raw TMDB API response"
+
+    - key: "metadata.omdb"
+      type: "OmdbResponse"
+      description: "Raw OMDB API response"
+
+    - key: "cast_members"
+      type: "List<CastMember>"
+      description: "Cast and crew information"
+
+  conditional:
+    - key: "metadata.posters"
+      type: "List<string>"
+      description: "Poster image URLs"
+      when: "externalMetadata.PosterUrls.Count > 0"
+
+  on_failure:
+    - "external_metadata.failed"
+
+listens:
+  required:
+    - "parsed_filename"
+  optional:
+    - "video.content_hash"        # For cache lookup
+
+config:
+  bindings:
+    - config_key: "external_services.tmdb.enabled"
+      default: true
+    - config_key: "external_services.omdb.enabled"
+      default: true
+    - config_key: "external_services.tmdb.api_key"
+      required_for_feature: true
+
+external_services:
+  tmdb:
+    required: false               # Optional but recommended
+    rate_limit: 40
+  omdb:
+    required: false
+    rate_limit: 10
+
+caching:
+  enabled: true
+  ttl_hours: 168                  # 1 week
+  key_format: "metadata:{imdb_id}"
+
+tags:
+  - "metadata"
+  - "external"
+  - "enrichment"

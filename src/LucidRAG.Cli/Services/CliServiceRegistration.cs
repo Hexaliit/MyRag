@@ -12,6 +12,7 @@ using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.Summarizer.Core.Extensions;
 using Serilog;
 using Serilog.Events;
+using VideoSummarizer.Core.Extensions;
 
 namespace LucidRAG.Cli.Services;
 
@@ -160,6 +161,9 @@ public static class CliServiceRegistration
             opt.ChunkSize = 50;
             opt.ChunkOverlap = 5;
         });
+
+        // VideoSummarizer.Core for video files (mp4, mkv, avi, etc.)
+        services.AddVideoSummarizer();
 
         // CLI-specific services
         services.AddSingleton(config);

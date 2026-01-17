@@ -1,0 +1,69 @@
+# Subtitle Download Wave
+# Downloads subtitles from OpenSubtitles and processes them.
+# Creates utterances that supplement or replace audio transcription.
+
+name: SubtitleDownloadWave
+priority: 600
+enabled: true
+
+scope:
+  sink: "videosummarizer"
+  coordinator: "pipeline"
+  atom: "subtitle_download"
+
+triggers:
+  requires:
+    - signal: "external_metadata"
+      condition: "HasValue"       # Need IMDB ID for best matches
+  skip_when:
+    - signal: "config.EnableSubtitleDownload"
+      value: false
+    - signal: "subtitles.embedded"
+      condition: "HasValue"       # Skip if embedded subs exist
+    - signal: "wave.skipped.SubtitleDownloadWave"
+
+emits:
+  on_start:
+    - "subtitle_download.started"
+
+  on_complete:
+    - key: "subtitles.downloaded"
+      type: "List<SubtitleFile>"
+      description: "Downloaded subtitle files"
+
+    - key: "subtitles.utterances"
+      type: "List<Utterance>"
+      description: "Utterances from subtitle parsing"
+
+    - key: "subtitle_entries_{lang}"
+      type: "List<SrtSubtitleEntry>"
+      description: "Parsed SRT entries per language"
+
+  on_failure:
+    - "subtitle_download.failed"
+
+listens:
+  required:
+    - "external_metadata"         # For IMDB ID lookup
+    - "parsed_filename"           # For fallback search
+  optional:
+    - "video.duration"            # For subtitle validation
+
+config:
+  bindings:
+    - config_key: "subtitles.download.enabled"
+      skip_if_false: true
+    - config_key: "subtitles.download.languages"
+      default: ["en"]
+    - config_key: "subtitles.download.hearing_impaired"
+      default: false
+
+external_services:
+  opensubtitles:
+    required: true
+    rate_limit: 5                 # Max requests per second
+
+tags:
+  - "speech"
+  - "subtitles"
+  - "external"
