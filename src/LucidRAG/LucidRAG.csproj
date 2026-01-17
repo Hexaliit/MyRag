@@ -82,6 +82,8 @@
     <ItemGroup>
         <ProjectReference Include="..\LucidRAG.Core\LucidRAG.Core.csproj"/>
         <ProjectReference Include="..\LucidRAG.LLM\LucidRAG.LLM.csproj"/>
+        <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj"/>
     </ItemGroup>
 
     <!-- Ensure static files and config are published -->

@@ -18,6 +18,7 @@ public static class ModelIds
 
     // Audio models
     public const string EcapaTdnn = "ecapa-tdnn";
+    public const string HtDemucs = "htdemucs"; // Source separation (vocals, drums, bass, other)
 
     // NER models
     public const string BertBaseNer = "bert-base-ner";
@@ -50,6 +51,7 @@ public static class ComponentIds
     public const string BatchClipEmbeddingService = "BatchClipEmbeddingService";
     public const string WhisperService = "WhisperService";
     public const string SpeakerEmbeddingService = "SpeakerEmbeddingService";
+    public const string SourceSeparationWave = "SourceSeparationWave"; // HTDemucs for music
 
     // Contributors
     public const string Florence2Contributor = "Florence2Contributor";
@@ -377,6 +379,20 @@ public class ModelManifest
             PreferredProviders = ["CUDAExecutionProvider", "CPUExecutionProvider"]
         };
 
+        // HTDemucs Source Separation (vocals, drums, bass, other)
+        manifest._models[ModelIds.HtDemucs] = new ModelDefinition
+        {
+            Id = ModelIds.HtDemucs,
+            Name = "HTDemucs Source Separation",
+            Category = ModelCategory.Audio,
+            DownloadUrl = "https://huggingface.co/gentij/htdemucs-ort/resolve/main/htdemucs.ort",
+            RelativePath = "demucs/htdemucs.ort",
+            ExpectedSizeBytes = 220_000_000, // ~210MB
+            MemoryRequiredBytes = 3_000_000_000, // ~3GB peak during inference
+            RequiredBy = [ComponentIds.SourceSeparationWave],
+            PreferredProviders = ["CPUExecutionProvider"] // CPU-optimized ORT format
+        };
+
         // BERT NER
         manifest._models[ModelIds.BertBaseNer] = new ModelDefinition
         {
@@ -467,6 +483,12 @@ public class ModelManifest
             Id = ComponentIds.TextOcrWave,
             Models = [ModelIds.PaddleOcrDet, ModelIds.PaddleOcrRec],
             FallbackChain = [ModelIds.TrOcrBase]
+        };
+
+        manifest._components[ComponentIds.SourceSeparationWave] = new ComponentDefinition
+        {
+            Id = ComponentIds.SourceSeparationWave,
+            Models = [ModelIds.HtDemucs]
         };
 
         return manifest;

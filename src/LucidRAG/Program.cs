@@ -31,6 +31,7 @@ using Mostlylucid.Summarizer.Core.Pipeline;
 using Scalar.AspNetCore;
 using Serilog;
 using VideoSummarizer.Core.Extensions;
+using AudioSummarizer.Core.Extensions;
 
 // Parse command line arguments for standalone mode
 var standaloneMode = args.Contains("--standalone") || args.Contains("-s");
@@ -138,6 +139,9 @@ builder.Services.AddDocSummarizerImages(builder.Configuration.GetSection("Images
 
 // VideoSummarizer - video processing pipeline (mp4, mkv, etc.)
 builder.Services.AddVideoSummarizer();
+
+// AudioSummarizer - audio processing pipeline (mp3, wav, m4a, flac, etc.)
+builder.Services.AddAudioSummarizer(builder.Configuration);
 
 // DataSummarizer - data file processing with wave-based analysis (csv, xlsx, json, parquet)
 builder.Services.AddDataSummarizer(opt =>
@@ -479,6 +483,9 @@ if (standaloneMode)
         Log.Warning(ex, "Could not open browser automatically");
     }
 }
+
+// NOTE: ImagePipeline pre-warming disabled due to blocking DI issues with wave dependencies
+// TODO: Fix the blocking issue in ImageSummarizer.Core wave resolution
 
 app.Run();
 

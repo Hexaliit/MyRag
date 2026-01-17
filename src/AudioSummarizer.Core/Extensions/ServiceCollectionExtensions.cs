@@ -4,6 +4,7 @@ using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Services.Analysis.Waves;
 using AudioSummarizer.Core.Services.Audio;
 using AudioSummarizer.Core.Services.Fingerprinting;
+using AudioSummarizer.Core.Services.SourceSeparation;
 using AudioSummarizer.Core.Services.Transcription;
 using AudioSummarizer.Core.Services.Voice;
 using Mostlylucid.Summarizer.Core.Pipeline;
@@ -24,7 +25,7 @@ public static class ServiceCollectionExtensions
     {
         // Configuration
         if (configure != null)
-        {
+        {[
             services.Configure(configure);
         }
 
@@ -58,17 +59,20 @@ public static class ServiceCollectionExtensions
         // Audio segment extraction
         services.AddSingleton<AudioSegmentExtractor>();
 
+        // Source separation services (HTDemucs for music - auto-downloads ~210MB model)
+        services.AddSingleton<DemucsModelDownloader>();
+        services.AddSingleton<AudioStftService>();
+        services.AddSingleton<ISourceSeparationService, DemucsSourceSeparationService>();
+
         // Register waves (in priority order)
         services.AddSingleton<IAudioWave, IdentityWave>();           // Phase 1: Priority 100
         services.AddSingleton<IAudioWave, FingerprintWave>();        // Phase 2: Priority 90
         services.AddSingleton<IAudioWave, ContentClassifierWave>();  // Phase 3.5: Priority 70
         services.AddSingleton<IAudioWave, MusicAnalysisWave>();      // Phase 3.6: Priority 65
+        services.AddSingleton<IAudioWave, SourceSeparationWave>();   // Phase 3.7: Priority 55 (Demucs)
         services.AddSingleton<IAudioWave, TranscriptionWave>();      // Phase 3: Priority 60
         services.AddSingleton<IAudioWave, SpeakerDiarizationWave>(); // Phase 5: Priority 50
         services.AddSingleton<IAudioWave, VoiceEmbeddingWave>();     // Phase 4: Priority 30
-
-        // TODO: Future waves
-        // services.AddSingleton<IAudioWave, AcousticProfileWave>();  // Phase 1: Priority 80
 
         // Register the pipeline for unified pipeline registry
         services.AddSingleton<AudioPipeline>();

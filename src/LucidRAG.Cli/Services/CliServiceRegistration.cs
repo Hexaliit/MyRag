@@ -151,6 +151,7 @@ public static class CliServiceRegistration
             opt.Pipeline.EnableTranscription = true;
             opt.EnableVoiceEmbeddings = false; // Requires model download
             opt.EnableSpeakerDiarization = false; // Phase 5 (not yet implemented)
+            opt.EnableSourceSeparation = config.EnableSourceSeparation; // Demucs for music (~210MB model)
         });
 
         // DataSummarizer.Core for CSV, JSON, Excel, Parquet
@@ -201,4 +202,10 @@ public class CliConfig
     /// Output path for OCR benchmark report.
     /// </summary>
     public string OcrBenchmarkOutputPath { get; set; } = "./OCR Test.md";
+
+    /// <summary>
+    /// Enable source separation (Demucs) for music files.
+    /// Extracts vocals, drums, bass, other stems. Requires ~210MB model download.
+    /// </summary>
+    public bool EnableSourceSeparation { get; set; }
 }

@@ -57,6 +57,12 @@ public class AudioConfig
     public bool EnableSpeakerDiarization { get; set; } = false;
 
     /// <summary>
+    /// Enable source separation (Demucs for music)
+    /// Note: Requires ~210MB model download, disabled by default
+    /// </summary>
+    public bool EnableSourceSeparation { get; set; } = false;
+
+    /// <summary>
     /// Whisper transcription settings
     /// </summary>
     public WhisperConfig Whisper { get; set; } = new();

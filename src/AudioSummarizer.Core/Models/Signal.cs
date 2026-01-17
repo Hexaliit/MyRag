@@ -83,5 +83,10 @@ public enum SignalType
     /// <summary>
     /// Embedding vector (voice, audio features)
     /// </summary>
-    Embedding
+    Embedding,
+
+    /// <summary>
+    /// Evidence artifact (file path to extracted content)
+    /// </summary>
+    Evidence
 }
