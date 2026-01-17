@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions
     {
         // Configuration
         if (configure != null)
-        {[
+        {
             services.Configure(configure);
         }
 

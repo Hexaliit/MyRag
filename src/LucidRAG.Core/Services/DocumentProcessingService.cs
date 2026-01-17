@@ -77,6 +77,7 @@ public class DocumentProcessingService(
         await db.SaveChangesAsync(ct);
 
         // Queue for processing
+        logger.LogInformation("Queueing document {DocumentId} via queue instance {QueueInstanceId}", documentId, queue.InstanceId);
         await queue.EnqueueAsync(new DocumentProcessingJob(documentId, filePath, collectionId), ct);
 
         logger.LogInformation("Document {DocumentId} queued for processing: {Filename}", documentId, filename);

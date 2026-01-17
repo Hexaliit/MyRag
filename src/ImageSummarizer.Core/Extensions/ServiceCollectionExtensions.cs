@@ -378,26 +378,25 @@ public static class ServiceCollectionExtensions
 
         // TableProfilingWave - Profiles extracted CSVs using DataSummarizer
         // Priority 61: Runs after TableExtractionWave (62), emits data quality signals
+        // Note: DataSummarizer services are scoped, so we pass null here and let the wave skip gracefully
         services.AddSingleton<IAnalysisWave>(sp =>
         {
-            // DataSummarizer services are optional - wave will skip if not available
-            var dataProcessor = sp.GetService<Mostlylucid.DocSummarizer.Data.Services.IDataProcessor>();
-            var dataOrchestrator = sp.GetService<Mostlylucid.DocSummarizer.Data.Services.Analysis.DataAnalysisOrchestrator>();
+            // DataSummarizer services are scoped - cannot resolve from singleton context
+            // Pass null to let the wave skip data profiling (it handles null gracefully)
             var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<TableProfilingWave>>();
-            return new TableProfilingWave(dataProcessor, dataOrchestrator, logger);
+            return new TableProfilingWave(null, null, logger);
         });
 
         // RecursiveImageWave - Processes extracted picture regions recursively
         // Priority 60: Runs after TableProfilingWave (61), generates captions/embeddings for sub-images
         // Note: Uses deferred wave resolution to avoid circular dependency issues
+        // IMPORTANT: Pass null for waves here - they're resolved lazily in AnalyzeAsync
         services.AddSingleton<IAnalysisWave>(sp =>
         {
-            // Get all waves except RecursiveImageWave itself to prevent infinite recursion
-            var allWaves = sp.GetServices<IAnalysisWave>()
-                .Where(w => w.Name != "RecursiveImageWave")
-                .ToList();
+            // Don't resolve waves here - causes circular dependency!
+            // RecursiveImageWave handles null gracefully with fallback mode
             var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<RecursiveImageWave>>();
-            return new RecursiveImageWave(allWaves, logger);
+            return new RecursiveImageWave(null, logger);
         });
 
         // OcrLayoutValidationWave - Validates OCR output against layout text regions

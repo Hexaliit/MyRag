@@ -6,6 +6,10 @@ namespace LucidRAG.Services.Background;
 
 public class DocumentProcessingQueue
 {
+    // Unique instance ID for debugging DI issues
+    private readonly Guid _instanceId = Guid.NewGuid();
+    public Guid InstanceId => _instanceId;
+
     // Bounded queue to prevent unbounded memory growth - max 100 documents waiting
     private readonly Channel<DocumentProcessingJob> _queue = Channel.CreateBounded<DocumentProcessingJob>(
         new BoundedChannelOptions(100)
@@ -29,7 +33,9 @@ public class DocumentProcessingQueue
 
         try
         {
+            Console.WriteLine($"[QUEUE-DEBUG] EnqueueAsync: Instance={_instanceId}, DocumentId={job.DocumentId}, QueueDepth={QueueDepth}");
             await _queue.Writer.WriteAsync(job, timeoutCts.Token);
+            Console.WriteLine($"[QUEUE-DEBUG] EnqueueAsync DONE: Instance={_instanceId}, DocumentId={job.DocumentId}, QueueDepth={QueueDepth}");
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -39,7 +45,10 @@ public class DocumentProcessingQueue
 
     public async ValueTask<DocumentProcessingJob> DequeueAsync(CancellationToken ct = default)
     {
-        return await _queue.Reader.ReadAsync(ct);
+        Console.WriteLine($"[QUEUE-DEBUG] DequeueAsync waiting: Instance={_instanceId}, QueueDepth={QueueDepth}");
+        var job = await _queue.Reader.ReadAsync(ct);
+        Console.WriteLine($"[QUEUE-DEBUG] DequeueAsync got job: Instance={_instanceId}, DocumentId={job.DocumentId}");
+        return job;
     }
 
     public Channel<ProgressUpdate> GetOrCreateProgressChannel(Guid documentId)

@@ -1,4 +1,5 @@
 using System.Text;
+using Mostlylucid.DocSummarizer.Images.Pipeline;
 using LucidRAG.Core.Services;
 using LucidRAG.Data;
 using LucidRAG.Entities;
@@ -25,7 +26,7 @@ public class DocumentQueueProcessor(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Document queue processor started");
+        logger.LogInformation("Document queue processor started with queue instance {QueueInstanceId}", queue.InstanceId);
 
         // Clean up failed documents from previous runs
         await CleanupFailedDocumentsAsync(stoppingToken);
@@ -37,10 +38,14 @@ public class DocumentQueueProcessor(
         var cleanupTimer = new PeriodicTimer(CleanupInterval);
         _ = RunCleanupLoopAsync(cleanupTimer, stoppingToken);
 
+        logger.LogInformation("Document queue processor entering main loop, queue depth: {Depth}", queue.QueueDepth);
+
         while (!stoppingToken.IsCancellationRequested)
             try
             {
+                logger.LogDebug("Waiting for next document in queue (depth: {Depth})...", queue.QueueDepth);
                 var job = await queue.DequeueAsync(stoppingToken);
+                logger.LogInformation("Dequeued document {DocumentId} for processing", job.DocumentId);
 
                 // Create a linked token with timeout for this specific document
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
@@ -237,24 +242,60 @@ public class DocumentQueueProcessor(
 
     private async Task ProcessDocumentAsync(DocumentProcessingJob job, CancellationToken ct)
     {
+        logger.LogInformation("ProcessDocumentAsync starting for {DocumentId}, FilePath={FilePath}", job.DocumentId, job.FilePath);
         using var scope = scopeFactory.CreateScope();
+        logger.LogDebug("Created scope for document {DocumentId}", job.DocumentId);
+
+        // Service resolution with detailed logging
+        logger.LogDebug("Resolving RagDocumentsDbContext...");
         var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
+        logger.LogDebug("Resolving IDocumentSummarizer...");
         var summarizer = scope.ServiceProvider.GetRequiredService<IDocumentSummarizer>();
+        logger.LogDebug("Resolving IVectorStore...");
         var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
+        logger.LogDebug("Resolving IEntityGraphService...");
         var entityGraph = scope.ServiceProvider.GetRequiredService<IEntityGraphService>();
+        logger.LogDebug("Resolving IRetrievalEntityService...");
         var retrievalEntityService = scope.ServiceProvider.GetRequiredService<IRetrievalEntityService>();
+        logger.LogDebug("Resolving IEvidenceRepository...");
         var evidenceRepository = scope.ServiceProvider.GetRequiredService<IEvidenceRepository>();
+        logger.LogDebug("Resolving IEmbeddingService...");
         var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
-        // IPipelineRegistry is optional - may fail due to Singleton/Scoped DI conflicts
-        // Fall back to document summarizer for standard files
-        IPipelineRegistry? pipelineRegistry = null;
-        try
+        logger.LogDebug("All core services resolved successfully");
+
+        // Check if this is an image file - try to resolve ImagePipeline with timeout
+        var extension = Path.GetExtension(job.FilePath).ToLowerInvariant();
+        var isImageExtension = extension is ".gif" or ".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp" or ".tiff" or ".tif";
+        ImagePipeline? imagePipeline = null;
+
+        if (isImageExtension)
         {
-            pipelineRegistry = scope.ServiceProvider.GetService<IPipelineRegistry>();
-        }
-        catch (InvalidOperationException ex)
-        {
-            logger.LogDebug(ex, "IPipelineRegistry not available, using document summarizer for all files");
+            // Try to resolve ImagePipeline with timeout (was previously blocking on DI)
+            try
+            {
+                logger.LogDebug("Attempting to resolve ImagePipeline for image processing...");
+                var pipelineTask = Task.Run(() => scope.ServiceProvider.GetService<ImagePipeline>(), ct);
+                if (await Task.WhenAny(pipelineTask, Task.Delay(10000, ct)) == pipelineTask)
+                {
+                    imagePipeline = await pipelineTask;
+                    if (imagePipeline != null)
+                    {
+                        logger.LogInformation("ImagePipeline resolved successfully for image processing");
+                    }
+                    else
+                    {
+                        logger.LogWarning("ImagePipeline resolved as null, using fallback");
+                    }
+                }
+                else
+                {
+                    logger.LogWarning("ImagePipeline resolution timed out (10s), using fallback");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "ImagePipeline resolution failed, using fallback");
+            }
         }
 
         var document = await db.Documents.FindAsync([job.DocumentId], ct);
@@ -279,16 +320,69 @@ public class DocumentQueueProcessor(
             await progressChannel.Writer.WriteAsync(
                 ProgressUpdates.Stage("Processing", "Starting document processing..."), ct);
 
-            // Check if file should use pipeline (images/GIFs) or document summarizer
-            var pipeline = pipelineRegistry?.FindForFile(job.FilePath);
+            // Check if file should use image pipeline based on extension
+            var isImageFile = imagePipeline != null && isImageExtension;
+            var useImageFallback = imagePipeline == null && isImageExtension;
+            logger.LogInformation("Pipeline check for {FilePath}: extension={Extension}, imagePipeline={HasPipeline}, isImageFile={IsImage}, fallback={UseFallback}",
+                job.FilePath, extension, imagePipeline != null ? "available" : "null", isImageFile, useImageFallback);
             DocumentSummary? result = null;
             List<Segment>? imageSegments = null; // Store segments for images
 
-            if (pipeline != null)
+            if (useImageFallback)
+            {
+                // Image file but ImagePipeline not available - use minimal fallback
+                logger.LogInformation("Processing {FileName} using minimal image fallback (ImagePipeline unavailable)",
+                    Path.GetFileName(job.FilePath));
+
+                await progressChannel.Writer.WriteAsync(
+                    ProgressUpdates.Stage("Analyzing", "Processing image (minimal mode)..."), ct);
+
+                // Create a basic segment with just the filename and extension info
+                var fileBytes = await File.ReadAllBytesAsync(job.FilePath, ct);
+                var contentHash = Mostlylucid.Summarizer.Core.Utilities.ContentHasher.ComputeHash(fileBytes);
+                var filename = Path.GetFileNameWithoutExtension(job.FilePath);
+                document.VectorStoreDocId = $"{filename}_{contentHash}";
+
+                // Create a minimal segment describing the image
+                var description = $"Image file: {Path.GetFileName(job.FilePath)} ({fileBytes.Length / 1024} KB)";
+                if (extension == ".gif")
+                {
+                    description = $"Animated GIF: {Path.GetFileName(job.FilePath)} ({fileBytes.Length / 1024} KB)";
+                }
+
+                // Create segment using proper constructor
+                var segment = new Segment(
+                    docId: document.VectorStoreDocId,
+                    text: description,
+                    type: SegmentType.Sentence, // Using Sentence as fallback for image description
+                    index: 0,
+                    startChar: 0,
+                    endChar: description.Length,
+                    contentHashOverride: contentHash);
+
+                // Generate embedding
+                var embedding = await embeddingService.EmbedAsync(description, ct);
+                segment.Embedding = embedding;
+
+                // Index in vector store
+                await vectorStore.UpsertSegmentsAsync(
+                    "ragdocs",
+                    new[] { segment },
+                    ct);
+
+                document.SegmentCount = 1;
+                document.ProcessingProgress = 70;
+                await db.SaveChangesAsync(ct);
+
+                imageSegments = [segment];
+
+                logger.LogInformation("Image fallback created 1 segment for {FileName}", Path.GetFileName(job.FilePath));
+            }
+            else if (isImageFile)
             {
                 // Use pipeline for images/GIFs
                 logger.LogInformation("Processing {FileName} via {PipelineName}",
-                    Path.GetFileName(job.FilePath), pipeline.Name);
+                    Path.GetFileName(job.FilePath), imagePipeline.Name);
 
                 var pipelineProgress = new Progress<PipelineProgress>(p =>
                 {
@@ -296,7 +390,7 @@ public class DocumentQueueProcessor(
                         ProgressUpdates.Stage(p.Stage, p.Message));
                 });
 
-                var pipelineResult = await pipeline.ProcessAsync(job.FilePath, null, pipelineProgress, ct);
+                var pipelineResult = await imagePipeline.ProcessAsync(job.FilePath, null, pipelineProgress, ct);
 
                 if (!pipelineResult.Success)
                     throw new InvalidOperationException($"Pipeline processing failed: {pipelineResult.Error}");
@@ -409,9 +503,10 @@ public class DocumentQueueProcessor(
             // Get segments with TEXT for entity extraction and evidence storage
             // Vector store only contains embeddings (no text for privacy), so we extract directly from file
             List<Segment> segments;
+            var stableDocId = result?.Trace?.DocumentId ?? document.VectorStoreDocId;
             try
             {
-                logger.LogDebug("Extracting segments with text for VectorStoreDocId: {DocId}", result.Trace.DocumentId);
+                logger.LogDebug("Extracting segments with text for VectorStoreDocId: {DocId}", stableDocId);
 
                 // For images, we already have the segments from ConvertAndIndexImageChunksAsync
                 if (imageSegments != null)
@@ -425,10 +520,10 @@ public class DocumentQueueProcessor(
                     // Document pipeline - extract segments with text directly from file
                     // Vector store doesn't store text (for privacy), so we extract fresh
                     var fileContent = await File.ReadAllTextAsync(job.FilePath, ct);
-                    var extractionResult = await summarizer.ExtractSegmentsAsync(fileContent, result.Trace.DocumentId, ct);
+                    var extractionResult = await summarizer.ExtractSegmentsAsync(fileContent, stableDocId, ct);
                     segments = extractionResult.AllSegments;
                     logger.LogDebug("Extracted {SegmentCount} segments with text from file for {DocId}",
-                        segments.Count, result.Trace.DocumentId);
+                        segments.Count, stableDocId);
                 }
             }
             catch (Exception ex)
