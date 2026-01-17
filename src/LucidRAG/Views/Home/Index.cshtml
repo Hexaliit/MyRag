@@ -627,6 +627,28 @@
                                 <!-- Evidence Tab -->
                                 <template x-if="detailsTab === 'evidence'">
                                     <div class="space-y-2">
+                                        <!-- Audio Stems Player (if stems exist) -->
+                                        <template x-if="hasAudioStems(documentDetails.evidence)">
+                                            <div class="card bg-base-200 shadow-sm mb-4">
+                                                <div class="card-body p-3">
+                                                    <div class="flex items-center gap-2 mb-3">
+                                                        <svg class="w-5 h-5 text-purple-500" fill="currentColor" viewBox="0 0 24 24">
+                                                            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                                                        </svg>
+                                                        <span class="font-semibold">Source Separation</span>
+                                                        <span class="badge badge-sm badge-secondary">Demucs</span>
+                                                    </div>
+                                                    <div :id="'stems-player-' + documentDetails.document.id"></div>
+                                                    <script x-init="$nextTick(() => {
+                                                        const stems = getAudioStems(documentDetails.evidence);
+                                                        if (Object.keys(stems).length > 0 && window.AudioPlayer) {
+                                                            window.AudioPlayer.createStemPlayer('stems-player-' + documentDetails.document.id, stems);
+                                                        }
+                                                    })"></script>
+                                                </div>
+                                            </div>
+                                        </template>
+
                                         <template
                                             x-if="documentDetails.evidence && documentDetails.evidence.length > 0">
                                             <template x-for="ev in documentDetails.evidence" :key="ev.id">
@@ -646,6 +668,32 @@
                                                         </span>
                                                             </template>
                                                         </div>
+                                                        <!-- Audio player for individual audio evidence -->
+                                                        <template x-if="isAudioEvidence(ev.type)">
+                                                            <div class="mt-2">
+                                                                <div class="flex items-center gap-2 mb-1">
+                                                                    <button class="btn btn-xs btn-circle btn-ghost"
+                                                                            x-data="{ playing: false }"
+                                                                            @@click="toggleAudioPlay($el, ev.id)">
+                                                                        <svg x-show="!playing" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                                            <path d="M8 5v14l11-7z"/>
+                                                                        </svg>
+                                                                        <svg x-show="playing" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                                                                        </svg>
+                                                                    </button>
+                                                                    <span class="audio-current-time text-xs opacity-60">0:00</span>
+                                                                    <span class="text-xs opacity-40">/</span>
+                                                                    <span class="audio-duration text-xs opacity-60">--:--</span>
+                                                                </div>
+                                                                <div :id="'audio-' + ev.id" class="h-12"></div>
+                                                                <script x-init="$nextTick(() => {
+                                                                    if (window.AudioPlayer) {
+                                                                        window.AudioPlayer.createPlayer('audio-' + ev.id, '/api/evidence/artifact/' + ev.id + '/download', { height: 48 });
+                                                                    }
+                                                                })"></script>
+                                                            </div>
+                                                        </template>
                                                         <template x-if="ev.producerSource">
                                                             <p class="text-xs opacity-50 mt-1">
                                                                 Source: <span x-text="ev.producerSource"></span>
@@ -2392,6 +2440,46 @@
                 showEvidence(source) {
                     this.viewMode = 'evidence';
                     this.selectedEvidence = [source];
+                },
+
+                // Audio evidence helper functions
+                isAudioEvidence(type) {
+                    const audioTypes = [
+                        'stem_vocals', 'stem_drums', 'stem_bass', 'stem_other', 'stem_instrumentals',
+                        'audio_waveform', 'speaker_sample', 'transcript'
+                    ];
+                    return audioTypes.includes(type) || type?.startsWith('stem_');
+                },
+
+                hasAudioStems(evidence) {
+                    if (!evidence || !evidence.length) return false;
+                    return evidence.some(e => e.type?.startsWith('stem_'));
+                },
+
+                getAudioStems(evidence) {
+                    if (!evidence) return {};
+                    const stems = {};
+                    const stemTypes = {
+                        'stem_vocals': 'vocals',
+                        'stem_drums': 'drums',
+                        'stem_bass': 'bass',
+                        'stem_other': 'other',
+                        'stem_instrumentals': 'instrumentals'
+                    };
+                    evidence.forEach(e => {
+                        const stemName = stemTypes[e.type];
+                        if (stemName) {
+                            stems[stemName] = `/api/evidence/artifact/${e.id}/download`;
+                        }
+                    });
+                    return stems;
+                },
+
+                toggleAudioPlay(btn, evidenceId) {
+                    const player = window.AudioPlayer?.getPlayer('audio-' + evidenceId);
+                    if (player) {
+                        player.playPause();
+                    }
                 },
 
                 showSegmentDetail(source) {

@@ -5,6 +5,9 @@ import '../css/main.css'
 // Import public app module (makes publicApp available globally)
 import './public-app.js'
 
+// Import audio player with wavesurfer.js
+import './audio-player.js'
+
 // Theme management
 const ThemeManager = {
     STORAGE_KEY: 'lucidrag-theme',

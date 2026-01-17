@@ -151,6 +151,13 @@ public static class EvidenceTypes
     public const string AudioWaveform = "audio_waveform";
     public const string AudioSignals = "audio_signals";           // Forensic audio signals
 
+    // Audio Stem Evidence (Source Separation)
+    public const string StemVocals = "stem_vocals";               // Separated vocals track
+    public const string StemDrums = "stem_drums";                 // Separated drums track
+    public const string StemBass = "stem_bass";                   // Separated bass track
+    public const string StemOther = "stem_other";                 // Separated other/melody track
+    public const string StemInstrumentals = "stem_instrumentals"; // Combined instrumentals (non-vocal)
+
     // Analysis Evidence
     public const string SignalDump = "signal_dump";
     public const string EmbeddingVector = "embedding_vector";
