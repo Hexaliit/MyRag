@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Mostlylucid.Summarizer.Core.FileAnalysis;
 using Mostlylucid.Summarizer.Core.Pipeline;
 using VideoSummarizer.Core.Coordination;
 using VideoSummarizer.Core.Models;
@@ -14,6 +15,7 @@ namespace VideoSummarizer.Core.Pipeline;
 public class VideoPipeline : PipelineBase, IDisposable
 {
     private readonly SignalAwareWaveCoordinator _coordinator;
+    private readonly IFileSummarizer _fileSummarizer;
     private readonly ILogger<VideoPipeline> _logger;
 
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -23,9 +25,11 @@ public class VideoPipeline : PipelineBase, IDisposable
 
     public VideoPipeline(
         SignalAwareWaveCoordinator coordinator,
+        IFileSummarizer fileSummarizer,
         ILogger<VideoPipeline> logger)
     {
         _coordinator = coordinator;
+        _fileSummarizer = fileSummarizer;
         _logger = logger;
 
         // Subscribe to signal events for progress tracking
@@ -55,6 +59,10 @@ public class VideoPipeline : PipelineBase, IDisposable
     {
         _logger.LogInformation("Processing video: {FilePath}", filePath);
 
+        // Extract universal file metadata first
+        var fileMetadata = await _fileSummarizer.ExtractMetadataAsync(filePath, ct);
+        var fileMetadataDict = fileMetadata.ToSearchMetadata();
+
         var workingDir = Path.Combine(Path.GetTempPath(), "VideoSummarizer", Path.GetRandomFileName());
         Directory.CreateDirectory(workingDir);
 
@@ -79,13 +87,14 @@ public class VideoPipeline : PipelineBase, IDisposable
             progress?.Report(new PipelineProgress("Extracting", "Building content chunks", 95));
 
             // Convert video signals to content chunks for RAG
-            var chunks = BuildContentChunks(context, filePath);
+            var chunks = BuildContentChunks(context, filePath, fileMetadataDict);
 
-            _logger.LogInformation("Processed video: {Shots} shots, {Scenes} scenes, {Utterances} utterances, {Chunks} chunks",
+            _logger.LogInformation("Processed video: {Shots} shots, {Scenes} scenes, {Utterances} utterances, {Chunks} chunks (file: {Size})",
                 context.Shots.Count,
                 context.Scenes.Count,
                 context.Utterances.Count,
-                chunks.Count);
+                chunks.Count,
+                fileMetadata.SizeFormatted);
 
             return chunks;
         }
@@ -110,7 +119,10 @@ public class VideoPipeline : PipelineBase, IDisposable
     /// Convert video context to content chunks for RAG indexing.
     /// Creates chunks for: scenes, transcripts, text tracks, and metadata.
     /// </summary>
-    private List<ContentChunk> BuildContentChunks(VideoContext context, string filePath)
+    private List<ContentChunk> BuildContentChunks(
+        VideoContext context,
+        string filePath,
+        Dictionary<string, object?> fileMetadataDict)
     {
         var chunks = new List<ContentChunk>();
         var chunkIndex = 0;
@@ -123,6 +135,18 @@ public class VideoPipeline : PipelineBase, IDisposable
 
             var embedding = context.GetCached<float[]>($"scene_centroid.{scene.Id}");
 
+            var sceneMetadata = new Dictionary<string, object?>(fileMetadataDict)
+            {
+                ["source"] = "video_scene",
+                ["scene_id"] = scene.Id,
+                ["shot_count"] = scene.ShotIds.Count,
+                ["label"] = scene.Label,
+                ["key_terms"] = scene.KeyTerms,
+                ["speakers"] = scene.SpeakerIds,
+                ["start_time"] = scene.StartTime,
+                ["end_time"] = scene.EndTime,
+                ["embedding"] = embedding
+            };
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
@@ -132,23 +156,12 @@ public class VideoPipeline : PipelineBase, IDisposable
                 Index = chunkIndex - 1,
                 ContentHash = ComputeHash(sceneText),
                 Confidence = scene.Confidence,
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["source"] = "video_scene",
-                    ["scene_id"] = scene.Id,
-                    ["shot_count"] = scene.ShotIds.Count,
-                    ["label"] = scene.Label,
-                    ["key_terms"] = scene.KeyTerms,
-                    ["speakers"] = scene.SpeakerIds,
-                    ["start_time"] = scene.StartTime,
-                    ["end_time"] = scene.EndTime,
-                    ["embedding"] = embedding
-                }
+                Metadata = sceneMetadata
             });
         }
 
         // 2. Transcript chunks (grouped by time windows)
-        var transcriptChunks = BuildTranscriptChunks(context, filePath, ref chunkIndex);
+        var transcriptChunks = BuildTranscriptChunks(context, filePath, fileMetadataDict, ref chunkIndex);
         chunks.AddRange(transcriptChunks);
 
         // 3. Text track chunks (on-screen text)
@@ -156,6 +169,14 @@ public class VideoPipeline : PipelineBase, IDisposable
         {
             if (string.IsNullOrWhiteSpace(textTrack.Text)) continue;
 
+            var ocrMetadata = new Dictionary<string, object?>(fileMetadataDict)
+            {
+                ["source"] = "video_ocr",
+                ["text_type"] = textTrack.TextType.ToString(),
+                ["text_track_id"] = textTrack.Id,
+                ["start_time"] = textTrack.StartTime,
+                ["end_time"] = textTrack.EndTime
+            };
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
@@ -165,14 +186,7 @@ public class VideoPipeline : PipelineBase, IDisposable
                 Index = chunkIndex - 1,
                 ContentHash = ComputeHash(textTrack.Text),
                 Confidence = textTrack.Confidence,
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["source"] = "video_ocr",
-                    ["text_type"] = textTrack.TextType.ToString(),
-                    ["text_track_id"] = textTrack.Id,
-                    ["start_time"] = textTrack.StartTime,
-                    ["end_time"] = textTrack.EndTime
-                }
+                Metadata = ocrMetadata
             });
         }
 
@@ -180,6 +194,15 @@ public class VideoPipeline : PipelineBase, IDisposable
         if (context.Metadata != null)
         {
             var metadataText = BuildMetadataText(context);
+            var videoMetadata = new Dictionary<string, object?>(fileMetadataDict)
+            {
+                ["source"] = "video_metadata",
+                ["duration"] = context.Metadata.Duration,
+                ["resolution"] = $"{context.Metadata.Width}x{context.Metadata.Height}",
+                ["fps"] = context.Metadata.Fps,
+                ["shot_count"] = context.Shots.Count,
+                ["scene_count"] = context.Scenes.Count
+            };
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
@@ -188,15 +211,7 @@ public class VideoPipeline : PipelineBase, IDisposable
                 SourcePath = filePath,
                 Index = chunkIndex - 1,
                 ContentHash = ComputeHash(metadataText),
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["source"] = "video_metadata",
-                    ["duration"] = context.Metadata.Duration,
-                    ["resolution"] = $"{context.Metadata.Width}x{context.Metadata.Height}",
-                    ["fps"] = context.Metadata.Fps,
-                    ["shot_count"] = context.Shots.Count,
-                    ["scene_count"] = context.Scenes.Count
-                }
+                Metadata = videoMetadata
             });
         }
 
@@ -258,6 +273,7 @@ public class VideoPipeline : PipelineBase, IDisposable
     private List<ContentChunk> BuildTranscriptChunks(
         VideoContext context,
         string filePath,
+        Dictionary<string, object?> fileMetadataDict,
         ref int chunkIndex)
     {
         var chunks = new List<ContentChunk>();
@@ -278,6 +294,14 @@ public class VideoPipeline : PipelineBase, IDisposable
             var endTime = utterances.Max(u => u.EndTime);
             var avgConfidence = utterances.Average(u => u.Confidence);
 
+            var transcriptMetadata = new Dictionary<string, object?>(fileMetadataDict)
+            {
+                ["source"] = "video_transcript",
+                ["utterance_count"] = utterances.Count,
+                ["time_window"] = $"{FormatTime(startTime)} - {FormatTime(endTime)}",
+                ["start_time"] = startTime,
+                ["end_time"] = endTime
+            };
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
@@ -287,14 +311,7 @@ public class VideoPipeline : PipelineBase, IDisposable
                 Index = chunkIndex - 1,
                 ContentHash = ComputeHash(text),
                 Confidence = avgConfidence,
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["source"] = "video_transcript",
-                    ["utterance_count"] = utterances.Count,
-                    ["time_window"] = $"{FormatTime(startTime)} - {FormatTime(endTime)}",
-                    ["start_time"] = startTime,
-                    ["end_time"] = endTime
-                }
+                Metadata = transcriptMetadata
             });
         }
 

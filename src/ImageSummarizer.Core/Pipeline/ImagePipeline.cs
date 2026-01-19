@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Orchestration;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
+using Mostlylucid.Summarizer.Core.FileAnalysis;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace Mostlylucid.DocSummarizer.Images.Pipeline;
@@ -11,6 +12,7 @@ namespace Mostlylucid.DocSummarizer.Images.Pipeline;
 /// </summary>
 public class ImagePipeline : PipelineBase
 {
+    private readonly IFileSummarizer _fileSummarizer;
     private readonly WaveOrchestrator _orchestrator;
     private readonly ILogger<ImagePipeline> _logger;
 
@@ -21,9 +23,11 @@ public class ImagePipeline : PipelineBase
 
     public ImagePipeline(
         WaveOrchestrator orchestrator,
+        IFileSummarizer fileSummarizer,
         ILogger<ImagePipeline> logger)
     {
         _orchestrator = orchestrator;
+        _fileSummarizer = fileSummarizer;
         _logger = logger;
     }
 
@@ -45,6 +49,10 @@ public class ImagePipeline : PipelineBase
     {
         _logger.LogInformation("Processing image: {FilePath}", filePath);
 
+        // Extract universal file metadata first
+        var fileMetadata = await _fileSummarizer.ExtractMetadataAsync(filePath, ct);
+        var fileMetadataDict = fileMetadata.ToSearchMetadata();
+
         progress?.Report(new PipelineProgress("Analyzing", "Running analysis waves", 10));
 
         // Run the wave orchestrator to analyze the image
@@ -60,6 +68,12 @@ public class ImagePipeline : PipelineBase
         if (!string.IsNullOrWhiteSpace(ocrText))
         {
             var ocrConfidence = profile.GetValue<double?>(ImageSignalKeys.OcrConfidence);
+            var metadata = new Dictionary<string, object?>(fileMetadataDict)
+            {
+                ["source"] = "ocr",
+                ["wordCount"] = profile.GetValue<int?>(ImageSignalKeys.OcrWordCount),
+                ["language"] = profile.GetValue<string>(ImageSignalKeys.OcrLanguage)
+            };
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
@@ -69,12 +83,7 @@ public class ImagePipeline : PipelineBase
                 Index = chunkIndex - 1,
                 ContentHash = ComputeHash(ocrText),
                 Confidence = ocrConfidence,
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["source"] = "ocr",
-                    ["wordCount"] = profile.GetValue<int?>(ImageSignalKeys.OcrWordCount),
-                    ["language"] = profile.GetValue<string>(ImageSignalKeys.OcrLanguage)
-                }
+                Metadata = metadata
             });
         }
 
@@ -83,6 +92,11 @@ public class ImagePipeline : PipelineBase
         if (!string.IsNullOrWhiteSpace(caption))
         {
             var visionConfidence = profile.GetValue<double?>(ImageSignalKeys.VisionConfidence);
+            var captionMetadata = new Dictionary<string, object?>(fileMetadataDict)
+            {
+                ["source"] = "vision",
+                ["objects"] = profile.GetValue<object>(ImageSignalKeys.Objects)
+            };
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
@@ -92,11 +106,7 @@ public class ImagePipeline : PipelineBase
                 Index = chunkIndex - 1,
                 ContentHash = ComputeHash(caption),
                 Confidence = visionConfidence,
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["source"] = "vision",
-                    ["objects"] = profile.GetValue<object>(ImageSignalKeys.Objects)
-                }
+                Metadata = captionMetadata
             });
         }
 
@@ -151,6 +161,12 @@ public class ImagePipeline : PipelineBase
             var entityText = string.Join(", ", allEntities.Distinct());
             _logger.LogDebug("Entity extraction: {Count} entities from {Sources}",
                 allEntities.Count, string.Join("+", entityMetadata.Keys));
+            var entityChunkMetadata = new Dictionary<string, object?>(fileMetadataDict)
+            {
+                ["source"] = "combined_entities",
+                ["entityCount"] = allEntities.Count,
+                ["sources"] = entityMetadata
+            };
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
@@ -159,12 +175,7 @@ public class ImagePipeline : PipelineBase
                 SourcePath = filePath,
                 Index = chunkIndex - 1,
                 ContentHash = ComputeHash(entityText),
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["source"] = "combined_entities",
-                    ["entityCount"] = allEntities.Count,
-                    ["sources"] = entityMetadata
-                }
+                Metadata = entityChunkMetadata
             });
         }
 
@@ -194,6 +205,13 @@ public class ImagePipeline : PipelineBase
         if (chunks.Count == 0)
         {
             var metadataText = BuildMetadataText(filePath, profile);
+            var fallbackMetadata = new Dictionary<string, object?>(fileMetadataDict)
+            {
+                ["source"] = "metadata",
+                ["width"] = profile.GetValue<int?>(ImageSignalKeys.ImageWidth),
+                ["height"] = profile.GetValue<int?>(ImageSignalKeys.ImageHeight),
+                ["format"] = profile.GetValue<string>(ImageSignalKeys.ImageFormat)
+            };
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
@@ -202,17 +220,12 @@ public class ImagePipeline : PipelineBase
                 SourcePath = filePath,
                 Index = chunkIndex - 1,
                 ContentHash = ComputeHash(metadataText),
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["source"] = "metadata",
-                    ["width"] = profile.GetValue<int?>(ImageSignalKeys.ImageWidth),
-                    ["height"] = profile.GetValue<int?>(ImageSignalKeys.ImageHeight),
-                    ["format"] = profile.GetValue<string>(ImageSignalKeys.ImageFormat)
-                }
+                Metadata = fallbackMetadata
             });
         }
 
-        _logger.LogInformation("Processed {ChunkCount} chunks from image", chunks.Count);
+        _logger.LogInformation("Processed {ChunkCount} chunks from image (file: {Size})",
+            chunks.Count, fileMetadata.SizeFormatted);
 
         return chunks;
     }

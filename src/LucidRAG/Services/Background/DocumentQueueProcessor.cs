@@ -9,6 +9,7 @@ using Mostlylucid.DocSummarizer;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.Summarizer.Core.Pipeline;
+using VideoSummarizer.Core.Pipeline;
 
 namespace LucidRAG.Services.Background;
 
@@ -263,10 +264,12 @@ public class DocumentQueueProcessor(
         var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
         logger.LogDebug("All core services resolved successfully");
 
-        // Check if this is an image file - try to resolve ImagePipeline with timeout
+        // Check if this is an image or video file - try to resolve pipelines with timeout
         var extension = Path.GetExtension(job.FilePath).ToLowerInvariant();
         var isImageExtension = extension is ".gif" or ".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp" or ".tiff" or ".tif";
+        var isVideoExtension = extension is ".mp4" or ".mkv" or ".avi" or ".mov" or ".wmv" or ".webm" or ".flv" or ".m4v" or ".mpeg" or ".mpg";
         ImagePipeline? imagePipeline = null;
+        VideoPipeline? videoPipeline = null;
 
         if (isImageExtension)
         {
@@ -297,6 +300,35 @@ public class DocumentQueueProcessor(
                 logger.LogWarning(ex, "ImagePipeline resolution failed, using fallback");
             }
         }
+        else if (isVideoExtension)
+        {
+            // Try to resolve VideoPipeline for video processing
+            try
+            {
+                logger.LogDebug("Attempting to resolve VideoPipeline for video processing...");
+                var pipelineTask = Task.Run(() => scope.ServiceProvider.GetService<VideoPipeline>(), ct);
+                if (await Task.WhenAny(pipelineTask, Task.Delay(10000, ct)) == pipelineTask)
+                {
+                    videoPipeline = await pipelineTask;
+                    if (videoPipeline != null)
+                    {
+                        logger.LogInformation("VideoPipeline resolved successfully for video processing");
+                    }
+                    else
+                    {
+                        logger.LogWarning("VideoPipeline resolved as null, video processing unavailable");
+                    }
+                }
+                else
+                {
+                    logger.LogWarning("VideoPipeline resolution timed out (10s), video processing unavailable");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "VideoPipeline resolution failed, video processing unavailable");
+            }
+        }
 
         var document = await db.Documents.FindAsync([job.DocumentId], ct);
         if (document is null)
@@ -320,13 +352,14 @@ public class DocumentQueueProcessor(
             await progressChannel.Writer.WriteAsync(
                 ProgressUpdates.Stage("Processing", "Starting document processing..."), ct);
 
-            // Check if file should use image pipeline based on extension
+            // Check if file should use image or video pipeline based on extension
             var isImageFile = imagePipeline != null && isImageExtension;
             var useImageFallback = imagePipeline == null && isImageExtension;
-            logger.LogInformation("Pipeline check for {FilePath}: extension={Extension}, imagePipeline={HasPipeline}, isImageFile={IsImage}, fallback={UseFallback}",
-                job.FilePath, extension, imagePipeline != null ? "available" : "null", isImageFile, useImageFallback);
+            var isVideoFile = videoPipeline != null && isVideoExtension;
+            logger.LogInformation("Pipeline check for {FilePath}: extension={Extension}, imagePipeline={HasImagePipeline}, videoPipeline={HasVideoPipeline}, isImageFile={IsImage}, isVideoFile={IsVideo}, fallback={UseFallback}",
+                job.FilePath, extension, imagePipeline != null ? "available" : "null", videoPipeline != null ? "available" : "null", isImageFile, isVideoFile, useImageFallback);
             DocumentSummary? result = null;
-            List<Segment>? imageSegments = null; // Store segments for images
+            List<Segment>? mediaSegments = null; // Store segments for images/videos
 
             if (useImageFallback)
             {
@@ -374,7 +407,7 @@ public class DocumentQueueProcessor(
                 document.ProcessingProgress = 70;
                 await db.SaveChangesAsync(ct);
 
-                imageSegments = [segment];
+                mediaSegments = [segment];
 
                 logger.LogInformation("Image fallback created 1 segment for {FileName}", Path.GetFileName(job.FilePath));
             }
@@ -412,7 +445,7 @@ public class DocumentQueueProcessor(
                     pipelineResult.ProcessingTime.TotalMilliseconds);
 
                 // Convert ContentChunks to Segments with embeddings and index in vector store
-                imageSegments = await ConvertAndIndexImageChunksAsync(
+                mediaSegments = await ConvertAndIndexImageChunksAsync(
                     pipelineResult.Chunks,
                     document.VectorStoreDocId,
                     vectorStore,
@@ -427,14 +460,77 @@ public class DocumentQueueProcessor(
                     new List<string>(),
                     new SummarizationTrace(
                         document.VectorStoreDocId,
-                        imageSegments.Count,
-                        imageSegments.Count,
+                        mediaSegments.Count,
+                        mediaSegments.Count,
                         new List<string>(),
                         pipelineResult.ProcessingTime,
                         1.0,
                         0.0
                     )
                 );
+            }
+            else if (isVideoFile)
+            {
+                // Use VideoPipeline for video files
+                logger.LogInformation("Processing video {FileName} via {PipelineName}",
+                    Path.GetFileName(job.FilePath), videoPipeline!.Name);
+
+                var pipelineProgress = new Progress<PipelineProgress>(p =>
+                {
+                    progressChannel.Writer.TryWrite(
+                        ProgressUpdates.Stage(p.Stage, p.Message));
+                });
+
+                var pipelineResult = await videoPipeline.ProcessAsync(job.FilePath, null, pipelineProgress, ct);
+
+                if (!pipelineResult.Success)
+                    throw new InvalidOperationException($"Video pipeline processing failed: {pipelineResult.Error}");
+
+                // Update document with pipeline results
+                document.SegmentCount = pipelineResult.Chunks.Count;
+
+                // Compute content hash from file for stable document ID
+                var fileBytes = await File.ReadAllBytesAsync(job.FilePath, ct);
+                var contentHash = Mostlylucid.Summarizer.Core.Utilities.ContentHasher.ComputeHash(fileBytes);
+                var filename = Path.GetFileNameWithoutExtension(job.FilePath);
+                document.VectorStoreDocId = $"{filename}_{contentHash}";
+
+                document.ProcessingProgress = 60;
+                await db.SaveChangesAsync(ct);
+
+                logger.LogInformation("Video pipeline processed {FileName}: {ChunkCount} chunks in {Time}ms",
+                    Path.GetFileName(job.FilePath), pipelineResult.Chunks.Count,
+                    pipelineResult.ProcessingTime.TotalMilliseconds);
+
+                // Convert ContentChunks to Segments with embeddings and index in vector store
+                mediaSegments = await ConvertAndIndexImageChunksAsync(
+                    pipelineResult.Chunks,
+                    document.VectorStoreDocId,
+                    vectorStore,
+                    embeddingService,
+                    logger,
+                    ct);
+
+                // Create a DocumentSummary for compatibility with downstream code
+                result = new DocumentSummary(
+                    $"Video processed with {pipelineResult.Chunks.Count} chunks",
+                    new List<TopicSummary>(),
+                    new List<string>(),
+                    new SummarizationTrace(
+                        document.VectorStoreDocId,
+                        mediaSegments.Count,
+                        mediaSegments.Count,
+                        new List<string>(),
+                        pipelineResult.ProcessingTime,
+                        1.0,
+                        0.0
+                    )
+                );
+            }
+            else if (isVideoExtension && videoPipeline == null)
+            {
+                // Video file but VideoPipeline not available - error since we can't process videos without it
+                throw new NotSupportedException($"Video processing is not available. VideoPipeline could not be resolved for file: {Path.GetFileName(job.FilePath)}");
             }
             else
             {
@@ -509,10 +605,10 @@ public class DocumentQueueProcessor(
                 logger.LogDebug("Extracting segments with text for VectorStoreDocId: {DocId}", stableDocId);
 
                 // For images, we already have the segments from ConvertAndIndexImageChunksAsync
-                if (imageSegments != null)
+                if (mediaSegments != null)
                 {
                     // Image pipeline - reuse segments we just created
-                    segments = imageSegments;
+                    segments = mediaSegments;
                     logger.LogDebug("Image processing: using recently created segments ({Count})", segments.Count);
                 }
                 else
@@ -655,6 +751,14 @@ public class DocumentQueueProcessor(
         var embeddings = await embeddingService.EmbedBatchAsync(texts, ct);
         Console.WriteLine(
             $"[DEBUG] Generated {embeddings?.Length ?? 0} embeddings, first embedding dim: {embeddings?.FirstOrDefault()?.Length ?? 0}");
+
+        // Detailed debug: show first 5 values of first 3 embeddings to verify they're different
+        for (var dbgIdx = 0; dbgIdx < Math.Min(3, embeddings.Length); dbgIdx++)
+        {
+            var first5 = string.Join(",", embeddings[dbgIdx].Take(5).Select(v => v.ToString("F4")));
+            var textSnippet = texts[dbgIdx]?.Substring(0, Math.Min(30, texts[dbgIdx]?.Length ?? 0)) ?? "<null>";
+            Console.WriteLine($"[DEBUG] Embed[{dbgIdx}]: first5=[{first5}] text=\"{textSnippet}...\"");
+        }
 
         for (var i = 0; i < chunks.Count; i++)
         {

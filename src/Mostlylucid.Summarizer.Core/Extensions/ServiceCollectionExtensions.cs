@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Mostlylucid.Summarizer.Core.FileAnalysis;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace Mostlylucid.Summarizer.Core.Extensions;
@@ -9,11 +11,25 @@ namespace Mostlylucid.Summarizer.Core.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
+    /// Add the FileSummarizer service for universal file metadata extraction.
+    /// This is automatically called by AddPipelineRegistry.
+    /// </summary>
+    public static IServiceCollection AddFileSummarizer(this IServiceCollection services)
+    {
+        services.TryAddSingleton<IFileSummarizer, FileSummarizer>();
+        return services;
+    }
+
+    /// <summary>
     /// Add the pipeline registry. Call this after registering all IPipeline implementations.
     /// Must be scoped because some pipelines (Video, Data) are registered as scoped.
+    /// Also registers the FileSummarizer service.
     /// </summary>
     public static IServiceCollection AddPipelineRegistry(this IServiceCollection services)
     {
+        // Add FileSummarizer as a foundation service
+        services.AddFileSummarizer();
+
         services.AddScoped<IPipelineRegistry>(sp =>
         {
             var pipelines = sp.GetServices<IPipeline>();

@@ -1,5 +1,22 @@
 {
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.9",
+    "cross-env": "^10.1.0",
     "puppeteer": "^24.34.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^2.1.12",
+    "claude": "^0.1.2"
+  },
+  "scripts": {
+    "test": "npx playwright test",
+    "test:smoke": "npx playwright test smoke.spec.ts",
+    "test:headed": "npx playwright test --headed",
+    "test:ui": "npx playwright test --ui",
+    "test:debug": "npx playwright test --debug",
+    "test:running": "cross-env BASE_URL=http://localhost:5020 npx playwright test",
+    "test:report": "npx playwright show-report",
+    "playwright:install": "npx playwright install"
   }
 }

@@ -321,3 +321,10 @@ appsettings.*.local.json
 # Test publish directories
 publish-test/
 test-publish/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

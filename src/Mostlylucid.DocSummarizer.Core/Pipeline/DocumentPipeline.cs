@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Services;
+using Mostlylucid.Summarizer.Core.FileAnalysis;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace Mostlylucid.DocSummarizer.Pipeline;
@@ -17,14 +18,17 @@ public class DocumentPipeline : PipelineBase
     };
 
     private readonly DocumentChunker _chunker;
+    private readonly IFileSummarizer _fileSummarizer;
     private readonly IDocumentHandlerRegistry _handlerRegistry;
     private readonly ILogger<DocumentPipeline> _logger;
 
     public DocumentPipeline(
         IDocumentHandlerRegistry handlerRegistry,
+        IFileSummarizer fileSummarizer,
         ILogger<DocumentPipeline> logger)
     {
         _handlerRegistry = handlerRegistry;
+        _fileSummarizer = fileSummarizer;
         _chunker = new DocumentChunker();
         _logger = logger;
     }
@@ -56,6 +60,10 @@ public class DocumentPipeline : PipelineBase
     {
         _logger.LogInformation("Processing document: {FilePath}", filePath);
 
+        // Extract universal file metadata first
+        var fileMetadata = await _fileSummarizer.ExtractMetadataAsync(filePath, ct);
+        var fileMetadataDict = fileMetadata.ToSearchMetadata();
+
         var handler = _handlerRegistry.GetHandlerForFile(filePath);
         if (handler == null) throw new NotSupportedException($"No handler found for file: {filePath}");
 
@@ -77,28 +85,36 @@ public class DocumentPipeline : PipelineBase
             docChunks.Count));
 
         // Convert DocumentChunk to ContentChunk
-        var chunks = docChunks.Select(chunk => new ContentChunk
+        var chunks = docChunks.Select(chunk =>
         {
-            Id = GenerateChunkId(filePath, chunk.Order),
-            Text = chunk.Content,
-            ContentType = ContentType.DocumentText,
-            SourcePath = filePath,
-            Index = chunk.Order,
-            ContentHash = chunk.Hash,
-            Metadata = new Dictionary<string, object?>
+            // Start with file metadata
+            var metadata = new Dictionary<string, object?>(fileMetadataDict)
             {
+                // Add document-specific metadata
                 ["heading"] = chunk.Heading,
                 ["headingLevel"] = chunk.HeadingLevel,
                 ["pageStart"] = chunk.PageStart,
                 ["pageEnd"] = chunk.PageEnd,
                 ["title"] = content.Title,
                 ["contentType"] = content.ContentType
-            }
+            };
+
+            return new ContentChunk
+            {
+                Id = GenerateChunkId(filePath, chunk.Order),
+                Text = chunk.Content,
+                ContentType = ContentType.DocumentText,
+                SourcePath = filePath,
+                Index = chunk.Order,
+                ContentHash = chunk.Hash,
+                Metadata = metadata
+            };
         }).ToList();
 
         progress?.Report(new PipelineProgress("Complete", "Processing complete", 100, chunks.Count, chunks.Count));
 
-        _logger.LogInformation("Processed {ChunkCount} chunks from document", chunks.Count);
+        _logger.LogInformation("Processed {ChunkCount} chunks from document (file: {Size})",
+            chunks.Count, fileMetadata.SizeFormatted);
 
         return chunks;
     }

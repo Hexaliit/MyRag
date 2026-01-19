@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Data.Models;
 using Mostlylucid.DocSummarizer.Data.Services;
 using Mostlylucid.DocSummarizer.Data.Services.Analysis;
+using Mostlylucid.Summarizer.Core.FileAnalysis;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace Mostlylucid.DocSummarizer.Data.Pipeline;
@@ -13,15 +14,18 @@ namespace Mostlylucid.DocSummarizer.Data.Pipeline;
 public class DataPipeline : PipelineBase
 {
     private readonly IDataProcessor _dataProcessor;
+    private readonly IFileSummarizer _fileSummarizer;
     private readonly DataAnalysisOrchestrator? _orchestrator;
     private readonly ILogger<DataPipeline> _logger;
 
     public DataPipeline(
         IDataProcessor dataProcessor,
+        IFileSummarizer fileSummarizer,
         ILogger<DataPipeline> logger,
         DataAnalysisOrchestrator? orchestrator = null)
     {
         _dataProcessor = dataProcessor;
+        _fileSummarizer = fileSummarizer;
         _logger = logger;
         _orchestrator = orchestrator;
     }
@@ -43,6 +47,10 @@ public class DataPipeline : PipelineBase
         CancellationToken ct)
     {
         _logger.LogInformation("Processing data file: {FilePath}", filePath);
+
+        // Extract universal file metadata first
+        var fileMetadata = await _fileSummarizer.ExtractMetadataAsync(filePath, ct);
+        var fileMetadataDict = fileMetadata.ToSearchMetadata();
 
         // Step 1: Run wave-based analysis (if orchestrator available)
         DynamicDataProfile? profile = null;
@@ -78,11 +86,15 @@ public class DataPipeline : PipelineBase
 
         // Step 3: Build metadata from analysis profile
         var analysisMetadata = profile?.ToMetadata() ?? new Dictionary<string, object?>();
+        // Merge file metadata into analysis metadata
+        foreach (var kvp in fileMetadataDict)
+            analysisMetadata[kvp.Key] = kvp.Value;
 
         // Step 4: Convert DataChunk to ContentChunk with enriched metadata
         var chunks = result.Chunks.Select((chunk, i) =>
         {
-            var metadata = new Dictionary<string, object?>
+            // Start with file metadata
+            var metadata = new Dictionary<string, object?>(fileMetadataDict)
             {
                 // Basic chunk info
                 ["rowStart"] = chunk.RowStart,
@@ -145,7 +157,8 @@ public class DataPipeline : PipelineBase
             }
         }
 
-        _logger.LogInformation("Processed {ChunkCount} chunks from data file (including profile)", chunks.Count);
+        _logger.LogInformation("Processed {ChunkCount} chunks from data file (file: {Size})",
+            chunks.Count, fileMetadata.SizeFormatted);
 
         return chunks;
     }

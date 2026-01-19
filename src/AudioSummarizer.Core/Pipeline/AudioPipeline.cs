@@ -5,6 +5,7 @@ using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Services.Voice;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.GraphRag.Extraction;
+using Mostlylucid.Summarizer.Core.FileAnalysis;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace AudioSummarizer.Core.Pipeline;
@@ -16,6 +17,7 @@ namespace AudioSummarizer.Core.Pipeline;
 /// </summary>
 public class AudioPipeline : PipelineBase
 {
+    private readonly IFileSummarizer _fileSummarizer;
     private readonly AudioWaveOrchestrator _orchestrator;
     private readonly ILogger<AudioPipeline> _logger;
     private OnnxNerService? _nerService;
@@ -28,9 +30,11 @@ public class AudioPipeline : PipelineBase
 
     public AudioPipeline(
         AudioWaveOrchestrator orchestrator,
+        IFileSummarizer fileSummarizer,
         ILogger<AudioPipeline> logger)
     {
         _orchestrator = orchestrator;
+        _fileSummarizer = fileSummarizer;
         _logger = logger;
     }
 
@@ -87,6 +91,10 @@ public class AudioPipeline : PipelineBase
     {
         _logger.LogInformation("Processing audio: {FilePath}", filePath);
 
+        // Extract universal file metadata first
+        var fileMetadata = await _fileSummarizer.ExtractMetadataAsync(filePath, ct);
+        var fileMetadataDict = fileMetadata.ToSearchMetadata();
+
         progress?.Report(new PipelineProgress("Analyzing", "Running audio analysis waves", 10));
 
         // Run the wave orchestrator to analyze the audio
@@ -110,6 +118,16 @@ public class AudioPipeline : PipelineBase
             // Generate SRT format with diarization if available
             var (srtContent, vttContent) = GenerateSrtWithDiarization(profile, transcriptionFullData);
 
+            var transcriptMetadata = new Dictionary<string, object?>(fileMetadataDict)
+            {
+                ["source"] = "transcription",
+                ["backend"] = backend,
+                ["segment_count"] = segmentCount,
+                ["transcription.confidence"] = confidence,
+                ["transcription.srt"] = srtContent,
+                ["transcription.vtt"] = vttContent,
+                ["transcription.full_data"] = transcriptionFullData
+            };
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
@@ -119,16 +137,7 @@ public class AudioPipeline : PipelineBase
                 Index = chunkIndex - 1,
                 ContentHash = ComputeHash(transcriptionText),
                 Confidence = confidence,
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["source"] = "transcription",
-                    ["backend"] = backend,
-                    ["segment_count"] = segmentCount,
-                    ["transcription.confidence"] = confidence,
-                    ["transcription.srt"] = srtContent,
-                    ["transcription.vtt"] = vttContent,
-                    ["transcription.full_data"] = transcriptionFullData
-                }
+                Metadata = transcriptMetadata
             });
         }
 
@@ -267,8 +276,12 @@ public class AudioPipeline : PipelineBase
         }
         else
         {
-            // No transcription - create metadata-only chunk
+            // No transcription - create metadata-only chunk with file metadata
             var metadataText = BuildMetadataText(filePath, profile);
+            // Merge file metadata into graph metadata
+            foreach (var kvp in fileMetadataDict)
+                graphMetadata[kvp.Key] = kvp.Value;
+
             chunks.Add(new ContentChunk
             {
                 Id = GenerateChunkId(filePath, chunkIndex++),
@@ -281,8 +294,8 @@ public class AudioPipeline : PipelineBase
             });
         }
 
-        _logger.LogInformation("Processed audio: {ChunkCount} chunks, {SignalCount} signals",
-            chunks.Count, profile.Signals.Count);
+        _logger.LogInformation("Processed audio: {ChunkCount} chunks, {SignalCount} signals (file: {Size})",
+            chunks.Count, profile.Signals.Count, fileMetadata.SizeFormatted);
 
         return chunks;
     }

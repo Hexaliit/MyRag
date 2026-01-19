@@ -13,7 +13,7 @@
       "args": [
         "run",
         "--project",
-        "E:/source/lucidrag/src/ImageCli/ImageCli.csproj",
+        "E:/source/lucidrag/src/Mostlylucid.ImageSummarizer.Cli/Mostlylucid.ImageSummarizer.Cli.csproj",
         "-c",
         "Release",
         "--",
