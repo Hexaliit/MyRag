@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>DoomSummarizer</RootNamespace>
+        <AssemblyName>doomsummarizer</AssemblyName>
+        <Version>1.0.0</Version>
+        <Authors>Scott Galloway</Authors>
+        <Description>AI agent that doom-scrolls HN and Reddit so you don't have to</Description>
+
+        <!-- AOT-friendly single-file deployment -->
+        <UseAppHost>true</UseAppHost>
+        <PublishSingleFile>true</PublishSingleFile>
+        <PublishReadyToRun>true</PublishReadyToRun>
+        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+        <SelfContained>true</SelfContained>
+
+        <!-- Global tool packaging -->
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>doomsummarizer</ToolCommandName>
+
+        <!-- Allow unsafe for ONNX -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <!-- Core dependencies - minimal -->
+    <ItemGroup>
+        <PackageReference Include="Fluid.Core" Version="2.31.0" />
+        <PackageReference Include="SmartReader" Version="0.11.0" />
+        <PackageReference Include="Spectre.Console" Version="0.51.0" />
+        <PackageReference Include="Spectre.Console.Cli" Version="0.51.0" />
+
+        <!-- SQLite -->
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.1" />
+
+        <!-- ONNX for local embeddings -->
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
+        <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
+
+        <!-- HTML parsing -->
+        <PackageReference Include="AngleSharp" Version="1.4.1-beta.506" />
+
+        <!-- Playwright for JS-rendered sites -->
+        <PackageReference Include="Microsoft.Playwright" Version="1.57.0" />
+
+        <!-- Markdown generation -->
+        <PackageReference Include="Markdig" Version="0.44.0" />
+
+        <!-- Polly for resilience -->
+        <PackageReference Include="Polly.Core" Version="8.6.5" />
+
+        <!-- Console image display -->
+        <PackageReference Include="mostlylucid.consoleimage" Version="4.0.0-rc4" />
+    </ItemGroup>
+
+    <!-- Project reference for pipeline integration -->
+    <ItemGroup>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+    </ItemGroup>
+
+    <!-- Embed default config -->
+    <ItemGroup>
+        <EmbeddedResource Include="Resources\default-config.json" />
+    </ItemGroup>
+
+</Project>

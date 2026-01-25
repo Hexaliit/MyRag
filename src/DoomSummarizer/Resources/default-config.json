@@ -1,0 +1,52 @@
+{
+  "sources": {
+    "hackerNews": {
+      "enabled": true,
+      "sections": ["top", "best", "new"],
+      "maxStories": 30,
+      "minScore": 50
+    },
+    "reddit": {
+      "enabled": true,
+      "subreddits": [
+        "programming",
+        "csharp",
+        "dotnet",
+        "ExperiencedDevs",
+        "technology"
+      ],
+      "sort": "hot",
+      "maxPosts": 25,
+      "minScore": 20
+    },
+    "websites": []
+  },
+  "ollama": {
+    "baseUrl": "http://localhost:11434",
+    "model": "qwen2.5:3b",
+    "embedModel": "nomic-embed-text",
+    "temperature": 0.4,
+    "timeoutSeconds": 300
+  },
+  "embedding": {
+    "backend": "onnx",
+    "model": "all-MiniLM-L6-v2",
+    "similarityThreshold": 0.95
+  },
+  "output": {
+    "format": "markdown",
+    "maxSummaryLength": 500,
+    "includeLinks": true,
+    "groupByTopic": true
+  },
+  "storage": {
+    "dbPath": "~/.doomsummarizer/doom.db",
+    "retentionDays": 30
+  },
+  "vibes": {
+    "doom": "Focus on concerning trends, security vulnerabilities, layoffs, technical debt, and industry problems. Be pessimistic but informative.",
+    "hopeful": "Highlight innovations, new tools, career opportunities, and positive developments. Be optimistic and encouraging.",
+    "snarky": "Add dry wit and mild cynicism. Point out hype vs reality. Be entertaining but informative.",
+    "neutral": "Objective, balanced summary without emotional coloring. Just the facts."
+  }
+}
