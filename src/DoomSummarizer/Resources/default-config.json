@@ -23,7 +23,8 @@
   },
   "ollama": {
     "baseUrl": "http://localhost:11434",
-    "model": "qwen2.5:3b",
+    "model": "qwen3:8b",
+    "sentinelModel": "llama3.2:1b",
     "embedModel": "nomic-embed-text",
     "temperature": 0.4,
     "timeoutSeconds": 300
@@ -38,6 +39,23 @@
     "maxSummaryLength": 500,
     "includeLinks": true,
     "groupByTopic": true
+  },
+  "linkFollowing": {
+    "enabled": true,
+    "maxLinksPerArticle": 3,
+    "maxTotalLinks": 15,
+    "maxContentLength": 2000,
+    "timeoutSeconds": 10,
+    "blockedDomains": [
+      "facebook.com", "twitter.com", "x.com", "instagram.com",
+      "linkedin.com", "youtube.com", "tiktok.com",
+      "accounts.google.com", "play.google.com", "apps.apple.com"
+    ],
+    "blockedExtensions": [
+      ".pdf", ".zip", ".tar", ".gz", ".exe", ".dmg",
+      ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp",
+      ".mp3", ".mp4", ".mov", ".avi", ".mkv"
+    ]
   },
   "storage": {
     "dbPath": "~/.doomsummarizer/doom.db",

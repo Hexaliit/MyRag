@@ -62,6 +62,57 @@ public class StorageService : IAsyncDisposable
                 content TEXT NOT NULL,
                 item_count INTEGER DEFAULT 0
             );
+
+            -- Knowledge graph: entities extracted from articles
+            CREATE TABLE IF NOT EXISTS entities (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                description TEXT,
+                first_seen TEXT NOT NULL,
+                last_seen TEXT NOT NULL,
+                mention_count INTEGER DEFAULT 1,
+                embedding BLOB
+            );
+            CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name COLLATE NOCASE);
+            CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(type);
+
+            -- Knowledge graph: entity-to-article provenance
+            CREATE TABLE IF NOT EXISTS entity_mentions (
+                entity_id TEXT NOT NULL,
+                item_id TEXT NOT NULL,
+                confidence REAL DEFAULT 0.5,
+                context TEXT,
+                mentioned_at TEXT NOT NULL,
+                PRIMARY KEY (entity_id, item_id),
+                FOREIGN KEY (entity_id) REFERENCES entities(id),
+                FOREIGN KEY (item_id) REFERENCES items(id)
+            );
+
+            -- URL fetch cache: ETags, content hashes, last-modified for conditional fetching
+            CREATE TABLE IF NOT EXISTS url_cache (
+                url TEXT PRIMARY KEY,
+                content_hash TEXT,
+                etag TEXT,
+                last_modified TEXT,
+                last_fetched TEXT NOT NULL,
+                content_length INTEGER DEFAULT 0,
+                hit_count INTEGER DEFAULT 1
+            );
+            CREATE INDEX IF NOT EXISTS idx_url_cache_fetched ON url_cache(last_fetched);
+
+            -- Knowledge graph: entity co-occurrence relationships
+            CREATE TABLE IF NOT EXISTS entity_relationships (
+                source_entity_id TEXT NOT NULL,
+                target_entity_id TEXT NOT NULL,
+                relationship_type TEXT DEFAULT 'co_occurs',
+                weight REAL DEFAULT 1.0,
+                first_seen TEXT NOT NULL,
+                last_seen TEXT NOT NULL,
+                PRIMARY KEY (source_entity_id, target_entity_id),
+                FOREIGN KEY (source_entity_id) REFERENCES entities(id),
+                FOREIGN KEY (target_entity_id) REFERENCES entities(id)
+            );
             """;
         await cmd.ExecuteNonQueryAsync();
     }
@@ -250,12 +301,312 @@ public class StorageService : IAsyncDisposable
         await cmd.ExecuteNonQueryAsync();
     }
 
+    // --- Knowledge Graph Methods ---
+
+    /// <summary>
+    /// Upsert an entity, incrementing mention count and updating last_seen.
+    /// </summary>
+    public async Task UpsertEntityAsync(string id, string name, string type, double confidence, float[]? embedding = null)
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO entities (id, name, type, first_seen, last_seen, mention_count, embedding)
+            VALUES (@id, @name, @type, @now, @now, 1, @embedding)
+            ON CONFLICT(id) DO UPDATE SET
+                last_seen = @now,
+                mention_count = mention_count + 1,
+                embedding = COALESCE(@embedding, embedding)
+            """;
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@name", name);
+        cmd.Parameters.AddWithValue("@type", type);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("@embedding", embedding != null ? EmbeddingService.ToBytes(embedding) : DBNull.Value);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Record that an entity was mentioned in a specific article.
+    /// </summary>
+    public async Task UpsertEntityMentionAsync(string entityId, string itemId, double confidence, string? context = null)
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO entity_mentions (entity_id, item_id, confidence, context, mentioned_at)
+            VALUES (@entityId, @itemId, @confidence, @context, @now)
+            ON CONFLICT(entity_id, item_id) DO UPDATE SET
+                confidence = MAX(confidence, @confidence)
+            """;
+        cmd.Parameters.AddWithValue("@entityId", entityId);
+        cmd.Parameters.AddWithValue("@itemId", itemId);
+        cmd.Parameters.AddWithValue("@confidence", confidence);
+        cmd.Parameters.AddWithValue("@context", (object?)context ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Upsert a co-occurrence relationship between two entities.
+    /// </summary>
+    public async Task UpsertRelationshipAsync(string sourceId, string targetId, string relType = "co_occurs")
+    {
+        // Normalize ordering so (A,B) and (B,A) are the same edge
+        var (s, t) = string.CompareOrdinal(sourceId, targetId) < 0
+            ? (sourceId, targetId)
+            : (targetId, sourceId);
+
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO entity_relationships (source_entity_id, target_entity_id, relationship_type, weight, first_seen, last_seen)
+            VALUES (@src, @tgt, @type, 1.0, @now, @now)
+            ON CONFLICT(source_entity_id, target_entity_id) DO UPDATE SET
+                weight = weight + 1.0,
+                last_seen = @now
+            """;
+        cmd.Parameters.AddWithValue("@src", s);
+        cmd.Parameters.AddWithValue("@tgt", t);
+        cmd.Parameters.AddWithValue("@type", relType);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Get top entities by mention count, optionally filtered by type and freshness.
+    /// </summary>
+    public async Task<List<GraphEntity>> GetTopEntitiesAsync(int limit = 20, string? type = null, int? daysBack = null)
+    {
+        var entities = new List<GraphEntity>();
+        await using var cmd = _connection!.CreateCommand();
+
+        var where = new List<string>();
+        if (type != null)
+        {
+            where.Add("e.type = @type");
+            cmd.Parameters.AddWithValue("@type", type);
+        }
+        if (daysBack != null)
+        {
+            where.Add("e.last_seen >= @cutoff");
+            cmd.Parameters.AddWithValue("@cutoff", DateTimeOffset.UtcNow.AddDays(-daysBack.Value).ToString("O"));
+        }
+
+        var whereClause = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
+
+        cmd.CommandText = $"""
+            SELECT e.id, e.name, e.type, e.mention_count, e.first_seen, e.last_seen,
+                   COUNT(DISTINCT em.item_id) as article_count
+            FROM entities e
+            LEFT JOIN entity_mentions em ON e.id = em.entity_id
+            {whereClause}
+            GROUP BY e.id
+            ORDER BY e.mention_count DESC
+            LIMIT @limit
+            """;
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            entities.Add(new GraphEntity
+            {
+                Id = reader.GetString(0),
+                Name = reader.GetString(1),
+                Type = reader.GetString(2),
+                MentionCount = reader.GetInt32(3),
+                FirstSeen = DateTimeOffset.Parse(reader.GetString(4)),
+                LastSeen = DateTimeOffset.Parse(reader.GetString(5)),
+                ArticleCount = reader.GetInt32(6)
+            });
+        }
+
+        return entities;
+    }
+
+    /// <summary>
+    /// Get relationships for an entity.
+    /// </summary>
+    public async Task<List<GraphRelationship>> GetRelationshipsAsync(string entityId)
+    {
+        var relationships = new List<GraphRelationship>();
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            SELECT r.source_entity_id, r.target_entity_id, r.relationship_type, r.weight,
+                   COALESCE(es.name, r.source_entity_id) as source_name,
+                   COALESCE(et.name, r.target_entity_id) as target_name
+            FROM entity_relationships r
+            LEFT JOIN entities es ON r.source_entity_id = es.id
+            LEFT JOIN entities et ON r.target_entity_id = et.id
+            WHERE r.source_entity_id = @id OR r.target_entity_id = @id
+            ORDER BY r.weight DESC
+            """;
+        cmd.Parameters.AddWithValue("@id", entityId);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            relationships.Add(new GraphRelationship
+            {
+                SourceId = reader.GetString(0),
+                TargetId = reader.GetString(1),
+                Type = reader.GetString(2),
+                Weight = reader.GetFloat(3),
+                SourceName = reader.GetString(4),
+                TargetName = reader.GetString(5)
+            });
+        }
+
+        return relationships;
+    }
+
+    /// <summary>
+    /// Get articles that mention a specific entity.
+    /// </summary>
+    public async Task<List<(string itemId, string title, string? url, double confidence)>> GetArticlesForEntityAsync(string entityId)
+    {
+        var articles = new List<(string, string, string?, double)>();
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            SELECT i.id, i.title, i.url, em.confidence
+            FROM entity_mentions em
+            JOIN items i ON em.item_id = i.id
+            WHERE em.entity_id = @entityId
+            ORDER BY em.confidence DESC
+            """;
+        cmd.Parameters.AddWithValue("@entityId", entityId);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            articles.Add((
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.GetDouble(3)
+            ));
+        }
+
+        return articles;
+    }
+
+    /// <summary>
+    /// Get graph statistics.
+    /// </summary>
+    public async Task<(int entities, int relationships, int mentions)> GetGraphStatsAsync()
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            SELECT
+                (SELECT COUNT(*) FROM entities),
+                (SELECT COUNT(*) FROM entity_relationships),
+                (SELECT COUNT(*) FROM entity_mentions)
+            """;
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return (reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2));
+        }
+        return (0, 0, 0);
+    }
+
+    // --- URL Cache Methods ---
+
+    /// <summary>
+    /// Get cached info for a URL (ETag, content hash, last fetch time).
+    /// </summary>
+    public async Task<UrlCacheEntry?> GetUrlCacheAsync(string url)
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT url, content_hash, etag, last_modified, last_fetched, content_length, hit_count FROM url_cache WHERE url = @url";
+        cmd.Parameters.AddWithValue("@url", NormalizeCacheUrl(url));
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return new UrlCacheEntry
+            {
+                Url = reader.GetString(0),
+                ContentHash = reader.IsDBNull(1) ? null : reader.GetString(1),
+                ETag = reader.IsDBNull(2) ? null : reader.GetString(2),
+                LastModified = reader.IsDBNull(3) ? null : reader.GetString(3),
+                LastFetched = DateTimeOffset.Parse(reader.GetString(4)),
+                ContentLength = reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
+                HitCount = reader.GetInt32(6)
+            };
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Check if a URL was fetched recently and content hasn't changed.
+    /// Returns true if we can skip processing.
+    /// </summary>
+    public async Task<bool> IsUrlFreshAsync(string url, int decayHours = 4)
+    {
+        var entry = await GetUrlCacheAsync(url);
+        if (entry == null) return false;
+        return (DateTimeOffset.UtcNow - entry.LastFetched).TotalHours < decayHours;
+    }
+
+    /// <summary>
+    /// Update the URL cache after a fetch.
+    /// </summary>
+    public async Task UpdateUrlCacheAsync(string url, string? contentHash, string? etag, string? lastModified, int contentLength)
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO url_cache (url, content_hash, etag, last_modified, last_fetched, content_length, hit_count)
+            VALUES (@url, @hash, @etag, @lastMod, @now, @len, 1)
+            ON CONFLICT(url) DO UPDATE SET
+                content_hash = @hash,
+                etag = COALESCE(@etag, etag),
+                last_modified = COALESCE(@lastMod, last_modified),
+                last_fetched = @now,
+                content_length = @len,
+                hit_count = hit_count + 1
+            """;
+        cmd.Parameters.AddWithValue("@url", NormalizeCacheUrl(url));
+        cmd.Parameters.AddWithValue("@hash", (object?)contentHash ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@etag", (object?)etag ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lastMod", (object?)lastModified ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("@len", contentLength);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Check if content hash matches what's cached (content unchanged).
+    /// </summary>
+    public async Task<bool> IsContentUnchangedAsync(string url, string contentHash)
+    {
+        var entry = await GetUrlCacheAsync(url);
+        return entry?.ContentHash == contentHash;
+    }
+
+    private static string NormalizeCacheUrl(string url) =>
+        url.Split('?')[0].Split('#')[0].TrimEnd('/').ToLowerInvariant();
+
     public async Task CleanupOldDataAsync(int retentionDays)
     {
         var cutoff = DateTimeOffset.UtcNow.AddDays(-retentionDays).ToString("O");
 
         await using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = "DELETE FROM items WHERE fetched_at < @cutoff";
+        cmd.CommandText = """
+            -- Delete old items
+            DELETE FROM items WHERE fetched_at < @cutoff;
+
+            -- Clean up orphaned entity mentions (items deleted above)
+            DELETE FROM entity_mentions WHERE item_id NOT IN (SELECT id FROM items);
+
+            -- Clean up entities with no remaining mentions
+            DELETE FROM entities WHERE id NOT IN (SELECT DISTINCT entity_id FROM entity_mentions);
+
+            -- Clean up orphaned relationships
+            DELETE FROM entity_relationships
+            WHERE source_entity_id NOT IN (SELECT id FROM entities)
+               OR target_entity_id NOT IN (SELECT id FROM entities);
+
+            -- Clean up old URL cache entries
+            DELETE FROM url_cache WHERE last_fetched < @cutoff;
+            """;
         cmd.Parameters.AddWithValue("@cutoff", cutoff);
         await cmd.ExecuteNonQueryAsync();
     }
@@ -288,4 +639,18 @@ public class StorageService : IAsyncDisposable
             await _connection.DisposeAsync();
         }
     }
+}
+
+/// <summary>
+/// Cached URL fetch metadata: ETag, content hash, last-modified.
+/// </summary>
+public record UrlCacheEntry
+{
+    public required string Url { get; init; }
+    public string? ContentHash { get; init; }
+    public string? ETag { get; init; }
+    public string? LastModified { get; init; }
+    public DateTimeOffset LastFetched { get; init; }
+    public int ContentLength { get; init; }
+    public int HitCount { get; init; }
 }

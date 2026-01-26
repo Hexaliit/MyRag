@@ -11,10 +11,12 @@ namespace DoomSummarizer.Services;
 public class PromptInterpreter
 {
     private readonly OllamaService _ollama;
+    private readonly EmbeddingService? _embedding;
 
-    public PromptInterpreter(OllamaService ollama)
+    public PromptInterpreter(OllamaService ollama, EmbeddingService? embedding = null)
     {
         _ollama = ollama;
+        _embedding = embedding;
     }
 
     /// <summary>
@@ -41,31 +43,64 @@ public class PromptInterpreter
                 "topics": ["optional topic filters"]
             }
 
-            Source types:
-            - "hn" = Hacker News
-            - "reddit" = Reddit programming subreddits
-            - "reddit:subreddit" = Specific subreddit (e.g., "reddit:dotnet")
-            - "reddit:subreddit:query" = Search within subreddit (e.g., "reddit:csharp:async await")
-            - "so" = StackOverflow hot questions
-            - "so:tag" = StackOverflow by tag (e.g., "so:csharp", "so:python")
-            - "so:search:query" = StackOverflow search
-            - "bbc", "guardian", "ars", "verge", "wired", "techcrunch" = News sources
-            - "bbc:query" = News source filtered by topic (e.g., "bbc:AI")
-            - "lobsters", "devto", "hackernoon" = Tech blogs
-            - "search:query" = DuckDuckGo search
-            - Direct URLs for specific websites
+            Source types (pick 3-6 diverse sources per query):
+
+            SEARCH ENGINES (query-based, broad coverage):
+            - "gnews:query" = Google News search — best first source for ANY topic
+            - "gnews_topic:TOPIC" = Google News topic feed (HEALTH, SCIENCE, BUSINESS, TECHNOLOGY, ENTERTAINMENT, SPORTS, WORLD, NATION)
+            - "search:query" = DuckDuckGo search — good fallback, web-wide results
+
+            TECH COMMUNITY (developer discussions, open source, startups):
+            - "hn" = Hacker News — tech, startups, CS research, Show HN projects
+            - "reddit" / "reddit:subreddit" = Reddit — community discussion; use reddit:science, reddit:worldnews, etc. for non-tech
+            - "lobsters" = Lobsters — curated tech/CS, higher signal than HN
+            - "devto" = Dev.to — developer blogs, tutorials, career advice
+            - "so" / "so:tag" / "so:search:query" = StackOverflow — technical Q&A
+
+            NEWS OUTLETS (journalism, current events, analysis):
+            - "bbc" / "bbc:category" = BBC News — categories: technology, health, science, business, world, politics, entertainment, environment
+            - "guardian" = The Guardian — strong on environment, science, world affairs
+            - "cnn" = CNN — breaking news, US focus
+            - "reuters" = Reuters — wire service, business, world events, factual
+            - "npr" = NPR — US public radio, good on health, science, politics
+            - "theregister" = The Register — UK tech journalism, security, enterprise IT
+
+            TECH MEDIA (product launches, industry analysis):
+            - "ars" = Ars Technica — deep tech analysis, science coverage
+            - "verge" = The Verge — consumer tech, AI, platforms
+            - "techcrunch" = TechCrunch — startups, funding, product launches
+            - "wired" = Wired — tech culture, longform
+
+            SCIENCE & RESEARCH (papers, preprints, data):
+            - "arxiv:query" = arXiv preprints — full paper abstracts, AI/ML/physics/math/bio
+            - "sciencedaily" = Science Daily — research news summaries
+            - "phys" = Phys.org — science news aggregator
+            - "carbonbrief" = Carbon Brief — climate science analysis
+            - "spaceflight" = Spaceflight News API — launches, NASA, ESA, SpaceX
+
+            SPECIALIZED APIs (structured data, fact-checking):
+            - "factcheck" = Fact-checkers (Snopes, PolitiFact, FullFact)
+            - "earthquake" = USGS seismic data (real-time earthquakes)
+            - "wikipedia" = Wikipedia current events, featured articles
+
+            Direct URLs for specific websites also work.
+
+            STRATEGY: Always include gnews:query for non-tech topics. For research/academic queries, include arxiv. Mix news outlets + community + search for diversity.
 
             Vibes: "doom" (negative focus), "hopeful" (positive), "snarky" (witty), "neutral" (balanced)
 
             Examples:
-            - "summarize tech news" -> {"sources": ["hn", "reddit"], "vibe": "neutral", "limit": 20}
+            - "summarize tech news" -> {"sources": ["hn", "reddit", "verge", "techcrunch"], "vibe": "neutral", "limit": 20}
             - "what's happening on bbc and the guardian" -> {"sources": ["bbc", "guardian"], "vibe": "neutral"}
-            - "see what bbc says about AI" -> {"sources": ["bbc:AI"], "vibe": "neutral"}
             - "doom scroll hacker news" -> {"sources": ["hn"], "vibe": "doom", "limit": 30}
-            - "stackoverflow questions about async await" -> {"sources": ["so:search:async await"], "vibe": "neutral"}
-            - "what are c# devs talking about on reddit" -> {"sources": ["reddit:csharp"], "vibe": "neutral"}
-            - "snarky summary of AI news" -> {"sources": ["search:AI artificial intelligence news"], "vibe": "snarky"}
-            - "lobsters and hackernoon tech news" -> {"sources": ["lobsters", "hackernoon"], "vibe": "neutral"}
+            - "snarky summary of AI news" -> {"sources": ["gnews:AI artificial intelligence", "hn", "verge", "arxiv:artificial intelligence", "techcrunch"], "vibe": "snarky", "topics": ["ai"]}
+            - "latest AI research" -> {"sources": ["arxiv:large language models", "gnews:AI research", "hn", "ars"], "vibe": "neutral", "topics": ["ai"]}
+            - "new pharmaceutical news" -> {"sources": ["gnews:pharmaceutical drug", "bbc:health", "guardian", "arxiv:drug discovery", "sciencedaily"], "vibe": "neutral", "topics": ["pharma"]}
+            - "latest health news" -> {"sources": ["gnews_topic:HEALTH", "bbc:health", "npr", "sciencedaily"], "vibe": "neutral", "topics": ["health"]}
+            - "climate change policy updates" -> {"sources": ["gnews:climate change policy", "guardian", "bbc:environment", "carbonbrief", "npr"], "vibe": "neutral", "topics": ["climate"]}
+            - "business and finance updates" -> {"sources": ["gnews_topic:BUSINESS", "bbc:business", "reuters", "cnn"], "vibe": "neutral", "topics": ["business"]}
+            - "what are c# devs talking about" -> {"sources": ["reddit:csharp", "so:csharp", "hn", "devto"], "vibe": "neutral"}
+            - "latest space news" -> {"sources": ["spaceflight", "gnews:space launch", "bbc:science", "ars", "arxiv:astrophysics"], "vibe": "neutral", "topics": ["space"]}
             """;
 
         var userPrompt = $"Parse this request: \"{prompt}\"";
@@ -83,7 +118,7 @@ public class PromptInterpreter
                 var parsed = JsonSerializer.Deserialize(json, PromptJsonContext.Default.ParsedPrompt);
                 if (parsed != null)
                 {
-                    return new InterpretedPrompt
+                    var result = new InterpretedPrompt
                     {
                         Sources = parsed.Sources ?? ["hn", "reddit"],
                         Vibe = parsed.Vibe ?? "neutral",
@@ -93,6 +128,13 @@ public class PromptInterpreter
                         Topics = parsed.Topics ?? [],
                         RawPrompt = prompt
                     };
+
+                    // Enrich LLM result with YAML routing — the LLM often returns
+                    // sparse sources (e.g., only gnews). YAML routing ensures full
+                    // source spread for the detected topic.
+                    EnrichWithYamlRouting(result, prompt);
+
+                    return result;
                 }
             }
         }
@@ -107,7 +149,7 @@ public class PromptInterpreter
     /// <summary>
     /// Keyword-based fallback when LLM isn't available
     /// </summary>
-    private static InterpretedPrompt FallbackInterpret(string prompt)
+    private InterpretedPrompt FallbackInterpret(string prompt)
     {
         var lower = prompt.ToLowerInvariant();
         var result = new InterpretedPrompt
@@ -162,14 +204,20 @@ public class PromptInterpreter
             }
         }
 
-        // Detect known categories (AI, security, dotnet, etc.)
-        foreach (var (category, sources) in CategorySources)
+        // Use YAML-driven topic routing for category detection
+        var router = GetRouter();
+        var detectedTopic = router.DetectTopic(prompt);
+        if (detectedTopic != "default")
         {
-            if (lower.Contains(category.ToLowerInvariant()))
+            var routing = router.RouteByTopic(detectedTopic);
+            // Map YAML source names to CLI source identifiers
+            foreach (var src in routing.Sources)
             {
-                result.Sources.AddRange(sources);
-                result.Topics.Add(category);
+                var mapped = MapYamlSourceToCliSource(src, routing, prompt);
+                if (mapped != null && !result.Sources.Contains(mapped))
+                    result.Sources.Add(mapped);
             }
+            result.Topics.Add(detectedTopic);
         }
 
         // Detect sources
@@ -245,35 +293,97 @@ public class PromptInterpreter
             }
         }
 
-        // If nothing was detected, treat the prompt as a topic search
+        // If nothing was detected, treat the prompt as a topic search with YAML routing
         if (!result.Sources.Any() && !result.Websites.Any() && !result.SearchQueries.Any())
         {
-            // Extract meaningful words from the prompt (skip common words)
             var topicTerms = ExtractTopicTerms(prompt);
             if (!string.IsNullOrEmpty(topicTerms))
             {
-                // Add as topic filter and DuckDuckGo search (always include search for best coverage)
                 result.Topics.Add(topicTerms);
                 result.SearchQueries.Add(topicTerms);
 
-                // Add filterable sources with topic - these support query filtering
-                result.Sources.AddRange([
-                    $"bbc:{topicTerms}",
-                    $"guardian:{topicTerms}",
-                    "hn",  // HN doesn't support filtering, but we'll filter post-fetch
-                    "reddit",
-                    "lobsters",
-                    "devto"
-                ]);
+                // Use SourceRouter to get topic-appropriate sources
+                var routing = router.Route(topicTerms);
+                foreach (var src in routing.Sources)
+                {
+                    var mapped = MapYamlSourceToCliSource(src, routing, prompt);
+                    if (mapped != null && !result.Sources.Contains(mapped))
+                        result.Sources.Add(mapped);
+                }
+
+                // Always include Google News search for non-default topics
+                if (!result.Sources.Any(s => s.StartsWith("gnews")))
+                    result.Sources.Insert(0, $"gnews:{topicTerms}");
             }
             else
             {
-                // Pure default - no topic, just general tech news
-                result.Sources.AddRange(["hn", "reddit", "bbc", "guardian", "ars", "mostlylucid"]);
+                // Pure default - use default routing from YAML
+                var defaultRouting = router.RouteByTopic("default");
+                foreach (var src in defaultRouting.Sources)
+                {
+                    var mapped = MapYamlSourceToCliSource(src, defaultRouting, null);
+                    if (mapped != null && !result.Sources.Contains(mapped))
+                        result.Sources.Add(mapped);
+                }
             }
         }
 
+        // Always ensure Google News is included for topic-based queries
+        if (result.Topics.Count > 0 && !result.Sources.Any(s => s.StartsWith("gnews")))
+        {
+            var topicQuery = string.Join(" ", result.Topics);
+            result.Sources.Insert(0, $"gnews:{topicQuery}");
+        }
+
         return result;
+    }
+
+    /// <summary>
+    /// Map a YAML source name (e.g., "google_news", "bbc", "hn") to the CLI source identifier
+    /// used by ScrollCommand (e.g., "gnews:query", "bbc:health", "hn").
+    /// </summary>
+    private static string? MapYamlSourceToCliSource(string yamlSource, RoutingResult routing, string? query)
+    {
+        return yamlSource switch
+        {
+            "google_news" => !string.IsNullOrEmpty(query)
+                ? $"gnews:{ExtractTopicTerms(query ?? "")}"
+                : routing.GoogleNewsTopic != null
+                    ? $"gnews_topic:{routing.GoogleNewsTopic}"
+                    : "gnews",
+            "duckduckgo" => !string.IsNullOrEmpty(query)
+                ? $"search:{ExtractTopicTerms(query ?? "")}"
+                : null,
+            "bbc" => routing.BbcCategory != null
+                ? $"bbc:{routing.BbcCategory}"
+                : "bbc",
+            "guardian" => "guardian",
+            "cnn" => "cnn",
+            "reuters" => "reuters",
+            "hn" => "hn",
+            "reddit" => "reddit",
+            "ars" => "ars",
+            "verge" => "verge",
+            "lobsters" => "lobsters",
+            "devto" => "devto",
+            "techcrunch" => "techcrunch",
+            "wired" => "wired",
+            "npr" => "npr",
+            "theregister" => "theregister",
+            "sciencedaily" => "sciencedaily",
+            "phys" => "phys",
+            "carbonbrief" => "carbonbrief",
+            "spaceflight" => "spaceflight",
+            "earthquake" => "earthquake",
+            "factcheck" => "factcheck",
+            "wikipedia" => "wikipedia",
+            "arxiv" => !string.IsNullOrEmpty(query)
+                ? $"arxiv:{ExtractTopicTerms(query)}"
+                : "arxiv",
+            "theonion" => "theonion",
+            "babylonbee" => "babylonbee",
+            _ => yamlSource // Pass through unknown sources
+        };
     }
 
     private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
@@ -283,27 +393,55 @@ public class PromptInterpreter
         "should", "may", "might", "must", "shall", "can", "need", "dare",
         "about", "for", "with", "what", "how", "why", "when", "where", "who",
         "show", "me", "tell", "give", "get", "find", "search", "scroll",
-        "summarize", "summary", "news", "latest", "recent", "today", "now", "on"
+        "summarize", "summary", "news", "latest", "recent", "today", "now", "on",
+        "new", "any", "some", "all", "current", "happening", "update", "updates"
     };
 
-    // Common tech categories for smart source selection
-    private static readonly Dictionary<string, string[]> CategorySources = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>
+    /// Lazy-loaded source router for YAML-driven topic routing.
+    /// Initialized with semantic embeddings when EmbeddingService is available.
+    /// </summary>
+    private static readonly Lazy<SourceRouter> SharedRouter = new(() => SourceRouter.Load());
+
+    private SourceRouter GetRouter()
     {
-        ["ai"] = ["hn", "bbc:AI", "guardian:AI", "verge:AI", "search:AI"],
-        ["llm"] = ["hn", "search:LLM", "devto:llm"],
-        ["machine learning"] = ["hn", "search:machine learning", "devto:machine-learning"],
-        ["security"] = ["hn", "ars", "search:cybersecurity"],
-        ["dotnet"] = ["reddit:dotnet", "reddit:csharp", "devto:dotnet", "mostlylucid"],
-        ["csharp"] = ["reddit:csharp", "so:csharp", "devto:csharp", "mostlylucid"],
-        ["c#"] = ["reddit:csharp", "so:csharp", "devto:csharp", "mostlylucid"],
-        ["python"] = ["reddit:python", "so:python", "devto:python", "hn"],
-        ["rust"] = ["reddit:rust", "lobsters", "hn", "devto:rust"],
-        ["javascript"] = ["reddit:javascript", "devto:javascript", "hn"],
-        ["web"] = ["verge", "techcrunch", "hn", "devto:webdev"],
-        ["cloud"] = ["hn", "techcrunch", "ars", "devto:cloud"],
-        ["startup"] = ["hn", "techcrunch", "reddit:startups"],
-        ["rag"] = ["hn", "devto", "mostlylucid", "search:RAG retrieval"],
-    };
+        var router = SharedRouter.Value;
+        // Initialize semantic embeddings if not yet done and embedding service is available
+        if (!router.HasEmbeddings && _embedding != null)
+            router.InitializeEmbeddings(_embedding);
+        return router;
+    }
+
+    /// <summary>
+    /// Enrich an interpreted prompt with YAML-driven routing.
+    /// The LLM often returns sparse sources (e.g., only gnews for an AI query).
+    /// YAML routing ensures the full source spread for the detected topic
+    /// (e.g., AI → hn, bbc:technology, verge, techcrunch, reddit).
+    /// </summary>
+    private void EnrichWithYamlRouting(InterpretedPrompt result, string prompt)
+    {
+        var router = GetRouter();
+        var detectedTopic = router.DetectTopic(prompt);
+        if (detectedTopic == "default") return;
+
+        var routing = router.RouteByTopic(detectedTopic, prompt);
+
+        // Add YAML-routed sources that the LLM didn't include
+        foreach (var src in routing.Sources)
+        {
+            var mapped = MapYamlSourceToCliSource(src, routing, prompt);
+            if (mapped != null && !result.Sources.Any(s =>
+                s.Equals(mapped, StringComparison.OrdinalIgnoreCase) ||
+                s.StartsWith(mapped.Split(':')[0], StringComparison.OrdinalIgnoreCase)))
+            {
+                result.Sources.Add(mapped);
+            }
+        }
+
+        // Add topic if not already present
+        if (!result.Topics.Contains(detectedTopic))
+            result.Topics.Add(detectedTopic);
+    }
 
     private static string ExtractTopicTerms(string prompt) =>
         ExtractTopicTermsExcluding(prompt, []);

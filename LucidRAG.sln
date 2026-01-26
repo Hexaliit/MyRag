@@ -86,6 +86,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoSummarizer.Core", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DoomSummarizer", "src\DoomSummarizer\DoomSummarizer.csproj", "{88A132D4-0456-4D06-90FC-C8F1DA0D10A3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DoomSummarizer.Tests", "src\DoomSummarizer.Tests\DoomSummarizer.Tests.csproj", "{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -456,6 +458,18 @@ Global
 		{88A132D4-0456-4D06-90FC-C8F1DA0D10A3}.Release|x64.Build.0 = Release|Any CPU
 		{88A132D4-0456-4D06-90FC-C8F1DA0D10A3}.Release|x86.ActiveCfg = Release|Any CPU
 		{88A132D4-0456-4D06-90FC-C8F1DA0D10A3}.Release|x86.Build.0 = Release|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Debug|x64.Build.0 = Debug|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Debug|x86.Build.0 = Debug|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Release|x64.ActiveCfg = Release|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Release|x64.Build.0 = Release|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Release|x86.ActiveCfg = Release|Any CPU
+		{A3D9763A-CE2C-4374-B9BF-DB0FAEB5EDE1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -489,6 +503,5 @@ Global
 		{B9632D54-8169-4061-BB89-6C4A4033B501} = {74EE9F7C-C542-44EC-9A7A-15E5637C1477}
 		{A57BE809-208D-4B07-8D48-16D16C6F6FCD} = {74EE9F7C-C542-44EC-9A7A-15E5637C1477}
 		{579C8285-3DBC-44CC-B9FD-D60CBCCD7527} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{88A132D4-0456-4D06-90FC-C8F1DA0D10A3} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

@@ -27,7 +27,7 @@ public class WebsiteFetcher : IAsyncDisposable
         try
         {
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MostlyLucid-DoomSummarizer/1.0");
             request.Headers.Add("Accept", "text/html,application/xhtml+xml");
 
             using var response = await _httpClient.SendAsync(request);

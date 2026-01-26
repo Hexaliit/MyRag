@@ -1,0 +1,215 @@
+using System.Xml.Linq;
+using DoomSummarizer.Models;
+using Spectre.Console;
+
+namespace DoomSummarizer.Services;
+
+/// <summary>
+/// Fetches papers from arXiv API — free, no auth, Atom XML.
+/// Returns paper titles and full abstracts as content for the pipeline.
+/// Great for scientific/research queries with substantive content.
+/// https://info.arxiv.org/help/api/basics.html
+/// </summary>
+public class ArxivFetcher(HttpClient httpClient)
+{
+    private const string BaseUrl = "http://export.arxiv.org/api/query";
+    private static readonly XNamespace Atom = "http://www.w3.org/2005/Atom";
+    private static readonly XNamespace ArxivNs = "http://arxiv.org/schemas/atom";
+
+    /// <summary>
+    /// Search arXiv for papers matching a query. Returns full abstracts as content.
+    /// </summary>
+    public async Task<List<ContentItem>> SearchAsync(string query, int maxResults = 15, string? category = null)
+    {
+        var items = new List<ContentItem>();
+
+        try
+        {
+            // Build search query
+            var searchQuery = $"all:{Uri.EscapeDataString(query)}";
+            if (!string.IsNullOrEmpty(category))
+                searchQuery = $"cat:{category}+AND+all:{Uri.EscapeDataString(query)}";
+
+            // Sort by lastUpdatedDate to get recent papers — our RRF ranking
+            // handles relevance via BM25 + embedding similarity
+            var url = $"{BaseUrl}?search_query={searchQuery}&max_results={maxResults}&sortBy=lastUpdatedDate&sortOrder=descending";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0 (news aggregator)");
+
+            var response = await httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var xml = await response.Content.ReadAsStringAsync();
+            var doc = XDocument.Parse(xml);
+
+            foreach (var entry in doc.Descendants(Atom + "entry").Take(maxResults))
+            {
+                var title = entry.Element(Atom + "title")?.Value?.Trim();
+                var summary = entry.Element(Atom + "summary")?.Value?.Trim();
+                var published = entry.Element(Atom + "published")?.Value;
+                var updated = entry.Element(Atom + "updated")?.Value;
+                var id = entry.Element(Atom + "id")?.Value; // arXiv URL like http://arxiv.org/abs/2401.12345v1
+
+                // Get authors
+                var authors = entry.Elements(Atom + "author")
+                    .Select(a => a.Element(Atom + "name")?.Value)
+                    .Where(n => !string.IsNullOrEmpty(n))
+                    .ToList();
+
+                // Get primary category
+                var primaryCategory = entry.Element(ArxivNs + "primary_category")?.Attribute("term")?.Value;
+
+                // Get PDF link
+                var pdfLink = entry.Elements(Atom + "link")
+                    .FirstOrDefault(l => l.Attribute("title")?.Value == "pdf")
+                    ?.Attribute("href")?.Value;
+
+                // Get abstract page link
+                var absLink = entry.Elements(Atom + "link")
+                    .FirstOrDefault(l => l.Attribute("type")?.Value == "text/html")
+                    ?.Attribute("href")?.Value ?? id;
+
+                if (string.IsNullOrEmpty(title)) continue;
+
+                // Clean up whitespace in title and summary (arXiv adds line breaks)
+                title = CleanWhitespace(title);
+                summary = summary != null ? CleanWhitespace(summary) : "";
+
+                // Build rich content: abstract + metadata
+                var content = summary;
+                if (authors.Count > 0)
+                    content = $"Authors: {string.Join(", ", authors.Take(5))}{(authors.Count > 5 ? " et al." : "")}\n" +
+                              $"Category: {primaryCategory ?? "unknown"}\n\n" +
+                              content;
+
+                var arxivId = id != null ? ExtractArxivId(id) : "";
+
+                items.Add(new ContentItem
+                {
+                    Id = $"arxiv_{(string.IsNullOrEmpty(arxivId) ? GenerateId(title) : arxivId.Replace(".", "_").Replace("/", "_"))}",
+                    Source = "arxiv",
+                    Title = title,
+                    Url = absLink,
+                    Content = content,
+                    Author = authors.Count > 0 ? string.Join(", ", authors.Take(3)) + (authors.Count > 3 ? " et al." : "") : null,
+                    CreatedAt = TryParseDate(published ?? updated)
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Warning: arXiv search failed: {ex.Message}[/]");
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    /// Fetch recent papers from a specific arXiv category.
+    /// </summary>
+    public async Task<List<ContentItem>> FetchCategoryAsync(string category, int maxResults = 10)
+    {
+        var items = new List<ContentItem>();
+
+        try
+        {
+            var url = $"{BaseUrl}?search_query=cat:{category}&max_results={maxResults}&sortBy=submittedDate&sortOrder=descending";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0 (news aggregator)");
+
+            var response = await httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var xml = await response.Content.ReadAsStringAsync();
+            var doc = XDocument.Parse(xml);
+
+            foreach (var entry in doc.Descendants(Atom + "entry").Take(maxResults))
+            {
+                var title = entry.Element(Atom + "title")?.Value?.Trim();
+                var summary = entry.Element(Atom + "summary")?.Value?.Trim();
+                var published = entry.Element(Atom + "published")?.Value;
+                var id = entry.Element(Atom + "id")?.Value;
+
+                var authors = entry.Elements(Atom + "author")
+                    .Select(a => a.Element(Atom + "name")?.Value)
+                    .Where(n => !string.IsNullOrEmpty(n))
+                    .ToList();
+
+                var absLink = entry.Elements(Atom + "link")
+                    .FirstOrDefault(l => l.Attribute("type")?.Value == "text/html")
+                    ?.Attribute("href")?.Value ?? id;
+
+                if (string.IsNullOrEmpty(title)) continue;
+
+                title = CleanWhitespace(title);
+                summary = summary != null ? CleanWhitespace(summary) : "";
+
+                var arxivId = id != null ? ExtractArxivId(id) : "";
+
+                items.Add(new ContentItem
+                {
+                    Id = $"arxiv_{(string.IsNullOrEmpty(arxivId) ? GenerateId(title) : arxivId.Replace(".", "_").Replace("/", "_"))}",
+                    Source = "arxiv",
+                    Title = $"[arXiv:{category}] {title}",
+                    Url = absLink,
+                    Content = $"Authors: {string.Join(", ", authors.Take(5))}{(authors.Count > 5 ? " et al." : "")}\n\n{summary}",
+                    Author = authors.Count > 0 ? string.Join(", ", authors.Take(3)) + (authors.Count > 3 ? " et al." : "") : null,
+                    CreatedAt = TryParseDate(published)
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Warning: arXiv category fetch failed: {ex.Message}[/]");
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    /// arXiv category mappings for common topics.
+    /// </summary>
+    public static readonly Dictionary<string, string[]> TopicCategories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ai"] = ["cs.AI", "cs.LG", "cs.CL"],
+        ["machine_learning"] = ["cs.LG", "stat.ML"],
+        ["nlp"] = ["cs.CL"],
+        ["computer_vision"] = ["cs.CV"],
+        ["robotics"] = ["cs.RO"],
+        ["security"] = ["cs.CR"],
+        ["programming"] = ["cs.PL", "cs.SE"],
+        ["science"] = ["physics", "q-bio", "math"],
+        ["physics"] = ["physics"],
+        ["biology"] = ["q-bio"],
+        ["math"] = ["math"],
+        ["quantum"] = ["quant-ph"],
+        ["climate"] = ["physics.ao-ph"],
+        ["health"] = ["q-bio", "cs.AI"],
+    };
+
+    private static string ExtractArxivId(string url)
+    {
+        // http://arxiv.org/abs/2401.12345v1 → 2401.12345v1
+        var idx = url.LastIndexOf('/');
+        return idx >= 0 ? url[(idx + 1)..] : url;
+    }
+
+    private static string CleanWhitespace(string text)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+    }
+
+    private static DateTimeOffset TryParseDate(string? dateStr)
+    {
+        if (string.IsNullOrEmpty(dateStr)) return DateTimeOffset.UtcNow;
+        return DateTimeOffset.TryParse(dateStr, out var result) ? result : DateTimeOffset.UtcNow;
+    }
+
+    private static string GenerateId(string input)
+    {
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
+}

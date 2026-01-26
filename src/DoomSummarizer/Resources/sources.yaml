@@ -1,0 +1,347 @@
+# DoomSummarizer Source Definitions & Routing
+# Defines available news sources and how to route queries to them.
+
+sources:
+  # -- Search engines (universal, query-based) --
+  google_news:
+    type: google_news_rss
+    description: Google News RSS search (no API key)
+    search: true
+
+  duckduckgo:
+    type: duckduckgo
+    description: DuckDuckGo HTML search (no API key)
+    search: true
+
+  # -- Major news RSS feeds --
+  bbc:
+    type: rss
+    description: BBC News
+    feeds:
+      default:
+        - https://feeds.bbci.co.uk/news/rss.xml
+      technology:
+        - https://feeds.bbci.co.uk/news/technology/rss.xml
+      health:
+        - https://feeds.bbci.co.uk/news/health/rss.xml
+      science:
+        - https://feeds.bbci.co.uk/news/science_and_environment/rss.xml
+      environment:
+        - https://feeds.bbci.co.uk/news/science_and_environment/rss.xml
+      business:
+        - https://feeds.bbci.co.uk/news/business/rss.xml
+      world:
+        - https://feeds.bbci.co.uk/news/world/rss.xml
+      politics:
+        - https://feeds.bbci.co.uk/news/politics/rss.xml
+      entertainment:
+        - https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml
+
+  guardian:
+    type: rss
+    description: The Guardian
+    feeds:
+      default:
+        - https://www.theguardian.com/world/rss
+      technology:
+        - https://www.theguardian.com/technology/rss
+      science:
+        - https://www.theguardian.com/science/rss
+      business:
+        - https://www.theguardian.com/business/rss
+      health:
+        - https://www.theguardian.com/society/health/rss
+      environment:
+        - https://www.theguardian.com/environment/rss
+
+  reuters:
+    type: rss
+    description: Reuters
+    feeds:
+      default:
+        - https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best
+      business:
+        - https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best
+      world:
+        - https://www.reutersagency.com/feed/?taxonomy=best-regions&post_type=best
+
+  cnn:
+    type: rss
+    description: CNN
+    feeds:
+      default:
+        - http://rss.cnn.com/rss/cnn_topstories.rss
+      technology:
+        - http://rss.cnn.com/rss/cnn_tech.rss
+      health:
+        - http://rss.cnn.com/rss/cnn_health.rss
+      business:
+        - http://rss.cnn.com/rss/money_latest.rss
+
+  # -- Wire services & public broadcasting --
+  npr:
+    type: rss
+    description: NPR (National Public Radio)
+    feeds:
+      default:
+        - https://feeds.npr.org/1001/rss.xml
+      science:
+        - https://feeds.npr.org/1007/rss.xml
+      health:
+        - https://feeds.npr.org/1128/rss.xml
+      world:
+        - https://feeds.npr.org/1004/rss.xml
+      politics:
+        - https://feeds.npr.org/1014/rss.xml
+      environment:
+        - https://feeds.npr.org/1025/rss.xml
+      business:
+        - https://feeds.npr.org/1006/rss.xml
+      technology:
+        - https://feeds.npr.org/1019/rss.xml
+
+  # -- Tech-specific sources --
+  hn:
+    type: hackernews
+    description: Hacker News
+
+  reddit:
+    type: reddit
+    description: Reddit
+
+  ars:
+    type: rss
+    description: Ars Technica
+    feeds:
+      default:
+        - https://feeds.arstechnica.com/arstechnica/index
+      science:
+        - https://feeds.arstechnica.com/arstechnica/science
+
+  verge:
+    type: rss
+    description: The Verge
+    feeds:
+      default:
+        - https://www.theverge.com/rss/index.xml
+
+  lobsters:
+    type: rss
+    description: Lobsters
+    feeds:
+      default:
+        - https://lobste.rs/rss
+
+  devto:
+    type: rss
+    description: Dev.to
+    feeds:
+      default:
+        - https://dev.to/feed
+
+  techcrunch:
+    type: rss
+    description: TechCrunch
+    feeds:
+      default:
+        - https://techcrunch.com/feed/
+
+  wired:
+    type: rss
+    description: Wired
+    feeds:
+      default:
+        - https://www.wired.com/feed/rss
+
+  theregister:
+    type: rss
+    description: The Register
+    feeds:
+      default:
+        - https://www.theregister.com/headlines.atom
+
+  # -- Satire & humor --
+  theonion:
+    type: rss
+    description: The Onion (satirical news)
+    feeds:
+      default:
+        - https://theonion.com/feed/
+
+  babylonbee:
+    type: rss
+    description: The Babylon Bee (satirical news)
+    feeds:
+      default:
+        - https://babylonbee.com/feed
+
+  # -- Science & Environment sources (free) --
+  sciencedaily:
+    type: rss
+    description: Science Daily
+    feeds:
+      default:
+        - https://www.sciencedaily.com/rss/all.xml
+      environment:
+        - https://www.sciencedaily.com/rss/earth_climate.xml
+      health:
+        - https://www.sciencedaily.com/rss/health_medicine.xml
+      technology:
+        - https://www.sciencedaily.com/rss/computers_math.xml
+
+  phys:
+    type: rss
+    description: Phys.org (science news)
+    feeds:
+      default:
+        - https://phys.org/rss-feed/
+
+  carbonbrief:
+    type: rss
+    description: Carbon Brief (climate analysis)
+    feeds:
+      default:
+        - https://www.carbonbrief.org/feed/
+
+  # -- Specialized API sources (no auth) --
+  factcheck:
+    type: api
+    description: "Fact-checking (Snopes, PolitiFact, FactCheck.org, FullFact)"
+
+  spaceflight:
+    type: api
+    description: "Spaceflight News API (NASA, ESA, SpaceX launches & events)"
+    search: true
+
+  earthquake:
+    type: api
+    description: "USGS Earthquake data (GeoJSON, real-time seismic events)"
+
+  wikipedia:
+    type: api
+    description: "Wikipedia current events, featured articles, on-this-day"
+
+  arxiv:
+    type: api
+    description: "arXiv preprint search (papers with full abstracts, free API)"
+    search: true
+
+# Routing rules - which sources to use for different topic categories
+# "search" sources (google_news, duckduckgo) always search with the query
+# "rss" sources use the category-specific feed if available
+routing:
+  technology:
+    sources: [hn, reddit, google_news, bbc, ars, verge, lobsters, devto, theregister, arxiv]
+    bbc_category: technology
+    google_news_topic: TECHNOLOGY
+
+  programming:
+    sources: [hn, reddit, lobsters, devto, google_news, arxiv]
+    google_news_topic: TECHNOLOGY
+
+  health:
+    sources: [google_news, bbc, guardian, cnn, npr, sciencedaily, factcheck, arxiv]
+    bbc_category: health
+    google_news_topic: HEALTH
+
+  pharma:
+    sources: [google_news, bbc, guardian, cnn, npr, factcheck]
+    bbc_category: health
+    google_news_topic: HEALTH
+
+  science:
+    sources: [google_news, bbc, guardian, ars, sciencedaily, phys, npr, spaceflight, arxiv]
+    bbc_category: science
+    google_news_topic: SCIENCE
+
+  environment:
+    sources: [google_news, guardian, bbc, npr, carbonbrief, sciencedaily, reuters]
+    bbc_category: environment
+    google_news_topic: SCIENCE
+
+  climate:
+    sources: [google_news, guardian, bbc, npr, carbonbrief, sciencedaily, reuters]
+    bbc_category: environment
+    google_news_topic: SCIENCE
+
+  business:
+    sources: [google_news, bbc, guardian, reuters, cnn, npr]
+    bbc_category: business
+    google_news_topic: BUSINESS
+
+  finance:
+    sources: [google_news, bbc, guardian, reuters, cnn, npr]
+    bbc_category: business
+    google_news_topic: BUSINESS
+
+  politics:
+    sources: [google_news, bbc, guardian, reuters, cnn, npr, factcheck]
+    bbc_category: politics
+    google_news_topic: NATION
+
+  world:
+    sources: [google_news, bbc, guardian, reuters, cnn, npr, earthquake, wikipedia]
+    bbc_category: world
+    google_news_topic: WORLD
+
+  entertainment:
+    sources: [google_news, bbc, guardian, npr, theonion]
+    bbc_category: entertainment
+    google_news_topic: ENTERTAINMENT
+
+  humor:
+    sources: [theonion, babylonbee, google_news, reddit]
+    google_news_topic: ENTERTAINMENT
+
+  satire:
+    sources: [theonion, babylonbee, google_news]
+    google_news_topic: ENTERTAINMENT
+
+  sports:
+    sources: [google_news, bbc, guardian]
+    google_news_topic: SPORTS
+
+  ai:
+    sources: [hn, google_news, bbc, verge, techcrunch, reddit, theregister, ars, arxiv]
+    bbc_category: technology
+    google_news_topic: TECHNOLOGY
+
+  security:
+    sources: [hn, google_news, ars, bbc, theregister, arxiv]
+    bbc_category: technology
+    google_news_topic: TECHNOLOGY
+
+  space:
+    sources: [spaceflight, google_news, bbc, ars, reddit, phys, arxiv]
+    google_news_topic: SCIENCE
+
+  disaster:
+    sources: [earthquake, google_news, bbc, guardian, reuters, cnn, npr]
+    bbc_category: world
+    google_news_topic: WORLD
+
+  factcheck:
+    sources: [factcheck, google_news]
+
+  # Default routing for any unrecognized topic
+  default:
+    sources: [google_news, duckduckgo, bbc, guardian, npr, wikipedia]
+
+# Topic detection keywords - maps keywords to routing categories
+topic_keywords:
+  health: [health, medical, medicine, hospital, clinical, therapy, treatment, disease, cancer, diabetes, mental health, nhs, cdc]
+  science: [science, research, study, discovery, physics, chemistry, biology, nasa, experiment, quantum, genome]
+  environment: [climate, climate change, environment, emissions, carbon, renewable, sustainability, pollution, fossil fuel, green energy, deforestation, biodiversity, conservation, net zero, greenhouse, paris agreement, cop, ipcc, warming, sea level]
+  business: [business, economy, market, stock, trade, company, startup, investment, finance, banking, revenue]
+  finance: [finance, stock, crypto, bitcoin, trading, investor, wall street, nasdaq]
+  politics: [politics, election, government, policy, legislation, congress, parliament, vote, democrat, republican]
+  world: [war, conflict, international, diplomatic, treaty, united nations, nato, geopolitical]
+  entertainment: [movie, film, music, celebrity, award, oscar, grammy, streaming, netflix, disney]
+  sports: [sport, football, soccer, basketball, tennis, cricket, olympics, championship, league, nfl, nba]
+  technology: [tech, software, hardware, computer, programming, code, developer, api, cloud]
+  ai: [ai, artificial intelligence, llm, chatgpt, openai, deepseek, machine learning, neural, gpt, claude]
+  pharma: [pharmaceutical, pharma, drug approval, fda, clinical trial, biotech, medication, drug, vaccine, drug pricing, prescription]
+  space: [space, spacex, nasa, rocket, launch, satellite, orbit, astronaut, iss, mars, moon, starship]
+  disaster: [earthquake, tsunami, volcano, hurricane, tornado, flood, wildfire, disaster, seismic, magnitude]
+  humor: [funny, humor, satire, satirical, comedy, parody, joke, onion, meme, hilarious, laughing]
+  factcheck: [fact check, misinformation, disinformation, false claim, debunk, hoax, fake news, verify, snopes, politifact]

@@ -9,7 +9,7 @@ public sealed class SourcesCommand : Command<SourcesCommand.Settings>
 {
     public sealed class Settings : CommandSettings;
 
-    public override int Execute(CommandContext context, Settings settings)
+    public override int Execute(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         AnsiConsole.MarkupLine("[bold cyan]Available Sources[/]");
         AnsiConsole.WriteLine();
@@ -36,14 +36,22 @@ public sealed class SourcesCommand : Command<SourcesCommand.Settings>
 
         table.AddEmptyRow();
 
+        // Google News (universal search)
+        table.AddRow("[red]gnews:query[/]", "Google News search", "-s \"gnews:pharmaceutical news\"");
+        table.AddRow("[red]gnews_topic:T[/]", "Google News topic", "-s gnews_topic:HEALTH");
+
+        table.AddEmptyRow();
+
         // News sources
-        table.AddRow("[blue]bbc[/]", "BBC News Tech", "-s bbc");
-        table.AddRow("[blue]guardian[/]", "The Guardian Tech", "-s guardian");
+        table.AddRow("[blue]bbc[/]", "BBC News", "-s bbc");
+        table.AddRow("[blue]bbc:category[/]", "BBC category feed", "-s bbc:health, -s bbc:science");
+        table.AddRow("[blue]guardian[/]", "The Guardian", "-s guardian");
+        table.AddRow("[blue]cnn[/]", "CNN", "-s cnn");
+        table.AddRow("[blue]reuters[/]", "Reuters", "-s reuters");
         table.AddRow("[blue]ars[/]", "Ars Technica", "-s ars");
         table.AddRow("[blue]verge[/]", "The Verge", "-s verge");
         table.AddRow("[blue]wired[/]", "Wired", "-s wired");
         table.AddRow("[blue]techcrunch[/]", "TechCrunch", "-s techcrunch");
-        table.AddRow("[blue]source:query[/]", "Filter by topic", "-s bbc:AI, -s guardian:climate");
 
         table.AddEmptyRow();
 
@@ -66,9 +74,10 @@ public sealed class SourcesCommand : Command<SourcesCommand.Settings>
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[grey]Examples:[/]");
         AnsiConsole.MarkupLine("  doomsummarizer scroll -s hn -s bbc --vibe doom");
-        AnsiConsole.MarkupLine("  doomsummarizer scroll \"see what bbc says about AI\"");
+        AnsiConsole.MarkupLine("  doomsummarizer scroll \"new pharmaceutical news\"");
+        AnsiConsole.MarkupLine("  doomsummarizer scroll \"latest health news\" --no-llm");
         AnsiConsole.MarkupLine("  doomsummarizer scroll -s so:csharp -s reddit:dotnet --entities");
-        AnsiConsole.MarkupLine("  doomsummarizer scroll -s reddit:pics --images");
+        AnsiConsole.MarkupLine("  doomsummarizer scroll -s \"gnews:climate change\" -s bbc:science");
 
         return 0;
     }

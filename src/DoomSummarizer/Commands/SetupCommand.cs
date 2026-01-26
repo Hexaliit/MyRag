@@ -18,7 +18,7 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
         public bool Ner { get; init; }
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         AnsiConsole.Write(new FigletText("DoomSummarizer").Color(Color.Red));
         AnsiConsole.MarkupLine("[grey]Setting up your doom-scrolling agent...[/]");

@@ -9,6 +9,7 @@ public record DoomConfig
     public EmbeddingConfig Embedding { get; init; } = new();
     public OutputConfig Output { get; init; } = new();
     public StorageConfig Storage { get; init; } = new();
+    public LinkFollowingConfig LinkFollowing { get; init; } = new();
     public Dictionary<string, string> Vibes { get; init; } = new();
 }
 
@@ -46,7 +47,8 @@ public record WebsiteConfig
 public record OllamaConfig
 {
     public string BaseUrl { get; init; } = "http://localhost:11434";
-    public string Model { get; init; } = "llama3.2:3b";
+    public string Model { get; init; } = "qwen3:8b";
+    public string SentinelModel { get; init; } = "llama3.2:1b";
     public string EmbedModel { get; init; } = "nomic-embed-text";
     public double Temperature { get; init; } = 0.4;
     public int TimeoutSeconds { get; init; } = 300;
@@ -73,6 +75,41 @@ public record StorageConfig
     public int RetentionDays { get; init; } = 30;
 }
 
+public record LinkFollowingConfig
+{
+    /// <summary>Enable one-hop link following to enrich article content.</summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>Maximum links to follow per article.</summary>
+    public int MaxLinksPerArticle { get; init; } = 3;
+
+    /// <summary>Maximum total linked pages to fetch across all articles.</summary>
+    public int MaxTotalLinks { get; init; } = 15;
+
+    /// <summary>Maximum content length (chars) to extract per linked page.</summary>
+    public int MaxContentLength { get; init; } = 2000;
+
+    /// <summary>Timeout in seconds for each linked page fetch.</summary>
+    public int TimeoutSeconds { get; init; } = 10;
+
+    /// <summary>Domains to never follow links to (social media, login, etc.).</summary>
+    public List<string> BlockedDomains { get; init; } =
+    [
+        "facebook.com", "twitter.com", "x.com", "instagram.com",
+        "linkedin.com", "youtube.com", "tiktok.com",
+        "accounts.google.com", "login.", "auth.",
+        "play.google.com", "apps.apple.com"
+    ];
+
+    /// <summary>File extensions to skip.</summary>
+    public List<string> BlockedExtensions { get; init; } =
+    [
+        ".pdf", ".zip", ".tar", ".gz", ".exe", ".dmg",
+        ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp",
+        ".mp3", ".mp4", ".mov", ".avi", ".mkv"
+    ];
+}
+
 // JSON serialization context for AOT
 [JsonSourceGenerationOptions(
     WriteIndented = true,
@@ -88,6 +125,7 @@ public record StorageConfig
 [JsonSerializable(typeof(EmbeddingConfig))]
 [JsonSerializable(typeof(OutputConfig))]
 [JsonSerializable(typeof(StorageConfig))]
+[JsonSerializable(typeof(LinkFollowingConfig))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 public partial class DoomConfigContext : JsonSerializerContext;

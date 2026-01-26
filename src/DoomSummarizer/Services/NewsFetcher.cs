@@ -38,7 +38,14 @@ public class NewsFetcher(HttpClient httpClient)
         ["engadget"] = ["https://www.engadget.com/rss.xml"],
         ["zdnet"] = ["https://www.zdnet.com/news/rss.xml"],
         ["thenextweb"] = ["https://thenextweb.com/feed"],
-        ["mostlylucid"] = ["https://www.mostlylucid.net/rss"]
+        ["mostlylucid"] = ["https://www.mostlylucid.net/rss"],
+        ["npr"] = ["https://feeds.npr.org/1001/rss.xml"],
+        ["theregister"] = ["https://www.theregister.com/headlines.atom"],
+        ["sciencedaily"] = ["https://www.sciencedaily.com/rss/all.xml"],
+        ["phys"] = ["https://phys.org/rss-feed/"],
+        ["carbonbrief"] = ["https://www.carbonbrief.org/feed/"],
+        ["theonion"] = ["https://theonion.com/feed/"],
+        ["babylonbee"] = ["https://babylonbee.com/feed"]
     };
 
     // Sources with dedicated search APIs (prefer these over RSS+filter)
@@ -49,6 +56,7 @@ public class NewsFetcher(HttpClient httpClient)
 
     /// <summary>
     /// Fetch from a known news source by name.
+    /// Supports category-specific feeds from sources.yaml routing.
     /// </summary>
     public async Task<List<ContentItem>> FetchSourceAsync(string sourceName, int limit = 25, string? query = null)
     {
@@ -59,13 +67,40 @@ public class NewsFetcher(HttpClient httpClient)
             if (apiItems.Count > 0) return apiItems;
         }
 
+        // Try SourceRouter for category-specific feeds first
+        // The query might be a category name (e.g., "health", "science")
+        if (!string.IsNullOrEmpty(query))
+        {
+            try
+            {
+                var router = SourceRouter.Load();
+                var categoryFeeds = router.GetFeeds(sourceName, query.ToLowerInvariant());
+                if (categoryFeeds.Count > 0)
+                {
+                    var items = new List<ContentItem>();
+                    foreach (var feedUrl in categoryFeeds)
+                    {
+                        var feedItems = await FetchRssAsync(feedUrl, sourceName, limit);
+                        items.AddRange(feedItems);
+                        if (items.Count >= limit) break;
+                    }
+                    if (items.Count > 0)
+                        return items.Take(limit).ToList();
+                }
+            }
+            catch
+            {
+                // Fall through to default feeds
+            }
+        }
+
         if (!KnownFeeds.TryGetValue(sourceName, out var feeds))
         {
             AnsiConsole.MarkupLine($"[yellow]Unknown news source: {sourceName}. Known: {string.Join(", ", KnownFeeds.Keys)}[/]");
             return [];
         }
 
-        var items = new List<ContentItem>();
+        var allItems = new List<ContentItem>();
 
         foreach (var feedUrl in feeds)
         {
@@ -73,7 +108,7 @@ public class NewsFetcher(HttpClient httpClient)
             {
                 var feedItems = await FetchRssAsync(feedUrl, sourceName, limit);
 
-                // Filter by query if provided (fallback when no API)
+                // Filter by query if provided (fallback when no API or category feed)
                 if (!string.IsNullOrEmpty(query))
                 {
                     var queryLower = query.ToLowerInvariant();
@@ -84,9 +119,9 @@ public class NewsFetcher(HttpClient httpClient)
                         .ToList();
                 }
 
-                items.AddRange(feedItems);
+                allItems.AddRange(feedItems);
 
-                if (items.Count >= limit) break;
+                if (allItems.Count >= limit) break;
             }
             catch (Exception ex)
             {
@@ -94,7 +129,7 @@ public class NewsFetcher(HttpClient httpClient)
             }
         }
 
-        return items.Take(limit).ToList();
+        return allItems.Take(limit).ToList();
     }
 
     /// <summary>
@@ -110,7 +145,7 @@ public class NewsFetcher(HttpClient httpClient)
             var url = $"{apiBaseUrl}{encodedQuery}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
             request.Headers.Add("Accept", "application/json");
 
             var response = await httpClient.SendAsync(request);
@@ -156,7 +191,7 @@ public class NewsFetcher(HttpClient httpClient)
         try
         {
             var request = new HttpRequestMessage(HttpMethod.Get, feedUrl);
-            request.Headers.Add("User-Agent", "DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
 
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();

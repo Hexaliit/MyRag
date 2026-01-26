@@ -2,6 +2,7 @@ using SmartReader;
 using AngleSharp;
 using AngleSharp.Dom;
 using DoomSummarizer.Models;
+using ReverseMarkdown;
 
 namespace DoomSummarizer.Services;
 
@@ -28,7 +29,7 @@ public class ContentExtractor
         {
             // Fetch the HTML
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 MostlyLucid-DoomSummarizer/1.0");
             request.Headers.Add("Accept", "text/html,application/xhtml+xml");
 
             using var response = await _httpClient.SendAsync(request, ct);
@@ -47,7 +48,7 @@ public class ContentExtractor
                 return FallbackExtract(html, url);
             }
 
-            return new ExtractedContent
+            var extracted = new ExtractedContent
             {
                 Title = article.Title ?? "",
                 Content = article.TextContent ?? "",
@@ -61,6 +62,11 @@ public class ContentExtractor
                 Excerpt = article.Excerpt,
                 IsReadable = true
             };
+
+            // Convert HTML to structured Markdown (preserves headings, lists, tables, code blocks)
+            EnrichWithMarkdown(extracted);
+
+            return extracted;
         }
         catch
         {
@@ -83,7 +89,7 @@ public class ContentExtractor
                 return FallbackExtract(html, baseUrl);
             }
 
-            return new ExtractedContent
+            var extracted = new ExtractedContent
             {
                 Title = article.Title ?? "",
                 Content = article.TextContent ?? "",
@@ -97,10 +103,43 @@ public class ContentExtractor
                 Excerpt = article.Excerpt,
                 IsReadable = true
             };
+
+            EnrichWithMarkdown(extracted);
+            return extracted;
         }
         catch
         {
             return FallbackExtract(html, baseUrl);
+        }
+    }
+
+    /// <summary>
+    /// Convert HTML content to Markdown and analyze structure.
+    /// Stores structured Markdown that preserves headings, lists, tables, code blocks.
+    /// </summary>
+    private static void EnrichWithMarkdown(ExtractedContent content)
+    {
+        if (string.IsNullOrEmpty(content.HtmlContent)) return;
+
+        try
+        {
+            var (markdown, structure) = MarkdownContentAnalyzer.ExtractStructured(content.HtmlContent);
+            if (!string.IsNullOrWhiteSpace(markdown))
+            {
+                content.MarkdownContent = markdown;
+                content.Structure = structure;
+
+                // If the Markdown version has more structure than plain text,
+                // use it as the primary content (preserves headings, lists, etc.)
+                if (structure.QualityScore > 0.2 && markdown.Length > content.Content.Length * 0.5)
+                {
+                    content.Content = markdown;
+                }
+            }
+        }
+        catch
+        {
+            // Markdown enrichment is non-fatal
         }
     }
 
@@ -170,7 +209,7 @@ public class ContentExtractor
             var ogImage = document.QuerySelector("meta[property='og:image']")?.GetAttribute("content");
             var firstImage = contentElement.QuerySelector("img")?.GetAttribute("src");
 
-            return new ExtractedContent
+            var extracted = new ExtractedContent
             {
                 Title = title.Trim(),
                 Content = content,
@@ -178,6 +217,9 @@ public class ContentExtractor
                 FeaturedImage = ogImage ?? firstImage,
                 IsReadable = content.Length > 100
             };
+
+            EnrichWithMarkdown(extracted);
+            return extracted;
         }
         catch
         {
@@ -190,11 +232,13 @@ public class ContentExtractor
 /// <summary>
 /// Extracted content from a web page.
 /// </summary>
-public record ExtractedContent
+public class ExtractedContent
 {
     public string Title { get; init; } = "";
-    public string Content { get; init; } = "";
+    public string Content { get; set; } = "";
     public string? HtmlContent { get; init; }
+    public string? MarkdownContent { get; set; }
+    public ContentStructure? Structure { get; set; }
     public string? Author { get; init; }
     public DateTime? PublishedDate { get; init; }
     public string? Language { get; init; }
@@ -203,4 +247,9 @@ public record ExtractedContent
     public int ReadTimeMinutes { get; init; }
     public string? Excerpt { get; init; }
     public bool IsReadable { get; init; }
+
+    /// <summary>
+    /// Best available content: structured Markdown if available, otherwise plain text.
+    /// </summary>
+    public string BestContent => MarkdownContent ?? Content;
 }

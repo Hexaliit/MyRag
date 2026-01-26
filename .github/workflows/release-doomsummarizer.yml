@@ -1,0 +1,151 @@
+name: Release DoomSummarizer
+
+on:
+  push:
+    tags:
+      - 'doomsummarizer-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj
+
+      - name: Build
+        run: dotnet build src/DoomSummarizer/DoomSummarizer.csproj --configuration Release --no-restore
+
+      - name: Run tests
+        run: |
+          dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj \
+            --configuration Release \
+            --logger "console;verbosity=normal"
+
+      - name: Smoke test
+        run: |
+          timeout 5s dotnet run --project src/DoomSummarizer/DoomSummarizer.csproj \
+            --configuration Release --no-build -- --help > /dev/null || true
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            artifact: doomsummarizer-win-x64.zip
+          - os: windows-latest
+            rid: win-arm64
+            artifact: doomsummarizer-win-arm64.zip
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact: doomsummarizer-linux-x64.tar.gz
+          - os: ubuntu-latest
+            rid: linux-arm64
+            artifact: doomsummarizer-linux-arm64.tar.gz
+          - os: macos-latest
+            rid: osx-x64
+            artifact: doomsummarizer-osx-x64.tar.gz
+          - os: macos-latest
+            rid: osx-arm64
+            artifact: doomsummarizer-osx-arm64.tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore src/DoomSummarizer/DoomSummarizer.csproj
+
+      - name: Publish
+        shell: bash
+        run: |
+          dotnet publish src/DoomSummarizer/DoomSummarizer.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:PublishReadyToRun=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o ./publish/${{ matrix.rid }}
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Compress-Archive -Path ./publish/${{ matrix.rid }}/* -DestinationPath ./publish/${{ matrix.artifact }}
+        shell: pwsh
+
+      - name: Create archive (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cd ./publish/${{ matrix.rid }}
+          tar -czvf ../${{ matrix.artifact }} *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: ./publish/${{ matrix.artifact }}
+          retention-days: 5
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/doomsummarizer-v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: doomsummarizer-v${{ steps.version.outputs.version }}
+          name: DoomSummarizer v${{ steps.version.outputs.version }}
+          body_path: src/DoomSummarizer/README.md
+          draft: false
+          prerelease: false
+          files: |
+            ./artifacts/win-x64/*.zip
+            ./artifacts/win-arm64/*.zip
+            ./artifacts/linux-x64/*.tar.gz
+            ./artifacts/linux-arm64/*.tar.gz
+            ./artifacts/osx-x64/*.tar.gz
+            ./artifacts/osx-arm64/*.tar.gz

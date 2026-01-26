@@ -21,7 +21,7 @@ public class RedditFetcher(HttpClient httpClient)
 
                 var request = new HttpRequestMessage(HttpMethod.Get, url);
                 // Reddit requires a user agent
-                request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (github.com/scottgal/lucidrag)");
+                request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0 (github.com/scottgal/lucidrag)");
 
                 var response = await httpClient.SendAsync(request);
                 response.EnsureSuccessStatusCode();

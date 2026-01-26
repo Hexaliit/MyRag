@@ -57,7 +57,7 @@ public class ImageService : IDisposable
         try
         {
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(10));
@@ -112,7 +112,7 @@ public class ImageService : IDisposable
                 return localPath;
 
             var request = new HttpRequestMessage(HttpMethod.Get, imageUrl);
-            request.Headers.Add("User-Agent", "DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(15));

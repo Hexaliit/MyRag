@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DoomSummarizer.Services;
 
 namespace DoomSummarizer.Models;
 
@@ -7,9 +8,13 @@ public record ContentItem
     public required string Id { get; init; }
     public required string Source { get; init; } // "hn", "reddit", "web"
     public required string Title { get; init; }
-    public string? Url { get; init; }
-    public string? Content { get; init; }
+    public string? Url { get; set; }
+    public string? Content { get; set; }
     public string? Author { get; init; }
+    /// <summary>
+    /// True if Content has been enriched from the actual page (replacing RSS description).
+    /// </summary>
+    public bool IsEnriched { get; set; }
     public int Score { get; init; }
     public int CommentCount { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
@@ -22,6 +27,26 @@ public record ContentItem
     public string? DetectedTopic { get; set; }
     public float SentimentScore { get; set; } // -1 to 1
     public List<string> Tags { get; set; } = [];
+
+    // Relevance scoring (set by RelevanceScorer)
+    public double RelevanceScore { get; set; } // Combined RRF score (0-1 range)
+
+    // Structural analysis (populated by Markdown content extraction)
+    public ContentStructure? ContentStructure { get; set; }
+
+    // One-hop linked content (populated by LinkFollowingService)
+    public List<LinkedPage> LinkedPages { get; set; } = [];
+}
+
+/// <summary>
+/// Content extracted from a linked page (one-hop follow).
+/// </summary>
+public record LinkedPage
+{
+    public required string Url { get; init; }
+    public required string Title { get; init; }
+    public required string Content { get; init; }
+    public string? SiteName { get; init; }
 }
 
 public record StoredItem
@@ -59,6 +84,41 @@ public record TopicTrend
     public int Count { get; init; }
     public float AverageSentiment { get; init; }
     public float Change { get; init; } // % change vs previous period
+}
+
+// Knowledge graph models
+public record GraphEntity
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required string Type { get; init; } // PER, ORG, LOC, MISC
+    public int MentionCount { get; init; }
+    public int ArticleCount { get; init; }
+    public DateTimeOffset FirstSeen { get; init; }
+    public DateTimeOffset LastSeen { get; init; }
+
+    /// <summary>
+    /// Freshness-weighted score: recent mentions count more.
+    /// </summary>
+    public double FreshnessScore
+    {
+        get
+        {
+            var ageHours = (DateTimeOffset.UtcNow - LastSeen).TotalHours;
+            var decay = Math.Exp(-ageHours / 72.0); // Half-life ~3 days
+            return MentionCount * decay;
+        }
+    }
+}
+
+public record GraphRelationship
+{
+    public required string SourceId { get; init; }
+    public required string TargetId { get; init; }
+    public required string Type { get; init; }
+    public float Weight { get; init; }
+    public required string SourceName { get; init; }
+    public required string TargetName { get; init; }
 }
 
 // API response models

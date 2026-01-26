@@ -77,4 +77,11 @@ public static class ConfigService
             Directory.CreateDirectory(dir);
         return path;
     }
+
+    public static string GetVectorDbPath()
+    {
+        var path = Path.Combine(ConfigDir, "vectors.duckdb");
+        Directory.CreateDirectory(ConfigDir);
+        return path;
+    }
 }

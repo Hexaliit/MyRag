@@ -15,7 +15,7 @@ public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
         public int Days { get; init; } = 7;
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         var config = await ConfigService.LoadAsync();
         var dbPath = ConfigService.GetDbPath(config);

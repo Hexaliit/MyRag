@@ -33,7 +33,7 @@ public class DuckDuckGoSearch
             var url = $"https://html.duckduckgo.com/html/?q={encodedQuery}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
 
             var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();

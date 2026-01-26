@@ -112,7 +112,7 @@ public class StackOverflowFetcher
             AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
         };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
-        client.DefaultRequestHeaders.Add("User-Agent", "DoomSummarizer/1.0 (github.com/scottgal/lucidrag)");
+        client.DefaultRequestHeaders.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0 (github.com/scottgal/lucidrag)");
 
         var response = await client.GetAsync(url);
         response.EnsureSuccessStatusCode();

@@ -241,6 +241,25 @@ public class ArticleProcessor : IDisposable
             sb.AppendLine(item.Content);
         }
 
+        // Append linked page content (one-hop followed links)
+        if (item.LinkedPages.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Referenced Links");
+            sb.AppendLine();
+
+            foreach (var linked in item.LinkedPages)
+            {
+                sb.AppendLine($"### {linked.Title}");
+                if (!string.IsNullOrEmpty(linked.SiteName))
+                    sb.AppendLine($"From: {linked.SiteName}");
+                sb.AppendLine($"URL: {linked.Url}");
+                sb.AppendLine();
+                sb.AppendLine(linked.Content);
+                sb.AppendLine();
+            }
+        }
+
         return sb.ToString();
     }
 
