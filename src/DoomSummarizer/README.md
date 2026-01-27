@@ -1,34 +1,48 @@
 # DoomSummarizer
 
-A local-first intelligent research assistant that aggregates, ranks, and synthesizes content from 30+ news sources — with interactive Q&A, knowledge base crawling, and evidence-grounded answers.
+A console-first, local-first research assistant + personal knowledge base.
 
-Single binary, no API keys required. ONNX embeddings + multi-signal RRF ranking + local LLM synthesis.
+DoomSummarizer can:
+- Fetch + rank news/search results into a “doom scroll” digest (`scroll`)
+- Store everything locally (SQLite) and let you query it later (`ask`, `scroll --local`)
+- Crawl any website into a named knowledge base (`crawl`)
+- Summarize a single URL (including blog-style output) (`page`)
+- Extract entities and build a small knowledge graph (`--entities`, `--graph`)
+- Render results via templates (Markdown/HTML/JSON) for automation (`--template`, `--output`, `--json`)
+
+Works fully offline *after* initial model downloads, and without any API keys for the default RSS/HTML sources. Optional API-backed search + cloud LLM providers are supported (budgeted) when configured.
 
 ## Quick Start
 
 ```bash
-# Download binary from releases, or build from source
-dotnet build src/DoomSummarizer/DoomSummarizer.csproj
+# Build from source (from this folder)
+dotnet build DoomSummarizer.csproj
 
-# First run auto-downloads ONNX embedding model (~80MB one-time)
+# First run auto-downloads the ONNX embedding model (one-time)
 doomsummarizer scroll
 
 # Natural language queries
 doomsummarizer scroll "AI security news" --vibe snarky
 
-# Interactive Q&A over stored knowledge
+# Interactive Q&A over stored knowledge base
 doomsummarizer ask "What happened with the SSH vulnerability?"
 
-# Build a knowledge base from any website
+# Build a named knowledge base from any website
 doomsummarizer crawl https://docs.example.com --name mydocs
 doomsummarizer ask --source crawl:mydocs "how does authentication work?"
+
+# Summarize a single page into a structured article
+doomsummarizer page https://example.com/article --template blog-article -o article.md
 ```
 
 ### Requirements
 
-- **Ollama** (optional but recommended): `ollama serve` + `ollama pull gemma3:4b` + `ollama pull qwen3:0.6b`
-- **No API keys**: All sources use free RSS/REST APIs. Embeddings and NER run locally via ONNX.
-- Without Ollama, `--nollm` mode still runs full RRF ranking with embeddings, BM25, sentiment, and topic inference.
+- **.NET SDK**: `net10.0` (DoomSummarizer targets .NET 10).
+- **Ollama** (optional, recommended for best summaries): `ollama serve` + pull your preferred models (see `doomsummarizer setup`).
+- **Network (first run)**: downloads the embedding model to `$HOME/.doomsummarizer/models/…`. NER and DuckDB VSS may also download artifacts the first time you enable them.
+- **No API keys required** for the default RSS/HTML sources. Optional integrations (Google/Brave/Serper/Tavily/NewsAPI/NewsData/Jina + OpenAI/Anthropic) use keys when configured.
+
+Run `doomsummarizer setup` to verify/install everything.
 
 ## Commands
 
@@ -44,6 +58,7 @@ doomsummarizer scroll --local "query"                        # Stored KB only
 doomsummarizer scroll -o report.md -t newsletter             # File export
 doomsummarizer scroll --entities --graph                     # NER + knowledge graph
 doomsummarizer scroll --vibe "excited about space"           # Custom vibe text
+doomsummarizer scroll --list-templates                       # See all templates
 ```
 
 ### `ask` — Interactive Q&A
@@ -70,6 +85,14 @@ doomsummarizer crawl https://intranet.company.com --entities
 
 Query crawled sites: `doomsummarizer scroll --local -s crawl:wiki "search query"`
 
+### `page` — Summarize a single URL
+
+```bash
+doomsummarizer page https://example.com/article
+doomsummarizer page https://example.com/article --template blog-timeline
+doomsummarizer page https://example.com/article --no-llm --raw
+```
+
 ### `benchmark` — Compare Ollama models
 
 Tests models for speed and output quality on your hardware.
@@ -93,15 +116,26 @@ doomsummarizer trends --days 14
 ```bash
 doomsummarizer setup               # Verify all components
 doomsummarizer setup --ner         # Download BERT NER model (~430MB)
-doomsummarizer setup --playwright  # Install browser for JS sites
+doomsummarizer setup --playwright  # Install Playwright Chromium (optional)
 doomsummarizer config --show       # Display current config
 doomsummarizer config --init       # Create config file
 doomsummarizer sources             # List all sources and routing
 ```
 
+## Documentation
+
+- `docs/CLI.md` — All commands, options, and examples
+- `docs/Sources.md` — Source syntax (`-s`) and optional API integrations
+- `docs/KnowledgeBase.md` — Local storage, crawling, `ask`, entities, graph
+- `docs/Templates.md` — Built-in + custom templates (Liquid + YAML)
+- `docs/Config.md` — Config file, env vars, API keys, budgets
+- `docs/Automation.md` — JSON/file output and scheduling patterns
+- `docs/Architecture.md` — How the pipeline and stores fit together
+- `docs/Troubleshooting.md` — Common setup/runtime issues
+
 ## Sources
 
-All sources are free, no API keys required.
+Default sources are free (RSS/HTML) and require no API keys. Some search/news providers are optional and require keys.
 
 | Category | Sources | Example |
 |----------|---------|---------|
@@ -150,7 +184,12 @@ Query -> PromptInterpreter -> SourceRouter (YAML) -> Parallel Fetchers
 
 ### Query Feedback & Segment Reuse
 
-Similar queries (>85% embedding similarity within 4 hours) reuse cached segments instead of re-fetching. Items returned frequently get mild LFU diversity decay: `1/(1 + 0.1 * log2(accessCount))`.
+`scroll` and `ask` log query embeddings so very-similar questions can reuse stored evidence instead of re-fetching.
+
+- `scroll`: reuses cached segments for *extremely* similar queries (threshold `0.97`, window `4h`)
+- `ask`: reuses cached evidence for similar questions (threshold `0.92`, window `4h`)
+
+Items returned frequently get mild LFU diversity decay: `1/(1 + 0.1 * log2(accessCount))`.
 
 ### `--nollm` Mode
 
@@ -176,6 +215,9 @@ Use `benchmark` to find the best model for your hardware.
 
 ## Vibes
 
+`--vibe` accepts either a configured vibe name (from `config.json`) or any custom text.
+
+Common built-ins:
 - **doom** — Pessimistic, problem-focused
 - **hopeful** — Optimistic, opportunity-focused
 - **snarky** — Witty, cynical commentary
@@ -186,8 +228,8 @@ Use `benchmark` to find the best model for your hardware.
 
 | Flag | Description |
 |------|-------------|
-| `--vibe` | Tone: doom, hopeful, snarky, neutral, or custom text |
-| `--source` | Override sources (hn, reddit, bbc, gnews:query, etc.) |
+| `--vibe` | Vibe name (from config) or custom text |
+| `--source` | Add sources (repeatable); see `docs/Sources.md` |
 | `--limit N` | Maximum items to fetch (default: 30) |
 | `--force` | Ignore cache and fetch fresh |
 | `--nollm` | Skip LLM — still runs embeddings, BM25, sentiment, topic |
@@ -195,7 +237,7 @@ Use `benchmark` to find the best model for your hardware.
 | `--graph` | Enable knowledge graph build and display |
 | `--no-links` | Skip one-hop link following |
 | `--output FILE` | Export to file (.md, .json, .html, .txt) |
-| `--template` | Output template: default, console, compact, detailed, email, newsletter, slack, json |
+| `--template` | Output template (run `doomsummarizer scroll --list-templates`) |
 | `--json` | Output as JSON (for automation/LLM tools) |
 | `--local` | Query stored knowledge base only — no fetching |
 | `--debug` | Show pipeline diagnostics: RRF scores, discards, salience |
@@ -206,6 +248,7 @@ Use `benchmark` to find the best model for your hardware.
 ## Configuration
 
 Config file: `~/.doomsummarizer/config.json`
+Local override (current directory): `doomsummarizer.json`
 
 ```json
 {
@@ -229,7 +272,7 @@ Config file: `~/.doomsummarizer/config.json`
 }
 ```
 
-Output templates: `default`, `console`, `compact`, `detailed`, `file`, `email`, `newsletter`, `slack`, `json`. Custom Liquid templates: `~/.doomsummarizer/templates/`
+Output templates: run `doomsummarizer scroll --list-templates`. Custom templates live in `~/.doomsummarizer/templates/`.
 
 ## Storage
 
@@ -259,11 +302,13 @@ dotnet run --project src/DoomSummarizer/DoomSummarizer.csproj -- scroll
 dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj
 ```
 
-157 tests covering storage, ranking, markdown processing, URL handling, configuration, source filtering, and query feedback.
-
 ## Adding New Sources
 
-Create a fetcher in `Services/`, register in `ScrollCommand.cs`, and add topic routing in `Resources/sources.yaml`. See [the guide in the existing README](#adding-new-sources) — a new source is ~50 lines.
+At a minimum:
+1. Implement a fetcher in `Services/` returning `List<ContentItem>`
+2. Register it in `Commands/ScrollCommand.cs` (the `source` dispatch switch)
+3. Optionally add routing/category support in `Resources/sources.yaml`
+4. Update `Commands/SourcesCommand.cs` and `docs/Sources.md` so users can discover it
 
 No-auth APIs: [github.com/public-api-lists/public-api-lists](https://github.com/public-api-lists/public-api-lists)
 

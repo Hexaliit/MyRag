@@ -37,13 +37,25 @@ public class LlmRouter
         if (keys.IsAvailable("anthropic"))
         {
             var entry = AutoFillContextSizes(keys.GetService("anthropic")!);
+            var keyLen = entry.ApiKey?.Length ?? 0;
+            var keyPfx = Markup.Escape(entry.ApiKey?[..Math.Min(14, keyLen)] ?? "null");
+            AnsiConsole.MarkupLine($"[grey]LLM: Anthropic (key:{keyPfx}... len={keyLen}, models:{entry.SearchEngineId})[/]");
             router._providers.Add(new(new AnthropicLlmProvider(entry), "anthropic", false, entry));
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[grey]LLM: Anthropic not available[/]");
         }
 
         if (keys.IsAvailable("openai"))
         {
             var entry = AutoFillContextSizes(keys.GetService("openai")!);
+            AnsiConsole.MarkupLine($"[grey]LLM: OpenAI configured (key: {entry.ApiKey?[..10]}..., models: {entry.SearchEngineId})[/]");
             router._providers.Add(new(new OpenAiLlmProvider(entry), "openai", false, entry));
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[grey]LLM: OpenAI not available[/]");
         }
 
         // Ollama always available as free fallback

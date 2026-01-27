@@ -78,7 +78,13 @@ public class AnthropicLlmProvider : ILlmProvider
         httpRequest.Headers.Add("anthropic-version", ApiVersion);
 
         var response = await Http.SendAsync(httpRequest, cts.Token);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cts.Token);
+            throw new HttpRequestException(
+                $"Anthropic API {(int)response.StatusCode}: {errorBody}",
+                null, response.StatusCode);
+        }
 
         var responseJson = await response.Content.ReadAsStringAsync(cts.Token);
         using var doc = JsonDocument.Parse(responseJson);
