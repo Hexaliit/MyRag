@@ -1455,7 +1455,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         .ToList();
 
                     if (alreadyAnalyzed.Count > 0 && !settings.Quiet)
-                        AnsiConsole.MarkupLine($"[grey]Skipping analysis for {alreadyAnalyzed.Count} pre-analyzed items[/]");
+                        AnsiConsole.MarkupLine($"[grey]Using cached analyses for {alreadyAnalyzed.Count} previously processed items[/]");
 
                     foreach (var item in alreadyAnalyzed)
                     {
@@ -2082,51 +2082,76 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         .Border(BoxBorder.Rounded)
                         .Padding(1, 1));
 
-                    // Display key themes from analyzed content
+                    // Display evidence briefing with named themes
                     if (analyzedItems.Count > 0)
                     {
-                        var themes = ExtractKeyThemes(analyzedItems, uniqueItems);
-                        if (themes.topics.Count > 0 || themes.terms.Count > 0)
+                        var briefing = ExtractThemeBriefing(analyzedItems, uniqueItems);
+                        if (briefing.Themes.Count > 0)
                         {
                             AnsiConsole.WriteLine();
-                            var themesParts = new List<string>();
+                            var briefingParts = new List<string>();
 
-                            // Topic distribution as colored tags
-                            if (themes.topics.Count > 0)
+                            // Corpus coverage line
+                            var coverageNote = $"[dim]Themes inferred from {briefing.TotalEvidenceItems} evidence items across {briefing.SourceCount} sources (coverage: {briefing.CoveragePercent}% of matched corpus).[/]";
+                            briefingParts.Add(coverageNote);
+                            briefingParts.Add("[dim]Selected by RRF + in-corpus PageRank; diversity decay applied.[/]");
+                            briefingParts.Add("");
+
+                            // Named themes with evidence counts and snippets
+                            foreach (var theme in briefing.Themes)
                             {
-                                var topicTags = themes.topics.Select(t =>
+                                var color = theme.TopicLabel.ToLowerInvariant() switch
                                 {
-                                    var color = t.topic.ToLowerInvariant() switch
-                                    {
-                                        "technology" => "blue",
-                                        "ai" or "machine_learning" => "magenta",
-                                        "security" => "red",
-                                        "science" => "cyan",
-                                        "health" => "green",
-                                        "business" or "economy" => "yellow",
-                                        "politics" => "red",
-                                        "world" => "aqua",
-                                        "entertainment" or "humor" => "fuchsia",
-                                        "climate" or "environment" => "green",
-                                        "space" => "blue",
-                                        _ => "grey"
-                                    };
-                                    var label = char.ToUpper(t.topic[0]) + t.topic[1..];
-                                    return $"[{color}]{Markup.Escape(label)}[/] [dim]({t.count})[/]";
-                                });
-                                themesParts.Add(string.Join("  ", topicTags));
+                                    "technology" => "blue",
+                                    "ai" or "machine_learning" => "magenta",
+                                    "security" => "red",
+                                    "science" => "cyan",
+                                    "health" => "green",
+                                    "business" or "economy" => "yellow",
+                                    "politics" => "red",
+                                    "world" => "aqua",
+                                    "entertainment" or "humor" => "fuchsia",
+                                    "climate" or "environment" => "green",
+                                    "space" => "blue",
+                                    _ => "grey"
+                                };
+
+                                var eids = theme.EvidenceIds.Count > 0
+                                    ? " " + string.Join(", ", theme.EvidenceIds.Take(5).Select(id => $"[dim]E{id}[/]"))
+                                    : "";
+                                briefingParts.Add(
+                                    $"[{color}]■[/] [bold]{Markup.Escape(theme.ThesisName)}[/] [dim]({theme.SegmentCount} segments)[/]{eids}");
+
+                                // Supporting snippets
+                                foreach (var (snippet, eid) in theme.Snippets)
+                                {
+                                    var tag = eid.HasValue ? $" [dim][[E{eid.Value}]][/]" : "";
+                                    var truncSnippet = snippet.Length > 90 ? snippet[..87] + "..." : snippet;
+                                    briefingParts.Add($"  [italic dim]\"{Markup.Escape(truncSnippet)}\"[/]{tag}");
+                                }
+
+                                // Key terms as entities
+                                if (theme.KeyTerms.Count > 0)
+                                {
+                                    var terms = string.Join(", ", theme.KeyTerms.Select(t => Markup.Escape(t)));
+                                    briefingParts.Add($"  [dim]Entities: {terms}[/]");
+                                }
+
+                                briefingParts.Add("");
                             }
 
-                            // Key cross-article terms
-                            if (themes.terms.Count > 0)
+                            // Missing themes / outliers
+                            if (briefing.MissingTopics.Count > 0)
                             {
-                                var termTags = themes.terms.Select(t =>
-                                    $"[bold]{Markup.Escape(t.term)}[/][dim]×{t.articles}[/]");
-                                themesParts.Add(string.Join("  ", termTags));
+                                var missing = string.Join(", ", briefing.MissingTopics.Select(t =>
+                                    Markup.Escape(char.ToUpper(t[0]) + t[1..])));
+                                briefingParts.Add($"[dim]Not strongly represented: {missing}[/]");
                             }
 
-                            AnsiConsole.Write(new Panel(string.Join("\n", themesParts))
-                                .Header("[bold yellow]Key Themes[/]")
+                            var briefingContent = string.Join("\n", briefingParts).TrimEnd('\n');
+                            var wrappedBriefing = WordWrapMarkup(briefingContent, maxContentWidth);
+                            AnsiConsole.Write(new Panel(wrappedBriefing)
+                                .Header("[bold yellow]Evidence Briefing[/]")
                                 .Border(BoxBorder.Rounded)
                                 .Padding(1, 0));
                         }
@@ -2336,7 +2361,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
     /// <summary>
     /// Word-wrap Spectre markup text to a max visible width.
-    /// Counts visible characters (skipping [markup] tags) for width calculation.
+    /// Uses token-based approach: markup tags are atomic (never split).
     /// </summary>
     private static string WordWrapMarkup(string text, int maxWidth)
     {
@@ -2354,74 +2379,108 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 continue;
             }
 
-            // Word-wrap this line
+            // Tokenize line into segments: markup tags (atomic) and visible text words
+            var tokens = TokenizeMarkupLine(line);
             var currentLine = new System.Text.StringBuilder();
             var currentVisible = 0;
-            var i = 0;
 
-            while (i < line.Length)
+            foreach (var (token, isTag) in tokens)
             {
-                // Skip markup tags for visible length counting
-                if (line[i] == '[' && i + 1 < line.Length && line[i + 1] != '[')
+                if (isTag)
                 {
-                    var closeIdx = line.IndexOf(']', i + 1);
-                    if (closeIdx >= 0)
-                    {
-                        currentLine.Append(line[i..(closeIdx + 1)]);
-                        i = closeIdx + 1;
-                        continue;
-                    }
-                }
-
-                // Escaped bracket [[
-                if (line[i] == '[' && i + 1 < line.Length && line[i + 1] == '[')
-                {
-                    currentLine.Append("[[");
-                    currentVisible++;
-                    i += 2;
+                    // Markup tags don't contribute to visible width — always add them
+                    currentLine.Append(token);
                     continue;
                 }
 
-                currentLine.Append(line[i]);
-                currentVisible++;
+                // Visible text — check if adding it exceeds width
+                var tokenVisible = token.Length;
 
-                if (currentVisible >= maxWidth && i + 1 < line.Length)
+                if (currentVisible + tokenVisible > maxWidth && currentVisible > 0)
                 {
-                    // Find a word boundary to break at
-                    var breakPoint = currentLine.Length;
-                    for (var j = currentLine.Length - 1; j > currentLine.Length - 30 && j > 0; j--)
-                    {
-                        if (currentLine[j] == ' ')
-                        {
-                            breakPoint = j;
-                            break;
-                        }
-                    }
+                    // Emit current line and start new one
+                    result.AppendLine(currentLine.ToString().TrimEnd());
+                    currentLine.Clear();
+                    currentVisible = 0;
 
-                    if (breakPoint < currentLine.Length)
-                    {
-                        result.AppendLine(currentLine.ToString()[..breakPoint]);
-                        var remainder = currentLine.ToString()[(breakPoint + 1)..];
-                        currentLine.Clear();
-                        currentLine.Append(remainder);
-                        currentVisible = VisibleLength(remainder);
-                    }
-                    else
-                    {
-                        result.AppendLine(currentLine.ToString());
-                        currentLine.Clear();
-                        currentVisible = 0;
-                    }
+                    // Skip leading space on continuation
+                    var trimmedToken = token.TrimStart();
+                    currentLine.Append(trimmedToken);
+                    currentVisible = trimmedToken.Length;
                 }
-
-                i++;
+                else
+                {
+                    currentLine.Append(token);
+                    currentVisible += tokenVisible;
+                }
             }
 
             if (currentLine.Length > 0)
-                result.AppendLine(currentLine.ToString());
+                result.AppendLine(currentLine.ToString().TrimEnd());
         }
 
         return result.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Split a Spectre markup line into tokens: (text, isTag) pairs.
+    /// Tags like [bold cyan] are single atomic tokens. Text between tags
+    /// is split at word boundaries so wrapping can occur.
+    /// </summary>
+    private static List<(string token, bool isTag)> TokenizeMarkupLine(string line)
+    {
+        var tokens = new List<(string token, bool isTag)>();
+        var i = 0;
+
+        while (i < line.Length)
+        {
+            // Escaped bracket [[
+            if (line[i] == '[' && i + 1 < line.Length && line[i + 1] == '[')
+            {
+                tokens.Add(("[[", false));
+                i += 2;
+                continue;
+            }
+
+            // Markup tag [...]
+            if (line[i] == '[' && i + 1 < line.Length && line[i + 1] != '[')
+            {
+                var closeIdx = line.IndexOf(']', i + 1);
+                if (closeIdx >= 0)
+                {
+                    tokens.Add((line[i..(closeIdx + 1)], true));
+                    i = closeIdx + 1;
+                    continue;
+                }
+            }
+
+            // Visible text — collect up to next tag or space (for word-boundary wrapping)
+            var start = i;
+            while (i < line.Length && line[i] != '[')
+            {
+                i++;
+            }
+
+            if (i > start)
+            {
+                // Split this text segment at spaces for word-wrap boundaries
+                var segment = line[start..i];
+                var wordStart = 0;
+                for (var j = 0; j < segment.Length; j++)
+                {
+                    if (segment[j] == ' ' && j > wordStart)
+                    {
+                        tokens.Add((segment[wordStart..j], false));
+                        tokens.Add((" ", false));
+                        wordStart = j + 1;
+                    }
+                }
+                if (wordStart < segment.Length)
+                    tokens.Add((segment[wordStart..], false));
+            }
+        }
+
+        return tokens;
     }
 
     /// <summary>
@@ -2878,6 +2937,300 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Build a structured theme briefing with named themes, evidence counts,
+    /// supporting snippets (tagged to evidence IDs), and key entities/terms.
+    /// </summary>
+    internal static ThemeBriefing ExtractThemeBriefing(
+        List<(string title, string summary, string topic, float sentiment, string url, double relevance)> analyzedItems,
+        List<ContentItem> contentItems)
+    {
+        var briefing = new ThemeBriefing();
+
+        // Map content items by URL for quick lookup
+        var contentByUrl = contentItems
+            .Where(c => !string.IsNullOrEmpty(c.Url))
+            .GroupBy(c => c.Url!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        // Build evidence index (E1, E2...) from analyzed items
+        var evidenceIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < analyzedItems.Count; i++)
+        {
+            if (!string.IsNullOrEmpty(analyzedItems[i].url) && !evidenceIndex.ContainsKey(analyzedItems[i].url))
+                evidenceIndex[analyzedItems[i].url] = i + 1;
+        }
+
+        // Group analyzed items by topic
+        var topicGroups = analyzedItems
+            .GroupBy(i => i.topic, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count())
+            .ToList();
+
+        // Stop words for term extraction
+        var stopWords = BuildStopWordSet();
+
+        // For each topic group, extract theme data
+        foreach (var group in topicGroups.Take(6))
+        {
+            var theme = new ThemeEntry
+            {
+                TopicLabel = group.Key,
+                SegmentCount = group.Count()
+            };
+
+            // Find evidence IDs for this group
+            var groupEvidenceIds = new List<int>();
+            foreach (var item in group)
+            {
+                if (!string.IsNullOrEmpty(item.url) && evidenceIndex.TryGetValue(item.url, out var eid))
+                    groupEvidenceIds.Add(eid);
+            }
+            theme.EvidenceIds = groupEvidenceIds.Distinct().OrderBy(x => x).ToList();
+
+            // Extract key terms distinctive to this topic group
+            var groupTermCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in group)
+            {
+                ContentItem? ci = null;
+                if (!string.IsNullOrEmpty(item.url))
+                    contentByUrl.TryGetValue(item.url, out ci);
+
+                var rawText = $"{item.title} {item.summary} {ci?.Content ?? ""}";
+                var text = CleanMarkdownForSnippet(rawText);
+                var tokens = text
+                    .Split([' ', '\t', '\n', '\r', ',', '.', '!', '?', ':', ';', '(', ')', '[', ']', '"', '\'', '—', '–', '-', '/'],
+                        StringSplitOptions.RemoveEmptyEntries)
+                    .Select(t => t.Trim().ToLowerInvariant())
+                    .Where(t => t.Length >= 4 && t.Length <= 25
+                                && !stopWords.Contains(t) && !int.TryParse(t, out _)
+                                && !IsUrlFragment(t))
+                    .ToList();
+
+                foreach (var token in tokens.Distinct())
+                {
+                    groupTermCounts.TryGetValue(token, out var c);
+                    groupTermCounts[token] = c + 1;
+                }
+            }
+
+            // Top distinctive terms (appearing in 2+ items, sorted by frequency)
+            theme.KeyTerms = groupTermCounts
+                .Where(kv => kv.Value >= Math.Min(2, group.Count()))
+                .OrderByDescending(kv => kv.Value)
+                .Take(5)
+                .Select(kv => kv.Key)
+                .ToList();
+
+            // Extract 2 representative snippets from content
+            foreach (var item in group.OrderByDescending(i => i.relevance).Take(3))
+            {
+                ContentItem? ci = null;
+                if (!string.IsNullOrEmpty(item.url))
+                    contentByUrl.TryGetValue(item.url, out ci);
+
+                var content = ci?.Content ?? item.summary;
+                if (string.IsNullOrEmpty(content)) continue;
+
+                var snippet = ExtractBestSentence(content, theme.KeyTerms);
+                if (snippet != null && theme.Snippets.Count < 2)
+                {
+                    var eid = !string.IsNullOrEmpty(item.url) && evidenceIndex.TryGetValue(item.url, out var id)
+                        ? id : (int?)null;
+                    theme.Snippets.Add((snippet, eid));
+                }
+            }
+
+            // Build a thesis-style name from topic + key terms
+            theme.ThesisName = BuildThesisName(group.Key, theme.KeyTerms, group.Count());
+
+            briefing.Themes.Add(theme);
+        }
+
+        // Corpus coverage
+        var itemsInThemes = topicGroups.Sum(g => g.Count());
+        briefing.TotalEvidenceItems = analyzedItems.Count;
+        briefing.ItemsInThemes = itemsInThemes;
+        briefing.SourceCount = analyzedItems
+            .Select(i => i.url)
+            .Where(u => !string.IsNullOrEmpty(u))
+            .Select(u =>
+            {
+                try { return new Uri(u!).Host; }
+                catch { return u!; }
+            })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        // Missing themes: common topics NOT represented
+        var allKnownTopics = new[]
+        {
+            "technology", "science", "security", "health", "business",
+            "politics", "world", "climate", "space", "ai", "entertainment"
+        };
+        var presentTopics = new HashSet<string>(
+            topicGroups.Select(g => g.Key), StringComparer.OrdinalIgnoreCase);
+        briefing.MissingTopics = allKnownTopics
+            .Where(t => !presentTopics.Contains(t))
+            .Take(4)
+            .ToList();
+
+        return briefing;
+    }
+
+    /// <summary>
+    /// Extract the most relevant sentence from content that mentions key terms.
+    /// </summary>
+    private static string? ExtractBestSentence(string content, List<string> keyTerms)
+    {
+        // Clean markdown formatting before extracting sentences
+        var cleanContent = CleanMarkdownForSnippet(content);
+
+        // Split into sentences
+        var sentences = cleanContent.Split(['.', '!', '?'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => s.Trim())
+            .Where(s => s.Length is >= 30 and <= 200)
+            // Filter out boilerplate / navigation patterns
+            .Where(s => !s.StartsWith("Series Navigation", StringComparison.OrdinalIgnoreCase))
+            .Where(s => !s.StartsWith("Part ", StringComparison.OrdinalIgnoreCase) || s.Length > 60)
+            .Where(s => !s.Contains("http://") && !s.Contains("https://"))
+            .Where(s => !s.StartsWith("Subscribe") && !s.StartsWith("Click"))
+            .ToList();
+
+        if (sentences.Count == 0) return null;
+
+        // Score sentences by key term overlap + prefer informative content
+        var best = sentences
+            .Select(s =>
+            {
+                var lower = s.ToLowerInvariant();
+                var hits = keyTerms.Count(t => lower.Contains(t, StringComparison.Ordinal));
+                // Penalize very short or formulaic sentences
+                var lengthBonus = s.Length > 60 ? 1 : 0;
+                return (sentence: s, score: hits + lengthBonus);
+            })
+            .OrderByDescending(x => x.score)
+            .ThenByDescending(x => x.sentence.Length)
+            .First();
+
+        return best.sentence;
+    }
+
+    /// <summary>
+    /// Strip markdown syntax from content for clean snippet extraction.
+    /// </summary>
+    private static string CleanMarkdownForSnippet(string content)
+    {
+        // Remove markdown headings (# ## ###)
+        content = System.Text.RegularExpressions.Regex.Replace(content, @"^#{1,6}\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        // Remove markdown links [text](url) → text
+        content = System.Text.RegularExpressions.Regex.Replace(content, @"\[([^\]]+)\]\([^)]+\)", "$1");
+        // Remove bold/italic markers
+        content = content.Replace("**", "").Replace("__", "").Replace("*", "").Replace("_", " ");
+        // Remove code blocks
+        content = System.Text.RegularExpressions.Regex.Replace(content, @"```[\s\S]*?```", " ");
+        content = System.Text.RegularExpressions.Regex.Replace(content, @"`[^`]+`", " ");
+        // Remove bullet markers
+        content = System.Text.RegularExpressions.Regex.Replace(content, @"^\s*[-*+]\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        // Collapse whitespace
+        content = System.Text.RegularExpressions.Regex.Replace(content, @"\s+", " ");
+        return content.Trim();
+    }
+
+    /// <summary>
+    /// Build a thesis-style theme name from topic + key terms.
+    /// </summary>
+    private static string BuildThesisName(string topic, List<string> keyTerms, int count)
+    {
+        // Capitalize topic
+        var topicLabel = char.ToUpper(topic[0]) + topic[1..].Replace('_', ' ');
+
+        if (keyTerms.Count == 0)
+            return topicLabel;
+
+        // Build descriptive terms (capitalize, join naturally)
+        var terms = keyTerms.Take(3)
+            .Select(t => char.ToUpper(t[0]) + t[1..])
+            .ToList();
+
+        // Use topic-specific framing for thesis-style names
+        var termPhrase = terms.Count switch
+        {
+            1 => terms[0],
+            2 => $"{terms[0]} & {terms[1]}",
+            _ => $"{terms[0]}, {terms[1]} & {terms[2]}"
+        };
+
+        return $"{topicLabel}: {termPhrase}";
+    }
+
+    private static HashSet<string> BuildStopWordSet() => new(StringComparer.OrdinalIgnoreCase)
+    {
+        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+        "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
+        "been", "being", "have", "has", "had", "do", "does", "did", "will",
+        "would", "could", "should", "may", "might", "shall", "can", "need",
+        "it", "its", "this", "that", "these", "those", "he", "she", "they",
+        "we", "you", "me", "my", "your", "his", "her", "our", "their",
+        "not", "no", "nor", "so", "if", "then", "than", "too", "very",
+        "just", "about", "also", "more", "most", "some", "any", "all",
+        "each", "every", "both", "few", "many", "much", "such", "own",
+        "same", "other", "new", "old", "first", "last", "long", "great",
+        "said", "says", "like", "well", "back", "even", "still",
+        "take", "come", "make", "know", "get", "got", "see", "look",
+        "think", "give", "use", "find", "tell", "ask", "work", "seem",
+        "news", "articles", "article", "latest", "generated", "content",
+        "page", "pages", "site", "website", "click", "link", "links",
+        "share", "comment", "comments", "posted", "updated", "subscribe",
+        "read", "related", "view", "here", "there", "only", "into",
+        "over", "after", "before", "between", "under", "since", "during",
+        "through", "against", "now", "where", "when", "what", "which",
+        "who", "how", "why", "because", "although", "though", "whether",
+        "already", "yet", "never", "always", "often", "ever", "really",
+        "using", "used", "been", "being", "having", "going", "made",
+        "based", "including", "another", "several", "less", "given",
+        // Blog/web boilerplate
+        "introduction", "conclusion", "summary", "overview", "section",
+        "series", "navigation", "part", "chapter", "previous", "next",
+        "blog", "post", "author", "date", "tags", "category",
+        // URL fragments
+        "http", "https", "www", "html", "com", "org", "net"
+    };
+
+    /// <summary>
+    /// Check if a token looks like a URL fragment and should be excluded from key terms.
+    /// </summary>
+    private static bool IsUrlFragment(string token) =>
+        token.Contains("//") || token.Contains("www.") || token.Contains(".com")
+        || token.Contains(".net") || token.Contains(".org") || token.Contains(".io")
+        || token.StartsWith("http") || token.Contains("/blog/")
+        || token.All(c => c == '/' || c == '.' || c == ':');
+
+    /// <summary>
+    /// Theme briefing data model.
+    /// </summary>
+    internal class ThemeBriefing
+    {
+        public List<ThemeEntry> Themes { get; set; } = [];
+        public int TotalEvidenceItems { get; set; }
+        public int ItemsInThemes { get; set; }
+        public int SourceCount { get; set; }
+        public List<string> MissingTopics { get; set; } = [];
+
+        public int CoveragePercent =>
+            TotalEvidenceItems > 0 ? (int)(ItemsInThemes * 100.0 / TotalEvidenceItems) : 0;
+    }
+
+    internal class ThemeEntry
+    {
+        public string TopicLabel { get; set; } = "";
+        public string ThesisName { get; set; } = "";
+        public int SegmentCount { get; set; }
+        public List<int> EvidenceIds { get; set; } = [];
+        public List<string> KeyTerms { get; set; } = [];
+        public List<(string text, int? evidenceId)> Snippets { get; set; } = [];
     }
 
     /// <summary>
