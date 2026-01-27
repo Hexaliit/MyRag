@@ -12,6 +12,7 @@ public class LlmRouter
 {
     private readonly List<ProviderEntry> _providers = [];
     private readonly ApiBudgetService? _budget;
+    private readonly CircuitBreakerService? _circuit;
     private readonly OllamaConfig _ollamaConfig;
 
     private record ProviderEntry(
@@ -19,9 +20,10 @@ public class LlmRouter
 
     public bool HasCloudProvider => _providers.Any(p => !p.IsLocal);
 
-    private LlmRouter(ApiBudgetService? budget, OllamaConfig ollamaConfig)
+    private LlmRouter(ApiBudgetService? budget, CircuitBreakerService? circuit, OllamaConfig ollamaConfig)
     {
         _budget = budget;
+        _circuit = circuit;
         _ollamaConfig = ollamaConfig;
     }
 
@@ -32,9 +34,9 @@ public class LlmRouter
     /// </summary>
     public static async Task<LlmRouter> BuildAsync(
         OllamaConfig ollamaConfig, ApiKeyService keys, ApiBudgetService? budget,
-        CancellationToken ct = default)
+        CircuitBreakerService? circuit = null, CancellationToken ct = default)
     {
-        var router = new LlmRouter(budget, ollamaConfig);
+        var router = new LlmRouter(budget, circuit, ollamaConfig);
 
         // Validate cloud providers in priority order
         if (keys.IsAvailable("anthropic"))
@@ -109,13 +111,28 @@ public class LlmRouter
         foreach (var entry in _providers)
         {
             // Budget check for cloud providers
-            if (!entry.IsLocal && _budget != null && entry.BudgetServiceName != null)
+            if (!entry.IsLocal && entry.BudgetServiceName != null)
             {
-                var check = await _budget.CheckBudgetAsync(entry.BudgetServiceName);
-                if (!check.IsAllowed)
-                {
-                    AnsiConsole.MarkupLine($"[yellow]{entry.Provider.Name}: {check.DenialReason} — trying next[/]");
+                // Check persistent circuit first
+                if (_circuit != null && !await _circuit.IsServiceAvailableAsync(entry.BudgetServiceName))
                     continue;
+
+                if (_budget != null)
+                {
+                    var check = await _budget.CheckBudgetAsync(entry.BudgetServiceName);
+                    if (!check.IsAllowed)
+                    {
+                        if (_circuit != null)
+                        {
+                            var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+                            await _circuit.TripCircuitAsync(entry.BudgetServiceName, failureType, check.DenialReason);
+                        }
+                        else
+                        {
+                            AnsiConsole.MarkupLine($"[yellow]{entry.Provider.Name}: {check.DenialReason} — trying next[/]");
+                        }
+                        continue;
+                    }
                 }
             }
 

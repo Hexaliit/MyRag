@@ -10,12 +10,12 @@ namespace DoomSummarizer.Services;
 /// Free tier: 1,000 searches/month (~33/day).
 /// Returns AI-scored, filtered, and ranked results.
 /// </summary>
-public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget)
+public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
 {
     private const string ServiceName = "tavily";
     private const string Endpoint = "https://api.tavily.com/search";
 
-    public bool IsAvailable => keys.IsAvailable(ServiceName);
+    public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
     /// Search via Tavily and return results as ContentItems.
@@ -24,16 +24,20 @@ public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiB
         string query, int maxResults = 10, bool newsOnly = false,
         Action<string>? progress = null, CancellationToken ct = default)
     {
-        if (!IsAvailable)
+        if (!keys.IsAvailable(ServiceName))
         {
             progress?.Invoke("Tavily not configured — skipping");
             return [];
         }
 
+        if (!await circuit.IsServiceAvailableAsync(ServiceName))
+            return [];
+
         var check = await budget.CheckBudgetAsync(ServiceName);
         if (!check.IsAllowed)
         {
-            AnsiConsole.MarkupLine($"[yellow]Tavily: {check.DenialReason}[/]");
+            var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+            await circuit.TripCircuitAsync(ServiceName, failureType, check.DenialReason);
             return [];
         }
 

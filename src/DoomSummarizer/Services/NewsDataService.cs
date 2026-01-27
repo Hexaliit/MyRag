@@ -11,12 +11,12 @@ namespace DoomSummarizer.Services;
 /// Rate limit: 30 credits per 15 minutes. 12-hour delay on free tier.
 /// Covers 89 languages, 65+ countries, 53,000+ sources.
 /// </summary>
-public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget)
+public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
 {
     private const string ServiceName = "newsdata";
     private const string Endpoint = "https://newsdata.io/api/1/latest";
 
-    public bool IsAvailable => keys.IsAvailable(ServiceName);
+    public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
     /// Search news via NewsData.io.
@@ -31,10 +31,14 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
             return [];
         }
 
+        if (!await circuit.IsServiceAvailableAsync(ServiceName))
+            return [];
+
         var check = await budget.CheckBudgetAsync(ServiceName);
         if (!check.IsAllowed)
         {
-            AnsiConsole.MarkupLine($"[yellow]NewsData: {check.DenialReason}[/]");
+            var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+            await circuit.TripCircuitAsync(ServiceName, failureType, check.DenialReason);
             return [];
         }
 
@@ -76,17 +80,25 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
                 if (doc.RootElement.TryGetProperty("nextPage", out var nextPage) &&
                     nextPage.GetString() is { Length: > 0 } cursor)
                 {
-                    var check2 = await budget.CheckBudgetAsync(ServiceName);
-                    if (check2.IsAllowed)
+                    if (await circuit.IsServiceAvailableAsync(ServiceName))
                     {
-                        var url2 = $"{Endpoint}?apikey={svcEntry.ApiKey}" +
-                                   $"&q={HttpUtility.UrlEncode(truncatedQuery)}&language=en&page={cursor}";
-                        var response2 = await httpClient.GetAsync(url2, cts.Token);
-                        await budget.RecordUsageAsync(ServiceName);
-                        if (response2.IsSuccessStatusCode)
+                        var check2 = await budget.CheckBudgetAsync(ServiceName);
+                        if (check2.IsAllowed)
                         {
-                            var json2 = await response2.Content.ReadAsStringAsync(cts.Token);
-                            items.AddRange(ParseResults(json2));
+                            var url2 = $"{Endpoint}?apikey={svcEntry.ApiKey}" +
+                                       $"&q={HttpUtility.UrlEncode(truncatedQuery)}&language=en&page={cursor}";
+                            var response2 = await httpClient.GetAsync(url2, cts.Token);
+                            await budget.RecordUsageAsync(ServiceName);
+                            if (response2.IsSuccessStatusCode)
+                            {
+                                var json2 = await response2.Content.ReadAsStringAsync(cts.Token);
+                                items.AddRange(ParseResults(json2));
+                            }
+                        }
+                        else
+                        {
+                            var ft = CircuitBreakerService.ClassifyBudgetDenial(check2.DenialReason);
+                            await circuit.TripCircuitAsync(ServiceName, ft, check2.DenialReason);
                         }
                     }
                 }

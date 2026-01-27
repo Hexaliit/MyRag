@@ -43,6 +43,16 @@ public class ApiBudgetService : IAsyncDisposable
                 total_requests INTEGER DEFAULT 0,
                 total_cost_usd REAL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS circuit_state (
+                service TEXT PRIMARY KEY,
+                status INTEGER NOT NULL DEFAULT 0,
+                failure_type INTEGER NOT NULL DEFAULT 0,
+                failure_count INTEGER NOT NULL DEFAULT 0,
+                tripped_at TEXT,
+                retry_after TEXT,
+                last_failure_reason TEXT,
+                updated_at TEXT NOT NULL
+            );
             """;
         await cmd.ExecuteNonQueryAsync();
         _initialized = true;

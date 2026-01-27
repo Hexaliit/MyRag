@@ -318,16 +318,18 @@ public class OllamaService
 
             var maxCharsPerItem = GetMaxEvidenceCharsPerItem(sentinel: false, topItems.Count);
 
-            // Filter out items with unresolvable URLs — can't cite what we can't link to
-            topItems = topItems
-                .Where(i => !i.url.Contains("news.google.com/rss/articles/", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
             for (var ei = 0; ei < topItems.Count; ei++)
             {
                 var item = topItems[ei];
+                var isUnresolvedGoogleNews = item.url.Contains("news.google.com/rss/articles/",
+                    StringComparison.OrdinalIgnoreCase);
+
                 evidence.AppendLine($"\n[E{ei + 1}] ### {item.title}");
-                evidence.AppendLine($"URL: {item.url}");
+                // Unresolved Google News redirect URLs can't be cited — omit URL but keep content
+                if (!isUnresolvedGoogleNews)
+                    evidence.AppendLine($"URL: {item.url}");
+                else
+                    evidence.AppendLine("URL: (aggregated via Google News — no direct link available)");
                 evidence.AppendLine($"Topic: {item.topic} | Relevance: {item.relevance:F2}");
 
                 // Include actual content — use TextRank centrality when embedder

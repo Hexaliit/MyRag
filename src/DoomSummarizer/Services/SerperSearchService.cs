@@ -10,13 +10,13 @@ namespace DoomSummarizer.Services;
 /// Free tier: 2,500 queries total (one-time). Then $0.30/1000.
 /// Supports web search and news search.
 /// </summary>
-public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget)
+public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
 {
     private const string ServiceName = "serper";
     private const string WebEndpoint = "https://google.serper.dev/search";
     private const string NewsEndpoint = "https://google.serper.dev/news";
 
-    public bool IsAvailable => keys.IsAvailable(ServiceName);
+    public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
     /// Search via Serper.dev and return results as ContentItems.
@@ -25,16 +25,20 @@ public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
         string query, int maxResults = 10, bool newsOnly = false,
         Action<string>? progress = null, CancellationToken ct = default)
     {
-        if (!IsAvailable)
+        if (!keys.IsAvailable(ServiceName))
         {
             progress?.Invoke("Serper not configured — skipping");
             return [];
         }
 
+        if (!await circuit.IsServiceAvailableAsync(ServiceName))
+            return [];
+
         var check = await budget.CheckBudgetAsync(ServiceName);
         if (!check.IsAllowed)
         {
-            AnsiConsole.MarkupLine($"[yellow]Serper: {check.DenialReason}[/]");
+            var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+            await circuit.TripCircuitAsync(ServiceName, failureType, check.DenialReason);
             return [];
         }
 

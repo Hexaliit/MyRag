@@ -11,13 +11,13 @@ namespace DoomSummarizer.Services;
 /// and enriching news stories with business/location context.
 /// Cost: ~$17/1000 requests (Text Search), ~$32/1000 (Details).
 /// </summary>
-public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget)
+public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
 {
     private const string ServiceName = "google_places";
     private const string TextSearchEndpoint = "https://maps.googleapis.com/maps/api/place/textsearch/json";
     private const string DetailsEndpoint = "https://maps.googleapis.com/maps/api/place/details/json";
 
-    public bool IsAvailable => keys.HasGooglePlaces;
+    public bool IsAvailable => keys.HasGooglePlaces && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
     /// Search for places/businesses matching a query. Returns ContentItems for pipeline integration.
@@ -31,10 +31,14 @@ public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiB
             return [];
         }
 
+        if (!await circuit.IsServiceAvailableAsync(ServiceName))
+            return [];
+
         var check = await budget.CheckBudgetAsync(ServiceName);
         if (!check.IsAllowed)
         {
-            AnsiConsole.MarkupLine($"[yellow]Google Places: {check.DenialReason}[/]");
+            var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+            await circuit.TripCircuitAsync(ServiceName, failureType, check.DenialReason);
             return [];
         }
 
@@ -73,8 +77,16 @@ public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiB
     {
         if (!IsAvailable) return null;
 
+        if (!await circuit.IsServiceAvailableAsync(ServiceName))
+            return null;
+
         var check = await budget.CheckBudgetAsync(ServiceName);
-        if (!check.IsAllowed) return null;
+        if (!check.IsAllowed)
+        {
+            var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+            await circuit.TripCircuitAsync(ServiceName, failureType, check.DenialReason);
+            return null;
+        }
 
         var apiKey = keys.GetService(ServiceName)!.ApiKey;
 

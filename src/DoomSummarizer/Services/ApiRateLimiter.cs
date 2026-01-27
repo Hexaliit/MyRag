@@ -33,6 +33,13 @@ public static class ApiRateLimiter
     private static readonly ConcurrentDictionary<string, ResiliencePipeline<HttpResponseMessage>> Pipelines = new();
     private static readonly ConcurrentDictionary<string, int> ConsecutiveFailures = new();
     private static readonly ConcurrentDictionary<string, ApiKeyEntry> ServiceConfigs = new();
+    private static CircuitBreakerService? _circuitBreaker;
+
+    /// <summary>
+    /// Set the persistent circuit breaker. Call once during startup after initializing CircuitBreakerService.
+    /// </summary>
+    public static void SetCircuitBreaker(CircuitBreakerService circuitBreaker)
+        => _circuitBreaker = circuitBreaker;
 
     /// <summary>
     /// Register service configuration. Call during setup to load per-service resilience settings.
@@ -85,18 +92,44 @@ public static class ApiRateLimiter
         var pipeline = Pipelines.GetOrAdd(service, BuildPipeline);
         var result = await pipeline.ExecuteAsync(async token => await action(token), ct);
 
-        // Track circuit state
+        // Track circuit state (in-memory fast path)
         if (result.IsSuccessStatusCode)
+        {
             ConsecutiveFailures[service] = 0;
+            if (_circuitBreaker != null)
+                _ = _circuitBreaker.ReportSuccessAsync(service);
+        }
         else if ((int)result.StatusCode >= 500 || result.StatusCode == HttpStatusCode.TooManyRequests)
+        {
             ConsecutiveFailures.AddOrUpdate(service, 1, (_, n) => n + 1);
+            if (_circuitBreaker != null)
+            {
+                var failureType = CircuitBreakerService.ClassifyHttpStatus((int)result.StatusCode);
+                _ = _circuitBreaker.ReportFailureAsync(service, failureType,
+                    $"HTTP {(int)result.StatusCode}");
+            }
+        }
+        else if (result.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            if (_circuitBreaker != null)
+            {
+                _ = _circuitBreaker.ReportFailureAsync(service,
+                    CircuitFailureType.AuthError,
+                    $"HTTP {(int)result.StatusCode}");
+            }
+        }
 
         return result;
     }
 
-    /// <summary>Circuit breaker: open after N consecutive failures, reset after timeout.</summary>
+    /// <summary>Circuit breaker: checks persistent circuit first, then in-memory consecutive failures.</summary>
     public static bool IsCircuitOpen(string service)
     {
+        // Check persistent circuit first
+        if (_circuitBreaker?.IsCircuitOpen(service) == true)
+            return true;
+
+        // Fall back to in-memory consecutive failures (fast path for current session)
         var threshold = GetCircuitThreshold(service);
         if (threshold <= 0) return false;
 

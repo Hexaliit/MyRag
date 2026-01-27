@@ -11,13 +11,13 @@ namespace DoomSummarizer.Services;
 /// Returns news articles from 150,000+ sources worldwide.
 /// Note: Free tier is dev-only (no production use, returns cached/delayed results).
 /// </summary>
-public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget)
+public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
 {
     private const string ServiceName = "newsapi";
     private const string EverythingEndpoint = "https://newsapi.org/v2/everything";
     private const string TopHeadlinesEndpoint = "https://newsapi.org/v2/top-headlines";
 
-    public bool IsAvailable => keys.IsAvailable(ServiceName);
+    public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
     /// Search news via NewsAPI.org.
@@ -32,10 +32,14 @@ public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudget
             return [];
         }
 
+        if (!await circuit.IsServiceAvailableAsync(ServiceName))
+            return [];
+
         var check = await budget.CheckBudgetAsync(ServiceName);
         if (!check.IsAllowed)
         {
-            AnsiConsole.MarkupLine($"[yellow]NewsAPI: {check.DenialReason}[/]");
+            var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+            await circuit.TripCircuitAsync(ServiceName, failureType, check.DenialReason);
             return [];
         }
 

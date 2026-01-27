@@ -171,10 +171,18 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         await using var apiBudget = new ApiBudgetService(config.ApiBudget, apiKeys, dbPath);
         await apiBudget.InitializeAsync();
 
+        // Persistent circuit breaker — survives restarts, smart retry by failure type
+        await using var circuitBreaker = new CircuitBreakerService(dbPath);
+        await circuitBreaker.InitializeAsync();
+        ApiRateLimiter.SetCircuitBreaker(circuitBreaker);
+
+        if (settings.DebugPipeline)
+            circuitBreaker.PrintCircuitStatus();
+
         // Wire cloud LLM providers (OpenAI/Anthropic) through the router
         // When available, OllamaService delegates generate calls through the router
         // with budget enforcement and automatic fallback to local Ollama
-        var llmRouter = await LlmRouter.BuildAsync(config.Ollama, apiKeys, apiBudget, cancellationToken);
+        var llmRouter = await LlmRouter.BuildAsync(config.Ollama, apiKeys, apiBudget, circuitBreaker, cancellationToken);
         ollama.Router = llmRouter;
 
         // Auto-setup: download ONNX models if not present (first run)
@@ -452,16 +460,16 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         fetchTasks.Add(Task.Run(async () =>
                         {
                             if (apiKeys.HasGoogleSearch)
-                                return await new GoogleSearchService(httpClient, apiKeys, apiBudget)
+                                return await new GoogleSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                     .SearchAsync(qualifiedQuery, searchLimit);
                             if (apiKeys.IsAvailable("brave_search"))
-                                return await new BraveSearchService(httpClient, apiKeys, apiBudget)
+                                return await new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                     .SearchAsync(qualifiedQuery, searchLimit);
                             if (apiKeys.IsAvailable("serper"))
-                                return await new SerperSearchService(httpClient, apiKeys, apiBudget)
+                                return await new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                     .SearchAsync(qualifiedQuery, searchLimit);
                             if (apiKeys.IsAvailable("tavily"))
-                                return await new TavilySearchService(httpClient, apiKeys, apiBudget)
+                                return await new TavilySearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                     .SearchAsync(qualifiedQuery, searchLimit);
                             // DDG as last resort
                             return await new DuckDuckGoSearch(httpClient)
@@ -475,7 +483,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             : source[8..];
                         var qualifiedQuery = QualifySearchQuery(query, vibe);
                         fetchTasks.Add(Task.Run(async () =>
-                            await new GoogleSearchService(httpClient, apiKeys, apiBudget)
+                            await new GoogleSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
                     }
                     else if (src.StartsWith("gplaces:") || src == "gplaces")
@@ -484,7 +492,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
                             : source[8..];
                         fetchTasks.Add(Task.Run(async () =>
-                            await new GooglePlacesService(httpClient, apiKeys, apiBudget)
+                            await new GooglePlacesService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(query, perSourceLimit)));
                     }
                     else if (src.StartsWith("brave:") || src.StartsWith("brave_search:") || src is "brave" or "brave_search")
@@ -494,7 +502,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             : source[(source.IndexOf(':') + 1)..];
                         var qualifiedQuery = QualifySearchQuery(query, vibe);
                         fetchTasks.Add(Task.Run(async () =>
-                            await new BraveSearchService(httpClient, apiKeys, apiBudget)
+                            await new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
                     }
                     else if (src.StartsWith("bravenews:") || src.StartsWith("brave_news:") || src is "bravenews" or "brave_news")
@@ -503,7 +511,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
                             : source[(source.IndexOf(':') + 1)..];
                         fetchTasks.Add(Task.Run(async () =>
-                            await new BraveSearchService(httpClient, apiKeys, apiBudget)
+                            await new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(query, perSourceLimit, newsOnly: true)));
                     }
                     else if (src.StartsWith("serper:") || src == "serper")
@@ -513,7 +521,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             : source[7..];
                         var qualifiedQuery = QualifySearchQuery(query, vibe);
                         fetchTasks.Add(Task.Run(async () =>
-                            await new SerperSearchService(httpClient, apiKeys, apiBudget)
+                            await new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
                     }
                     else if (src.StartsWith("serpernews:") || src.StartsWith("serper_news:") || src is "serpernews" or "serper_news")
@@ -522,7 +530,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
                             : source[(source.IndexOf(':') + 1)..];
                         fetchTasks.Add(Task.Run(async () =>
-                            await new SerperSearchService(httpClient, apiKeys, apiBudget)
+                            await new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(query, perSourceLimit, newsOnly: true)));
                     }
                     else if (src.StartsWith("tavily:") || src == "tavily")
@@ -531,7 +539,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
                             : source[7..];
                         fetchTasks.Add(Task.Run(async () =>
-                            await new TavilySearchService(httpClient, apiKeys, apiBudget)
+                            await new TavilySearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(query, perSourceLimit)));
                     }
                     else if (src.StartsWith("newsapi:") || src.StartsWith("news_api:") || src is "newsapi" or "news_api")
@@ -540,7 +548,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
                             : source[(source.IndexOf(':') + 1)..];
                         fetchTasks.Add(Task.Run(async () =>
-                            await new NewsApiService(httpClient, apiKeys, apiBudget)
+                            await new NewsApiService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(query, perSourceLimit)));
                     }
                     else if (src.StartsWith("newsdata:") || src.StartsWith("news_data:") || src is "newsdata" or "news_data")
@@ -549,7 +557,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
                             : source[(source.IndexOf(':') + 1)..];
                         fetchTasks.Add(Task.Run(async () =>
-                            await new NewsDataService(httpClient, apiKeys, apiBudget)
+                            await new NewsDataService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(query, perSourceLimit)));
                     }
                     else if (src.StartsWith("jina:") || src == "jina")
@@ -558,7 +566,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
                             : source[5..];
                         fetchTasks.Add(Task.Run(async () =>
-                            await new JinaSearchService(httpClient, apiKeys, apiBudget)
+                            await new JinaSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(query, perSourceLimit)));
                     }
                     else if (src == "so" || src.StartsWith("so:"))
@@ -714,25 +722,25 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         if (apiKeys.IsAvailable("brave_search"))
                         {
                             fallbackSources.Add(Task.Run(async () =>
-                                await new BraveSearchService(httpClient, apiKeys, apiBudget)
+                                await new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                     .SearchAsync(fallbackQuery, perSourceLimit * 2)));
                         }
                         else if (apiKeys.IsAvailable("serper"))
                         {
                             fallbackSources.Add(Task.Run(async () =>
-                                await new SerperSearchService(httpClient, apiKeys, apiBudget)
+                                await new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                     .SearchAsync(fallbackQuery, perSourceLimit * 2)));
                         }
                         else if (apiKeys.IsAvailable("tavily"))
                         {
                             fallbackSources.Add(Task.Run(async () =>
-                                await new TavilySearchService(httpClient, apiKeys, apiBudget)
+                                await new TavilySearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                     .SearchAsync(fallbackQuery, perSourceLimit)));
                         }
                         else if (apiKeys.HasGoogleSearch)
                         {
                             fallbackSources.Add(Task.Run(async () =>
-                                await new GoogleSearchService(httpClient, apiKeys, apiBudget)
+                                await new GoogleSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                     .SearchAsync(fallbackQuery, perSourceLimit * 2)));
                         }
                         else
@@ -757,7 +765,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         if (apiKeys.IsAvailable("newsapi"))
                         {
                             fallbackSources.Add(Task.Run(async () =>
-                                await new NewsApiService(httpClient, apiKeys, apiBudget)
+                                await new NewsApiService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                     .SearchAsync(fallbackQuery, perSourceLimit)));
                         }
                         else

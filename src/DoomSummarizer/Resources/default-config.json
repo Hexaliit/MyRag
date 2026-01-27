@@ -115,7 +115,7 @@
       "rateLimitMs": 200,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
-      "circuitBreakerResetSeconds": 60
+      "circuitBreakerResetSeconds": 300
     },
     {
       "name": "google_places",
@@ -129,7 +129,7 @@
       "rateLimitMs": 200,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
-      "circuitBreakerResetSeconds": 60
+      "circuitBreakerResetSeconds": 300
     },
     {
       "name": "openai",
@@ -143,7 +143,7 @@
       "rateLimitMs": 100,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
-      "circuitBreakerResetSeconds": 60
+      "circuitBreakerResetSeconds": 300
     },
     {
       "name": "anthropic",
@@ -157,7 +157,7 @@
       "rateLimitMs": 100,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
-      "circuitBreakerResetSeconds": 60
+      "circuitBreakerResetSeconds": 300
     },
     {
       "name": "brave_search",
@@ -170,7 +170,7 @@
       "rateLimitMs": 1100,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
-      "circuitBreakerResetSeconds": 60
+      "circuitBreakerResetSeconds": 300
     },
     {
       "name": "serper",
@@ -183,7 +183,7 @@
       "rateLimitMs": 200,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
-      "circuitBreakerResetSeconds": 60
+      "circuitBreakerResetSeconds": 300
     },
     {
       "name": "newsapi",
@@ -196,7 +196,7 @@
       "rateLimitMs": 200,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
-      "circuitBreakerResetSeconds": 60
+      "circuitBreakerResetSeconds": 300
     },
     {
       "name": "newsdata",
@@ -209,7 +209,7 @@
       "rateLimitMs": 200,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
-      "circuitBreakerResetSeconds": 60
+      "circuitBreakerResetSeconds": 300
     },
     {
       "name": "tavily",
@@ -222,7 +222,7 @@
       "rateLimitMs": 200,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
-      "circuitBreakerResetSeconds": 60
+      "circuitBreakerResetSeconds": 300
     },
     {
       "name": "jina",
@@ -235,7 +235,7 @@
       "rateLimitMs": 500,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
-      "circuitBreakerResetSeconds": 60
+      "circuitBreakerResetSeconds": 300
     }
   ],
   "apiBudget": {

@@ -11,12 +11,12 @@ namespace DoomSummarizer.Services;
 /// With API key: higher priority, faster results.
 /// Returns clean content extracted from search results.
 /// </summary>
-public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget)
+public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
 {
     private const string ServiceName = "jina";
     private const string Endpoint = "https://s.jina.ai/";
 
-    public bool IsAvailable => keys.IsAvailable(ServiceName);
+    public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
     /// Search via Jina AI and return results as ContentItems.
@@ -31,10 +31,14 @@ public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBud
             return [];
         }
 
+        if (!await circuit.IsServiceAvailableAsync(ServiceName))
+            return [];
+
         var check = await budget.CheckBudgetAsync(ServiceName);
         if (!check.IsAllowed)
         {
-            AnsiConsole.MarkupLine($"[yellow]Jina: {check.DenialReason}[/]");
+            var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+            await circuit.TripCircuitAsync(ServiceName, failureType, check.DenialReason);
             return [];
         }
 

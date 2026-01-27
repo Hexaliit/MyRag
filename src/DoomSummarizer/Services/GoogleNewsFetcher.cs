@@ -297,9 +297,10 @@ public class GoogleNewsFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Resolve any remaining Google News redirect URLs.
-    /// Strategy 1: Follow HTTP 3xx redirects (fast, works for older format).
-    /// Strategy 2: Fetch HTML body and parse for article URL (newer JS-redirect format).
+    /// Resolve any remaining Google News redirect URLs using three strategies:
+    /// Strategy 1: batchexecute API (works for new "AU_yqL" format, post-July 2024).
+    /// Strategy 2: HTTP 3xx redirect following (works for older format).
+    /// Strategy 3: HTML body parsing for JS-redirect pages.
     /// </summary>
     private async Task ResolveRedirectUrlsAsync(List<ContentItem> items)
     {
@@ -309,9 +310,17 @@ public class GoogleNewsFetcher(HttpClient httpClient)
 
         if (googleItems.Count == 0) return;
 
-        // Use a separate HttpClient with cookie support for redirect resolution.
-        // Google News requires cookies to resolve article URLs; without them,
-        // redirects land on policies.google.com/technologies/cookies.
+        // Strategy 1: Try batchexecute API for all unresolved items
+        await ResolveBatchExecuteAsync(googleItems);
+
+        // Find items still unresolved after batchexecute
+        var stillUnresolved = googleItems
+            .Where(i => i.Url != null && i.Url.Contains("news.google.com/", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (stillUnresolved.Count == 0) return;
+
+        // Strategy 2 & 3: HTTP redirect + HTML parsing fallback
         using var handler = new HttpClientHandler
         {
             AllowAutoRedirect = true,
@@ -322,7 +331,7 @@ public class GoogleNewsFetcher(HttpClient httpClient)
         using var redirectClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
 
         using var semaphore = new SemaphoreSlim(5);
-        var tasks = googleItems.Select(async item =>
+        var tasks = stillUnresolved.Select(async item =>
         {
             await semaphore.WaitAsync();
             try
@@ -334,10 +343,9 @@ public class GoogleNewsFetcher(HttpClient httpClient)
                 request.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
                 request.Headers.Add("Accept-Language", "en-US,en;q=0.9");
 
-                // Fetch full body (needed for JS-redirect pages)
                 using var response = await redirectClient.SendAsync(request, cts.Token);
 
-                // Strategy 1: Check if HTTP redirect resolved it
+                // Check if HTTP redirect resolved it
                 var finalUrl = response.RequestMessage?.RequestUri?.AbsoluteUri;
                 if (IsValidArticleUrl(finalUrl))
                 {
@@ -345,7 +353,7 @@ public class GoogleNewsFetcher(HttpClient httpClient)
                     return;
                 }
 
-                // Strategy 2: Parse HTML body for the article URL
+                // Parse HTML body for the article URL
                 if (response.IsSuccessStatusCode)
                 {
                     var html = await response.Content.ReadAsStringAsync(cts.Token);
@@ -367,6 +375,142 @@ public class GoogleNewsFetcher(HttpClient httpClient)
         });
 
         await Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// Resolve Google News URLs via the batchexecute API (DotsSplashUi endpoint).
+    /// This handles the new "AU_yqL" URL format introduced in July 2024 where
+    /// the article URL is no longer embedded in the base64 payload.
+    /// </summary>
+    private async Task ResolveBatchExecuteAsync(List<ContentItem> items)
+    {
+        const string batchUrl = "https://news.google.com/_/DotsSplashUi/data/batchexecute";
+        const int maxConcurrent = 3; // Conservative — Google rate-limits aggressively
+
+        using var semaphore = new SemaphoreSlim(maxConcurrent);
+        var resolved = 0;
+        var failed = 0;
+
+        var tasks = items.Select(async item =>
+        {
+            if (item.Url == null) return;
+
+            var articleId = ExtractArticleId(item.Url);
+            if (articleId == null) return;
+
+            await semaphore.WaitAsync();
+            try
+            {
+                // Small delay to avoid rate limiting
+                if (resolved + failed > 0)
+                    await Task.Delay(150);
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+                // Build the garturlreq RPC payload
+                var innerPayload = $"""["garturlreq",[["en-US","US",["FINANCE_TOP_INDICES","WEB_TEST_1_0_0"]],"{articleId}"]]""";
+                var outerPayload = $"""[[["Fbv4je",{System.Text.Json.JsonSerializer.Serialize(innerPayload)},"generic"]]]""";
+                var formData = $"f.req={HttpUtility.UrlEncode(outerPayload)}";
+
+                var request = new HttpRequestMessage(HttpMethod.Post, batchUrl)
+                {
+                    Content = new StringContent(formData, System.Text.Encoding.UTF8,
+                        "application/x-www-form-urlencoded")
+                };
+                request.Headers.Add("User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+
+                using var response = await httpClient.SendAsync(request, cts.Token);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Interlocked.Increment(ref failed);
+                    return;
+                }
+
+                var body = await response.Content.ReadAsStringAsync(cts.Token);
+                var decodedUrl = ExtractUrlFromBatchResponse(body);
+                if (decodedUrl != null && IsValidArticleUrl(decodedUrl))
+                {
+                    item.Url = decodedUrl;
+                    Interlocked.Increment(ref resolved);
+                }
+                else
+                {
+                    Interlocked.Increment(ref failed);
+                }
+            }
+            catch
+            {
+                Interlocked.Increment(ref failed);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
+
+        if (resolved > 0 || failed > 0)
+            AnsiConsole.MarkupLine($"[grey]Google News URL resolution: {resolved} resolved, {failed} failed (batchexecute)[/]");
+    }
+
+    /// <summary>
+    /// Extract the article ID from a Google News URL.
+    /// URL format: https://news.google.com/rss/articles/{ARTICLE_ID}?oc=5
+    /// </summary>
+    private static string? ExtractArticleId(string url)
+    {
+        var idx = url.IndexOf("/articles/", StringComparison.OrdinalIgnoreCase);
+        if (idx < 0) return null;
+
+        var id = url[(idx + "/articles/".Length)..];
+        var queryIdx = id.IndexOf('?');
+        if (queryIdx >= 0) id = id[..queryIdx];
+
+        return id.Length >= 10 ? id : null;
+    }
+
+    /// <summary>
+    /// Parse the batchexecute response for the decoded article URL.
+    /// Response format is a multi-line structure with nested JSON arrays.
+    /// The URL appears in a "garturlres" response after the RPC ID "Fbv4je".
+    /// </summary>
+    private static string? ExtractUrlFromBatchResponse(string body)
+    {
+        // The response contains lines of JSON arrays. The URL is typically in:
+        // [["wrb.fr","Fbv4je","[\"garturlres\",...]",...]]
+        // We need to find a line containing "garturlres" and extract the URL.
+        try
+        {
+            // Find the garturlres payload — it's in a nested JSON string
+            var marker = "garturlres";
+            var idx = body.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return null;
+
+            // Scan forward for an https:// URL in the response
+            var searchRegion = body[idx..Math.Min(idx + 2000, body.Length)];
+            var urlMatch = System.Text.RegularExpressions.Regex.Match(
+                searchRegion, @"https?://[^""\\]+");
+            if (urlMatch.Success && IsValidArticleUrl(urlMatch.Value))
+                return urlMatch.Value;
+
+            // Alternative: look for escaped URL in the JSON string
+            var escapedMatch = System.Text.RegularExpressions.Regex.Match(
+                searchRegion, @"https?:\\/\\/[^""]+");
+            if (escapedMatch.Success)
+            {
+                var unescaped = escapedMatch.Value.Replace("\\/", "/");
+                if (IsValidArticleUrl(unescaped))
+                    return unescaped;
+            }
+        }
+        catch
+        {
+            // Parse failure is non-fatal
+        }
+
+        return null;
     }
 
     /// <summary>

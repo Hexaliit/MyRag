@@ -60,7 +60,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         await apiBudget.InitializeAsync();
 
         // Wire cloud LLM providers through the router
-        var llmRouter = await LlmRouter.BuildAsync(config.Ollama, apiKeys, apiBudget, cancellationToken);
+        var llmRouter = await LlmRouter.BuildAsync(config.Ollama, apiKeys, apiBudget, ct: cancellationToken);
         ollama.Router = llmRouter;
 
         // Auto-setup

@@ -10,14 +10,13 @@ namespace DoomSummarizer.Services;
 /// Free tier: 2,000 queries/month (~66/day). No credit card needed for Data for AI plan.
 /// Supports web search and news search.
 /// </summary>
-public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget)
+public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
 {
     private const string ServiceName = "brave_search";
     private const string WebEndpoint = "https://api.search.brave.com/res/v1/web/search";
     private const string NewsEndpoint = "https://api.search.brave.com/res/v1/news/search";
 
-
-    public bool IsAvailable => keys.IsAvailable(ServiceName);
+    public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
     /// Search Brave and return results as ContentItems.
@@ -26,16 +25,20 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
         string query, int maxResults = 10, bool newsOnly = false,
         Action<string>? progress = null, CancellationToken ct = default)
     {
-        if (!IsAvailable)
+        if (!keys.IsAvailable(ServiceName))
         {
             progress?.Invoke("Brave Search not configured — skipping");
             return [];
         }
 
+        if (!await circuit.IsServiceAvailableAsync(ServiceName))
+            return [];
+
         var check = await budget.CheckBudgetAsync(ServiceName);
         if (!check.IsAllowed)
         {
-            AnsiConsole.MarkupLine($"[yellow]Brave Search: {check.DenialReason}[/]");
+            var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+            await circuit.TripCircuitAsync(ServiceName, failureType, check.DenialReason);
             return [];
         }
 

@@ -10,12 +10,12 @@ namespace DoomSummarizer.Services;
 /// Free tier: 100 queries/day. Paid: $5/1000 queries.
 /// Requires API key + Custom Search Engine ID (CX).
 /// </summary>
-public class GoogleSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget)
+public class GoogleSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
 {
     private const string ServiceName = "google_search";
     private const string Endpoint = "https://www.googleapis.com/customsearch/v1";
 
-    public bool IsAvailable => keys.HasGoogleSearch;
+    public bool IsAvailable => keys.HasGoogleSearch && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
     /// Search Google and return results as ContentItems.
@@ -37,10 +37,14 @@ public class GoogleSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
 
         for (var page = 0; page < pages && items.Count < maxResults; page++)
         {
+            if (!await circuit.IsServiceAvailableAsync(ServiceName))
+                break;
+
             var check = await budget.CheckBudgetAsync(ServiceName);
             if (!check.IsAllowed)
             {
-                AnsiConsole.MarkupLine($"[yellow]Google Search: {check.DenialReason}[/]");
+                var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+                await circuit.TripCircuitAsync(ServiceName, failureType, check.DenialReason);
                 break;
             }
 
