@@ -8,10 +8,46 @@
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License](https://img.shields.io/badge/License-The_Unlicense-green.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Release&logo=github)](https://github.com/scottgal/lucidrag/releases)
+[![GitHub Downloads](https://img.shields.io/github/downloads/scottgal/lucidrag/total?label=Downloads&logo=github)](https://github.com/scottgal/lucidrag/releases)
 
 > **IN DEVELOPMENT** - This project is under active development and not yet ready for production use. APIs may change without notice. Watch this repo for updates.
 
 </div>
+
+---
+
+## DoomSummarizer — Console-First Research Assistant
+
+<div align="center">
+
+[![DoomSummarizer Releases](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=DoomSummarizer&logo=windowsterminal&logoColor=white&color=blue)](https://github.com/scottgal/lucidrag/releases)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey?logo=dotnet)](https://github.com/scottgal/lucidrag/releases)
+
+</div>
+
+**DoomSummarizer** is a standalone CLI tool for fetching, ranking, and synthesizing news and research — with a built-in local knowledge base, NER entity extraction, and long-form article generation. No API keys required for default sources.
+
+```bash
+# Daily digest from default sources
+doomsummarizer scroll
+
+# Topic query with tone
+doomsummarizer scroll "AI regulation news" -v snarky
+
+# Build a knowledge base from any website (incremental with ETag caching)
+doomsummarizer crawl https://docs.example.com -n mydocs --entities
+doomsummarizer ask -s crawl:mydocs "how does authentication work?"
+
+# Generate a long-form article with evidence grounding
+doomsummarizer scroll "history of LLMs" -t blog-article -o llm-history.md
+```
+
+**Key features**: hybrid BM25 + semantic ranking, ONNX embeddings (offline), HTTP ETag/Last-Modified cache-aware web crawling, NER entity extraction with knowledge graph, budget-controlled cloud LLM support (Anthropic/OpenAI), 15+ output templates, email delivery.
+
+> **[Full documentation, all CLI options, and examples →](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)**
+
+**Download**: Grab pre-built binaries for Windows, Linux, and macOS from [**Releases**](https://github.com/scottgal/lucidrag/releases).
 
 ---
 
@@ -330,6 +366,21 @@ See [docs/UNIFIED_LLM_PROVIDERS.md](docs/UNIFIED_LLM_PROVIDERS.md) for complete 
 
 ## CLI Tools
 
+### DoomSummarizer CLI (Standalone Research Assistant)
+
+[![DoomSummarizer Releases](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Download&logo=github)](https://github.com/scottgal/lucidrag/releases)
+
+A console-first research assistant and personal knowledge base. Fetches, ranks, and synthesizes content from 30+ sources with local ONNX embeddings — no API keys required.
+
+```bash
+doomsummarizer scroll "AI security news" -v snarky     # Digest with tone
+doomsummarizer crawl https://docs.example.com --entities # Build a KB
+doomsummarizer ask -s crawl:docs "how does auth work?"   # Query your KB
+doomsummarizer scroll "Rust vs Go" -t deep-dive -o comparison.md  # Long-form article
+```
+
+**[Full documentation →](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)** | **[Download →](https://github.com/scottgal/lucidrag/releases)**
+
 ### LucidRAG CLI
 
 ```bash
@@ -447,12 +498,12 @@ The  UnLicense - see [LICENSE](LICENSE)
 
 ## Contributing
 
-***lucid***RAG is in active development and we welcome contributions! Please check the [Issues](https://github.com/scottgal/***lucid***RAG/issues) for areas where help is needed.
+***lucid***RAG is in active development and we welcome contributions! Please check the [Issues](https://github.com/scottgal/lucidrag/issues) for areas where help is needed.
 
 ---
 
 <div align="center">
 
-**[GitHub](https://github.com/scottgal/***lucid***RAG)** | **[Issues](https://github.com/scottgal/***lucid***RAG/issues)**
+**[GitHub](https://github.com/scottgal/lucidrag)** | **[Releases](https://github.com/scottgal/lucidrag/releases)** | **[Issues](https://github.com/scottgal/lucidrag/issues)** | **[DoomSummarizer Docs](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)**
 
 </div>
