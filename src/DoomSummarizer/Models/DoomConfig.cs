@@ -11,6 +11,7 @@ public record DoomConfig
     public OutputConfig Output { get; init; } = new();
     public StorageConfig Storage { get; init; } = new();
     public LinkFollowingConfig LinkFollowing { get; init; } = new();
+    public EmailConfig Email { get; init; } = new();
     public Dictionary<string, string> Vibes { get; init; } = new();
     public List<ApiKeyEntry> Keys { get; init; } = [];
     public ApiBudgetConfig ApiBudget { get; init; } = new();
@@ -210,6 +211,50 @@ public record ApiKeyEntry
 }
 
 /// <summary>
+/// Email delivery configuration. Supports SMTP (via MailKit) and SendGrid.
+/// API keys can be stored in user secrets: dotnet user-secrets set "SendGrid" "SG.xxx"
+/// </summary>
+public record EmailConfig
+{
+    /// <summary>Email delivery provider: "smtp" or "sendgrid".</summary>
+    public string Provider { get; init; } = "smtp";
+
+    /// <summary>Whether email delivery is enabled.</summary>
+    public bool Enabled { get; init; } = false;
+
+    /// <summary>Sender email address (From).</summary>
+    public string FromAddress { get; init; } = "";
+
+    /// <summary>Sender display name.</summary>
+    public string FromName { get; init; } = "DoomSummarizer";
+
+    /// <summary>Default recipient(s). Comma-separated for multiple.</summary>
+    public string ToAddresses { get; init; } = "";
+
+    /// <summary>Email subject line template. Use {{DATE}} and {{QUERY}} placeholders.</summary>
+    public string SubjectTemplate { get; init; } = "Doom Scroll Digest — {{DATE}}";
+
+    /// <summary>Output template to use for email body (e.g., "email", "newsletter").</summary>
+    public string Template { get; init; } = "email";
+
+    /// <summary>SMTP settings (used when Provider = "smtp").</summary>
+    public SmtpConfig Smtp { get; init; } = new();
+
+    /// <summary>SendGrid API key (prefer user secrets or env var DOOM_SENDGRID).</summary>
+    public string? SendGridApiKey { get; init; }
+}
+
+/// <summary>SMTP connection settings for MailKit.</summary>
+public record SmtpConfig
+{
+    public string Host { get; init; } = "smtp.gmail.com";
+    public int Port { get; init; } = 587;
+    public bool UseSsl { get; init; } = true;
+    public string? Username { get; init; }
+    public string? Password { get; init; }
+}
+
+/// <summary>
 /// Global budget controls across all paid/limited APIs.
 /// Individual service limits on each ApiKeyEntry override these when set.
 /// </summary>
@@ -241,6 +286,8 @@ public record ApiBudgetConfig
 [JsonSerializable(typeof(LinkFollowingConfig))]
 [JsonSerializable(typeof(ApiKeyEntry))]
 [JsonSerializable(typeof(ApiBudgetConfig))]
+[JsonSerializable(typeof(EmailConfig))]
+[JsonSerializable(typeof(SmtpConfig))]
 [JsonSerializable(typeof(List<ApiKeyEntry>))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]

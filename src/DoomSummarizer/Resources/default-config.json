@@ -81,6 +81,23 @@
       ".mp3", ".mp4", ".mov", ".avi", ".mkv"
     ]
   },
+  "email": {
+    "provider": "smtp",
+    "enabled": false,
+    "fromAddress": "",
+    "fromName": "DoomSummarizer",
+    "toAddresses": "",
+    "subjectTemplate": "Doom Scroll Digest — {{DATE}}",
+    "template": "email",
+    "smtp": {
+      "host": "smtp.gmail.com",
+      "port": 587,
+      "useSsl": true,
+      "username": "",
+      "password": ""
+    },
+    "sendGridApiKey": ""
+  },
   "storage": {
     "dbPath": "~/.doomsummarizer/doom.db",
     "retentionDays": 30

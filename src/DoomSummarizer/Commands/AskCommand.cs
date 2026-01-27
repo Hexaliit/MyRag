@@ -374,11 +374,17 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         CancellationToken ct)
     {
         var evidenceBlock = new StringBuilder();
-        foreach (var item in evidence)
+        // Filter out items with unresolvable URLs — can't cite what we can't link to
+        var citableEvidence = evidence
+            .Where(e => !string.IsNullOrEmpty(e.Url) &&
+                        !e.Url.Contains("news.google.com/rss/articles/", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        for (var ei = 0; ei < citableEvidence.Count; ei++)
         {
-            evidenceBlock.AppendLine($"\n### {item.Title}");
-            if (!string.IsNullOrEmpty(item.Url))
-                evidenceBlock.AppendLine($"URL: {item.Url}");
+            var item = citableEvidence[ei];
+            evidenceBlock.AppendLine($"\n[E{ei + 1}] ### {item.Title}");
+            evidenceBlock.AppendLine($"URL: {item.Url}");
             evidenceBlock.AppendLine($"Source: {item.Source} | Relevance: {item.RelevanceScore:F2}");
 
             var content = item.Content ?? item.Summary ?? "";
@@ -403,33 +409,13 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             conversationContext.AppendLine();
         }
 
-        var prompt = $"""
-            Answer the following question using ONLY the evidence provided below.
-
-            {conversationContext}
-            QUESTION: {question}
-            DATE: {DateTime.Now:MMMM d, yyyy}
-
-            EVIDENCE:
-            {evidenceBlock}
-
-            INSTRUCTIONS:
-            1. Read each piece of evidence carefully
-            2. Find facts, quotes, or data that answer the QUESTION
-            3. If this is a follow-up to prior conversation, use that context
-            4. If no evidence answers the question, say "I don't have enough evidence to answer that"
-            5. Use ONLY URLs from the evidence — never invent URLs
-            6. Be concise but thorough — cite sources
-
-            FORMAT:
-            [Direct answer in 2-4 sentences with specific facts from evidence]
-
-            Key points:
-            - [Specific fact from evidence with source]
-            - [Another fact]
-
-            Sources: [list relevant URLs]
-            """;
+        var prompt = PromptTemplateService.Render("ask-answer", new Dictionary<string, object?>
+        {
+            ["CONVERSATION_CONTEXT"] = conversationContext.ToString(),
+            ["QUESTION"] = question,
+            ["TODAY"] = DateTime.Now.ToString("MMMM d, yyyy"),
+            ["EVIDENCE"] = evidenceBlock.ToString()
+        });
 
         return await ollama.GenerateAsync(prompt, null, 0.4, ct);
     }

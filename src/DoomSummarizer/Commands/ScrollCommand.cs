@@ -84,6 +84,14 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [CommandOption("--list-templates")]
         [Description("List available output templates")]
         public bool ListTemplates { get; init; }
+
+        [CommandOption("--email")]
+        [Description("Send digest via email (configure with email section in config)")]
+        public bool SendEmail { get; init; }
+
+        [CommandOption("--email-to")]
+        [Description("Override email recipient(s), comma-separated")]
+        public string? EmailTo { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
@@ -1633,8 +1641,11 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         summaryTask.Value = 50;
 
                         // Entity disambiguation: detect ambiguous entities in top items
-                        // Skip for roundup queries — they are about collecting diverse stories
-                        if (!string.IsNullOrWhiteSpace(userQuery) && detectedQueryType != QueryType.Roundup)
+                        // Only apply for research/qa queries (entity lookups), not news/roundups
+                        var sentinelIntent = interpreted?.SentinelIntent?.Intent ?? "";
+                        var isEntityQuery = sentinelIntent is "research" or "qa";
+                        if (isEntityQuery && !string.IsNullOrWhiteSpace(userQuery)
+                            && detectedQueryType != QueryType.Roundup)
                         {
                             var topForDisambig = uniqueItems
                                 .OrderByDescending(i => i.RelevanceScore)
@@ -1999,6 +2010,45 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             }
                         }
                     }
+                }
+
+                // Send email if requested
+                if (settings.SendEmail)
+                {
+                    string emailHtml;
+                    if (templateData != null)
+                    {
+                        // Use full template rendering (blog/newsletter paths)
+                        emailHtml = outputTemplates.Render(templateData, config.Email.Template);
+                    }
+                    else
+                    {
+                        // Standard synthesis: build templateData from analyzed items
+                        // Convert markdown summary to HTML for email rendering
+                        var overviewHtml = Markdig.Markdown.ToHtml(finalSummary ?? "");
+                        templateData = new DigestData
+                        {
+                            Date = DateTimeOffset.Now,
+                            Vibe = vibe,
+                            Query = interpreted?.RawPrompt ?? settings.Prompt,
+                            Overview = overviewHtml,
+                            Items = analyzedItems.Select(a => new DigestItem
+                            {
+                                Title = a.title,
+                                Url = a.url,
+                                Summary = a.summary,
+                                Topic = a.topic,
+                                Sentiment = a.sentiment
+                            }).ToList()
+                        };
+                        emailHtml = outputTemplates.Render(templateData, config.Email.Template);
+                    }
+
+                    var emailService = new EmailService(config.Email, apiKeys);
+                    var subject = config.Email.SubjectTemplate
+                        .Replace("{{DATE}}", DateTime.Now.ToString("MMMM d, yyyy"))
+                        .Replace("{{QUERY}}", interpreted?.RawPrompt ?? settings.Prompt ?? "");
+                    await emailService.SendAsync(emailHtml, subject, settings.EmailTo, cancellationToken);
                 }
 
                 // Cleanup old data
@@ -2431,10 +2481,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     _ => "~"
                 };
 
-                if (!string.IsNullOrEmpty(item.url))
-                    sb.AppendLine($"  [{sentimentIcon}] [{bar}] {pct}% | {item.title}");
-                else
-                    sb.AppendLine($"  [{sentimentIcon}] [{bar}] {pct}% | {item.title}");
+                sb.AppendLine($"  [{sentimentIcon}] [{bar}] {pct}% | {item.title}");
 
                 // Show content snippet for top stories — this is the "segment" the user wants
                 if (!string.IsNullOrEmpty(item.summary) && item.summary != item.title)
@@ -2446,7 +2493,12 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 if (!string.IsNullOrEmpty(item.url))
-                    sb.AppendLine($"      -> {item.url}");
+                {
+                    if (item.url.Contains("news.google.com/rss/articles/", StringComparison.OrdinalIgnoreCase))
+                        sb.AppendLine("      -> [via Google News — direct URL unavailable]");
+                    else
+                        sb.AppendLine($"      -> {item.url}");
+                }
 
                 sb.AppendLine();
             }
@@ -2488,10 +2540,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     _ => "[~]"
                 };
 
-                if (!string.IsNullOrEmpty(item.url))
-                    sb.AppendLine($"- {sentimentIcon} {pct}% {item.title}");
-                else
-                    sb.AppendLine($"- {sentimentIcon} {pct}% {item.title}");
+                sb.AppendLine($"- {sentimentIcon} {pct}% {item.title}");
             }
             sb.AppendLine();
         }

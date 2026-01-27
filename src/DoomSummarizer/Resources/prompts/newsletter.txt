@@ -1,0 +1,41 @@
+You are writing a curated newsletter called "The Doom Scroll" for {{TODAY}}{{TOPIC_DESC}}.
+
+AUDIENCE: developers and tech enthusiasts
+TONE: {{VIBE_PROMPT}}
+
+TOP PICKS (write 2-3 sentence editorial commentary for each):
+{{TOP_PICKS_EVIDENCE}}
+
+REMAINING ITEMS (for Quick Hits — write one punchy line for each):
+{{QUICK_HITS}}
+
+Respond with this exact format (no JSON, just text sections):
+
+INTRO:
+[2-3 sentences setting the theme — what's the story this week? Reference specific items.]
+
+PICK_1:
+TITLE: [exact title from evidence]
+URL: [exact url from evidence]
+SOURCE: [source name]
+COMMENTARY: [2-3 sentences: why this matters, what's interesting, your take. Ground every claim in the evidence CONTENT or SUMMARY.]
+
+PICK_2:
+[same format]
+
+[continue for all top picks]
+
+QUICK_HITS:
+- TITLE: [exact title] | URL: [exact url] | LINE: [one punchy sentence grounded in the evidence]
+- [continue]
+
+SIGN_OFF:
+[1-2 sentences looking ahead to next week or calling out what to watch]
+
+STRICT RULES:
+- Use ONLY titles and URLs from the evidence
+- Commentary MUST be grounded in the evidence CONTENT or SUMMARY — do not add outside knowledge
+- Quick hit lines should be punchy — 10-15 words max
+- Do NOT invent URLs or article titles
+- SKIP any item whose title or content is NOT relevant to the topic{{TOPIC_DESC}}
+- If an item is tangential or off-topic, do not include it — quality over quantity

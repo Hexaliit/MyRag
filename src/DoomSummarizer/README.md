@@ -259,6 +259,8 @@ Common built-ins:
 | `--debug` | Show pipeline diagnostics: RRF scores, discards, salience |
 | `--raw` | Show raw fetched content |
 | `--images` | Display inline thumbnails |
+| `--email` | Send digest via email (see Email section) |
+| `--email-to` | Override email recipient(s) |
 | `-q, --quiet` | Minimal output |
 
 ## Configuration
@@ -319,6 +321,58 @@ Each API service has configurable rate limiting, retry, and circuit breaker:
 | `circuitBreakerResetSeconds` | 60 | Time before circuit resets |
 
 Output templates: run `doomsummarizer scroll --list-templates`. Custom templates live in `~/.doomsummarizer/templates/`.
+
+### Email Delivery
+
+Send digests via SMTP or SendGrid:
+
+```json
+{
+  "email": {
+    "provider": "sendgrid",
+    "enabled": true,
+    "fromAddress": "digest@example.com",
+    "fromName": "DoomSummarizer",
+    "toAddresses": "team@example.com",
+    "subjectTemplate": "Doom Scroll Digest — {{DATE}}",
+    "template": "newsletter"
+  }
+}
+```
+
+```bash
+# SendGrid API key (recommended: user secrets)
+dotnet user-secrets set "SendGrid" "SG.xxx"
+
+# Or SMTP credentials
+export DOOM_SMTP_USER=user@gmail.com
+export DOOM_SMTP_PASSWORD=app-password
+
+# Send digest via email
+doomsummarizer scroll "AI news" --email
+doomsummarizer scroll "security updates" --email --email-to "ops@example.com"
+```
+
+Supports SMTP (any provider: Gmail, Outlook, SES) and SendGrid API. Use the `template` field to control email styling (`email`, `newsletter`, or any custom template).
+
+### Prompt Customization
+
+LLM prompts are loaded from files and support Liquid (conditionals, loops):
+
+```
+~/.doomsummarizer/prompts/
+├── roundup.txt        # Headline roundup format
+├── answer.txt         # Q&A answer format
+├── digest.txt         # Digest (no query) format
+├── ask-answer.txt     # Interactive Q&A format
+├── newsletter.txt     # Newsletter format
+├── blog-intro.txt     # Blog article intro
+├── blog-section.txt   # Blog article sections
+├── blog-conclusion.txt # Blog conclusion
+└── blog-outline.txt   # Blog outline (sentinel)
+```
+
+Override any prompt by creating the file in `~/.doomsummarizer/prompts/`. Templates use `{{VARIABLE}}` placeholders and full Liquid syntax (`{% if %}`, `{% for %}`, etc.). Built-in defaults are embedded in the binary.
 
 ## Storage
 

@@ -1,0 +1,24 @@
+Create a doom-scroll digest in markdown format.
+
+TODAY'S DATE: {{TODAY}}
+VIBE: {{VIBE}}
+VIBE INSTRUCTION: {{VIBE_PROMPT}}
+
+ITEMS WITH CONFIDENCE SCORES (use ONLY these):
+{{ITEMS}}
+
+STRICT RULES:
+- ONLY summarize items listed above - NO HALLUCINATION
+- Prioritize [HIGH-CONF] items - they have better source evidence
+- Include key points when relevant
+- Every claim MUST cite the source using the markdown link provided with the item
+- Use ONLY the URLs provided
+- Use ONLY {{TODAY}} as the date
+
+Create a summary that:
+1. Brief overview for {{TODAY}} (2-3 sentences matching the vibe)
+2. Organize by topic, prioritizing high-confidence items
+3. Each statement MUST include the exact markdown link from the item as citation
+4. Brief "what to watch" based ONLY on items above
+
+Use markdown formatting. Match the {{VIBE}} vibe.

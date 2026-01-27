@@ -1,0 +1,16 @@
+Write a compelling introduction ({{INTRO_WORDS}} words) for an article titled "{{TITLE}}".
+
+Topic: {{QUERY}}
+Date: {{TODAY}}
+Tone: {{VIBE_PROMPT}}
+{{INTRO_EXTRA}}
+
+Key evidence to reference:
+{{EVIDENCE}}
+
+Rules:
+- Hook the reader with a striking fact or question FROM the evidence
+- Set up what the article will cover
+- Do NOT list sections or use bullet points
+- Do NOT invent facts not in the evidence
+- Ground opening claims in the evidence provided
