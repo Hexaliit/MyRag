@@ -1,15 +1,12 @@
-name: Release DoomSummarizer
+name: Unleash DoomSummarizer
 
 on:
-  push:
-    tags:
-      - 'doomsummarizer-v*.*.*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., 1.0.0)'
+        description: 'Version (e.g., 0.0.1)'
         required: true
-        default: '1.0.0'
+        default: '0.0.1'
 
 jobs:
   test:
@@ -17,30 +14,18 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore dependencies
-        run: dotnet restore src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj
-
-      - name: Build
-        run: dotnet build src/DoomSummarizer/DoomSummarizer.csproj --configuration Release --no-restore
-
-      - name: Run tests
+      - name: Build and test
         run: |
+          dotnet build src/DoomSummarizer/DoomSummarizer.csproj -c Release
           dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj \
-            --configuration Release \
-            --logger "console;verbosity=normal"
-
-      - name: Smoke test
-        run: |
-          timeout 5s dotnet run --project src/DoomSummarizer/DoomSummarizer.csproj \
-            --configuration Release --no-build -- --help > /dev/null || true
+            -c Release --logger "console;verbosity=normal"
 
   build:
     needs: test
@@ -50,21 +35,27 @@ jobs:
           - os: windows-latest
             rid: win-x64
             artifact: doomsummarizer-win-x64.zip
+            ext: .exe
           - os: windows-latest
             rid: win-arm64
             artifact: doomsummarizer-win-arm64.zip
+            ext: .exe
           - os: ubuntu-latest
             rid: linux-x64
             artifact: doomsummarizer-linux-x64.tar.gz
+            ext: ''
           - os: ubuntu-latest
             rid: linux-arm64
             artifact: doomsummarizer-linux-arm64.tar.gz
+            ext: ''
           - os: macos-latest
             rid: osx-x64
             artifact: doomsummarizer-osx-x64.tar.gz
+            ext: ''
           - os: macos-latest
             rid: osx-arm64
             artifact: doomsummarizer-osx-arm64.tar.gz
+            ext: ''
 
     runs-on: ${{ matrix.os }}
 
@@ -76,10 +67,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore dependencies
-        run: dotnet restore src/DoomSummarizer/DoomSummarizer.csproj
-
-      - name: Publish
+      - name: Publish single-file
         shell: bash
         run: |
           dotnet publish src/DoomSummarizer/DoomSummarizer.csproj \
@@ -90,19 +78,28 @@ jobs:
             -p:EnableCompressionInSingleFile=true \
             -p:PublishReadyToRun=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:Version=${{ github.event.inputs.version }} \
             -o ./publish/${{ matrix.rid }}
+
+      - name: Stage archive contents
+        shell: bash
+        run: |
+          mkdir -p ./stage
+          cp ./publish/${{ matrix.rid }}/doomsummarizer${{ matrix.ext }} ./stage/
+          cp src/DoomSummarizer/README.md ./stage/
+          cp src/DoomSummarizer/Resources/default-config.json ./stage/config.json
 
       - name: Create archive (Windows)
         if: runner.os == 'Windows'
-        run: |
-          Compress-Archive -Path ./publish/${{ matrix.rid }}/* -DestinationPath ./publish/${{ matrix.artifact }}
         shell: pwsh
+        run: Compress-Archive -Path ./stage/* -DestinationPath ./publish/${{ matrix.artifact }}
 
       - name: Create archive (Linux/macOS)
         if: runner.os != 'Windows'
+        shell: bash
         run: |
-          cd ./publish/${{ matrix.rid }}
-          tar -czvf ../${{ matrix.artifact }} *
+          cd ./stage
+          tar -czvf ../publish/${{ matrix.artifact }} *
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -125,21 +122,72 @@ jobs:
         with:
           path: ./artifacts
 
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/doomsummarizer-v}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: doomsummarizer-v${{ steps.version.outputs.version }}
-          name: DoomSummarizer v${{ steps.version.outputs.version }}
-          body_path: src/DoomSummarizer/README.md
+          tag_name: doomsummarizer-v${{ github.event.inputs.version }}
+          name: DoomSummarizer v${{ github.event.inputs.version }}
+          body: |
+            ## DoomSummarizer v${{ github.event.inputs.version }}
+
+            **Reduced GraphRAG in a single binary.** A self-assembling knowledge system that fetches, embeds, ranks, extracts entities, builds a knowledge graph, and synthesizes grounded answers -- all locally, all from one file. Point it at any topic, website, or question and it constructs a RAG pipeline on the fly. No server, no database setup, no API keys required to start.
+
+            ### What it does
+
+            - **Fetches** from 50+ sources (HN, Reddit, RSS, arXiv, search APIs, any URL) in parallel
+            - **Embeds** everything locally with ONNX (all-MiniLM-L6-v2, 384-dim) -- no API calls
+            - **Ranks** with multi-signal RRF fusion: BM25 + freshness + authority + semantic similarity + vibe alignment
+            - **Builds a graph** -- BERT NER entity extraction, knowledge graph construction, in-corpus PageRank for authority
+            - **Follows links** one hop deep for content enrichment, applies TextRank sentence extraction
+            - **Persists** everything in SQLite + DuckDB HNSW vectors -- your knowledge base grows with every query
+            - **Synthesizes** evidence-grounded answers via LLM (local Ollama or cloud Anthropic/OpenAI)
+            - **Crawls** entire websites into named knowledge bases for later Q&A
+            - **Reuses** query feedback -- similar questions hit cached evidence instead of re-fetching
+
+            All of this from a single file. Download, extract, run.
+
+            ### Quick Start
+
+            ```bash
+            # 1. Extract and run setup (downloads embedding model, ~23MB one-time)
+            doomsummarizer setup
+
+            # 2. Doom scroll -- fetches, ranks, embeds, and summarizes
+            doomsummarizer scroll
+
+            # 3. Ask questions over your growing knowledge base
+            doomsummarizer ask "What happened with the SSH vulnerability?"
+
+            # 4. Crawl any site into a named knowledge base
+            doomsummarizer crawl https://docs.example.com --name docs
+            doomsummarizer ask --source crawl:docs "how does auth work?"
+
+            # Topic-focused with personality
+            doomsummarizer scroll "AI security news" --vibe snarky
+            doomsummarizer scroll "pharmaceutical breakthroughs" --vibe hopeful
+
+            # Summarize a single page into a structured article
+            doomsummarizer page https://example.com/article -o summary.md
+            ```
+
+            ### What's in the archive
+
+            | File | Purpose |
+            |------|---------|
+            | `doomsummarizer` | Self-contained single-file binary (no .NET runtime needed) |
+            | `README.md` | Full documentation -- all commands, flags, sources, pipeline details |
+            | `config.json` | Default config reference (copy to `~/.doomsummarizer/config.json` to customize) |
+
+            ### Works offline, scales up with APIs
+
+            Out of the box, DoomSummarizer uses only free sources (RSS, HTML scraping, DuckDuckGo) and local models (ONNX embeddings, Ollama LLM). Optionally configure cloud search APIs (Brave, Serper, Tavily, NewsAPI) and cloud LLMs (Anthropic Claude, OpenAI GPT-4o) with built-in budget enforcement to stay within free tiers.
+
+            Install [Ollama](https://ollama.com) for LLM synthesis, or use `--nollm` for the full ranking pipeline without it.
+
+            ### Platforms
+            - Windows x64, ARM64
+            - Linux x64, ARM64
+            - macOS x64 (Intel), ARM64 (Apple Silicon)
           draft: false
           prerelease: false
           files: |
