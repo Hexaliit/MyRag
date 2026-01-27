@@ -74,28 +74,83 @@ Interactive mode meta-commands:
 
 ### `crawl` — build a named knowledge base from a website
 
-Crawls same-domain links from a seed URL, extracts readable content, embeds it, and stores it in SQLite under a `crawl:<name>` source.
+Crawls same-domain links from a seed URL, extracts readable content, embeds it, and stores it in SQLite under a `crawl:<name>` source. Re-crawls are **incremental by default** — the crawler uses HTTP conditional requests (ETag / Last-Modified) and content hashing to skip unchanged pages, saving bandwidth and processing time.
 
 Examples:
 
 ```bash
-doomsummarizer crawl https://docs.example.com --name docs
+# Basic crawl — auto-names the KB from the domain
+doomsummarizer crawl https://docs.example.com
+
+# Named KB with deeper crawl
 doomsummarizer crawl https://wiki.local -n wiki --depth 5 --max-pages 500
-doomsummarizer crawl https://intranet.company.com --entities
+
+# Only index pages under /blog/*, with NER entity extraction
+doomsummarizer crawl https://blog.example.com -g "/blog/*" --entities
+
+# Force re-process all pages, ignoring cache
+doomsummarizer crawl https://docs.example.com --force
+
+# Gentle crawl for external sites
+doomsummarizer crawl https://intranet.company.com --delay 1000 --concurrency 1
 ```
 
 Options:
 - `-n, --name <NAME>`: knowledge base name; defaults to a derived domain label
 - `-d, --depth <N>`: max link depth (default `3`)
 - `-m, --max-pages <N>`: max pages to crawl (default `200`)
+- `-g, --glob <PATTERN>`: URL path filter — only pages matching this pattern are indexed (e.g., `/blog/*`, `/docs/**`). Pages outside the filter are still crawled for link discovery but not stored.
+- `-f, --force`: re-process all pages regardless of cache (default: skip unchanged)
 - `--delay <MS>`: politeness delay between requests (default `500`)
 - `--concurrency <N>`: max concurrent requests (default `3`)
-- `--entities`: run NER over crawled pages and store entity text into summaries
+- `--entities`: run NER over crawled pages and persist entities to the SQLite knowledge graph
 - `-q, --quiet`: minimal output
 
-Query a crawl KB:
-- `doomsummarizer scroll --local -s crawl:docs "your query"`
-- `doomsummarizer ask --source crawl:docs "your question"`
+#### Incremental caching
+
+Re-crawls use a two-tier cache to avoid redundant work:
+
+1. **HTTP conditional requests** (fastest): Sends `If-None-Match` / `If-Modified-Since` headers using stored ETags and Last-Modified dates. If the server returns `304 Not Modified`, the page body is never transferred — zero bandwidth used.
+2. **Content hash fallback**: For servers that don't support ETags, the crawler compares a SHA256 hash of the page content against the stored hash. Identical content is skipped.
+
+The summary table after a crawl shows both cache tiers:
+```
+HTTP 304 (not modified)  │ 42
+Content hash match       │ 8
+Total cached             │ 50
+```
+
+Use `--force` to bypass all caching and re-process every page.
+
+#### Querying crawled KBs
+
+```bash
+# Semantic search over your KB
+doomsummarizer scroll --local -s crawl:docs "your query"
+
+# Interactive Q&A
+doomsummarizer ask --source crawl:docs "your question"
+
+# Browse contents
+doomsummarizer show docs
+doomsummarizer show docs --full
+```
+
+### `show` — browse knowledge base collections
+
+Lists all stored collections or inspects a specific one.
+
+```bash
+doomsummarizer show                    # List all collections with stats
+doomsummarizer show docs               # Items in 'docs' collection
+doomsummarizer show docs --full        # With content preview
+doomsummarizer show docs -l 100        # Show up to 100 items
+```
+
+Options:
+- `[name]`: collection name to inspect (omit to list all)
+- `-l, --limit <N>`: max items to show (default `50`)
+- `--full`: show content preview for each item
 
 ### `page` — summarize one URL
 

@@ -1637,6 +1637,36 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             .ToList();
                     }
                     nerTask.Description = $"[green]Found {allEntities.Count} entities[/]";
+
+                    // Persist entities to SQLite for future runs (enriches theme briefing without --entities)
+                    if (articleEntityMap.Count > 0)
+                    {
+                        foreach (var (ci, ents) in articleEntityMap)
+                        {
+                            var deduped = ents
+                                .GroupBy(e => e.Text.ToLowerInvariant())
+                                .Select(g => g.OrderByDescending(e => e.Confidence).First())
+                                .ToList();
+
+                            var entityIds = new List<string>();
+                            foreach (var entity in deduped)
+                            {
+                                var entityId = KnowledgeGraphService.GenerateEntityId(entity.Text, entity.Type);
+                                entityIds.Add(entityId);
+                                await storage.UpsertEntityAsync(entityId, entity.Text, entity.Type, entity.Confidence);
+                                await storage.UpsertEntityMentionAsync(entityId, ci.Id, entity.Confidence, ci.Title);
+                            }
+
+                            // Build co-occurrence edges in SQLite too
+                            for (var ei = 0; ei < entityIds.Count; ei++)
+                            {
+                                for (var ej = ei + 1; ej < entityIds.Count; ej++)
+                                {
+                                    await storage.UpsertRelationshipAsync(entityIds[ei], entityIds[ej]);
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Index item embeddings into DuckDB for HNSW similarity search (skip in --no-llm fast mode)
@@ -2085,16 +2115,40 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     // Display evidence briefing with named themes
                     if (analyzedItems.Count > 0)
                     {
-                        var briefing = ExtractThemeBriefing(analyzedItems, uniqueItems);
+                        // Load entity data for enriched theme briefing
+                        Dictionary<string, List<(string name, string type, double confidence)>>? itemEntities = null;
+
+                        if (articleEntityMap.Count > 0)
+                        {
+                            // Use NER entities from this session
+                            itemEntities = articleEntityMap.ToDictionary(
+                                ae => ae.item.Id,
+                                ae => ae.entities.Select(e => (e.Text, e.Type, (double)e.Confidence)).ToList(),
+                                StringComparer.OrdinalIgnoreCase);
+                        }
+                        else
+                        {
+                            // Query stored entities from previous runs (knowledge graph)
+                            var itemIds = uniqueItems.Select(u => u.Id).ToList();
+                            itemEntities = await storage.GetEntitiesForItemsAsync(itemIds);
+                        }
+
+                        var briefing = ExtractThemeBriefing(analyzedItems, uniqueItems, itemEntities);
                         if (briefing.Themes.Count > 0)
                         {
                             AnsiConsole.WriteLine();
                             var briefingParts = new List<string>();
 
                             // Corpus coverage line
-                            var coverageNote = $"[dim]Themes inferred from {briefing.TotalEvidenceItems} evidence items across {briefing.SourceCount} sources (coverage: {briefing.CoveragePercent}% of matched corpus).[/]";
+                            var entityNote = briefing.HasGraphEntities
+                                ? $", {briefing.GraphEntityCount} graph entities"
+                                : "";
+                            var coverageNote = $"[dim]Themes inferred from {briefing.TotalEvidenceItems} evidence items across {briefing.SourceCount} sources{entityNote} (coverage: {briefing.CoveragePercent}%).[/]";
                             briefingParts.Add(coverageNote);
-                            briefingParts.Add("[dim]Selected by RRF + in-corpus PageRank; diversity decay applied.[/]");
+                            var methodNote = briefing.HasGraphEntities
+                                ? "[dim]Entity-graph enriched; RRF + in-corpus PageRank; diversity decay applied.[/]"
+                                : "[dim]Selected by RRF + in-corpus PageRank; diversity decay applied.[/]";
+                            briefingParts.Add(methodNote);
                             briefingParts.Add("");
 
                             // Named themes with evidence counts and snippets
@@ -2130,11 +2184,33 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                     briefingParts.Add($"  [italic dim]\"{Markup.Escape(truncSnippet)}\"[/]{tag}");
                                 }
 
-                                // Key terms as entities
-                                if (theme.KeyTerms.Count > 0)
+                                // Show entities: typed NER entities when available, else key terms
+                                if (theme.GraphEntities.Count > 0)
+                                {
+                                    var typedEntities = string.Join(", ", theme.GraphEntities.Take(6).Select(e =>
+                                    {
+                                        var typeColor = e.type switch
+                                        {
+                                            "PER" => "green",
+                                            "ORG" => "blue",
+                                            "LOC" => "yellow",
+                                            _ => "grey"
+                                        };
+                                        var typeLabel = e.type switch
+                                        {
+                                            "PER" => "person",
+                                            "ORG" => "org",
+                                            "LOC" => "loc",
+                                            _ => "misc"
+                                        };
+                                        return $"[{typeColor}]{Markup.Escape(e.name)}[/][dim]:{typeLabel}[/]";
+                                    }));
+                                    briefingParts.Add($"  {typedEntities}");
+                                }
+                                else if (theme.KeyTerms.Count > 0)
                                 {
                                     var terms = string.Join(", ", theme.KeyTerms.Select(t => Markup.Escape(t)));
-                                    briefingParts.Add($"  [dim]Entities: {terms}[/]");
+                                    briefingParts.Add($"  [dim]Terms: {terms}[/]");
                                 }
 
                                 briefingParts.Add("");
@@ -2945,7 +3021,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
     /// </summary>
     internal static ThemeBriefing ExtractThemeBriefing(
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> analyzedItems,
-        List<ContentItem> contentItems)
+        List<ContentItem> contentItems,
+        Dictionary<string, List<(string name, string type, double confidence)>>? itemEntities = null)
     {
         var briefing = new ThemeBriefing();
 
@@ -2954,6 +3031,18 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             .Where(c => !string.IsNullOrEmpty(c.Url))
             .GroupBy(c => c.Url!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        // Build URL → entity list lookup from item ID-keyed entity data
+        var entitiesByUrl = new Dictionary<string, List<(string name, string type, double confidence)>>(
+            StringComparer.OrdinalIgnoreCase);
+        if (itemEntities != null)
+        {
+            foreach (var ci in contentItems)
+            {
+                if (!string.IsNullOrEmpty(ci.Url) && itemEntities.TryGetValue(ci.Id, out var ents))
+                    entitiesByUrl.TryAdd(ci.Url, ents);
+            }
+        }
 
         // Build evidence index (E1, E2...) from analyzed items
         var evidenceIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -2990,39 +3079,102 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             }
             theme.EvidenceIds = groupEvidenceIds.Distinct().OrderBy(x => x).ToList();
 
-            // Extract key terms distinctive to this topic group
-            var groupTermCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            // Extract NER entities from the knowledge graph for this theme group
+            var groupGraphEntities = new Dictionary<string, (string name, string type, int count, double maxConf)>(
+                StringComparer.OrdinalIgnoreCase);
             foreach (var item in group)
             {
-                ContentItem? ci = null;
-                if (!string.IsNullOrEmpty(item.url))
-                    contentByUrl.TryGetValue(item.url, out ci);
-
-                var rawText = $"{item.title} {item.summary} {ci?.Content ?? ""}";
-                var text = CleanMarkdownForSnippet(rawText);
-                var tokens = text
-                    .Split([' ', '\t', '\n', '\r', ',', '.', '!', '?', ':', ';', '(', ')', '[', ']', '"', '\'', '—', '–', '-', '/'],
-                        StringSplitOptions.RemoveEmptyEntries)
-                    .Select(t => t.Trim().ToLowerInvariant())
-                    .Where(t => t.Length >= 4 && t.Length <= 25
-                                && !stopWords.Contains(t) && !int.TryParse(t, out _)
-                                && !IsUrlFragment(t))
-                    .ToList();
-
-                foreach (var token in tokens.Distinct())
+                if (!string.IsNullOrEmpty(item.url) && entitiesByUrl.TryGetValue(item.url, out var ents))
                 {
-                    groupTermCounts.TryGetValue(token, out var c);
-                    groupTermCounts[token] = c + 1;
+                    foreach (var (name, type, conf) in ents)
+                    {
+                        var key = name.ToLowerInvariant();
+                        if (groupGraphEntities.TryGetValue(key, out var existing))
+                        {
+                            groupGraphEntities[key] = (name, type, existing.count + 1, Math.Max(existing.maxConf, conf));
+                        }
+                        else
+                        {
+                            groupGraphEntities[key] = (name, type, 1, conf);
+                        }
+                    }
                 }
             }
 
-            // Top distinctive terms (appearing in 2+ items, sorted by frequency)
-            theme.KeyTerms = groupTermCounts
-                .Where(kv => kv.Value >= Math.Min(2, group.Count()))
-                .OrderByDescending(kv => kv.Value)
-                .Take(5)
-                .Select(kv => kv.Key)
+            // Use NER entities as GraphEntities (ranked by cross-article count, then confidence)
+            // Deduplicate: remove entities that are substrings of higher-ranked entities
+            var rankedEntities = groupGraphEntities.Values
+                .OrderByDescending(e => e.count)
+                .ThenByDescending(e => e.maxConf)
                 .ToList();
+            var selectedEntities = new List<(string name, string type, int count, double maxConf)>();
+            foreach (var ent in rankedEntities)
+            {
+                // Skip if overlaps with an already-selected higher-ranked entity
+                var overlaps = selectedEntities.Any(s =>
+                    s.name.Contains(ent.name, StringComparison.OrdinalIgnoreCase)
+                    || ent.name.Contains(s.name, StringComparison.OrdinalIgnoreCase));
+                if (!overlaps)
+                    selectedEntities.Add(ent);
+                if (selectedEntities.Count >= 8) break;
+            }
+
+            theme.GraphEntities = selectedEntities
+                .Select(e => (e.name, e.type))
+                .ToList();
+
+            // Extract key terms: prefer NER entities, fall back to frequency tokens
+            if (theme.GraphEntities.Count >= 3)
+            {
+                // Use top NER entity names as key terms (already ranked)
+                theme.KeyTerms = theme.GraphEntities.Take(5)
+                    .Select(e => e.name)
+                    .ToList();
+            }
+            else
+            {
+                // Fall back to frequency-based token extraction
+                var groupTermCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (var item in group)
+                {
+                    ContentItem? ci = null;
+                    if (!string.IsNullOrEmpty(item.url))
+                        contentByUrl.TryGetValue(item.url, out ci);
+
+                    var rawText = $"{item.title} {item.summary} {ci?.Content ?? ""}";
+                    var text = CleanMarkdownForSnippet(rawText);
+                    var tokens = text
+                        .Split([' ', '\t', '\n', '\r', ',', '.', '!', '?', ':', ';', '(', ')', '[', ']', '"', '\'', '—', '–', '-', '/'],
+                            StringSplitOptions.RemoveEmptyEntries)
+                        .Select(t => t.Trim().ToLowerInvariant())
+                        .Where(t => t.Length >= 4 && t.Length <= 25
+                                    && !stopWords.Contains(t) && !int.TryParse(t, out _)
+                                    && !IsUrlFragment(t))
+                        .ToList();
+
+                    foreach (var token in tokens.Distinct())
+                    {
+                        groupTermCounts.TryGetValue(token, out var c);
+                        groupTermCounts[token] = c + 1;
+                    }
+                }
+
+                // Merge any available NER entities into the front of the list
+                var nerNames = new HashSet<string>(
+                    theme.GraphEntities.Select(e => e.name), StringComparer.OrdinalIgnoreCase);
+                var frequencyTerms = groupTermCounts
+                    .Where(kv => kv.Value >= Math.Min(2, group.Count()) && !nerNames.Contains(kv.Key))
+                    .OrderByDescending(kv => kv.Value)
+                    .Take(5 - theme.GraphEntities.Count)
+                    .Select(kv => kv.Key)
+                    .ToList();
+
+                theme.KeyTerms = theme.GraphEntities
+                    .Select(e => e.name)
+                    .Concat(frequencyTerms)
+                    .Take(5)
+                    .ToList();
+            }
 
             // Extract 2 representative snippets from content
             foreach (var item in group.OrderByDescending(i => i.relevance).Take(3))
@@ -3064,6 +3216,13 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
 
+        // Count distinct graph entities across all themes
+        briefing.GraphEntityCount = briefing.Themes
+            .SelectMany(t => t.GraphEntities)
+            .Select(e => e.name)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
         // Missing themes: common topics NOT represented
         var allKnownTopics = new[]
         {
@@ -3091,12 +3250,15 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         // Split into sentences
         var sentences = cleanContent.Split(['.', '!', '?'], StringSplitOptions.RemoveEmptyEntries)
             .Select(s => s.Trim())
+            .Select(s => s.TrimStart(')', '(', '>', '-', '*', ' '))
             .Where(s => s.Length is >= 30 and <= 200)
             // Filter out boilerplate / navigation patterns
             .Where(s => !s.StartsWith("Series Navigation", StringComparison.OrdinalIgnoreCase))
             .Where(s => !s.StartsWith("Part ", StringComparison.OrdinalIgnoreCase) || s.Length > 60)
             .Where(s => !s.Contains("http://") && !s.Contains("https://"))
             .Where(s => !s.StartsWith("Subscribe") && !s.StartsWith("Click"))
+            // Ensure sentence starts with a letter (not punctuation fragments)
+            .Where(s => s.Length > 0 && char.IsLetter(s[0]))
             .ToList();
 
         if (sentences.Count == 0) return null;
@@ -3150,9 +3312,19 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         if (keyTerms.Count == 0)
             return topicLabel;
 
-        // Build descriptive terms (capitalize, join naturally)
-        var terms = keyTerms.Take(3)
-            .Select(t => char.ToUpper(t[0]) + t[1..])
+        // Deduplicate terms: remove terms that are substrings of other terms
+        var deduped = keyTerms
+            .Where(t => !keyTerms.Any(other =>
+                !string.Equals(other, t, StringComparison.OrdinalIgnoreCase)
+                && other.Contains(t, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        if (deduped.Count == 0) deduped = keyTerms; // fallback if all are substrings
+
+        // Build descriptive terms (respect existing casing for NER entities)
+        var terms = deduped.Take(3)
+            .Select(t => t.Length > 1 && (char.IsUpper(t[0]) || t.All(c => char.IsUpper(c) || !char.IsLetter(c)))
+                ? t // Already properly cased (NER entity or acronym)
+                : char.ToUpper(t[0]) + t[1..])
             .ToList();
 
         // Use topic-specific framing for thesis-style names
@@ -3217,10 +3389,13 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         public int TotalEvidenceItems { get; set; }
         public int ItemsInThemes { get; set; }
         public int SourceCount { get; set; }
+        public int GraphEntityCount { get; set; }
         public List<string> MissingTopics { get; set; } = [];
 
         public int CoveragePercent =>
             TotalEvidenceItems > 0 ? (int)(ItemsInThemes * 100.0 / TotalEvidenceItems) : 0;
+
+        public bool HasGraphEntities => GraphEntityCount > 0;
     }
 
     internal class ThemeEntry
@@ -3230,6 +3405,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         public int SegmentCount { get; set; }
         public List<int> EvidenceIds { get; set; } = [];
         public List<string> KeyTerms { get; set; } = [];
+        public List<(string name, string type)> GraphEntities { get; set; } = [];
         public List<(string text, int? evidenceId)> Snippets { get; set; } = [];
     }
 

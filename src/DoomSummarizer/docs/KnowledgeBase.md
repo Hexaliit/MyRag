@@ -46,9 +46,17 @@ Use this for docs/wiki/intranet knowledge bases:
 
 ```bash
 doomsummarizer crawl https://docs.example.com --name docs --depth 4 --max-pages 800
+
+# Only index blog posts, extract named entities
+doomsummarizer crawl https://blog.example.com -g "/blog/*" --entities
+
+# Force full re-crawl (ignoring cache)
+doomsummarizer crawl https://docs.example.com --force
 ```
 
 The stored `source` value for crawled pages is `crawl:docs` (or whatever name you used).
+
+Re-crawling is **incremental by default**: the crawler sends HTTP conditional request headers (`If-None-Match` / `If-Modified-Since`) using stored ETags and Last-Modified dates. Pages that return `304 Not Modified` skip downloading entirely. For servers without ETag support, a SHA256 content hash fallback detects unchanged pages after download.
 
 ## Querying your KB
 
@@ -105,16 +113,17 @@ Example:
 doomsummarizer scroll "ai regulation" --entities --graph
 ```
 
-## Caching and “why it feels fast”
+## Caching and "why it feels fast"
 
 Several caches work together:
-- **URL cache**: avoids re-downloading unchanged pages (ETag/Last-Modified/hash)
+- **URL cache (HTTP-aware)**: stores ETags, Last-Modified headers, and SHA256 content hashes per URL. On re-crawl or re-fetch, the crawler sends conditional HTTP headers (`If-None-Match` / `If-Modified-Since`) — if the server returns `304 Not Modified`, the page body is never transferred. For servers that don't support conditional requests, the content hash detects unchanged pages after download.
 - **Segment reuse**: if a new query is very similar to a recent query, DoomSummarizer can reuse stored evidence instead of refetching
 - **Feature cache**: speeds up entity disambiguation in `ask`
 
-If you want to force a full refetch, use:
+If you want to force a full refetch/re-process, use:
 
 ```bash
-doomsummarizer scroll "your query" --force
+doomsummarizer scroll "your query" --force      # Ignore scroll cache
+doomsummarizer crawl https://example.com --force # Re-process all crawled pages
 ```
 

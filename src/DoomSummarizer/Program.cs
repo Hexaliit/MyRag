@@ -32,10 +32,12 @@ app.Configure(config =>
         .WithExample("config", "--init");
 
     config.AddCommand<CrawlCommand>("crawl")
-        .WithDescription("Crawl a website to build a searchable knowledge base")
+        .WithDescription("Crawl a website to build a searchable knowledge base (incremental with ETag/hash caching)")
         .WithExample("crawl", "https://docs.example.com")
+        .WithExample("crawl", "https://docs.example.com", "--force")
+        .WithExample("crawl", "https://blog.example.com", "-g", "/blog/*", "--entities")
         .WithExample("crawl", "https://intranet.company.com", "--name", "intranet", "--depth", "5")
-        .WithExample("crawl", "https://wiki.local", "-n", "wiki", "-m", "500");
+        .WithExample("crawl", "https://wiki.local", "-n", "wiki", "-m", "500", "--delay", "1000");
 
     config.AddCommand<ShowCommand>("show")
         .WithDescription("List knowledge base collections and their contents")

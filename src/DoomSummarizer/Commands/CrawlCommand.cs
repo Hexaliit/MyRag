@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Security.Cryptography;
+using System.Text;
 using DoomSummarizer.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -8,7 +10,16 @@ namespace DoomSummarizer.Commands;
 /// <summary>
 /// Crawl a website to build a searchable knowledge base.
 /// Follows same-domain links from a seed URL, extracts content,
-/// computes embeddings, and stores for later querying via 'scroll --local --kb [name]'.
+/// computes embeddings, and stores for later querying via 'scroll --name [name]'.
+///
+/// Cache-aware incremental crawling (default):
+///   1. HTTP conditional requests: sends If-None-Match / If-Modified-Since headers
+///      using stored ETags and Last-Modified dates → server returns 304 Not Modified
+///      without transferring the page body (saves bandwidth).
+///   2. Content hash fallback: for servers that don't support ETags, compares a SHA256
+///      hash of the page content against the cached hash → skips unchanged pages.
+///
+/// Use --force to re-process all pages regardless of cache state.
 /// </summary>
 public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 {
@@ -47,8 +58,12 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         public string? Glob { get; init; }
 
         [CommandOption("--entities")]
-        [Description("Enable NER entity extraction")]
+        [Description("Enable NER entity extraction and persist to knowledge graph")]
         public bool Entities { get; init; }
+
+        [CommandOption("-f|--force")]
+        [Description("Re-process all pages regardless of cache (default: skip unchanged pages)")]
+        public bool Force { get; init; }
 
         [CommandOption("-q|--quiet")]
         [Description("Minimal output")]
@@ -95,12 +110,35 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
         var crawler = new WebCrawlerService(httpClient, crawlConfig);
 
+        // Pre-load URL cache for conditional request headers (ETag / Last-Modified)
+        Dictionary<string, (string? etag, string? lastModified)> urlCacheLookup = new(StringComparer.OrdinalIgnoreCase);
+        if (!settings.Force)
+        {
+            // Build lookup from all cached URLs — the crawler will use this
+            // to send If-None-Match / If-Modified-Since headers
+            var allCached = await storage.GetAllUrlCacheEntriesAsync();
+            foreach (var entry in allCached)
+            {
+                if (!string.IsNullOrEmpty(entry.ETag) || !string.IsNullOrEmpty(entry.LastModified))
+                    urlCacheLookup[entry.Url] = (entry.ETag, entry.LastModified);
+            }
+        }
+
         AnsiConsole.MarkupLine($"[bold cyan]Crawling:[/] {Markup.Escape(settings.Url)}");
         var filterInfo = !string.IsNullOrEmpty(settings.Glob) ? $" | filter: {settings.Glob}" : "";
-        AnsiConsole.MarkupLine($"[grey]KB name: {Markup.Escape(kbName)} | depth: {settings.Depth} | max: {settings.MaxPages} pages{filterInfo}[/]");
+        var cacheMode = settings.Force ? "[yellow]force[/]" : "[green]incremental[/]";
+        var cacheStats = urlCacheLookup.Count > 0 ? $" | {urlCacheLookup.Count} cached ETags" : "";
+        AnsiConsole.MarkupLine($"[grey]KB name: {Markup.Escape(kbName)} | depth: {settings.Depth} | max: {settings.MaxPages} pages{filterInfo} | mode: {cacheMode}{cacheStats}[/]");
         AnsiConsole.WriteLine();
 
-        var crawledItems = new List<Models.ContentItem>();
+        // Track both new/changed items and cached (unchanged) items
+        var newItems = new List<Models.ContentItem>();
+        // Separate counters for HTTP 304 vs content-hash match
+        var httpNotModifiedCount = 0;
+        var contentHashCachedCount = 0;
+
+        // Track ETags/Last-Modified captured from responses (URL → headers)
+        var capturedHeaders = new Dictionary<string, (string? etag, string? lastModified)>(StringComparer.OrdinalIgnoreCase);
 
         await AnsiConsole.Progress()
             .Columns(
@@ -110,11 +148,21 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                 new SpinnerColumn())
             .StartAsync(async ctx =>
             {
-                // Stage 1: Crawl and extract content
+                // Stage 1: Crawl, extract, and filter by cache (ETag + content hash)
                 var crawlTask = ctx.AddTask("[cyan]Crawling pages[/]", maxValue: settings.MaxPages);
 
-                await foreach (var item in crawler.CrawlAsync(
+                // Cache provider: returns stored ETags/Last-Modified for conditional requests
+                Func<string, (string? etag, string? lastModified)>? cacheProvider =
+                    settings.Force ? null : url =>
+                    {
+                        // Normalize to match the lookup key format
+                        var normalized = url.Split('?')[0].Split('#')[0].TrimEnd('/').ToLowerInvariant();
+                        return urlCacheLookup.TryGetValue(normalized, out var cached) ? cached : (null, null);
+                    };
+
+                await foreach (var result in crawler.CrawlAsync(
                     settings.Url,
+                    cacheProvider: cacheProvider,
                     progress: new Progress<(int visited, int queued, int extracted)>(p =>
                     {
                         crawlTask.Value = Math.Min(p.visited, settings.MaxPages);
@@ -127,16 +175,56 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                     },
                     ct: cancellationToken))
                 {
-                    crawledItems.Add(item);
+                    // Capture response headers for cache storage
+                    if (!string.IsNullOrEmpty(result.Url) && (result.ETag != null || result.LastModified != null))
+                        capturedHeaders[result.Url] = (result.ETag, result.LastModified);
+
+                    // HTTP 304 Not Modified — server confirmed no changes (most efficient)
+                    if (result.NotModified)
+                    {
+                        httpNotModifiedCount++;
+                        // Bump hit count in URL cache
+                        if (!string.IsNullOrEmpty(result.Url))
+                            await storage.UpdateUrlCacheAsync(result.Url, null, result.ETag, result.LastModified, 0);
+                        continue;
+                    }
+
+                    var item = result.Item;
+                    if (item == null) continue;
+
+                    // Content hash fallback: for servers that don't support ETags
+                    if (!settings.Force && !string.IsNullOrEmpty(item.Url) && !string.IsNullOrEmpty(item.Content))
+                    {
+                        var contentHash = ComputeContentHash(item.Content);
+                        if (await storage.IsContentUnchangedAsync(item.Url, contentHash))
+                        {
+                            contentHashCachedCount++;
+                            // Update cache: bump hit count + store any new ETags from this response
+                            var (etag, lastMod) = capturedHeaders.TryGetValue(item.Url, out var h) ? h : (null, null);
+                            await storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
+                            continue;
+                        }
+                    }
+
+                    newItems.Add(item);
                 }
 
+                var totalCached = httpNotModifiedCount + contentHashCachedCount;
                 crawlTask.Value = settings.MaxPages;
-                crawlTask.Description = $"[green]Crawled {crawler.PagesVisited} pages, extracted {crawler.PagesExtracted}, skipped {crawler.PagesSkipped}[/]";
+                crawlTask.Description = settings.Force
+                    ? $"[green]Crawled {crawler.PagesVisited} pages, extracted {crawler.PagesExtracted}, skipped {crawler.PagesSkipped}[/]"
+                    : $"[green]Crawled {crawler.PagesVisited} pages, {newItems.Count} new/changed, {totalCached} cached ({httpNotModifiedCount} HTTP 304, {contentHashCachedCount} hash), {crawler.PagesSkipped} skipped[/]";
 
-                // Stage 2: Compute embeddings
-                var embedTask = ctx.AddTask("[cyan]Computing embeddings[/]", maxValue: crawledItems.Count);
+                if (newItems.Count == 0)
+                {
+                    crawlTask.Description = $"[green]All {totalCached} pages unchanged since last crawl[/]";
+                    return;
+                }
 
-                foreach (var item in crawledItems)
+                // Stage 2: Compute embeddings for new/changed items
+                var embedTask = ctx.AddTask("[cyan]Computing embeddings[/]", maxValue: newItems.Count);
+
+                foreach (var item in newItems)
                 {
                     var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
                     if (textToEmbed.Length > 1000)
@@ -145,21 +233,20 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                     embedTask.Increment(1);
                 }
 
-                embedTask.Description = $"[green]Embedded {crawledItems.Count} pages[/]";
+                embedTask.Description = $"[green]Embedded {newItems.Count} pages[/]";
 
                 // Stage 3: NER entity extraction (optional)
                 if (settings.Entities)
                 {
-                    var nerTask = ctx.AddTask("[cyan]Extracting entities[/]", maxValue: crawledItems.Count);
+                    var nerTask = ctx.AddTask("[cyan]Extracting entities[/]", maxValue: newItems.Count);
                     using var nerService = new NerService();
                     if (nerService.IsAvailable)
                     {
                         await nerService.InitializeAsync();
-                        foreach (var item in crawledItems)
+                        foreach (var item in newItems)
                         {
                             var textForNer = $"{item.Title} {item.Content?[..Math.Min(item.Content.Length, 1000)] ?? ""}";
                             var entities = await nerService.ExtractEntitiesAsync(textForNer);
-                            // Store entity text in the item summary for searchability
                             if (entities.Count > 0)
                             {
                                 var entityText = string.Join(", ", entities
@@ -167,15 +254,37 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                                     .Take(10)
                                     .Select(e => $"{e.Text} ({e.Type})"));
                                 item.Summary = (item.Summary ?? "") + $" [Entities: {entityText}]";
+
+                                // Persist entities to SQLite knowledge graph
+                                var deduped = entities
+                                    .GroupBy(e => e.Text.ToLowerInvariant())
+                                    .Select(g => g.OrderByDescending(e => e.Confidence).First())
+                                    .ToList();
+                                var entityIds = new List<string>();
+                                foreach (var entity in deduped)
+                                {
+                                    var entityId = KnowledgeGraphService.GenerateEntityId(entity.Text, entity.Type);
+                                    entityIds.Add(entityId);
+                                    await storage.UpsertEntityAsync(entityId, entity.Text, entity.Type, entity.Confidence);
+                                    await storage.UpsertEntityMentionAsync(entityId, item.Id, entity.Confidence, item.Title);
+                                }
+                                // Build co-occurrence edges
+                                for (var i = 0; i < entityIds.Count; i++)
+                                {
+                                    for (var j = i + 1; j < entityIds.Count; j++)
+                                    {
+                                        await storage.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
+                                    }
+                                }
                             }
                             nerTask.Increment(1);
                         }
                     }
-                    nerTask.Description = $"[green]Entities extracted from {crawledItems.Count} pages[/]";
+                    nerTask.Description = $"[green]Entities extracted from {newItems.Count} pages[/]";
                 }
 
-                // Stage 4: Store in knowledge base
-                var storeTask = ctx.AddTask("[cyan]Saving to knowledge base[/]", maxValue: crawledItems.Count);
+                // Stage 4: Store in knowledge base + update URL cache with ETags
+                var storeTask = ctx.AddTask("[cyan]Saving to knowledge base[/]", maxValue: newItems.Count);
 
                 // Add topic and sentiment from embeddings
                 var positiveAnchor = embedding.Embed(RelevanceScorer.PositiveAnchorText);
@@ -184,7 +293,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                     kv => kv.Key,
                     kv => embedding.Embed(kv.Value));
 
-                foreach (var item in crawledItems)
+                foreach (var item in newItems)
                 {
                     if (item.Embedding != null)
                     {
@@ -198,16 +307,27 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                         : item.Content ?? item.Title;
 
                     await storage.SaveItemAsync(item);
+
+                    // Update URL cache: content hash + any ETags/Last-Modified from the response
+                    if (!string.IsNullOrEmpty(item.Url) && !string.IsNullOrEmpty(item.Content))
+                    {
+                        var contentHash = ComputeContentHash(item.Content);
+                        var (etag, lastMod) = capturedHeaders.TryGetValue(item.Url, out var h) ? h : (null, null);
+                        await storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
+                    }
+
                     storeTask.Increment(1);
                 }
 
-                storeTask.Description = $"[green]Saved {crawledItems.Count} pages to KB '{kbName}'[/]";
+                storeTask.Description = $"[green]Saved {newItems.Count} pages to KB '{kbName}'[/]";
             });
 
         // Summary
         AnsiConsole.WriteLine();
 
-        var topicDist = crawledItems
+        var allProcessed = newItems;
+        var totalCachedFinal = httpNotModifiedCount + contentHashCachedCount;
+        var topicDist = allProcessed
             .Where(i => !string.IsNullOrEmpty(i.DetectedTopic))
             .GroupBy(i => i.DetectedTopic!)
             .OrderByDescending(g => g.Count())
@@ -220,21 +340,43 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
             .AddColumn("Value");
 
         table.AddRow("Pages crawled", $"{crawler.PagesVisited}");
-        table.AddRow("Pages extracted", $"{crawler.PagesExtracted}");
-        table.AddRow("Pages skipped", $"{crawler.PagesSkipped}");
-        table.AddRow("With embeddings", $"{crawledItems.Count(i => i.Embedding != null)}");
-        table.AddRow("Topics", string.Join(", ", topicDist.Select(g => $"{g.Key} ({g.Count()})")));
-        table.AddRow("Avg quality", crawledItems.Where(i => i.ContentStructure != null)
-            .Select(i => i.ContentStructure!.QualityScore)
-            .DefaultIfEmpty(0)
-            .Average()
-            .ToString("F2"));
+        table.AddRow("New/changed", $"{newItems.Count}");
+        if (httpNotModifiedCount > 0)
+            table.AddRow("HTTP 304 (not modified)", $"{httpNotModifiedCount}");
+        if (contentHashCachedCount > 0)
+            table.AddRow("Content hash match", $"{contentHashCachedCount}");
+        table.AddRow("Total cached", $"{totalCachedFinal}");
+        table.AddRow("Skipped", $"{crawler.PagesSkipped}");
+        table.AddRow("With embeddings", $"{newItems.Count(i => i.Embedding != null)}");
+        if (newItems.Count > 0)
+        {
+            table.AddRow("Topics", string.Join(", ", topicDist.Select(g => $"{g.Key} ({g.Count()})")));
+            table.AddRow("Avg quality", newItems.Where(i => i.ContentStructure != null)
+                .Select(i => i.ContentStructure!.QualityScore)
+                .DefaultIfEmpty(0)
+                .Average()
+                .ToString("F2"));
+        }
 
         AnsiConsole.Write(table);
+
+        if (totalCachedFinal > 0 && newItems.Count == 0)
+        {
+            AnsiConsole.MarkupLine($"\n[grey]All pages unchanged. Use --force to re-process anyway.[/]");
+        }
 
         AnsiConsole.MarkupLine($"\n[grey]Query this KB with:[/] doomsummarizer scroll \"your question\" --name {Markup.Escape(kbName)}");
         AnsiConsole.MarkupLine($"[grey]Browse contents:[/] doomsummarizer show {Markup.Escape(kbName)}");
 
         return 0;
+    }
+
+    /// <summary>
+    /// Compute a SHA256 content hash for cache comparison.
+    /// </summary>
+    private static string ComputeContentHash(string content)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }

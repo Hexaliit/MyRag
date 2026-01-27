@@ -113,23 +113,43 @@ Inside the loop: `sources`, `history`, `clear`, `quit`.
 
 ### `crawl` — Build a knowledge base
 
+Incremental by default — uses HTTP ETags and content hashing to skip unchanged pages on re-crawl.
+
 ```bash
 doomsummarizer crawl https://docs.example.com
 doomsummarizer crawl https://wiki.local -n wiki -d 5 -m 500
-doomsummarizer crawl https://intranet.company.com --entities
+doomsummarizer crawl https://blog.example.com -g "/blog/*" --entities
+doomsummarizer crawl https://docs.example.com --force  # Bypass cache
 ```
 
 Query crawled sites: `doomsummarizer ask -s crawl:wiki "search query"`
+Browse contents: `doomsummarizer show wiki`
 
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--name NAME` | `-n` | Knowledge base name |
 | `--depth N` | `-d` | Max crawl depth (default: 3) |
 | `--max-pages N` | `-m` | Max pages (default: 200) |
+| `--glob PATTERN` | `-g` | URL path filter (e.g., `/blog/*`, `/docs/**`) |
+| `--force` | `-f` | Re-process all pages, ignore cache |
 | `--delay MS` | | Request delay in ms (default: 500) |
 | `--concurrency N` | | Concurrent requests (default: 3) |
-| `--entities` | | NER entity extraction |
+| `--entities` | | NER entity extraction + knowledge graph |
 | `--quiet` | `-q` | Minimal output |
+
+### `show` — Browse knowledge base
+
+```bash
+doomsummarizer show                    # List all collections with stats
+doomsummarizer show docs               # Items in the 'docs' collection
+doomsummarizer show docs --full        # With content preview
+```
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `[name]` | | Collection name (omit to list all) |
+| `--limit N` | `-l` | Max items (default: 50) |
+| `--full` | | Show content preview |
 
 ### `page` — Summarize a single URL
 

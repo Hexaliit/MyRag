@@ -529,6 +529,59 @@ public class StorageService : IAsyncDisposable
     }
 
     /// <summary>
+    /// Get all entities associated with a set of item IDs.
+    /// Returns a dictionary mapping item_id → list of (entity name, type, confidence).
+    /// Used to enrich theme briefings with real NER entities from the persistent knowledge graph.
+    /// </summary>
+    public async Task<Dictionary<string, List<(string name, string type, double confidence)>>> GetEntitiesForItemsAsync(
+        IEnumerable<string> itemIds)
+    {
+        var result = new Dictionary<string, List<(string, string, double)>>(StringComparer.OrdinalIgnoreCase);
+        var idList = itemIds.ToList();
+        if (idList.Count == 0) return result;
+
+        // SQLite doesn't support array parameters; batch with IN clause
+        // Process in chunks of 100 to avoid SQL parameter limits
+        foreach (var chunk in idList.Chunk(100))
+        {
+            await using var cmd = _connection!.CreateCommand();
+            var placeholders = new List<string>();
+            for (var i = 0; i < chunk.Length; i++)
+            {
+                var paramName = $"@id{i}";
+                placeholders.Add(paramName);
+                cmd.Parameters.AddWithValue(paramName, chunk[i]);
+            }
+
+            cmd.CommandText = $"""
+                SELECT em.item_id, e.name, e.type, em.confidence
+                FROM entity_mentions em
+                JOIN entities e ON em.entity_id = e.id
+                WHERE em.item_id IN ({string.Join(", ", placeholders)})
+                ORDER BY em.confidence DESC
+                """;
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var itemId = reader.GetString(0);
+                var name = reader.GetString(1);
+                var type = reader.GetString(2);
+                var confidence = reader.GetDouble(3);
+
+                if (!result.TryGetValue(itemId, out var list))
+                {
+                    list = [];
+                    result[itemId] = list;
+                }
+                list.Add((name, type, confidence));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Get graph statistics.
     /// </summary>
     public async Task<(int entities, int relationships, int mentions)> GetGraphStatsAsync()
@@ -825,6 +878,31 @@ public class StorageService : IAsyncDisposable
     {
         var entry = await GetUrlCacheAsync(url);
         return entry?.ContentHash == contentHash;
+    }
+
+    /// <summary>
+    /// Get all URL cache entries (for pre-loading ETag/Last-Modified lookups before a crawl).
+    /// </summary>
+    public async Task<List<UrlCacheEntry>> GetAllUrlCacheEntriesAsync()
+    {
+        var entries = new List<UrlCacheEntry>();
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT url, content_hash, etag, last_modified, last_fetched, content_length, hit_count FROM url_cache";
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            entries.Add(new UrlCacheEntry
+            {
+                Url = reader.GetString(0),
+                ContentHash = reader.IsDBNull(1) ? null : reader.GetString(1),
+                ETag = reader.IsDBNull(2) ? null : reader.GetString(2),
+                LastModified = reader.IsDBNull(3) ? null : reader.GetString(3),
+                LastFetched = DateTimeOffset.Parse(reader.GetString(4)),
+                ContentLength = reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
+                HitCount = reader.GetInt32(6)
+            });
+        }
+        return entries;
     }
 
     private static string NormalizeCacheUrl(string url) =>

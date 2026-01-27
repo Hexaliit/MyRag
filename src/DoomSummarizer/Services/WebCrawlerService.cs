@@ -10,6 +10,8 @@ namespace DoomSummarizer.Services;
 /// BFS web crawler scoped to a single domain (or domain pattern).
 /// Extracts content from each page using SmartReader (ContentExtractor),
 /// stores as ContentItems for knowledge base use.
+/// Supports HTTP conditional requests (ETag / If-Modified-Since) for
+/// bandwidth-efficient incremental re-crawling.
 /// </summary>
 public class WebCrawlerService
 {
@@ -20,6 +22,7 @@ public class WebCrawlerService
     public int PagesVisited { get; private set; }
     public int PagesExtracted { get; private set; }
     public int PagesSkipped { get; private set; }
+    public int PagesNotModified { get; private set; }
 
     public WebCrawlerService(HttpClient httpClient, CrawlConfig config)
     {
@@ -30,10 +33,17 @@ public class WebCrawlerService
 
     /// <summary>
     /// Crawl starting from seedUrl, extracting all same-domain pages.
-    /// Returns ContentItems for each successfully extracted page.
+    /// Returns CrawlResults for each page — either new content or a 304 Not Modified signal.
     /// </summary>
-    public async IAsyncEnumerable<ContentItem> CrawlAsync(
+    /// <param name="seedUrl">Starting URL for the crawl.</param>
+    /// <param name="cacheProvider">Optional lookup for stored ETag / Last-Modified headers
+    /// to enable conditional HTTP requests (If-None-Match / If-Modified-Since).</param>
+    /// <param name="progress">Progress reporter.</param>
+    /// <param name="onActivity">Activity description callback.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async IAsyncEnumerable<CrawlResult> CrawlAsync(
         string seedUrl,
+        Func<string, (string? etag, string? lastModified)>? cacheProvider = null,
         IProgress<(int visited, int queued, int extracted)>? progress = null,
         Action<string>? onActivity = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
@@ -74,9 +84,12 @@ public class WebCrawlerService
 
             onActivity?.Invoke($"Crawling: {TruncateUrl(url, 60)}");
 
-            // Stage 1: Fetch HTML
+            // Stage 1: Fetch HTML (with conditional request headers for cache validation)
             string? html = null;
             string? finalUrl = url;
+            string? responseETag = null;
+            string? responseLastModified = null;
+            bool wasNotModified = false;
             try
             {
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -86,6 +99,16 @@ public class WebCrawlerService
                 request.Headers.Add("User-Agent",
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MostlyLucid-DoomSummarizer/1.0 (KnowledgeBase)");
                 request.Headers.Add("Accept", "text/html,application/xhtml+xml");
+
+                // Send conditional headers if we have cached ETags / Last-Modified
+                if (cacheProvider != null)
+                {
+                    var (cachedEtag, cachedLastModified) = cacheProvider(url);
+                    if (!string.IsNullOrEmpty(cachedEtag))
+                        request.Headers.TryAddWithoutValidation("If-None-Match", cachedEtag);
+                    if (!string.IsNullOrEmpty(cachedLastModified))
+                        request.Headers.TryAddWithoutValidation("If-Modified-Since", cachedLastModified);
+                }
 
                 using var response = await _httpClient.SendAsync(request, cts.Token);
 
@@ -100,21 +123,36 @@ public class WebCrawlerService
                         allowedHosts.Add("www." + redirectUri.Host);
                 }
 
-                if (!response.IsSuccessStatusCode)
+                // Capture ETag and Last-Modified from response for cache storage
+                responseETag = response.Headers.ETag?.ToString();
+                if (response.Content.Headers.LastModified is { } lm)
+                    responseLastModified = lm.ToString("R"); // RFC 1123 format
+
+                // 304 Not Modified — content unchanged, skip processing
+                if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
+                {
+                    PagesNotModified++;
+                    wasNotModified = true;
+                    // Still extract links from seed pages at this depth
+                    // but we don't have HTML, so skip link extraction too
+                }
+                else if (!response.IsSuccessStatusCode)
                 {
                     PagesSkipped++;
                     continue;
                 }
-
-                // Only process HTML content
-                var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
-                if (!contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
+                else
                 {
-                    PagesSkipped++;
-                    continue;
-                }
+                    // Only process HTML content
+                    var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+                    if (!contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
+                    {
+                        PagesSkipped++;
+                        continue;
+                    }
 
-                html = await response.Content.ReadAsStringAsync(cts.Token);
+                    html = await response.Content.ReadAsStringAsync(cts.Token);
+                }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -123,6 +161,19 @@ public class WebCrawlerService
             catch
             {
                 PagesSkipped++;
+                continue;
+            }
+
+            // Yield 304 Not Modified result (no content to extract, but caller needs the URL)
+            if (wasNotModified)
+            {
+                yield return new CrawlResult
+                {
+                    Url = finalUrl,
+                    NotModified = true,
+                    ETag = responseETag,
+                    LastModified = responseLastModified
+                };
                 continue;
             }
 
@@ -173,19 +224,25 @@ public class WebCrawlerService
             PagesExtracted++;
             progress?.Report((PagesVisited, frontier.Count, PagesExtracted));
 
-            yield return new ContentItem
+            yield return new CrawlResult
             {
-                Id = $"crawl_{GenerateId(finalUrl)}",
-                Source = $"crawl:{_config.Name}",
-                Title = extracted.Title,
+                Item = new ContentItem
+                {
+                    Id = $"crawl_{GenerateId(finalUrl)}",
+                    Source = $"crawl:{_config.Name}",
+                    Title = extracted.Title,
+                    Url = finalUrl,
+                    Content = extracted.BestContent,
+                    Author = extracted.Author,
+                    CreatedAt = extracted.PublishedDate is { } pd
+                        ? new DateTimeOffset(DateTime.SpecifyKind(pd, DateTimeKind.Utc))
+                        : DateTimeOffset.UtcNow,
+                    FetchedAt = DateTimeOffset.UtcNow,
+                    ContentStructure = extracted.Structure
+                },
                 Url = finalUrl,
-                Content = extracted.BestContent,
-                Author = extracted.Author,
-                CreatedAt = extracted.PublishedDate is { } pd
-                    ? new DateTimeOffset(DateTime.SpecifyKind(pd, DateTimeKind.Utc))
-                    : DateTimeOffset.UtcNow,
-                FetchedAt = DateTimeOffset.UtcNow,
-                ContentStructure = extracted.Structure
+                ETag = responseETag,
+                LastModified = responseLastModified
             };
         }
     }
@@ -304,6 +361,27 @@ public class WebCrawlerService
         return Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
     }
+}
+
+/// <summary>
+/// Result of crawling a single page — either new/changed content or a 304 Not Modified signal.
+/// </summary>
+public record CrawlResult
+{
+    /// <summary>Extracted content item. Null when NotModified is true.</summary>
+    public ContentItem? Item { get; init; }
+
+    /// <summary>The final URL (after redirects) for this page.</summary>
+    public string Url { get; init; } = "";
+
+    /// <summary>ETag header from the HTTP response (for cache storage).</summary>
+    public string? ETag { get; init; }
+
+    /// <summary>Last-Modified header from the HTTP response (for cache storage).</summary>
+    public string? LastModified { get; init; }
+
+    /// <summary>True when the server returned 304 Not Modified.</summary>
+    public bool NotModified { get; init; }
 }
 
 /// <summary>
