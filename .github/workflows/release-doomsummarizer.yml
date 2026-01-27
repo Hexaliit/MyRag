@@ -130,7 +130,9 @@ jobs:
           body: |
             ## DoomSummarizer v${{ github.event.inputs.version }}
 
-            **Reduced GraphRAG in a single binary.** A self-assembling knowledge system that fetches, embeds, ranks, extracts entities, builds a knowledge graph, and synthesizes grounded answers -- all locally, all from one file. Point it at any topic, website, or question and it constructs a RAG pipeline on the fly. No server, no database setup, no API keys required to start.
+            **Reduced GraphRAG in a single binary.** DoomSummarizer is a distillation of [**LucidRAG**](https://github.com/scottgal/lucidrag) principles -- hybrid search, entity extraction, knowledge graph construction, evidence-grounded synthesis -- compressed into a self-contained CLI that runs from a single file. No server, no database setup, no API keys required to start.
+
+            > **[Full documentation, all CLI options, and examples](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)**
 
             ### What it does
 
@@ -138,11 +140,11 @@ jobs:
             - **Embeds** everything locally with ONNX (all-MiniLM-L6-v2, 384-dim) -- no API calls
             - **Ranks** with multi-signal RRF fusion: BM25 + freshness + authority + semantic similarity + vibe alignment
             - **Builds a graph** -- BERT NER entity extraction, knowledge graph construction, in-corpus PageRank for authority
+            - **Crawls** websites with HTTP ETag/Last-Modified cache validation -- incremental re-crawls skip unchanged pages
             - **Follows links** one hop deep for content enrichment, applies TextRank sentence extraction
             - **Persists** everything in SQLite + DuckDB HNSW vectors -- your knowledge base grows with every query
             - **Synthesizes** evidence-grounded answers via LLM (local Ollama or cloud Anthropic/OpenAI)
-            - **Crawls** entire websites into named knowledge bases for later Q&A
-            - **Reuses** query feedback -- similar questions hit cached evidence instead of re-fetching
+            - **Generates** long-form articles with a 6-phase evidence-grounded pipeline and output validation
 
             All of this from a single file. Download, extract, run.
 
@@ -158,16 +160,15 @@ jobs:
             # 3. Ask questions over your growing knowledge base
             doomsummarizer ask "What happened with the SSH vulnerability?"
 
-            # 4. Crawl any site into a named knowledge base
-            doomsummarizer crawl https://docs.example.com --name docs
+            # 4. Crawl any site into a named knowledge base (incremental by default)
+            doomsummarizer crawl https://docs.example.com --name docs --entities
             doomsummarizer ask --source crawl:docs "how does auth work?"
 
             # Topic-focused with personality
             doomsummarizer scroll "AI security news" --vibe snarky
-            doomsummarizer scroll "pharmaceutical breakthroughs" --vibe hopeful
 
-            # Summarize a single page into a structured article
-            doomsummarizer page https://example.com/article -o summary.md
+            # Long-form article generation
+            doomsummarizer scroll "history of LLMs" -t blog-article -o llm-history.md
             ```
 
             ### What's in the archive
@@ -183,6 +184,14 @@ jobs:
             Out of the box, DoomSummarizer uses only free sources (RSS, HTML scraping, DuckDuckGo) and local models (ONNX embeddings, Ollama LLM). Optionally configure cloud search APIs (Brave, Serper, Tavily, NewsAPI) and cloud LLMs (Anthropic Claude, OpenAI GPT-4o) with built-in budget enforcement to stay within free tiers.
 
             Install [Ollama](https://ollama.com) for LLM synthesis, or use `--nollm` for the full ranking pipeline without it.
+
+            ### Documentation
+
+            - **[Full README with all commands, options, and examples](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)**
+            - **[CLI reference](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/docs/CLI.md)**
+            - **[Knowledge base guide](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/docs/KnowledgeBase.md)**
+            - **[Source syntax](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/docs/Sources.md)**
+            - **[Templates](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/docs/Templates.md)**
 
             ### Platforms
             - Windows x64, ARM64

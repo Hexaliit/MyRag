@@ -26,7 +26,7 @@
 
 </div>
 
-**DoomSummarizer** is a standalone CLI tool for fetching, ranking, and synthesizing news and research — with a built-in local knowledge base, NER entity extraction, and long-form article generation. No API keys required for default sources.
+**DoomSummarizer** is a distillation of ***lucid***RAG principles — hybrid search, entity extraction, knowledge graph construction, evidence-grounded synthesis — compressed into a standalone single-binary CLI. It fetches, ranks, and synthesizes news and research with a built-in local knowledge base, NER entity extraction, and long-form article generation. No API keys required for default sources.
 
 ```bash
 # Daily digest from default sources
@@ -370,7 +370,7 @@ See [docs/UNIFIED_LLM_PROVIDERS.md](docs/UNIFIED_LLM_PROVIDERS.md) for complete 
 
 [![DoomSummarizer Releases](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Download&logo=github)](https://github.com/scottgal/lucidrag/releases)
 
-A console-first research assistant and personal knowledge base. Fetches, ranks, and synthesizes content from 30+ sources with local ONNX embeddings — no API keys required.
+A distillation of ***lucid***RAG into a single-binary CLI. Console-first research assistant and personal knowledge base — fetches, ranks, and synthesizes content from 30+ sources with local ONNX embeddings, no API keys required.
 
 ```bash
 doomsummarizer scroll "AI security news" -v snarky     # Digest with tone
