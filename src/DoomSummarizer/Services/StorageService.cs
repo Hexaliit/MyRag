@@ -822,6 +822,42 @@ public class StorageService : IAsyncDisposable
     private static string NormalizeCacheUrl(string url) =>
         url.Split('?')[0].Split('#')[0].TrimEnd('/').ToLowerInvariant();
 
+    /// <summary>
+    /// Delete all stored data — items, entities, queries, caches.
+    /// Used by --clear-storage to reset to a clean state.
+    /// </summary>
+    public async Task ClearAllAsync()
+    {
+        // Core storage tables (always exist after InitializeAsync)
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            DELETE FROM entity_mentions;
+            DELETE FROM entity_relationships;
+            DELETE FROM entities;
+            DELETE FROM items;
+            DELETE FROM summaries;
+            DELETE FROM query_log;
+            DELETE FROM url_cache;
+            DELETE FROM feature_cache;
+            """;
+        await cmd.ExecuteNonQueryAsync();
+
+        // Budget/circuit tables (may not exist yet — created by other services)
+        foreach (var table in new[] { "api_usage", "api_usage_total", "circuit_state" })
+        {
+            try
+            {
+                await using var extra = _connection.CreateCommand();
+                extra.CommandText = $"DELETE FROM {table}";
+                await extra.ExecuteNonQueryAsync();
+            }
+            catch (SqliteException)
+            {
+                // Table doesn't exist yet — that's fine
+            }
+        }
+    }
+
     public async Task CleanupOldDataAsync(int retentionDays)
     {
         var cutoff = DateTimeOffset.UtcNow.AddDays(-retentionDays).ToString("O");

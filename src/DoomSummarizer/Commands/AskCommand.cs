@@ -259,17 +259,20 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
                 .AddColumn(new TableColumn("#").RightAligned())
                 .AddColumn("Title")
                 .AddColumn(new TableColumn("Score").RightAligned())
-                .AddColumn("Source");
+                .AddColumn("Source")
+                .AddColumn("Fetched");
 
             var rank = 1;
             foreach (var item in evidence.Take(settings.TopK))
             {
                 var title = item.Title.Length > 50 ? item.Title[..47] + "..." : item.Title;
+                var fetchedAge = FormatAge(item.FetchedAt);
                 evidenceTable.AddRow(
                     $"[grey]{rank}[/]",
                     Markup.Escape(title),
                     $"[cyan]{item.RelevanceScore:F2}[/]",
-                    $"[grey]{item.Source}[/]");
+                    $"[grey]{item.Source}[/]",
+                    $"[grey]{fetchedAge}[/]");
                 rank++;
             }
 
@@ -385,7 +388,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             var item = citableEvidence[ei];
             evidenceBlock.AppendLine($"\n[E{ei + 1}] ### {item.Title}");
             evidenceBlock.AppendLine($"URL: {item.Url}");
-            evidenceBlock.AppendLine($"Source: {item.Source} | Relevance: {item.RelevanceScore:F2}");
+            evidenceBlock.AppendLine($"Source: {item.Source} | Relevance: {item.RelevanceScore:F2} | Fetched: {item.FetchedAt:yyyy-MM-dd HH:mm} UTC");
 
             var content = item.Content ?? item.Summary ?? "";
             if (content.Length > 600)
@@ -450,5 +453,17 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             AnsiConsole.MarkupLine($"[green]A:[/] {Markup.Escape(preview)}");
             AnsiConsole.MarkupLine($"[grey]({ids.Count} sources)[/]");
         }
+    }
+
+    private static string FormatAge(DateTimeOffset fetchedAt)
+    {
+        var age = DateTimeOffset.UtcNow - fetchedAt;
+        return age.TotalMinutes switch
+        {
+            < 1 => "just now",
+            < 60 => $"{(int)age.TotalMinutes}m ago",
+            < 1440 => $"{(int)age.TotalHours}h ago",
+            _ => $"{(int)age.TotalDays}d ago"
+        };
     }
 }

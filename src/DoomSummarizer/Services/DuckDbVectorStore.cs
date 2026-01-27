@@ -435,6 +435,20 @@ public class DuckDbVectorStore : IAsyncDisposable
     }
 
     /// <summary>
+    /// Delete all vector store data — item embeddings, entities, mentions, relationships.
+    /// Used by --clear-storage to reset to a clean state.
+    /// </summary>
+    public async Task ClearAllAsync()
+    {
+        await ExecAsync("""
+            DELETE FROM entity_mentions;
+            DELETE FROM entity_relationships;
+            DELETE FROM entities;
+            DELETE FROM item_embeddings;
+            """);
+    }
+
+    /// <summary>
     /// Cleanup old data. Keeps entities but prunes stale mentions and orphans.
     /// </summary>
     public async Task CleanupAsync(int retentionDays)

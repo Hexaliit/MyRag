@@ -38,7 +38,7 @@ public class LlmRouter
     {
         var router = new LlmRouter(budget, circuit, ollamaConfig);
 
-        // Validate cloud providers in priority order
+        // Validate cloud providers in priority order — only mention them if configured
         if (keys.IsAvailable("anthropic"))
         {
             var entry = AutoFillContextSizes(keys.GetService("anthropic")!);
@@ -52,10 +52,6 @@ public class LlmRouter
             {
                 AnsiConsole.MarkupLine("[yellow]LLM: Anthropic key invalid or expired — skipping[/]");
             }
-        }
-        else
-        {
-            AnsiConsole.MarkupLine("[grey]LLM: Anthropic not configured[/]");
         }
 
         if (keys.IsAvailable("openai"))
@@ -72,13 +68,10 @@ public class LlmRouter
                 AnsiConsole.MarkupLine("[yellow]LLM: OpenAI key invalid or insufficient scopes — skipping[/]");
             }
         }
-        else
-        {
-            AnsiConsole.MarkupLine("[grey]LLM: OpenAI not configured[/]");
-        }
 
-        // Ollama always available as free fallback
+        // Ollama always available as local fallback
         router._providers.Add(new(new OllamaLlmProvider(ollamaConfig), null, true, null));
+        AnsiConsole.MarkupLine($"[grey]LLM: Ollama local ({ollamaConfig.Model}, {ollamaConfig.BaseUrl})[/]");
 
         return router;
     }

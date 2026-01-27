@@ -16,6 +16,7 @@ RULES:
 6. Use ONLY URLs from the evidence — never invent URLs
 7. If a fact cannot be attributed to a specific evidence item, DO NOT include it
 8. Maintain the tone specified above throughout the entire response
+9. Each evidence item has a "Fetched" timestamp — prefer recent evidence over stale data. If evidence is old, note the date
 
 FORMAT — choose the best fit:
 

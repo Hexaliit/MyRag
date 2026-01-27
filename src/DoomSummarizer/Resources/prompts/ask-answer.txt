@@ -15,6 +15,7 @@ INSTRUCTIONS:
 5. Use ONLY URLs from the evidence — never invent URLs
 6. Every factual claim MUST cite the evidence item it came from: ([Title](URL)) or quote the evidence text directly
 7. If a fact cannot be attributed to a specific evidence item, DO NOT include it
+8. Each evidence item has a "Fetched" timestamp — prefer recent evidence over stale data. If evidence is old, note the date
 
 FORMAT:
 [Direct answer in 2-4 sentences. Every claim must cite its source: ([Title](URL))]

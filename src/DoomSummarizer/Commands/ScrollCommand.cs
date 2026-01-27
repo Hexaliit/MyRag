@@ -93,6 +93,10 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [CommandOption("--email-to")]
         [Description("Override email recipient(s), comma-separated")]
         public string? EmailTo { get; init; }
+
+        [CommandOption("--clear-storage")]
+        [Description("Delete all cached data (segments, queries, entities) and exit")]
+        public bool ClearStorage { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
@@ -147,6 +151,32 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
         await using var storage = new StorageService(dbPath);
         await storage.InitializeAsync();
+
+        // Handle --clear-storage: wipe all cached data and exit
+        if (settings.ClearStorage)
+        {
+            await storage.ClearAllAsync();
+
+            // Also clear the DuckDB vector store (knowledge graph, HNSW embeddings)
+            var vectorDbPath = ConfigService.GetVectorDbPath();
+            if (File.Exists(vectorDbPath))
+            {
+                try
+                {
+                    await using var vs = new DuckDbVectorStore(vectorDbPath);
+                    await vs.InitializeAsync();
+                    await vs.ClearAllAsync();
+                    AnsiConsole.MarkupLine("[green]Vector store cleared (knowledge graph, HNSW embeddings)[/]");
+                }
+                catch (Exception ex)
+                {
+                    AnsiConsole.MarkupLine($"[yellow]Could not clear vector store: {ex.Message}[/]");
+                }
+            }
+
+            AnsiConsole.MarkupLine("[green]All stored data cleared (segments, queries, entities, circuit state, API usage, vectors)[/]");
+            return 0;
+        }
 
         // Initialize DuckDB vector store for HNSW-backed knowledge graph (only when --graph is requested)
         DuckDbVectorStore? vectorStore = null;
@@ -372,10 +402,42 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         .Select(s => s.ToContentItem())
                         .ToList();
 
-                    items.AddRange(cachedItems);
-                    fetchTask.Value = 100;
-                    fetchTask.Description = $"[green]Reused {items.Count} cached segments (skipped fetching)[/]";
+                    // Relevance gate: verify cached segments actually relate to the query
+                    // This prevents reusing stale/irrelevant results from a previous identical query
+                    if (earlyQueryEmbedding != null && cachedItems.Count > 0)
+                    {
+                        var withEmbeddings = cachedItems.Where(i => i.Embedding != null).ToList();
+                        if (withEmbeddings.Count > 0)
+                        {
+                            var similarities = withEmbeddings
+                                .Select(i => EmbeddingService.CosineSimilarity(earlyQueryEmbedding, i.Embedding!))
+                                .OrderByDescending(s => s)
+                                .ToList();
+
+                            // Use the best-of-top-5 as the relevance signal
+                            var topRelevance = similarities.Take(5).Average();
+
+                            if (topRelevance < 0.25f)
+                            {
+                                // Cached segments are irrelevant — skip cache, fetch fresh
+                                useCachedSegments = false;
+                                if (!settings.Quiet)
+                                    AnsiConsole.MarkupLine($"[yellow]Cached segments are irrelevant (best relevance: {topRelevance:F2}) — fetching fresh results[/]");
+                            }
+                        }
+                    }
+
+                    if (useCachedSegments)
+                    {
+                        items.AddRange(cachedItems);
+                        fetchTask.Value = 100;
+                        fetchTask.Description = $"[green]Reused {items.Count} cached segments (skipped fetching)[/]";
+                    }
                 }
+
+                // Detect query type early — used for roundup date-gating inside fetch mode
+                // AND for adaptive RRF weights in Stage 2.5 (outside the fetch block)
+                var earlyQueryType = QueryTypeDetector.Detect(interpreted?.RawPrompt ?? settings.Prompt, interpreted?.SentinelIntent);
 
                 if (!settings.LocalOnly && !useCachedSegments)
                 {
@@ -858,7 +920,6 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 // Roundup intent: date-gate and penalize topic drift
-                var earlyQueryType = QueryTypeDetector.Detect(interpreted?.RawPrompt ?? settings.Prompt, interpreted?.SentinelIntent);
                 if (earlyQueryType == QueryType.Roundup)
                 {
                     var preRoundupCount = items.Count;
@@ -983,8 +1044,22 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 // Stage 2.5: Embedding computation + two-phase relevance scoring with RRF
-                var scorer = new RelevanceScorer();
+                // Use query-type-adaptive weights: roundups boost freshness, explainers boost authority
+                var scorer = RelevanceScorer.ForQueryType(earlyQueryType);
                 var queryText = interpreted?.RawPrompt ?? settings.Prompt ?? "";
+
+                // Augment BM25 query with sentinel-expanded search terms.
+                // The sentinel LLM expands abbreviations (e.g. "SNL" → "Saturday Night Live"),
+                // fixes spelling, and adds synonyms. These extra terms improve BM25F vocabulary
+                // coverage without affecting the embedding-based semantic similarity signal.
+                var bm25Query = queryText;
+                if (interpreted?.SearchQueries?.Count > 0)
+                {
+                    var extraTerms = string.Join(" ", interpreted.SearchQueries);
+                    bm25Query = $"{queryText} {extraTerms}";
+                    if (!settings.Quiet)
+                        AnsiConsole.MarkupLine($"[grey]BM25 expanded: +{interpreted.SearchQueries.Count} sentinel terms[/]");
+                }
 
                 // Compute embeddings for ALL items BEFORE scoring
                 // This enables semantic matching in Phase 1 (e.g. "pharmaceutical" matches "drug pricing")
@@ -1005,6 +1080,11 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     queryEmbedding = embedding.Embed(queryText);
                     var vibeText = GetVibeRepresentativeText(vibe);
                     vibeEmbedding = vibe != "neutral" ? embedding.Embed(vibeText) : null;
+
+                    // Quality anchors: detect clickbait vs substantive content
+                    var highQualityAnchor = embedding.Embed(RelevanceScorer.HighQualityAnchorText);
+                    var lowQualityAnchor = embedding.Embed(RelevanceScorer.LowQualityAnchorText);
+                    scorer = scorer.WithQualityAnchors(highQualityAnchor, lowQualityAnchor);
                 }
 
                 // Phase 1: Fast discard using BM25 + freshness + authority + semantic similarity
@@ -1016,7 +1096,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     List<(ContentItem item, double bm25, double freshness, double authority, double qSim)>? phase1Debug = null;
                     if (settings.DebugPipeline)
                     {
-                        var qt = RelevanceScorer.Tokenize(queryText);
+                        var qt = RelevanceScorer.Tokenize(bm25Query);
                         var (idf, avgDocLen) = RelevanceScorer.BuildCorpusStats(uniqueItems);
                         phase1Debug = uniqueItems.Select(i => (
                             item: i,
@@ -1028,7 +1108,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         )).ToList();
                     }
 
-                    uniqueItems = scorer.ScoreFast(uniqueItems, queryText, discardRatio: 0.25, queryEmbedding: queryEmbedding);
+                    uniqueItems = scorer.ScoreFast(uniqueItems, bm25Query, discardRatio: 0.25, queryEmbedding: queryEmbedding);
 
                     if (settings.DebugPipeline && phase1Debug != null)
                     {
@@ -1062,22 +1142,33 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 Markup.Escape(d.item.Title.Length > 60 ? d.item.Title[..57] + "..." : d.item.Title));
                         }
                         AnsiConsole.Write(table);
-                        AnsiConsole.MarkupLine($"[grey]Query tokens: {string.Join(", ", RelevanceScorer.Tokenize(queryText))}[/]");
+                        AnsiConsole.MarkupLine($"[grey]Query type: {earlyQueryType} | BM25 tokens: {string.Join(", ", RelevanceScorer.Tokenize(bm25Query))}[/]");
                     }
 
                     if (!settings.Quiet && uniqueItems.Count < preScoreCount)
                         AnsiConsole.MarkupLine($"[grey]Fast relevance filter: {preScoreCount} → {uniqueItems.Count} items (discarded low-salience)[/]");
                 }
 
-                // Phase 2: Full RRF with vibe alignment added (embeddings already computed)
-                if (!string.IsNullOrWhiteSpace(queryText) && queryEmbedding != null)
+                // PRF centroid refinement: blend query embedding with top-K results from Phase 1.
+                // This captures the "semantic neighborhood" of relevant results, helping with
+                // vocabulary mismatch (e.g. query "drug pricing" finds "pharmaceutical costs").
+                float[]? refinedQueryEmbedding = queryEmbedding;
+                if (queryEmbedding != null && uniqueItems.Count >= 3)
                 {
-                    uniqueItems = scorer.ScoreFull(uniqueItems, queryText, queryEmbedding, vibeEmbedding);
+                    refinedQueryEmbedding = RelevanceScorer.ComputePRFCentroid(uniqueItems, queryEmbedding);
+                    if (!settings.Quiet && refinedQueryEmbedding != queryEmbedding)
+                        AnsiConsole.MarkupLine($"[grey]PRF: refined query embedding from top-{Math.Min(5, uniqueItems.Count)} results[/]");
+                }
+
+                // Phase 2: Full RRF with vibe alignment added (embeddings already computed)
+                if (!string.IsNullOrWhiteSpace(queryText) && refinedQueryEmbedding != null)
+                {
+                    uniqueItems = scorer.ScoreFull(uniqueItems, bm25Query, refinedQueryEmbedding, vibeEmbedding);
 
                     if (settings.DebugPipeline)
                     {
                         // Recompute individual Phase 2 signals for debug display
-                        var qt = RelevanceScorer.Tokenize(queryText);
+                        var qt = RelevanceScorer.Tokenize(bm25Query);
                         var (idf2, avgDocLen2) = RelevanceScorer.BuildCorpusStats(uniqueItems);
 
                         AnsiConsole.WriteLine();
@@ -1100,7 +1191,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             var bm25 = RelevanceScorer.BM25Score(RelevanceScorer.ItemText(item), qt, idf2, avgDocLen2);
                             var fresh = RelevanceScorer.ComputeFreshness(item);
                             var auth = RelevanceScorer.NormalizeAuthority(item, uniqueItems);
-                            var qSim = item.Embedding != null ? EmbeddingService.CosineSimilarity(item.Embedding, queryEmbedding) : 0f;
+                            var qSim = item.Embedding != null && refinedQueryEmbedding != null
+                                ? EmbeddingService.CosineSimilarity(item.Embedding, refinedQueryEmbedding) : 0f;
                             var vSim = vibeEmbedding != null && item.Embedding != null
                                 ? EmbeddingService.CosineSimilarity(item.Embedding, vibeEmbedding) : 0f;
 
@@ -1250,6 +1342,76 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     {
                         var boostedCount = inLinkCounts.Count(kv => kv.Value > 0);
                         AnsiConsole.MarkupLine($"[grey]In-corpus PageRank: {boostedCount} items boosted by cross-references[/]");
+                    }
+                }
+
+                // Evidence sufficiency check: if top items are irrelevant, re-search with focused queries
+                if (queryEmbedding != null && uniqueItems.Count > 0 && !settings.LocalOnly)
+                {
+                    var topItems = uniqueItems.Take(5).Where(i => i.Embedding != null).ToList();
+                    if (topItems.Count > 0)
+                    {
+                        var avgRelevance = topItems
+                            .Select(i => (double)EmbeddingService.CosineSimilarity(queryEmbedding, i.Embedding!))
+                            .Average();
+
+                        if (avgRelevance < 0.25)
+                        {
+                            if (!settings.Quiet)
+                                AnsiConsole.MarkupLine(
+                                    $"[yellow]Evidence gap detected (top-5 relevance: {avgRelevance:F2}) — running targeted re-search[/]");
+
+                            // Re-search with the raw query directly through available search APIs
+                            var reSearchQuery = queryText;
+                            var reSearchResults = new List<ContentItem>();
+                            var reSearchTasks = new List<Task<List<ContentItem>>>();
+
+                            if (apiKeys.IsAvailable("brave_search"))
+                                reSearchTasks.Add(Task.Run(async () =>
+                                    await new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                                        .SearchAsync(reSearchQuery, 10)));
+                            if (apiKeys.IsAvailable("serper"))
+                                reSearchTasks.Add(Task.Run(async () =>
+                                    await new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                                        .SearchAsync(reSearchQuery, 10)));
+                            if (apiKeys.IsAvailable("tavily"))
+                                reSearchTasks.Add(Task.Run(async () =>
+                                    await new TavilySearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                                        .SearchAsync(reSearchQuery, 10)));
+                            if (apiKeys.IsAvailable("jina"))
+                                reSearchTasks.Add(Task.Run(async () =>
+                                    await new JinaSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                                        .SearchAsync(reSearchQuery, 5)));
+                            if (reSearchTasks.Count == 0)
+                                reSearchTasks.Add(Task.Run(async () =>
+                                    await new DuckDuckGoSearch(httpClient)
+                                        .SearchAsync(reSearchQuery, 10)));
+
+                            var reSearchBatches = await Task.WhenAll(reSearchTasks);
+                            foreach (var batch in reSearchBatches)
+                                reSearchResults.AddRange(batch);
+
+                            if (reSearchResults.Count > 0)
+                            {
+                                // Embed and deduplicate new results
+                                var existingIds = new HashSet<string>(uniqueItems.Select(i => i.Id));
+                                var newItems = reSearchResults.Where(i => !existingIds.Contains(i.Id)).ToList();
+
+                                foreach (var item in newItems)
+                                {
+                                    var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
+                                    item.Embedding = embedding.Embed(textToEmbed);
+                                }
+
+                                // Merge and re-score
+                                uniqueItems.AddRange(newItems);
+                                uniqueItems = scorer.ScoreFull(uniqueItems, bm25Query, queryEmbedding, vibeEmbedding);
+
+                                if (!settings.Quiet)
+                                    AnsiConsole.MarkupLine(
+                                        $"[grey]Re-search: {newItems.Count} new items merged, {uniqueItems.Count} total[/]");
+                            }
+                        }
                     }
                 }
 
@@ -1671,20 +1833,35 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             var disambiguation = await disambiguator.DisambiguateFastAsync(
                                 topForDisambig, userQuery, embedding, storage);
 
-                            if (disambiguation.IsAmbiguous && disambiguation.Clusters.Count >= 2)
+                            // Filter out clusters irrelevant to the query — prevents e.g.
+                            // "Artificial Intelligence" clusters appearing in "strawberry prices" queries
+                            if (disambiguation.IsAmbiguous && disambiguation.Clusters.Count >= 2 && queryEmbedding != null)
                             {
-                                var entityLines = disambiguation.Clusters
-                                    .Select(c => $"- Entity: \"{c.Label}\"")
+                                var relevantClusters = disambiguation.Clusters
+                                    .Where(c =>
+                                    {
+                                        var topItem = c.Items.OrderByDescending(i => i.RelevanceScore).First();
+                                        if (topItem.Embedding == null) return true; // can't filter without embedding
+                                        var sim = EmbeddingService.CosineSimilarity(topItem.Embedding, queryEmbedding);
+                                        return sim >= 0.20f; // minimum topical relevance to query
+                                    })
                                     .ToList();
 
-                                userQuery = $"""
-                                    IMPORTANT: Evidence contains distinct entities with similar names.
-                                    Summarize EACH entity separately under its own heading:
-                                    {string.Join("\n", entityLines)}
-                                    Do NOT conflate these into one entity.
+                                if (relevantClusters.Count >= 2)
+                                {
+                                    var entityLines = relevantClusters
+                                        .Select(c => $"- Entity: \"{c.Label}\"")
+                                        .ToList();
 
-                                    ORIGINAL QUERY: {userQuery}
-                                    """;
+                                    userQuery = $"""
+                                        IMPORTANT: Evidence contains distinct entities with similar names.
+                                        Summarize EACH entity separately under its own heading:
+                                        {string.Join("\n", entityLines)}
+                                        Do NOT conflate these into one entity.
+
+                                        ORIGINAL QUERY: {userQuery}
+                                        """;
+                                }
                             }
                         }
 

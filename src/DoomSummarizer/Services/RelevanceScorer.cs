@@ -5,8 +5,87 @@ namespace DoomSummarizer.Services;
 
 /// <summary>
 /// Two-phase relevance scorer using Reciprocal Rank Fusion (RRF) across multiple signals.
-/// Phase 1 (fast): BM25 + freshness + source authority — no embeddings needed, for early discard.
-/// Phase 2 (full): adds query similarity + vibe alignment via embeddings for precise ranking.
+///
+/// SCORING PIPELINE OVERVIEW
+/// ========================
+///
+/// Phase 1 — ScoreFast (early discard):
+///   Signals: BM25F + Freshness + Authority [+ QuerySimilarity + Quality if embeddings available]
+///   Purpose: Discard obviously irrelevant items before expensive embedding computation.
+///   Each signal produces an independent ranking; RRF fuses them.
+///
+/// Phase 2 — ScoreFull (precise ranking):
+///   Signals: BM25F + Freshness + Authority + QuerySimilarity + VibeSimilarity + Quality
+///   Purpose: Final ranking with all signals including embedding-based semantic matching.
+///
+/// HOW RRF WORKS
+/// =============
+/// Each signal ranks all items independently (best=rank 0, worst=rank N).
+/// The fusion score for item d is: Σ weight_i × 1/(k + rank_i(d) + 1)
+/// where k=60 (standard from literature, prevents top-ranked items from dominating).
+///
+/// Weight controls how much INFLUENCE a signal's ranking has in the fused score.
+/// A weight of 1.0 means the signal's rank contribution is at full strength.
+/// A weight of 0.5 means the signal's rank contribution is halved.
+/// Weight 0 disables the signal entirely.
+///
+/// THE SIX SIGNALS
+/// ================
+///
+/// 1. BM25F (text relevance) — weight default: 1.0
+///    Field-weighted BM25 scoring. Title matches get 2× boost over content matches.
+///    Uses IDF computed from the current batch (not a global corpus).
+///    Measures: How well do the query's keywords match the item's text?
+///
+/// 2. Freshness (recency) — weight default: 0.5
+///    Exponential decay from the item's publication time (CreatedAt if available,
+///    otherwise FetchedAt). Half-life: 48 hours.
+///    Formula: exp(-age_hours × ln(2) / 48)
+///    At 0h → 1.0, at 48h → 0.5, at 96h → 0.25, at 7d → 0.06
+///    Measures: How recent is this item? Newer = higher score.
+///
+/// 3. Authority (source quality) — weight default: 0.3
+///    For items with native scores (HN points, Reddit upvotes): normalized within
+///    same-source batch to 0-1 range.
+///    For items without scores: hard-coded baseline by source reputation:
+///    BBC/Guardian/Reuters=0.5, Google News=0.4, other=0.3.
+///    Measures: How trustworthy/popular is this item within its source?
+///
+/// 4. QuerySimilarity (semantic relevance) — weight default: 0.8
+///    Cosine similarity between item embedding and query embedding.
+///    Uses all-MiniLM-L6-v2 (384-dim ONNX). Range: -1 to 1, typically 0.1-0.7.
+///    Bridges vocabulary gap: "pharmaceutical" matches "drug pricing" without synonyms.
+///    Only available in Phase 2, or Phase 1 when embeddings are pre-computed.
+///    Measures: Is this item semantically about the query topic?
+///
+/// 5. VibeSimilarity (tone alignment) — weight default: 0.4
+///    Cosine similarity between item embedding and vibe prompt embedding.
+///    Promotes items matching the requested tone (doom, hopeful, snarky, etc.)
+///    Only available in Phase 2.
+///    Measures: Does this item match the desired editorial tone?
+///
+/// 6. Quality (content substance) — weight default: 0.2
+///    Cosine-similarity difference between item embedding and quality anchor embeddings.
+///    High-quality anchor = "detailed analysis, well-researched, expert opinion..."
+///    Low-quality anchor = "clickbait, shocking, sensational, you won't believe..."
+///    Formula: (sim(item, high) - sim(item, low) + 1) / 2 → [0, 1]
+///    Only active when WithQualityAnchors() has been called with pre-computed anchors.
+///    Measures: Is this substantive journalism or clickbait?
+///
+/// POST-RRF GATES
+/// ==============
+/// After RRF fusion, a hard gate removes items with cosine similarity &lt; 0.10.
+/// This prevents authority/freshness from inflating scores for topically irrelevant items.
+/// Items without embeddings are exempt (can't be gated).
+///
+/// QUERY-TYPE ADAPTATION
+/// =====================
+/// ForQueryType() returns a scorer with weights tuned per query type:
+///   Roundup:    freshness↑(0.8) bm25↓(0.7) authority↓(0.2) querySim↓(0.5) quality↓(0.15) — recency first
+///   Timeline:   freshness↑↑(1.0) bm25↓(0.5) authority↓(0.2) querySim(0.6) quality↓(0.1) — time is paramount
+///   Explainer:  freshness↓(0.3) bm25(1.0) authority↑(0.5) querySim↑(1.0) quality↑(0.4) — quality &amp; precision
+///   Comparison: freshness↓(0.3) bm25(0.8) authority(0.4) querySim↑(1.0) quality(0.3) — precise matching
+///   General:    default weights (quality: 0.2) — balanced for mixed-intent queries
 /// </summary>
 public class RelevanceScorer
 {
@@ -26,35 +105,86 @@ public class RelevanceScorer
     };
 
     /// <summary>
-    /// RRF constant (standard value from literature). Higher = more uniform blending.
+    /// RRF constant k=60 (Cormack et al., 2009). Higher values produce more uniform blending
+    /// of ranks; lower values amplify differences between top-ranked and lower-ranked items.
+    /// k=60 is the standard value used across most RRF literature and search systems.
     /// </summary>
     private const int RrfK = 60;
 
     /// <summary>
-    /// Freshness half-life in hours. Content older than this decays exponentially.
+    /// Freshness half-life in hours. At 48h, an item's freshness score is 0.5.
+    /// This decay is applied to CreatedAt (publication time) if available, otherwise FetchedAt.
+    /// The freshness score is one input to RRF fusion — it does NOT multiply the final score.
     /// </summary>
     private const double FreshnessHalfLifeHours = 48.0;
 
-    // Signal weights for RRF fusion
+    // Signal weights for RRF fusion — see class summary for what each weight controls
     private readonly double _bm25Weight;
     private readonly double _freshnessWeight;
     private readonly double _authorityWeight;
     private readonly double _querySimWeight;
     private readonly double _vibeWeight;
+    private readonly double _qualityWeight;
+
+    // Optional quality anchor embeddings — set via WithQualityAnchors()
+    private float[]? _highQualityAnchor;
+    private float[]? _lowQualityAnchor;
 
     public RelevanceScorer(
         double bm25Weight = 1.0,
         double freshnessWeight = 0.5,
         double authorityWeight = 0.3,
         double querySimWeight = 0.8,
-        double vibeWeight = 0.4)
+        double vibeWeight = 0.4,
+        double qualityWeight = 0.2)
     {
         _bm25Weight = bm25Weight;
         _freshnessWeight = freshnessWeight;
         _authorityWeight = authorityWeight;
         _querySimWeight = querySimWeight;
         _vibeWeight = vibeWeight;
+        _qualityWeight = qualityWeight;
     }
+
+    /// <summary>
+    /// Set quality anchor embeddings for content quality scoring.
+    /// Quality score = cosine_sim(item, highQuality) - cosine_sim(item, lowQuality),
+    /// normalized to [0, 1]. This penalizes clickbait/low-quality content in RRF.
+    /// </summary>
+    public RelevanceScorer WithQualityAnchors(float[] highQualityAnchor, float[] lowQualityAnchor)
+    {
+        _highQualityAnchor = highQualityAnchor;
+        _lowQualityAnchor = lowQualityAnchor;
+        return this;
+    }
+
+    /// <summary>
+    /// Create a scorer with weights tuned for the detected query type.
+    /// Different query types benefit from different signal emphasis:
+    /// - Roundup/Timeline: freshness matters most (news recency)
+    /// - Explainer: authority and query precision matter most (quality sources)
+    /// - Comparison: query similarity matters most (precise matching)
+    /// </summary>
+    public static RelevanceScorer ForQueryType(QueryType queryType) => queryType switch
+    {
+        QueryType.Roundup => new RelevanceScorer(
+            bm25Weight: 0.7, freshnessWeight: 0.8, authorityWeight: 0.2,
+            querySimWeight: 0.5, vibeWeight: 0.4, qualityWeight: 0.15),
+
+        QueryType.Timeline => new RelevanceScorer(
+            bm25Weight: 0.5, freshnessWeight: 1.0, authorityWeight: 0.2,
+            querySimWeight: 0.6, vibeWeight: 0.3, qualityWeight: 0.1),
+
+        QueryType.Explainer => new RelevanceScorer(
+            bm25Weight: 1.0, freshnessWeight: 0.3, authorityWeight: 0.5,
+            querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.4),
+
+        QueryType.Comparison => new RelevanceScorer(
+            bm25Weight: 0.8, freshnessWeight: 0.3, authorityWeight: 0.4,
+            querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.3),
+
+        _ => new RelevanceScorer() // General: default weights (quality: 0.2)
+    };
 
     /// <summary>
     /// Phase 1: Fast scoring with optional embedding boost.
@@ -106,6 +236,15 @@ public class RelevanceScorer
                 ? (double)EmbeddingService.CosineSimilarity(i.Embedding, queryEmbedding)
                 : 0.0)).ToList();
             signals.Add((querySimScores, _querySimWeight));
+        }
+
+        // Content quality signal: penalizes clickbait/low-quality content
+        if (_highQualityAnchor != null && _lowQualityAnchor != null)
+        {
+            var qualityScores = items.Select(i => (item: i, score: i.Embedding != null
+                ? ComputeQualityScore(i.Embedding, _highQualityAnchor, _lowQualityAnchor)
+                : 0.5)).ToList(); // default to neutral for items without embeddings
+            signals.Add((qualityScores, _qualityWeight));
         }
 
         // RRF fusion across Phase 1 signals
@@ -186,6 +325,15 @@ public class RelevanceScorer
                 ? (double)EmbeddingService.CosineSimilarity(i.Embedding, vibeEmbedding)
                 : 0.0)).ToList();
             signals.Add((vibeSim, _vibeWeight));
+        }
+
+        // Content quality signal: penalizes clickbait/low-quality content
+        if (_highQualityAnchor != null && _lowQualityAnchor != null)
+        {
+            var qualityScores = items.Select(i => (item: i, score: i.Embedding != null
+                ? ComputeQualityScore(i.Embedding, _highQualityAnchor, _lowQualityAnchor)
+                : 0.5)).ToList();
+            signals.Add((qualityScores, _qualityWeight));
         }
 
         var rrfScores = FuseRRF(items, signals.ToArray());
@@ -436,75 +584,83 @@ public class RelevanceScorer
     public const string PositiveAnchorText = "positive success innovation breakthrough opportunity progress achievement growth improvement launch exciting";
     public const string NegativeAnchorText = "negative crisis failure risk threat problem decline loss concern warning vulnerability layoff";
 
-    #endregion
-
-    #region MMR (Maximal Marginal Relevance)
+    /// <summary>
+    /// Quality anchor texts for embedding-based content quality scoring.
+    /// High-quality anchor represents well-researched, substantive journalism.
+    /// Low-quality anchor represents clickbait, sensationalism, and thin content.
+    /// </summary>
+    public const string HighQualityAnchorText = "detailed analysis well-researched investigation expert opinion data-driven report comprehensive review in-depth reporting original research verified sources thorough examination";
+    public const string LowQualityAnchorText = "you won't believe shocking revelation this one trick click here sensational breaking exclusive top 10 list clickbait outrage viral celebrity gossip rumor unverified";
 
     /// <summary>
-    /// MMR re-ranking: select items that balance relevance and diversity.
-    /// Each selected item maximizes: λ × relevance(item, query) - (1-λ) × max_sim(item, selected).
-    /// This prevents the synthesis LLM from receiving 5 articles about the same story.
+    /// Compute content quality score from embedding similarity to quality anchors.
+    /// Returns value in [0, 1] range. Higher = more substantive/well-researched content.
+    /// Uses the same cosine-similarity-difference pattern as sentiment scoring.
     /// </summary>
-    /// <param name="items">Candidate items with embeddings.</param>
-    /// <param name="queryEmbedding">Query embedding for relevance scoring.</param>
-    /// <param name="k">Number of items to select.</param>
-    /// <param name="lambda">Balance: 1.0 = pure relevance, 0.0 = pure diversity. Default 0.7.</param>
-    /// <returns>MMR-reranked selection (most relevant + diverse items first).</returns>
-    public static List<ContentItem> MMRSelect(
-        List<ContentItem> items,
-        float[] queryEmbedding,
-        int k = 10,
-        double lambda = 0.7)
+    public static double ComputeQualityScore(float[] itemEmbedding, float[] highQualityAnchor, float[] lowQualityAnchor)
     {
-        if (items.Count <= k) return items;
+        var highSim = EmbeddingService.CosineSimilarity(itemEmbedding, highQualityAnchor);
+        var lowSim = EmbeddingService.CosineSimilarity(itemEmbedding, lowQualityAnchor);
+        // Map from [-1, 1] difference to [0, 1] range
+        return Math.Clamp((highSim - lowSim + 1.0) / 2.0, 0, 1);
+    }
 
-        var candidates = items.Where(i => i.Embedding != null).ToList();
-        var noEmbedding = items.Where(i => i.Embedding == null).ToList();
+    /// <summary>
+    /// Compute a pseudo-relevance feedback (PRF) centroid from the top-K items.
+    /// Averages the embeddings of the best-scored items to create a refined query vector
+    /// that captures the "semantic neighborhood" of relevant results.
+    /// Blend with the original query embedding: refined = α × original + (1-α) × centroid
+    /// </summary>
+    /// <param name="items">Items sorted by relevance (best first), with embeddings set.</param>
+    /// <param name="originalQueryEmbedding">The original query embedding to blend with.</param>
+    /// <param name="topK">Number of top items to average (default 5).</param>
+    /// <param name="alpha">Blend factor: 1.0 = pure original, 0.0 = pure centroid. Default 0.7.</param>
+    /// <returns>Refined query embedding, or the original if insufficient items have embeddings.</returns>
+    public static float[] ComputePRFCentroid(
+        List<ContentItem> items,
+        float[] originalQueryEmbedding,
+        int topK = 5,
+        float alpha = 0.7f)
+    {
+        var topEmbeddings = items
+            .Where(i => i.Embedding != null)
+            .Take(topK)
+            .Select(i => i.Embedding!)
+            .ToList();
 
-        if (candidates.Count == 0) return items.Take(k).ToList();
+        if (topEmbeddings.Count < 2)
+            return originalQueryEmbedding; // not enough items for meaningful centroid
 
-        // Pre-compute query similarities
-        var querySim = candidates.ToDictionary(
-            c => c.Id,
-            c => (double)EmbeddingService.CosineSimilarity(c.Embedding!, queryEmbedding));
+        var dim = originalQueryEmbedding.Length;
+        var centroid = new float[dim];
 
-        var selected = new List<ContentItem>();
-        var remaining = new HashSet<string>(candidates.Select(c => c.Id));
-
-        for (var i = 0; i < Math.Min(k, candidates.Count); i++)
+        // Average the top-K embeddings
+        foreach (var emb in topEmbeddings)
         {
-            string? bestId = null;
-            var bestMMR = double.MinValue;
+            for (var i = 0; i < dim; i++)
+                centroid[i] += emb[i];
+        }
+        for (var i = 0; i < dim; i++)
+            centroid[i] /= topEmbeddings.Count;
 
-            foreach (var id in remaining)
-            {
-                var candidate = candidates.First(c => c.Id == id);
-                var relevance = querySim[id];
+        // Blend: refined = α × original + (1-α) × centroid
+        var refined = new float[dim];
+        for (var i = 0; i < dim; i++)
+            refined[i] = alpha * originalQueryEmbedding[i] + (1 - alpha) * centroid[i];
 
-                // Max similarity to any already-selected item
-                double maxSimToSelected = 0;
-                foreach (var s in selected)
-                {
-                    var sim = (double)EmbeddingService.CosineSimilarity(candidate.Embedding!, s.Embedding!);
-                    if (sim > maxSimToSelected) maxSimToSelected = sim;
-                }
+        // L2 normalize the result
+        var norm = 0f;
+        for (var i = 0; i < dim; i++)
+            norm += refined[i] * refined[i];
+        norm = MathF.Sqrt(norm);
 
-                var mmrScore = lambda * relevance - (1 - lambda) * maxSimToSelected;
-                if (mmrScore > bestMMR)
-                {
-                    bestMMR = mmrScore;
-                    bestId = id;
-                }
-            }
-
-            if (bestId == null) break;
-            selected.Add(candidates.First(c => c.Id == bestId));
-            remaining.Remove(bestId);
+        if (norm > 1e-8f)
+        {
+            for (var i = 0; i < dim; i++)
+                refined[i] /= norm;
         }
 
-        // Append items without embeddings at the end
-        selected.AddRange(noEmbedding.Take(k - selected.Count));
-        return selected;
+        return refined;
     }
 
     #endregion

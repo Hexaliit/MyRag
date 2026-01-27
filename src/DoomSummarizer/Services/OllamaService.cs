@@ -330,12 +330,21 @@ public class OllamaService
                     evidence.AppendLine($"URL: {item.url}");
                 else
                     evidence.AppendLine("URL: (aggregated via Google News — no direct link available)");
-                evidence.AppendLine($"Topic: {item.topic} | Relevance: {item.relevance:F2}");
+
+                // Look up full ContentItem for content snippet and fetch timestamp
+                var contentItem = contentItems?.FirstOrDefault(c =>
+                    c.Url == item.url || c.Title == item.title);
+
+                // Include fetch timestamp so the LLM can assess evidence freshness
+                var fetchedStr = contentItem != null
+                    ? contentItem.FetchedAt.ToString("yyyy-MM-dd HH:mm UTC")
+                    : "";
+                evidence.AppendLine(string.IsNullOrEmpty(fetchedStr)
+                    ? $"Topic: {item.topic} | Relevance: {item.relevance:F2}"
+                    : $"Topic: {item.topic} | Relevance: {item.relevance:F2} | Fetched: {fetchedStr}");
 
                 // Include actual content — use TextRank centrality when embedder
                 // is available for smarter sentence selection, otherwise truncate.
-                var contentItem = contentItems?.FirstOrDefault(c =>
-                    c.Url == item.url || c.Title == item.title);
                 var contentSnippet = contentItem?.Content;
                 if (!string.IsNullOrEmpty(contentSnippet))
                 {
