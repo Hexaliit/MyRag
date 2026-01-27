@@ -35,6 +35,18 @@ public class SegmentExtractor : IDisposable
     }
 
     /// <summary>
+    ///     Synchronous single-text embedding using the same ONNX model that produces segment embeddings.
+    ///     Requires prior use of ExtractAsync (which initializes the model).
+    /// </summary>
+    public float[] Embed(string text) => _embeddingService.Embed(text);
+
+    /// <summary>
+    ///     Ensure the ONNX embedding model is initialized (downloads if needed).
+    /// </summary>
+    public Task EnsureInitializedAsync(CancellationToken ct = default)
+        => _embeddingService.InitializeAsync(ct);
+
+    /// <summary>
     ///     Extract segments from markdown content with embeddings and salience scores.
     ///     For very long documents (novels), uses hierarchical extraction to manage memory.
     /// </summary>

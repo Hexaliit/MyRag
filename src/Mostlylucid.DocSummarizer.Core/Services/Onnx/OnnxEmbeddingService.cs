@@ -270,6 +270,12 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
     }
 
     /// <summary>
+    ///     Synchronous single-text embedding. Requires prior InitializeAsync call.
+    ///     Use when you need a Func&lt;string, float[]&gt; embedder after initialization.
+    /// </summary>
+    public float[] Embed(string text) => EmbedSingleSync(text);
+
+    /// <summary>
     ///     Internal single embedding (synchronous, no init check)
     /// </summary>
     private float[] EmbedSingleSync(string text)

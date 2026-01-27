@@ -1,0 +1,33 @@
+Create an article outline from these evidence items about: "{{QUERY}}"
+
+EVIDENCE:
+{{EVIDENCE}}
+
+Key entities in the evidence: {{TOP_ENTITIES}}
+Total evidence segments available: {{SEGMENT_COUNT}}
+
+{{OUTLINE_INSTRUCTIONS}}
+
+Respond with JSON only:
+{% raw %}{
+  "title": "compelling article title",
+  "theme_description": "overall theme and scope of the article",
+  "sections": [
+    {
+      "heading": "section heading",
+      "theme_keywords": "specific terms, concepts, and topics this section covers",
+      "target_words": 300
+    }
+  ],
+  "conclusion_angle": "forward-looking angle for conclusion",
+  "key_entities": ["Entity1", "Entity2"]
+}{% endraw %}
+
+Rules:
+- 4-8 sections maximum
+- Each section has theme_keywords that describe its scope (used for evidence matching)
+- theme_keywords should be specific and distinct between sections — no overlap
+- theme_description should capture the overall article theme
+- key_entities lists the most important entities across all evidence
+- Do NOT include key_items indices — evidence is assigned automatically
+- Every section should cover a different aspect of the topic

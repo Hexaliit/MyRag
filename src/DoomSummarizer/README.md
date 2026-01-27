@@ -2,271 +2,366 @@
 
 A console-first, local-first research assistant + personal knowledge base.
 
-DoomSummarizer can:
-- Fetch + rank news/search results into a “doom scroll” digest (`scroll`)
-- Store everything locally (SQLite) and let you query it later (`ask`, `scroll --local`)
-- Crawl any website into a named knowledge base (`crawl`)
-- Summarize a single URL (including blog-style output) (`page`)
-- Extract entities and build a small knowledge graph (`--entities`, `--graph`)
-- Render results via templates (Markdown/HTML/JSON) for automation (`--template`, `--output`, `--json`)
+- **Scroll** — Fetch + rank news/search results into a digest, article, or newsletter
+- **Ask** — Interactive Q&A over your stored knowledge base
+- **Crawl** — Index any website for semantic search
+- **Page** — Summarize a single URL
+- **Long-form** — Generate evidence-grounded multi-section articles with validation
 
-Works fully offline *after* initial model downloads, and without any API keys for the default RSS/HTML sources. Optional API-backed search + cloud LLM providers are supported (budgeted) when configured.
+Works fully offline after initial model downloads. No API keys required for default sources. Optional cloud LLM and search providers are budget-controlled.
 
 ## Quick Start
 
 ```bash
-# Build from source (from this folder)
+# Build
 dotnet build DoomSummarizer.csproj
 
-# First run auto-downloads the ONNX embedding model (one-time)
+# Daily digest (auto-downloads ONNX model on first run)
 doomsummarizer scroll
 
-# Natural language queries
-doomsummarizer scroll "AI security news" --vibe snarky
+# Topic query with tone
+doomsummarizer scroll "AI regulation news" -v snarky
 
-# Interactive Q&A over stored knowledge base
-doomsummarizer ask "What happened with the SSH vulnerability?"
+# Long-form article (evidence-grounded, 6-phase pipeline)
+doomsummarizer scroll "history of transformers" -t blog-article -o article.md
 
-# Build a named knowledge base from any website
-doomsummarizer crawl https://docs.example.com --name mydocs
-doomsummarizer ask --source crawl:mydocs "how does authentication work?"
+# Deep-dive with custom sources
+doomsummarizer scroll "Rust vs Go" -t deep-dive -s hn -s reddit -o rust-vs-go.md
 
-# Summarize a single page into a structured article
-doomsummarizer page https://example.com/article --template blog-article -o article.md
+# Newsletter to file
+doomsummarizer scroll "dotnet news" -t newsletter -o weekly.html
+
+# Q&A over stored evidence
+doomsummarizer ask "What's the latest on SSH vulnerabilities?"
+
+# Build a knowledge base, then query it
+doomsummarizer crawl https://docs.example.com -n mydocs
+doomsummarizer ask -s crawl:mydocs "how does authentication work?"
 ```
 
 ### Requirements
 
-- **.NET SDK**: `net10.0` (DoomSummarizer targets .NET 10).
-- **Ollama** (optional, recommended for best summaries): `ollama serve` + pull your preferred models (see `doomsummarizer setup`).
-- **Network (first run)**: downloads the embedding model to `$HOME/.doomsummarizer/models/…`. NER and DuckDB VSS may also download artifacts the first time you enable them.
-- **No API keys required** for the default RSS/HTML sources. Optional integrations (Google/Brave/Serper/Tavily/NewsAPI/NewsData/Jina + OpenAI/Anthropic) use keys when configured.
-
-Run `doomsummarizer setup` to verify/install everything.
+- **.NET 10** SDK
+- **Ollama** (optional, recommended): `ollama serve` + pull models — see `doomsummarizer setup`
+- **First run**: downloads ONNX embedding model (~23 MB) to `~/.doomsummarizer/models/`
+- **No API keys** for default RSS/HTML sources. Optional: Brave/Serper/Tavily/NewsAPI + Anthropic/OpenAI
 
 ## Commands
 
 ### `scroll` — Aggregate and summarize
 
 ```bash
-doomsummarizer scroll                                        # Default sources
-doomsummarizer scroll "new pharmaceutical news" --vibe hopeful  # Topic routing
-doomsummarizer scroll -s hn -s reddit -s bbc --vibe doom     # Manual sources
-doomsummarizer scroll -s search:rust -s factcheck            # Search + fact-check
-doomsummarizer scroll --json --nollm                         # Fast JSON (no LLM)
-doomsummarizer scroll --local "query"                        # Stored KB only
-doomsummarizer scroll -o report.md -t newsletter             # File export
-doomsummarizer scroll --entities --graph                     # NER + knowledge graph
-doomsummarizer scroll --vibe "excited about space"           # Custom vibe text
-doomsummarizer scroll --list-templates                       # See all templates
+doomsummarizer scroll                              # Default sources, neutral vibe
+doomsummarizer scroll "pharmaceutical news" -v hopeful  # Topic + vibe
+doomsummarizer scroll -s hn -s bbc -s reddit -v doom    # Manual sources
+doomsummarizer scroll -s search:rust -s factcheck       # Search + fact-check
+doomsummarizer scroll --json --no-llm                   # Fast JSON, no LLM
+doomsummarizer scroll --local "query"                   # Stored KB only
+doomsummarizer scroll -t newsletter -o report.html      # Template + file
+doomsummarizer scroll --entities --graph                # NER + knowledge graph
+doomsummarizer scroll -v "excited about space"          # Custom vibe text
+doomsummarizer scroll --list-templates                  # List all templates
+
+# Long-form articles
+doomsummarizer scroll "AI safety" -t blog-article -o ai-safety.md
+doomsummarizer scroll "history of computing" -t blog-timeline -o timeline.md
+doomsummarizer scroll "microservices" -t problem-solution -o micro.md
+doomsummarizer scroll "React vs Svelte" -t pros-cons -o comparison.md
 ```
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--vibe TEXT` | `-v` | Tone: doom, hopeful, snarky, neutral, or any custom text |
+| `--source NAME` | `-s` | Add source (repeatable) — see Sources below |
+| `--template NAME` | `-t` | Output template — see Templates below |
+| `--output FILE` | `-o` | Export to file (.md, .html, .json, .txt) |
+| `--limit N` | `-l` | Max items to fetch (default: 30) |
+| `--force` | `-f` | Ignore cache, fetch fresh |
+| `--quiet` | `-q` | Minimal output |
+| `--no-llm` | | Skip LLM — still runs embeddings, BM25, ranking |
+| `--json` | | JSON output for automation |
+| `--entities` | | NER entity extraction |
+| `--graph` | | Knowledge graph build + display |
+| `--no-links` | | Skip one-hop link following |
+| `--debug` | | Pipeline diagnostics: RRF scores, salience |
+| `--raw` | | Show raw fetched content |
+| `--images` | | Inline thumbnails |
+| `--local` | | Query stored KB only — no fetching |
+| `--email` | | Send digest via email |
+| `--email-to ADDR` | | Override email recipient(s) |
 
 ### `ask` — Interactive Q&A
 
-Chat-style interface over your stored knowledge base. Multi-turn with conversation context.
+Chat-style interface over stored evidence. Multi-turn with conversation context.
 
 ```bash
-doomsummarizer ask "What's the latest on AI regulation?"
-doomsummarizer ask --source crawl:docs "how does auth work?"
-doomsummarizer ask --once "latest AI news"    # Single answer, no loop
+doomsummarizer ask "What's new in .NET 10?"
+doomsummarizer ask -s crawl:mydocs "how does auth work?"
+doomsummarizer ask --once "latest AI news"           # Single answer, exit
+doomsummarizer ask --days 7 "this week's highlights"
 ```
 
-Inside the loop: type follow-up questions, `sources` to list evidence, `history` to review, `clear` to reset, `quit` to exit.
+Inside the loop: `sources`, `history`, `clear`, `quit`.
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--source NAME` | `-s` | Filter to source (e.g. `crawl:mysite`, `hn`) |
+| `--days N` | | How far back to search (default: 30) |
+| `--top N` | | Evidence items to use (default: 10) |
+| `--once` | | Answer once, no interactive loop |
+| `--quiet` | `-q` | Hide evidence, show answer only |
 
 ### `crawl` — Build a knowledge base
 
-Indexes a website with embedded vectors for semantic search.
-
 ```bash
 doomsummarizer crawl https://docs.example.com
-doomsummarizer crawl https://wiki.local -n wiki --depth 5 --max-pages 500
+doomsummarizer crawl https://wiki.local -n wiki -d 5 -m 500
 doomsummarizer crawl https://intranet.company.com --entities
 ```
 
-Query crawled sites: `doomsummarizer scroll --local -s crawl:wiki "search query"`
+Query crawled sites: `doomsummarizer ask -s crawl:wiki "search query"`
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--name NAME` | `-n` | Knowledge base name |
+| `--depth N` | `-d` | Max crawl depth (default: 3) |
+| `--max-pages N` | `-m` | Max pages (default: 200) |
+| `--delay MS` | | Request delay in ms (default: 500) |
+| `--concurrency N` | | Concurrent requests (default: 3) |
+| `--entities` | | NER entity extraction |
+| `--quiet` | `-q` | Minimal output |
 
 ### `page` — Summarize a single URL
 
 ```bash
 doomsummarizer page https://example.com/article
-doomsummarizer page https://example.com/article --template blog-timeline
+doomsummarizer page https://example.com/article -t blog-article -o article.md
 doomsummarizer page https://example.com/article --no-llm --raw
 ```
 
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--vibe TEXT` | `-v` | Tone (default: neutral) |
+| `--template NAME` | `-t` | Template: default, blog-article, blog-timeline, detailed, json |
+| `--output FILE` | `-o` | Export to file |
+| `--quiet` | `-q` | Minimal output |
+| `--raw` | | Show raw extracted content |
+| `--no-llm` | | Skip LLM, show signals only |
+
 ### `benchmark` — Compare Ollama models
 
-Tests models for speed and output quality on your hardware.
-
 ```bash
-doomsummarizer benchmark                                    # Auto-detect available
-doomsummarizer benchmark "qwen3:4b,gemma3:4b,phi4-mini"    # Specific models
-doomsummarizer benchmark --role sentinel --rounds 3         # Sentinel only
-doomsummarizer benchmark "qwen3:4b" --pull                  # Auto-download first
+doomsummarizer benchmark                              # Auto-detect available
+doomsummarizer benchmark "qwen3:4b,gemma3:4b"        # Specific models
+doomsummarizer benchmark --role sentinel --rounds 3   # Sentinel only
+doomsummarizer benchmark "qwen3:4b" --pull            # Auto-download first
 ```
 
-### `trends` — Sentiment over time
+### `trends` / `setup` / `config` / `sources`
 
 ```bash
-doomsummarizer trends              # Last 7 days
-doomsummarizer trends --days 14
+doomsummarizer trends                # Sentiment over last 7 days
+doomsummarizer trends -d 14          # Last 14 days
+doomsummarizer setup                 # Verify all components
+doomsummarizer setup --ner           # Download NER model (~430 MB)
+doomsummarizer config --show         # Display current config
+doomsummarizer config --init         # Create config file
+doomsummarizer sources               # List all sources + API status
 ```
 
-### `setup` / `config` / `sources`
+## Long-Form Article Generation
+
+When using blog templates (`-t blog-article`, `-t blog-timeline`, or any YAML template), `scroll` activates a six-phase evidence-grounded pipeline instead of the standard digest synthesis.
 
 ```bash
-doomsummarizer setup               # Verify all components
-doomsummarizer setup --ner         # Download BERT NER model (~430MB)
-doomsummarizer setup --playwright  # Install Playwright Chromium (optional)
-doomsummarizer config --show       # Display current config
-doomsummarizer config --init       # Create config file
-doomsummarizer sources             # List all sources and routing
+# Generate an 8-section deep-dive on AI safety
+doomsummarizer scroll "AI safety landscape 2026" -t deep-dive -o safety.md
+
+# Timeline article — sections ordered chronologically
+doomsummarizer scroll "history of large language models" -t blog-timeline -o llm-history.md
+
+# Problem/solution structure
+doomsummarizer scroll "technical debt in microservices" -t problem-solution -o tech-debt.md
+
+# Balanced pros/cons analysis
+doomsummarizer scroll "Kubernetes vs serverless" -t pros-cons -o k8s-vs-serverless.md
 ```
 
-## Documentation
+### Pipeline Phases
 
-- `docs/CLI.md` — All commands, options, and examples
-- `docs/Sources.md` — Source syntax (`-s`) and optional API integrations
-- `docs/KnowledgeBase.md` — Local storage, crawling, `ask`, entities, graph
-- `docs/Templates.md` — Built-in + custom templates (Liquid + YAML)
-- `docs/Config.md` — Config file, env vars, API keys, budgets
-- `docs/Automation.md` — JSON/file output and scheduling patterns
-- `docs/Architecture.md` — How the pipeline and stores fit together
-- `docs/Troubleshooting.md` — Common setup/runtime issues
+```
+Phase 1  Evidence Preparation     Deterministic — segment extraction, ONNX embeddings, salience
+Phase 2  Document Planning        Sentinel LLM — JSON outline with theme keywords per section
+Phase 3  Evidence Assignment      Deterministic — embedding similarity, no LLM
+Phase 4  Section Generation       Main LLM — sequential, with running context + entity tracking
+Phase 5  Output Validation        Deterministic — URL/entity/fact grounding checks
+Phase 6  Assembly                 Deterministic — stitch + template render
+```
+
+**Key properties:**
+- Every URL in the output is verified against fetched evidence (hallucinated URLs are removed)
+- Each section gets its own curated evidence slice via embedding similarity + salience scoring
+- Running summary carries context forward without bloating the context window
+- Entity continuity tracker maintains coherent references across sections
+- Drift detection re-anchors sections that wander from the document theme
+- LLM calls: N+3 total (1 outline + 1 intro + N sections + 1 conclusion)
+- Everything else is deterministic (embeddings, assignment, validation)
+
+### Evidence Assignment
+
+Each section's theme keywords are embedded, then segments are scored:
+
+```
+score = 0.60 * cosine(section_theme, segment_embedding)
+      + 0.25 * segment_salience     (TextRank graph centrality)
+      + 0.15 * article_relevance    (RRF score from ranking pipeline)
+```
+
+Greedy selection with MMR diversity (max 2 segments per article per section) and dedup (cosine > 0.85 skipped). Unassigned high-salience segments are rescued to best-matching sections.
+
+### Output Validation
+
+After generation, every claim is checked against the evidence corpus:
+
+| Check | Method | Action on failure |
+|-------|--------|-------------------|
+| URLs | Whitelist against fetched evidence | Remove link, keep text |
+| Entities | Fuzzy match (Levenshtein ≤ 2) | Flag as ungrounded |
+| Titles | Jaccard similarity to known titles | Replace with closest match |
+| Facts | Sentence embedding vs evidence (cosine > 0.6) | Flag if < 0.4 |
+
+Documents with grounding score < 70% are flagged. Auto-fix removes hallucinated URLs and corrects fabricated source titles.
+
+## Templates
+
+### Built-in Templates
+
+| Template | Description | Output |
+|----------|-------------|--------|
+| `default` | Standard console digest | Markdown |
+| `console` | Compact console display | Text |
+| `compact` | Minimal bullet list | Markdown |
+| `detailed` | Full details with sentiment | Markdown |
+| `file` | Clean markdown with YAML frontmatter | Markdown |
+| `email` | HTML email with inline styles | HTML |
+| `newsletter` | Professional newsletter | HTML |
+| `slack` | Slack-formatted message | Slack |
+| `json` | Raw JSON for automation | JSON |
+| `image` | Single item with featured image | Markdown |
+| `blog-article` | Multi-section long-form article | Markdown |
+| `blog-timeline` | Chronological article | Markdown |
+| `blog-newsletter` | Curated newsletter with editorial picks | Markdown |
+| `blog-newsletter-html` | Newsletter as styled HTML | HTML |
+
+### YAML Templates (Structured Articles)
+
+Pre-built article structures with fixed sections, word targets, and evidence strategies:
+
+| Template | Sections | Description |
+|----------|----------|-------------|
+| `deep-dive` | 5 | Context, Technical Analysis, Key Findings, Expert Perspectives, Implications |
+| `problem-solution` | 4 | The Problem, Why It Matters, Proposed Solutions, The Path Forward |
+| `pros-cons` | 4 | Background, The Case For, The Case Against, The Verdict |
+
+```bash
+# Use a YAML template
+doomsummarizer scroll "WebAssembly adoption" -t deep-dive -o wasm.md
+```
+
+Custom YAML templates go in `~/.doomsummarizer/templates/`. See `docs/Templates.md` for the schema.
+
+### List All Available Templates
+
+```bash
+doomsummarizer scroll --list-templates
+```
 
 ## Sources
 
-Default sources are free (RSS/HTML) and require no API keys. Some search/news providers are optional and require keys.
+Default sources are free (RSS/HTML), no API keys required.
 
 | Category | Sources | Example |
 |----------|---------|---------|
 | Tech | Hacker News, Reddit, Lobsters, Slashdot, Dev.to, HackerNoon | `-s hn`, `-s reddit:dotnet` |
-| News | BBC, CNN, Reuters, Guardian, Ars Technica, The Verge, Wired, TechCrunch | `-s bbc:health`, `-s guardian` |
-| Search (free) | Google News (topic + query), DuckDuckGo | `-s "search:rust programming"` |
-| Search (API) | Brave, Serper, Tavily, NewsAPI, NewsData, Jina | `-s brave`, `-s serper`, `-s newsapi` |
-| Academic | arXiv papers | `-s arxiv` |
-| Q&A | StackOverflow (hot, by tag, search) | `-s so:csharp` |
+| News | BBC, CNN, Reuters, Guardian, Ars, Verge, Wired, TechCrunch | `-s bbc:health`, `-s guardian` |
+| Search (free) | Google News, DuckDuckGo | `-s "search:rust programming"` |
+| Search (API) | Brave, Serper, Tavily, NewsAPI, NewsData, Jina | `-s brave`, `-s serper` |
+| Academic | arXiv | `-s arxiv` |
+| Q&A | StackOverflow | `-s so:csharp` |
 | Fact Check | Snopes, PolitiFact, FactCheck.org, FullFact | `-s factcheck:snopes` |
-| Space | Spaceflight News (NASA, ESA, SpaceX) | `-s spaceflight` |
-| Seismic | USGS Earthquakes (real-time GeoJSON) | `-s earthquake:significant_week` |
-| Reference | Wikipedia (current events, on-this-day) | `-s wiki:news` |
-| Custom | Any URL, RSS feed, or crawled website | `scroll https://example.com` |
+| Space | Spaceflight News | `-s spaceflight` |
+| Seismic | USGS Earthquakes | `-s earthquake:significant_week` |
+| Reference | Wikipedia | `-s wiki:news` |
+| Custom | Any URL or RSS feed | `scroll https://example.com/feed.xml` |
 
-Sources auto-selected via semantic topic routing (e.g., "pharmaceutical news" routes to health feeds).
+Sources are auto-selected via semantic topic routing (e.g., "pharmaceutical news" routes to health feeds).
 
 ## Processing Pipeline
 
-Content goes through a multi-stage ranking pipeline:
-
 ```
-Query -> PromptInterpreter -> SourceRouter (YAML) -> Parallel Fetchers
-  -> Cache Check (reuse segments for similar queries)
-  -> URL/Title Dedup
-  -> Phase 1 RRF (BM25 + Freshness + Authority) -> Discard bottom 25%
-  -> ONNX Embeddings (384-dim, always runs)
-  -> Phase 2 RRF (+ Query Similarity + Vibe Alignment)
-  -> Source Reliability Weights
-  -> LFU Diversity Decay (frequently-returned items penalized)
-  -> In-Corpus PageRank (cross-reference authority boost)
-  -> One-Hop Link Following (content enrichment)
-  -> TextRank Sentence Extraction (graph centrality)
-  -> LLM Synthesis (evidence-grounded, never hallucinates URLs)
-  -> Query Feedback (log for segment reuse)
+Query → PromptInterpreter → SourceRouter (YAML) → Parallel Fetchers
+  → Cache Check (reuse segments for similar queries)
+  → URL/Title Dedup
+  → Phase 1 RRF (BM25 + Freshness + Authority) → Discard bottom 25%
+  → ONNX Embeddings (384-dim all-MiniLM-L6-v2)
+  → Phase 2 RRF (+ Query Similarity + Vibe Alignment)
+  → Source Reliability Weights → LFU Diversity Decay → In-Corpus PageRank
+  → One-Hop Link Following → TextRank Sentence Extraction
+  → LLM Synthesis (evidence-grounded) or Long-Form Pipeline (blog templates)
 ```
 
 ### Ranking Signals (RRF Fusion)
 
 | Signal | Weight | Phase | Description |
 |--------|--------|-------|-------------|
-| BM25 | 1.0 | 1 | TF-IDF keyword match against query |
+| BM25 | 1.0 | 1 | TF-IDF keyword match |
 | Freshness | 0.5 | 1 | Exponential decay (48h half-life) |
 | Authority | 0.3 | 1 | Platform score (HN upvotes, etc.) |
-| Query Similarity | 0.8 | 2 | Embedding cosine similarity to query |
-| Vibe Alignment | 0.4 | 2 | Embedding cosine similarity to vibe |
+| Query Similarity | 0.8 | 2 | Embedding cosine similarity |
+| Vibe Alignment | 0.4 | 2 | Embedding cosine to vibe |
 
-### Query Feedback & Segment Reuse
+### `--no-llm` Mode
 
-`scroll` and `ask` log query embeddings so very-similar questions can reuse stored evidence instead of re-fetching.
-
-- `scroll`: reuses cached segments for *extremely* similar queries (threshold `0.97`, window `4h`)
-- `ask`: reuses cached evidence for similar questions (threshold `0.92`, window `4h`)
-
-Items returned frequently get mild LFU diversity decay: `1/(1 + 0.1 * log2(accessCount))`.
-
-### `--nollm` Mode
-
-Without Ollama, the full signal pipeline still runs:
-- ONNX embeddings for all items
-- BM25 + TF-IDF keyword matching
-- Embedding-based sentiment scoring
-- Embedding-based topic inference
-- Full RRF ranking
-- NER entity extraction (with `--entities`)
-- All signals stored to SQLite
+Without Ollama, the full signal pipeline still runs: ONNX embeddings, BM25, sentiment, topic inference, RRF ranking, NER (with `--entities`). All signals stored to SQLite.
 
 ## LLM Providers
 
-### Cloud LLMs (via API keys)
-
-When configured, cloud providers are validated at startup and used with automatic fallback:
+### Cloud LLMs
 
 | Provider | Models | Key |
 |----------|--------|-----|
-| Anthropic | Claude Sonnet 4 (main), Claude 3.5 Haiku (sentinel) | `ANTHROPIC_API_KEY` or user secrets |
-| OpenAI | GPT-4o-mini (main + sentinel) | `OPENAI_API_KEY` or user secrets |
+| Anthropic | Claude Sonnet 4 (main), Claude 3.5 Haiku (sentinel) | `ANTHROPIC_API_KEY` |
+| OpenAI | GPT-4o-mini (main + sentinel) | `OPENAI_API_KEY` |
 
-Cloud providers are budget-controlled with per-service rate limits, retry with backoff, and circuit breakers. Invalid keys are detected at startup and skipped.
+Budget-controlled with per-service rate limits, retry with backoff, and circuit breakers.
 
 ### Local Models (Ollama)
 
-| Role | Default Model | Purpose |
-|------|--------------|---------|
-| Synthesis | `gemma3:4b` | Digest generation, evidence-grounded answers |
-| Sentinel | `qwen3:0.6b` | Per-article triage, JSON analysis, fast classification |
+| Role | Default | Purpose |
+|------|---------|---------|
+| Synthesis | `gemma3:4b` | Digests, articles, evidence-grounded answers |
+| Sentinel | `qwen3:0.6b` | Triage, JSON outlines, fast classification |
 
-Selected via benchmarking. Use `benchmark` to find the best model for your hardware. Ollama is always available as a free fallback when cloud providers are unavailable or over budget.
-
-### Provider Priority
-
-Cloud providers → Ollama (free fallback). Each cloud call checks budget before use. If all fail, Ollama handles the request locally.
+Use `benchmark` to find optimal models for your hardware. Ollama is always the free fallback when cloud providers are unavailable or over budget.
 
 ## Vibes
 
-`--vibe` accepts either a configured vibe name (from `config.json`) or any custom text.
+`-v` accepts a preset name or any custom text.
 
-Common built-ins:
-- **doom** — Pessimistic, problem-focused
-- **hopeful** — Optimistic, opportunity-focused
-- **snarky** — Witty, cynical commentary
-- **neutral** — Objective, balanced facts
-- **Custom** — Any text: `--vibe "excited about space exploration"`
-
-## Flags
-
-| Flag | Description |
-|------|-------------|
-| `--vibe` | Vibe name (from config) or custom text |
-| `--source` | Add sources (repeatable); see `docs/Sources.md` |
-| `--limit N` | Maximum items to fetch (default: 30) |
-| `--force` | Ignore cache and fetch fresh |
-| `--nollm` | Skip LLM — still runs embeddings, BM25, sentiment, topic |
-| `--entities` | Enable NER entity extraction |
-| `--graph` | Enable knowledge graph build and display |
-| `--no-links` | Skip one-hop link following |
-| `--output FILE` | Export to file (.md, .json, .html, .txt) |
-| `--template` | Output template (run `doomsummarizer scroll --list-templates`) |
-| `--json` | Output as JSON (for automation/LLM tools) |
-| `--local` | Query stored knowledge base only — no fetching |
-| `--debug` | Show pipeline diagnostics: RRF scores, discards, salience |
-| `--raw` | Show raw fetched content |
-| `--images` | Display inline thumbnails |
-| `--email` | Send digest via email (see Email section) |
-| `--email-to` | Override email recipient(s) |
-| `-q, --quiet` | Minimal output |
+| Vibe | Tone |
+|------|------|
+| `doom` | Pessimistic, problem-focused |
+| `hopeful` | Optimistic, opportunity-focused |
+| `snarky` | Witty, cynical commentary |
+| `funny` | Puns, absurd analogies |
+| `upbeat` | High energy, celebratory |
+| `friendly` | Warm, conversational |
+| `neutral` | Objective, balanced (default) |
+| *custom* | `-v "excited about space exploration"` |
 
 ## Configuration
 
-Config file: `~/.doomsummarizer/config.json`
-Local override (current directory): `doomsummarizer.json`
+Config file: `~/.doomsummarizer/config.json` — Local override: `doomsummarizer.json` in working directory.
 
 ```json
 {
@@ -275,7 +370,6 @@ Local override (current directory): `doomsummarizer.json`
     "reddit": { "enabled": true, "subreddits": ["programming", "csharp", "dotnet"], "minScore": 100 }
   },
   "sourceFilter": {
-    "allowedDomains": [],
     "blockedDomains": ["facebook.com"],
     "weights": { "reuters": 1.4, "bbc": 1.3, "hn": 1.1, "reddit": 0.9 }
   },
@@ -297,10 +391,10 @@ Local override (current directory): `doomsummarizer.json`
 
 ### API Keys
 
-Keys are loaded in priority order: .NET user secrets (highest) > environment variables > config JSON.
+Priority: .NET user secrets > environment variables > config JSON.
 
 ```bash
-# .NET user secrets (recommended — never stored in plain text)
+# .NET user secrets (recommended)
 dotnet user-secrets set "Anthropic" "sk-ant-..."
 dotnet user-secrets set "BraveSearch" "BSA..."
 
@@ -311,20 +405,14 @@ export DOOM_BRAVE_SEARCH=BSA...
 
 ### Resilience
 
-Each API service has configurable rate limiting, retry, and circuit breaker:
-
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | `rateLimitMs` | 200 | Minimum delay between requests |
-| `maxRetries` | 2 | Retry attempts on 429/5xx |
-| `circuitBreakerThreshold` | 3 | Consecutive failures before circuit opens |
-| `circuitBreakerResetSeconds` | 60 | Time before circuit resets |
-
-Output templates: run `doomsummarizer scroll --list-templates`. Custom templates live in `~/.doomsummarizer/templates/`.
+| `maxRetries` | 2 | Retry on 429/5xx |
+| `circuitBreakerThreshold` | 3 | Failures before circuit opens |
+| `circuitBreakerResetSeconds` | 60 | Reset time |
 
 ### Email Delivery
-
-Send digests via SMTP or SendGrid:
 
 ```json
 {
@@ -341,51 +429,47 @@ Send digests via SMTP or SendGrid:
 ```
 
 ```bash
-# SendGrid API key (recommended: user secrets)
 dotnet user-secrets set "SendGrid" "SG.xxx"
-
-# Or SMTP credentials
-export DOOM_SMTP_USER=user@gmail.com
-export DOOM_SMTP_PASSWORD=app-password
-
-# Send digest via email
 doomsummarizer scroll "AI news" --email
-doomsummarizer scroll "security updates" --email --email-to "ops@example.com"
+doomsummarizer scroll "security" --email --email-to "ops@example.com"
 ```
-
-Supports SMTP (any provider: Gmail, Outlook, SES) and SendGrid API. Use the `template` field to control email styling (`email`, `newsletter`, or any custom template).
 
 ### Prompt Customization
 
-LLM prompts are loaded from files and support Liquid (conditionals, loops):
+Override any LLM prompt by placing a file in `~/.doomsummarizer/prompts/`. Uses `{{VARIABLE}}` placeholders and Liquid syntax (`{% if %}`, `{% for %}`). Built-in defaults are embedded in the binary.
 
 ```
 ~/.doomsummarizer/prompts/
-├── roundup.txt        # Headline roundup format
-├── answer.txt         # Q&A answer format
-├── digest.txt         # Digest (no query) format
-├── ask-answer.txt     # Interactive Q&A format
-├── newsletter.txt     # Newsletter format
-├── blog-intro.txt     # Blog article intro
-├── blog-section.txt   # Blog article sections
-├── blog-conclusion.txt # Blog conclusion
-└── blog-outline.txt   # Blog outline (sentinel)
+├── roundup.txt           # Headline roundup
+├── answer.txt            # Q&A answer
+├── digest.txt            # Digest format
+├── ask-answer.txt        # Interactive Q&A
+├── newsletter.txt        # Newsletter format
+├── processed-digest.txt  # Digest with confidence scores
+├── blog-intro.txt        # Article introduction
+├── blog-section.txt      # Article section (standard)
+├── blog-conclusion.txt   # Article conclusion
+├── blog-outline.txt      # Article outline (sentinel)
+├── longform-outline.txt  # Long-form outline (with entities + segment count)
+└── longform-section.txt  # Long-form section (running summary + entity tracking + drift)
 ```
-
-Override any prompt by creating the file in `~/.doomsummarizer/prompts/`. Templates use `{{VARIABLE}}` placeholders and full Liquid syntax (`{% if %}`, `{% for %}`, etc.). Built-in defaults are embedded in the binary.
 
 ## Storage
 
-- **SQLite** (`~/.doomsummarizer/doom.db`) — Articles, embeddings, query logs, trends, usage tracking
-- **DuckDB** (`~/.doomsummarizer/vectors.duckdb`) — HNSW vector index (when `--graph` enabled)
-- **Retention:** 30 days default (configurable)
+- **SQLite** (`~/.doomsummarizer/doom.db`) — Articles, embeddings, query logs, trends, usage
+- **DuckDB** (`~/.doomsummarizer/vectors.duckdb`) — HNSW vector index (with `--graph`)
+- **Retention:** 30 days (configurable)
 
-## Platforms
+## Documentation
 
-Pre-built binaries for:
-- Windows x64, ARM64
-- Linux x64, ARM64
-- macOS x64 (Intel), ARM64 (Apple Silicon)
+- `docs/CLI.md` — All commands, options, and examples
+- `docs/Sources.md` — Source syntax (`-s`) and API integrations
+- `docs/KnowledgeBase.md` — Storage, crawling, `ask`, entities, graph
+- `docs/Templates.md` — Built-in + custom templates (Liquid + YAML)
+- `docs/Config.md` — Config file, env vars, API keys, budgets
+- `docs/Automation.md` — JSON/file output and scheduling
+- `docs/Architecture.md` — Pipeline and storage architecture
+- `docs/Troubleshooting.md` — Common issues
 
 ## Building from Source
 
@@ -402,15 +486,11 @@ dotnet run --project src/DoomSummarizer/DoomSummarizer.csproj -- scroll
 dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj
 ```
 
-## Adding New Sources
+278 tests covering ranking pipeline, embeddings, templates, long-form generation (32 unit + 5 ONNX integration), entity disambiguation, prompt interpretation, and knowledge graph operations.
 
-At a minimum:
-1. Implement a fetcher in `Services/` returning `List<ContentItem>`
-2. Register it in `Commands/ScrollCommand.cs` (the `source` dispatch switch)
-3. Optionally add routing/category support in `Resources/sources.yaml`
-4. Update `Commands/SourcesCommand.cs` and `docs/Sources.md` so users can discover it
+## Platforms
 
-No-auth APIs: [github.com/public-api-lists/public-api-lists](https://github.com/public-api-lists/public-api-lists)
+Pre-built binaries: Windows x64/ARM64, Linux x64/ARM64, macOS x64/ARM64.
 
 ## License
 

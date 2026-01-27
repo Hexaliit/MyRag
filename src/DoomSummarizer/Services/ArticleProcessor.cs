@@ -39,6 +39,18 @@ public class ArticleProcessor : IDisposable
     }
 
     /// <summary>
+    /// Synchronous single-text embedding using the same ONNX model that produces segment embeddings.
+    /// Call after ProcessAsync/ProcessBatchAsync (which initializes the model).
+    /// </summary>
+    public float[] Embed(string text) => _segmentExtractor.Embed(text);
+
+    /// <summary>
+    /// Ensure the ONNX embedding model is initialized (downloads if needed).
+    /// </summary>
+    public Task EnsureInitializedAsync(CancellationToken ct = default)
+        => _segmentExtractor.EnsureInitializedAsync(ct);
+
+    /// <summary>
     /// Process a content item into segments with signals.
     /// Returns processed article with segments, salience scores, and evidence.
     /// </summary>

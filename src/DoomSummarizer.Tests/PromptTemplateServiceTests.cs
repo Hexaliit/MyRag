@@ -33,7 +33,8 @@ public class PromptTemplateServiceTests
         {
             "roundup", "answer", "digest", "ask-answer",
             "newsletter", "processed-digest",
-            "blog-outline", "blog-intro", "blog-section", "blog-conclusion"
+            "blog-outline", "blog-intro", "blog-section", "blog-conclusion",
+            "longform-outline", "longform-section"
         };
 
         foreach (var name in templates)

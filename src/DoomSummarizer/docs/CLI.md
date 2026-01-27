@@ -15,10 +15,17 @@ Common examples:
 
 ```bash
 doomsummarizer scroll
-doomsummarizer scroll "AI security news" --vibe snarky
-doomsummarizer scroll -s hn -s reddit:dotnet -s bbc --limit 40
+doomsummarizer scroll "AI security news" -v snarky
+doomsummarizer scroll -s hn -s reddit:dotnet -s bbc -l 40
 doomsummarizer scroll --local -s crawl:docs "how does auth work?"
 doomsummarizer scroll --list-templates
+
+# Long-form articles (activates 6-phase evidence-grounded pipeline)
+doomsummarizer scroll "AI safety" -t blog-article -o ai-safety.md
+doomsummarizer scroll "history of LLMs" -t blog-timeline -o llm-history.md
+doomsummarizer scroll "Rust vs Go" -t deep-dive -s hn -s reddit -o comparison.md
+doomsummarizer scroll "tech debt" -t problem-solution -o debt.md
+doomsummarizer scroll "Kubernetes vs serverless" -t pros-cons -o k8s.md
 ```
 
 Options (from `doomsummarizer scroll --help`):
@@ -158,5 +165,5 @@ Examples:
 
 ```bash
 doomsummarizer trends
-doomsummarizer trends --days 14
+doomsummarizer trends -d 14
 ```

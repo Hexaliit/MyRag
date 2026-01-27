@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using DoomSummarizer.Services.LongFormGeneration;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -1567,11 +1568,17 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             ? QueryType.Timeline
                             : detectedQueryType;
 
-                        var blogResult = await ollama.SynthesizeBlogArticleAsync(
-                            analyzedItems, vibe, vibePrompt,
-                            userQuery ?? "topic overview",
-                            articleQueryType,
-                            uniqueItems, embedding.Embed, templateDef, cancellationToken);
+                        BlogArticleResult blogResult;
+                        using (var articleProcessor = new ArticleProcessor())
+                        {
+                            var generator = new LongFormDocumentGenerator(
+                                ollama, articleProcessor);
+                            blogResult = await generator.GenerateAsync(
+                                analyzedItems, uniqueItems,
+                                userQuery ?? "topic overview",
+                                vibe, vibePrompt, articleQueryType,
+                                templateDef, cancellationToken);
+                        }
 
                         // Build template data
                         templateData = new DigestData

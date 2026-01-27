@@ -1,0 +1,25 @@
+Write section "{{HEADING}}" for an article about "{{QUERY}}".
+{{FOCUS}}
+
+{{RUNNING_SUMMARY}}
+
+{{ENTITY_GUIDANCE}}
+
+{{DRIFT_GUIDANCE}}
+
+Tone: {{VIBE_PROMPT}}
+{{TIMELINE_EXTRA}}
+
+EVIDENCE FOR THIS SECTION:
+{{EVIDENCE}}
+
+Rules:
+- Write {{WORD_RANGE}} words of flowing prose
+- Extract specific facts, names, dates, and quotes from the evidence
+- Cite sources naturally (e.g., "according to [source]" or "as reported by [source](URL)")
+- Every factual claim MUST be traceable to the evidence — do not add outside knowledge
+- Use ONLY URLs from the evidence — never invent URLs
+- Do NOT repeat the section heading
+- Do NOT use generic filler phrases — be specific and concrete
+- Build on the document context above — avoid repeating what was already covered
+- If entities from the guidance appear in your evidence, maintain their continuity

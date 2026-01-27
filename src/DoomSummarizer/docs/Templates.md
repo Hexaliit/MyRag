@@ -128,9 +128,33 @@ Notes:
 - If `template:` is present in the YAML, it’s compiled as an inline Liquid template under the same `name`.
 - If no Liquid `template:` is provided, DoomSummarizer uses the `base_template` renderer and fills blog/newsletter fields based on the definition.
 
-### Starter YAML templates in the repo
+### Built-in YAML templates
 
-If you’re building from source, sample YAML definitions exist in:
-- `Resources/templates/`
+These YAML templates ship with the binary (no need to copy files):
 
-Copy them into `$HOME/.doomsummarizer/templates/` to use them without modifying code.
+| Template | Sections | Description |
+|----------|----------|-------------|
+| `deep-dive` | 5 | Context, Technical Analysis, Key Findings, Expert Perspectives, Implications |
+| `problem-solution` | 4 | The Problem, Why It Matters, Proposed Solutions, The Path Forward |
+| `pros-cons` | 4 | Background, The Case For, The Case Against, The Verdict |
+
+```bash
+doomsummarizer scroll "WebAssembly adoption" -t deep-dive -o wasm.md
+doomsummarizer scroll "technical debt" -t problem-solution -o debt.md
+doomsummarizer scroll "Kubernetes vs serverless" -t pros-cons -o comparison.md
+```
+
+Source YAML definitions are in `Resources/templates/`. To create custom ones, place `.yaml` files in `$HOME/.doomsummarizer/templates/`.
+
+## Long-form generation pipeline
+
+Blog templates (`blog-article`, `blog-timeline`, and all YAML templates) activate a six-phase evidence-grounded pipeline in `scroll`:
+
+1. **Evidence Preparation** — ArticleProcessor extracts segments with ONNX embeddings and TextRank salience
+2. **Document Planning** — Sentinel LLM generates JSON outline with theme keywords per section
+3. **Evidence Assignment** — Deterministic: each section gets evidence via embedding similarity + salience + relevance scoring (no LLM)
+4. **Section Generation** — Main LLM generates sections sequentially with running summary, entity continuity tracking, and drift detection
+5. **Output Validation** — Deterministic: URLs checked against fetched evidence whitelist, entities fuzzy-matched, facts grounded via sentence embeddings
+6. **Assembly** — Sections stitched into `BlogArticleResult`, rendered by the template
+
+All embeddings (segments, themes, validation) use the same ONNX `all-MiniLM-L6-v2` model. LLM calls total N+3 (1 outline + 1 intro + N sections + 1 conclusion). Everything else is deterministic.
