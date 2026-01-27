@@ -39,7 +39,7 @@
 
     <!-- StyloFlow.Retrieval.Core for BM25, TF-IDF, RRF (avoid duplication) -->
     <ItemGroup>
-        <ProjectReference Include="D:\Source\styloflow\src\StyloFlow.Retrieval.Core\StyloFlow.Retrieval.Core.csproj"/>
+        <PackageReference Include="Mostlylucid.StyloFlow.Retrieval.Core" Version="2.3.1" />
         <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj"/>
     </ItemGroup>
 

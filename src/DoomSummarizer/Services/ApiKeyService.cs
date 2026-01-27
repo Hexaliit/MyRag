@@ -7,8 +7,8 @@ namespace DoomSummarizer.Services;
 /// <summary>
 /// Loads and manages API service definitions.
 /// Keys are loaded from (in priority order):
-/// 1. Environment variables (DOOM_*, OPENAI_API_KEY, ANTHROPIC_API_KEY)
-/// 2. .NET user secrets (GoogleSearch, BraveSearch, Serper, etc.)
+/// 1. .NET user secrets (highest — explicitly managed per-project)
+/// 2. Environment variables (DOOM_*, OPENAI_API_KEY, ANTHROPIC_API_KEY)
 /// 3. DoomConfig JSON (keys array)
 /// </summary>
 public class ApiKeyService
@@ -48,7 +48,19 @@ public class ApiKeyService
         // Ensure known services exist with defaults even if not in config
         svc.EnsureDefaults();
 
-        // 2. User secrets (override API keys only)
+        // 2. Environment variables (middle priority — can be stale)
+        svc.MergeKey("google_search", Env("DOOM_GOOGLE_SEARCH"), Env("DOOM_GOOGLE_SEARCH_CX"));
+        svc.MergeKey("google_places", Env("DOOM_GOOGLE_PLACES"), null);
+        svc.MergeKey("openai", Env("OPENAI_API_KEY"), Env("DOOM_OPENAI_MODELS"));
+        svc.MergeKey("anthropic", Env("ANTHROPIC_API_KEY"), Env("DOOM_ANTHROPIC_MODELS"));
+        svc.MergeKey("brave_search", Env("DOOM_BRAVE_SEARCH"), null);
+        svc.MergeKey("serper", Env("DOOM_SERPER"), null);
+        svc.MergeKey("newsapi", Env("DOOM_NEWSAPI"), null);
+        svc.MergeKey("newsdata", Env("DOOM_NEWSDATA"), null);
+        svc.MergeKey("tavily", Env("DOOM_TAVILY"), null);
+        svc.MergeKey("jina", Env("DOOM_JINA"), null);
+
+        // 3. User secrets (highest priority — explicitly managed per-project)
         try
         {
             var secrets = LoadUserSecrets();
@@ -70,18 +82,6 @@ public class ApiKeyService
         {
             // User secrets not available — not fatal
         }
-
-        // 3. Environment variables (highest priority)
-        svc.MergeKey("google_search", Env("DOOM_GOOGLE_SEARCH"), Env("DOOM_GOOGLE_SEARCH_CX"));
-        svc.MergeKey("google_places", Env("DOOM_GOOGLE_PLACES"), null);
-        svc.MergeKey("openai", Env("OPENAI_API_KEY"), Env("DOOM_OPENAI_MODELS"));
-        svc.MergeKey("anthropic", Env("ANTHROPIC_API_KEY"), Env("DOOM_ANTHROPIC_MODELS"));
-        svc.MergeKey("brave_search", Env("DOOM_BRAVE_SEARCH"), null);
-        svc.MergeKey("serper", Env("DOOM_SERPER"), null);
-        svc.MergeKey("newsapi", Env("DOOM_NEWSAPI"), null);
-        svc.MergeKey("newsdata", Env("DOOM_NEWSDATA"), null);
-        svc.MergeKey("tavily", Env("DOOM_TAVILY"), null);
-        svc.MergeKey("jina", Env("DOOM_JINA"), null);
 
         // Google Places can share the same key as Google Search
         if (!svc.HasGooglePlaces && svc.IsAvailable("google_search"))
