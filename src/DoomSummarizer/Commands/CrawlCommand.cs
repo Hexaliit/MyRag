@@ -42,6 +42,10 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         [DefaultValue(3)]
         public int Concurrency { get; init; } = 3;
 
+        [CommandOption("-g|--glob")]
+        [Description("URL path filter pattern (e.g., /blog/* or /docs/*). Only pages matching this pattern are indexed.")]
+        public string? Glob { get; init; }
+
         [CommandOption("--entities")]
         [Description("Enable NER entity extraction")]
         public bool Entities { get; init; }
@@ -85,13 +89,15 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
             MaxPages = settings.MaxPages,
             DelayMs = settings.DelayMs,
             MaxConcurrency = settings.Concurrency,
-            TimeoutSeconds = 15
+            TimeoutSeconds = 15,
+            PathFilter = settings.Glob
         };
 
         var crawler = new WebCrawlerService(httpClient, crawlConfig);
 
         AnsiConsole.MarkupLine($"[bold cyan]Crawling:[/] {Markup.Escape(settings.Url)}");
-        AnsiConsole.MarkupLine($"[grey]KB name: {Markup.Escape(kbName)} | depth: {settings.Depth} | max: {settings.MaxPages} pages[/]");
+        var filterInfo = !string.IsNullOrEmpty(settings.Glob) ? $" | filter: {settings.Glob}" : "";
+        AnsiConsole.MarkupLine($"[grey]KB name: {Markup.Escape(kbName)} | depth: {settings.Depth} | max: {settings.MaxPages} pages{filterInfo}[/]");
         AnsiConsole.WriteLine();
 
         var crawledItems = new List<Models.ContentItem>();
@@ -226,7 +232,8 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
         AnsiConsole.Write(table);
 
-        AnsiConsole.MarkupLine($"\n[grey]Query this KB with:[/] doomsummarizer scroll \"your question\" --local --source crawl:{Markup.Escape(kbName)}");
+        AnsiConsole.MarkupLine($"\n[grey]Query this KB with:[/] doomsummarizer scroll \"your question\" --name {Markup.Escape(kbName)}");
+        AnsiConsole.MarkupLine($"[grey]Browse contents:[/] doomsummarizer show {Markup.Escape(kbName)}");
 
         return 0;
     }

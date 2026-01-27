@@ -78,6 +78,10 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [Description("Query ONLY the local knowledge base — no fetching, uses previously stored articles")]
         public bool LocalOnly { get; init; }
 
+        [CommandOption("-n|--name")]
+        [Description("Query a named knowledge base collection (implies --local). Use 'show' command to list collections.")]
+        public string? Name { get; init; }
+
         [CommandOption("--debug-pipeline|--debug")]
         [Description("Show detailed pipeline diagnostics: RRF component scores, discards, salience breakdown")]
         public bool DebugPipeline { get; init; }
@@ -244,10 +248,12 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         }
 
         // Interpret the prompt if provided
+        // Skip sentinel interpretation in --name mode (KB query doesn't need web source detection)
         InterpretedPrompt? interpreted = null;
         var vibe = settings.Vibe;
+        var isNamedKbQuery = !string.IsNullOrWhiteSpace(settings.Name);
 
-        if (!string.IsNullOrEmpty(settings.Prompt))
+        if (!string.IsNullOrEmpty(settings.Prompt) && !isNamedKbQuery)
         {
             if (!settings.Quiet)
                 AnsiConsole.MarkupLine($"[grey]Interpreting: {Markup.Escape(settings.Prompt)}[/]");
@@ -304,7 +310,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         QueryMatch? cachedQuery = null;
         var useCachedSegments = false;
 
-        if (!settings.Force && !settings.LocalOnly && !string.IsNullOrWhiteSpace(queryText))
+        if (!settings.Force && !settings.LocalOnly && string.IsNullOrWhiteSpace(settings.Name) && !string.IsNullOrWhiteSpace(queryText))
         {
             earlyQueryEmbedding = embedding.Embed(queryText);
             cachedQuery = await storage.FindSimilarQueryAsync(earlyQueryEmbedding, threshold: 0.97);
@@ -333,53 +339,63 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             .StartAsync(async ctx =>
             {
                 // Stage 1: Fetch content (or load from knowledge base)
+                // --name implies --local mode (query a named KB collection)
+                var isLocalMode = settings.LocalOnly || !string.IsNullOrWhiteSpace(settings.Name);
                 var fetchTask = ctx.AddTask(
-                    settings.LocalOnly ? "[cyan]Loading from knowledge base[/]" : "[cyan]Fetching content[/]",
+                    isLocalMode ? "[cyan]Loading from knowledge base[/]" : "[cyan]Fetching content[/]",
                     maxValue: 100);
 
-                // --local mode: skip ALL fetching, query stored knowledge base only
-                if (settings.LocalOnly)
+                // --local / --name mode: skip ALL fetching, query stored knowledge base only
+                if (isLocalMode)
                 {
                     var localQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
 
-                    // Check for source filter (e.g. --source crawl:mysite for KB queries)
-                    var sourceFilter = settings.Sources?.FirstOrDefault(s =>
-                        s.StartsWith("crawl:", StringComparison.OrdinalIgnoreCase));
-                    var storedLocal = sourceFilter != null
-                        ? await storage.GetRecentItemsAsync(days: 365, source: sourceFilter)
-                        : await storage.GetRecentItemsAsync(days: 30);
-                    fetchTask.Value = 40;
+                    // Derive source filter: --name takes priority, then --source crawl:xxx
+                    var sourceFilter = !string.IsNullOrWhiteSpace(settings.Name)
+                        ? $"crawl:{settings.Name}"
+                        : settings.Sources?.FirstOrDefault(s =>
+                            s.StartsWith("crawl:", StringComparison.OrdinalIgnoreCase));
 
-                    // Convert stored items to ContentItems
-                    var localItems = storedLocal
-                        .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
-                        .Select(s => s.ToContentItem())
-                        .ToList();
+                    var collectionLabel = sourceFilter ?? "all";
+                    List<ContentItem> localItems;
 
-                    // If we have a query and embeddings, do semantic search to filter
-                    if (!string.IsNullOrWhiteSpace(localQuery) && localItems.Any(i => i.Embedding != null))
+                    if (!string.IsNullOrWhiteSpace(localQuery))
                     {
+                        // Semantic search: filter at BOTH vector and RDBMS levels
                         var queryEmbed = embedding.Embed(localQuery);
-                        // Score by embedding similarity to the query
-                        foreach (var item in localItems)
-                        {
-                            if (item.Embedding != null)
+                        fetchTask.Value = 30;
+
+                        // FindSimilarAsync filters by source in SQL, then ranks by cosine similarity
+                        // Lower threshold for named collections — user explicitly chose this KB
+                        var simThreshold = sourceFilter != null ? 0.05 : 0.15;
+                        var similarStored = await storage.FindSimilarAsync(
+                            queryEmbed, limit: settings.Limit * 2, threshold: simThreshold, source: sourceFilter);
+                        fetchTask.Value = 70;
+
+                        localItems = similarStored
+                            .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
+                            .Select(s =>
                             {
-                                var sim = EmbeddingService.CosineSimilarity(queryEmbed, item.Embedding);
-                                item.RelevanceScore = sim;
-                            }
-                        }
-                        // Keep items with reasonable similarity
-                        localItems = localItems
-                            .Where(i => i.RelevanceScore > 0.2)
+                                var item = s.ToContentItem();
+                                if (item.Embedding != null)
+                                    item.RelevanceScore = EmbeddingService.CosineSimilarity(queryEmbed, item.Embedding);
+                                return item;
+                            })
                             .OrderByDescending(i => i.RelevanceScore)
                             .Take(settings.Limit)
                             .ToList();
                     }
                     else
                     {
-                        // No query: return most recent
-                        localItems = localItems
+                        // No query: return most recent from the collection
+                        var storedLocal = sourceFilter != null
+                            ? await storage.GetRecentItemsAsync(days: 365, source: sourceFilter)
+                            : await storage.GetRecentItemsAsync(days: 30);
+                        fetchTask.Value = 70;
+
+                        localItems = storedLocal
+                            .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
+                            .Select(s => s.ToContentItem())
                             .OrderByDescending(i => i.FetchedAt)
                             .Take(settings.Limit)
                             .ToList();
@@ -387,14 +403,14 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     items.AddRange(localItems);
                     fetchTask.Value = 100;
-                    fetchTask.Description = $"[green]Loaded {items.Count} items from knowledge base ({storedLocal.Count} total stored)[/]";
+                    fetchTask.Description = $"[green]Loaded {items.Count} items from KB '{Markup.Escape(collectionLabel)}'[/]";
 
                     if (!settings.Quiet)
-                        AnsiConsole.MarkupLine($"[grey]Local mode: {storedLocal.Count} stored items, {items.Count} matched query[/]");
+                        AnsiConsole.MarkupLine($"[grey]KB query ({Markup.Escape(collectionLabel)}): {items.Count} items matched[/]");
                 }
 
                 // Segment reuse: load cached items from a similar recent query
-                if (!settings.LocalOnly && useCachedSegments && cachedQuery != null)
+                if (!isLocalMode && useCachedSegments && cachedQuery != null)
                 {
                     var cachedStored = await storage.GetItemsByIdsAsync(cachedQuery.ItemIds);
                     var cachedItems = cachedStored
@@ -439,7 +455,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // AND for adaptive RRF weights in Stage 2.5 (outside the fetch block)
                 var earlyQueryType = QueryTypeDetector.Detect(interpreted?.RawPrompt ?? settings.Prompt, interpreted?.SentinelIntent);
 
-                if (!settings.LocalOnly && !useCachedSegments)
+                if (!isLocalMode && !useCachedSegments)
                 {
                 // Normal fetch mode
                 var fetchTasks = new List<Task<List<ContentItem>>>();
@@ -1346,7 +1362,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 // Evidence sufficiency check: if top items are irrelevant, re-search with focused queries
-                if (queryEmbedding != null && uniqueItems.Count > 0 && !settings.LocalOnly)
+                if (queryEmbedding != null && uniqueItems.Count > 0 && !isLocalMode)
                 {
                     var topItems = uniqueItems.Take(5).Where(i => i.Embedding != null).ToList();
                     if (topItems.Count > 0)
@@ -1843,7 +1859,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                         var topItem = c.Items.OrderByDescending(i => i.RelevanceScore).First();
                                         if (topItem.Embedding == null) return true; // can't filter without embedding
                                         var sim = EmbeddingService.CosineSimilarity(topItem.Embedding, queryEmbedding);
-                                        return sim >= 0.20f; // minimum topical relevance to query
+                                        return sim >= 0.35f; // minimum topical relevance to query
                                     })
                                     .ToList();
 
@@ -2058,7 +2074,10 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     var header = isBlogTemplate
                         ? $"[bold cyan]{Markup.Escape(template)}[/]"
                         : $"[bold cyan]Doom Scroll Digest ({vibe})[/]";
-                    AnsiConsole.Write(new Panel(renderedMarkup)
+                    // Word-wrap content to prevent the panel from stretching to full terminal width
+                    var maxContentWidth = Math.Min(AnsiConsole.Profile.Width - 6, 94);
+                    var wrappedMarkup = WordWrapMarkup(renderedMarkup, maxContentWidth);
+                    AnsiConsole.Write(new Panel(wrappedMarkup)
                         .Header(header)
                         .Border(BoxBorder.Rounded)
                         .Padding(1, 1));
@@ -2313,6 +2332,127 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             "ars" or "verge" => "technology",
             _ => "general"
         };
+    }
+
+    /// <summary>
+    /// Word-wrap Spectre markup text to a max visible width.
+    /// Counts visible characters (skipping [markup] tags) for width calculation.
+    /// </summary>
+    private static string WordWrapMarkup(string text, int maxWidth)
+    {
+        if (maxWidth <= 0 || string.IsNullOrEmpty(text)) return text;
+
+        var result = new System.Text.StringBuilder();
+        foreach (var rawLine in text.Split('\n'))
+        {
+            var line = rawLine.TrimEnd('\r');
+            var visibleLen = VisibleLength(line);
+
+            if (visibleLen <= maxWidth)
+            {
+                result.AppendLine(line);
+                continue;
+            }
+
+            // Word-wrap this line
+            var currentLine = new System.Text.StringBuilder();
+            var currentVisible = 0;
+            var i = 0;
+
+            while (i < line.Length)
+            {
+                // Skip markup tags for visible length counting
+                if (line[i] == '[' && i + 1 < line.Length && line[i + 1] != '[')
+                {
+                    var closeIdx = line.IndexOf(']', i + 1);
+                    if (closeIdx >= 0)
+                    {
+                        currentLine.Append(line[i..(closeIdx + 1)]);
+                        i = closeIdx + 1;
+                        continue;
+                    }
+                }
+
+                // Escaped bracket [[
+                if (line[i] == '[' && i + 1 < line.Length && line[i + 1] == '[')
+                {
+                    currentLine.Append("[[");
+                    currentVisible++;
+                    i += 2;
+                    continue;
+                }
+
+                currentLine.Append(line[i]);
+                currentVisible++;
+
+                if (currentVisible >= maxWidth && i + 1 < line.Length)
+                {
+                    // Find a word boundary to break at
+                    var breakPoint = currentLine.Length;
+                    for (var j = currentLine.Length - 1; j > currentLine.Length - 30 && j > 0; j--)
+                    {
+                        if (currentLine[j] == ' ')
+                        {
+                            breakPoint = j;
+                            break;
+                        }
+                    }
+
+                    if (breakPoint < currentLine.Length)
+                    {
+                        result.AppendLine(currentLine.ToString()[..breakPoint]);
+                        var remainder = currentLine.ToString()[(breakPoint + 1)..];
+                        currentLine.Clear();
+                        currentLine.Append(remainder);
+                        currentVisible = VisibleLength(remainder);
+                    }
+                    else
+                    {
+                        result.AppendLine(currentLine.ToString());
+                        currentLine.Clear();
+                        currentVisible = 0;
+                    }
+                }
+
+                i++;
+            }
+
+            if (currentLine.Length > 0)
+                result.AppendLine(currentLine.ToString());
+        }
+
+        return result.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Count visible characters in a Spectre markup string (excluding [tags]).
+    /// </summary>
+    private static int VisibleLength(string markup)
+    {
+        var count = 0;
+        var i = 0;
+        while (i < markup.Length)
+        {
+            if (markup[i] == '[' && i + 1 < markup.Length)
+            {
+                if (markup[i + 1] == '[')
+                {
+                    count++;
+                    i += 2;
+                    continue;
+                }
+
+                var closeIdx = markup.IndexOf(']', i + 1);
+                if (closeIdx >= 0)
+                {
+                    i = closeIdx + 1;
+                    continue;
+                }
+            }
+            count++;
+            i++;
+        }
+        return count;
     }
 
     /// <summary>

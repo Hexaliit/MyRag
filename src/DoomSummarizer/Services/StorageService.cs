@@ -222,13 +222,21 @@ public class StorageService : IAsyncDisposable
         return items;
     }
 
-    public async Task<List<StoredItem>> FindSimilarAsync(float[] embedding, int limit = 10, double threshold = 0.85)
+    public async Task<List<StoredItem>> FindSimilarAsync(float[] embedding, int limit = 10, double threshold = 0.85, string? source = null)
     {
         // Simple brute-force similarity search - works fine for small datasets
         var items = new List<(StoredItem item, float similarity)>();
 
         await using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = "SELECT * FROM items WHERE embedding IS NOT NULL ORDER BY fetched_at DESC LIMIT 1000";
+        if (source != null)
+        {
+            cmd.CommandText = "SELECT * FROM items WHERE embedding IS NOT NULL AND source = @source ORDER BY fetched_at DESC LIMIT 5000";
+            cmd.Parameters.AddWithValue("@source", source);
+        }
+        else
+        {
+            cmd.CommandText = "SELECT * FROM items WHERE embedding IS NOT NULL ORDER BY fetched_at DESC LIMIT 1000";
+        }
 
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -912,6 +920,62 @@ public class StorageService : IAsyncDisposable
         };
     }
 
+    /// <summary>
+    /// List all KB collections (distinct source prefixes) with item counts and stats.
+    /// </summary>
+    public async Task<List<CollectionInfo>> GetCollectionsAsync()
+    {
+        var collections = new List<CollectionInfo>();
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            SELECT source,
+                   COUNT(*) as item_count,
+                   COUNT(CASE WHEN embedding IS NOT NULL THEN 1 END) as with_embeddings,
+                   MIN(fetched_at) as earliest,
+                   MAX(fetched_at) as latest,
+                   AVG(CASE WHEN content IS NOT NULL THEN LENGTH(content) ELSE 0 END) as avg_content_len
+            FROM items
+            GROUP BY source
+            ORDER BY MAX(fetched_at) DESC
+            """;
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            collections.Add(new CollectionInfo
+            {
+                Source = reader.GetString(0),
+                ItemCount = reader.GetInt32(1),
+                WithEmbeddings = reader.GetInt32(2),
+                Earliest = DateTimeOffset.Parse(reader.GetString(3)),
+                Latest = DateTimeOffset.Parse(reader.GetString(4)),
+                AvgContentLength = reader.IsDBNull(5) ? 0 : (int)reader.GetDouble(5)
+            });
+        }
+
+        return collections;
+    }
+
+    /// <summary>
+    /// Get all items for a given source (collection).
+    /// </summary>
+    public async Task<List<StoredItem>> GetItemsBySourceAsync(string source, int limit = 500)
+    {
+        var items = new List<StoredItem>();
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT * FROM items WHERE source = @source ORDER BY fetched_at DESC LIMIT @limit";
+        cmd.Parameters.AddWithValue("@source", source);
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            items.Add(ReadStoredItem(reader));
+        }
+
+        return items;
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_connection != null)
@@ -920,6 +984,19 @@ public class StorageService : IAsyncDisposable
             await _connection.DisposeAsync();
         }
     }
+}
+
+/// <summary>
+/// Stats for a KB collection (grouped by source).
+/// </summary>
+public record CollectionInfo
+{
+    public required string Source { get; init; }
+    public int ItemCount { get; init; }
+    public int WithEmbeddings { get; init; }
+    public DateTimeOffset Earliest { get; init; }
+    public DateTimeOffset Latest { get; init; }
+    public int AvgContentLength { get; init; }
 }
 
 /// <summary>

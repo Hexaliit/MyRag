@@ -23,6 +23,10 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         [Description("Filter to a source (e.g., crawl:mysite, hn, reddit)")]
         public string? Source { get; init; }
 
+        [CommandOption("-n|--name")]
+        [Description("Query a named knowledge base collection (shorthand for --source crawl:<name>)")]
+        public string? Name { get; init; }
+
         [CommandOption("--days <DAYS>")]
         [Description("How far back to search (default: 30 for general, 365 for crawl sources)")]
         [DefaultValue(0)]
@@ -79,9 +83,14 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             AnsiConsole.MarkupLine("[cyan]Ollama not available — using cloud LLM provider[/]");
         }
 
+        // Derive effective source: --name takes priority over --source
+        var effectiveSource = !string.IsNullOrWhiteSpace(settings.Name)
+            ? $"crawl:{settings.Name}"
+            : settings.Source;
+
         // Determine search window
         var searchDays = settings.Days > 0 ? settings.Days
-            : settings.Source?.StartsWith("crawl:", StringComparison.OrdinalIgnoreCase) == true ? 365
+            : effectiveSource?.StartsWith("crawl:", StringComparison.OrdinalIgnoreCase) == true ? 365
             : 30;
 
         // Conversation history for multi-turn context
@@ -137,7 +146,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
 
             // Search and answer — cloud LLM counts as available
             var llmAvailable = ollamaAvailable || hasCloudLlm;
-            await AnswerQuestion(question, settings, config, storage, embedding, ollama,
+            await AnswerQuestion(question, settings, effectiveSource, config, storage, embedding, ollama,
                 llmAvailable, searchDays, history, cancellationToken);
 
             if (settings.Once) break;
@@ -153,6 +162,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
     private static async Task AnswerQuestion(
         string question,
         Settings settings,
+        string? effectiveSource,
         DoomConfig config,
         StorageService storage,
         EmbeddingService embedding,
@@ -183,7 +193,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         else
         {
             // Fresh search
-            evidence = await SearchEvidence(question, queryEmbedding, settings, storage,
+            evidence = await SearchEvidence(question, queryEmbedding, settings, effectiveSource, storage,
                 embedding, searchDays, ct);
         }
 
@@ -324,14 +334,15 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         string question,
         float[] queryEmbedding,
         Settings settings,
+        string? effectiveSource,
         StorageService storage,
         EmbeddingService embedding,
         int searchDays,
         CancellationToken ct)
     {
-        // Load stored items
-        var stored = settings.Source != null
-            ? await storage.GetRecentItemsAsync(days: searchDays, source: settings.Source)
+        // Load stored items filtered by source at the RDBMS level
+        var stored = effectiveSource != null
+            ? await storage.GetRecentItemsAsync(days: searchDays, source: effectiveSource)
             : await storage.GetRecentItemsAsync(days: searchDays);
 
         var items = stored

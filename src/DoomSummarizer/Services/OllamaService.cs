@@ -44,9 +44,17 @@ public class OllamaService
     /// <summary>
     /// Get max evidence chars per item, using the cloud provider's context window if routed.
     /// </summary>
-    internal int GetMaxEvidenceCharsPerItem(bool sentinel, int itemCount) =>
-        Router?.MaxEvidenceCharsPerItem(sentinel, itemCount)
-        ?? GetMaxEvidenceCharsPerItem(sentinel, itemCount);
+    internal int GetMaxEvidenceCharsPerItem(bool sentinel, int itemCount)
+    {
+        if (Router != null)
+            return Router.MaxEvidenceCharsPerItem(sentinel, itemCount);
+
+        // Local Ollama fallback: use configured context size
+        var ctx = sentinel ? _config.SentinelContextSize : _config.ContextSize;
+        var availableTokens = ctx - 800;
+        var perItem = Math.Max(100, availableTokens / Math.Max(1, itemCount));
+        return (int)(perItem * 3.5);
+    }
 
     public async Task<bool> IsAvailableAsync()
     {

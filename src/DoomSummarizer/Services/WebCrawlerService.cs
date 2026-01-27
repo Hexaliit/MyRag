@@ -39,7 +39,14 @@ public class WebCrawlerService
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var seedUri = new Uri(seedUrl);
-        var allowedHost = seedUri.Host.ToLowerInvariant();
+        // Allow both www and non-www variants of the domain
+        var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            seedUri.Host,
+            seedUri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
+                ? seedUri.Host[4..]
+                : "www." + seedUri.Host
+        };
 
         // BFS frontier: (url, depth)
         var frontier = new Queue<(string url, int depth)>();
@@ -67,9 +74,9 @@ public class WebCrawlerService
 
             onActivity?.Invoke($"Crawling: {TruncateUrl(url, 60)}");
 
-            // Extract content
-            ExtractedContent? extracted;
-            string? html;
+            // Stage 1: Fetch HTML
+            string? html = null;
+            string? finalUrl = url;
             try
             {
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -81,6 +88,18 @@ public class WebCrawlerService
                 request.Headers.Add("Accept", "text/html,application/xhtml+xml");
 
                 using var response = await _httpClient.SendAsync(request, cts.Token);
+
+                // Track redirect — add the redirected host to allowed hosts
+                if (response.RequestMessage?.RequestUri is { } redirectUri)
+                {
+                    finalUrl = redirectUri.AbsoluteUri;
+                    allowedHosts.Add(redirectUri.Host);
+                    if (redirectUri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+                        allowedHosts.Add(redirectUri.Host[4..]);
+                    else
+                        allowedHosts.Add("www." + redirectUri.Host);
+                }
+
                 if (!response.IsSuccessStatusCode)
                 {
                     PagesSkipped++;
@@ -96,13 +115,10 @@ public class WebCrawlerService
                 }
 
                 html = await response.Content.ReadAsStringAsync(cts.Token);
-                if (string.IsNullOrWhiteSpace(html))
-                {
-                    PagesSkipped++;
-                    continue;
-                }
-
-                extracted = _extractor.ExtractFromHtml(html, url);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                yield break;
             }
             catch
             {
@@ -110,16 +126,42 @@ public class WebCrawlerService
                 continue;
             }
 
-            // Extract links for next depth level (before we yield the item)
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                PagesSkipped++;
+                continue;
+            }
+
+            // Stage 2: Extract links ALWAYS (even if content extraction fails)
+            // This ensures the crawler keeps discovering pages on the domain
             if (depth < _config.MaxDepth)
             {
-                var links = ExtractSameDomainLinks(html!, url, allowedHost);
+                var links = ExtractSameDomainLinks(html, finalUrl, allowedHosts);
                 foreach (var link in links)
                 {
                     var normalized = NormalizeUrl(link);
                     if (!visited.Contains(normalized) && !IsBlockedExtension(normalized))
                         frontier.Enqueue((normalized, depth + 1));
                 }
+            }
+
+            // Stage 3: Extract content (separate try-catch so link discovery isn't lost)
+            // Apply path filter — pages outside the filter are crawled for links but not indexed
+            if (!MatchesPathFilter(finalUrl))
+            {
+                PagesSkipped++;
+                continue;
+            }
+
+            ExtractedContent? extracted;
+            try
+            {
+                extracted = _extractor.ExtractFromHtml(html, finalUrl);
+            }
+            catch
+            {
+                PagesSkipped++;
+                continue;
             }
 
             if (extracted == null || !extracted.IsReadable || extracted.Content.Length < 50)
@@ -133,14 +175,14 @@ public class WebCrawlerService
 
             yield return new ContentItem
             {
-                Id = $"crawl_{GenerateId(url)}",
+                Id = $"crawl_{GenerateId(finalUrl)}",
                 Source = $"crawl:{_config.Name}",
                 Title = extracted.Title,
-                Url = url,
+                Url = finalUrl,
                 Content = extracted.BestContent,
                 Author = extracted.Author,
                 CreatedAt = extracted.PublishedDate is { } pd
-                    ? new DateTimeOffset(pd, TimeSpan.Zero)
+                    ? new DateTimeOffset(DateTime.SpecifyKind(pd, DateTimeKind.Utc))
                     : DateTimeOffset.UtcNow,
                 FetchedAt = DateTimeOffset.UtcNow,
                 ContentStructure = extracted.Structure
@@ -151,7 +193,7 @@ public class WebCrawlerService
     /// <summary>
     /// Extract all same-domain links from HTML.
     /// </summary>
-    private static List<string> ExtractSameDomainLinks(string html, string baseUrl, string allowedHost)
+    private static List<string> ExtractSameDomainLinks(string html, string baseUrl, HashSet<string> allowedHosts)
     {
         var links = new List<string>();
         try
@@ -174,8 +216,8 @@ public class WebCrawlerService
                 try
                 {
                     var absoluteUri = new Uri(new Uri(baseUrl), href);
-                    // Same-domain check
-                    if (absoluteUri.Host.Equals(allowedHost, StringComparison.OrdinalIgnoreCase)
+                    // Same-domain check (allows www and non-www variants)
+                    if (allowedHosts.Contains(absoluteUri.Host)
                         && absoluteUri.Scheme is "http" or "https")
                     {
                         links.Add(absoluteUri.AbsoluteUri);
@@ -193,6 +235,36 @@ public class WebCrawlerService
         }
 
         return links;
+    }
+
+    /// <summary>
+    /// Check if a URL path matches the configured glob filter.
+    /// Supports: /blog/* (prefix), *.html (suffix), /docs/*/intro (wildcard segment).
+    /// Null filter matches everything.
+    /// </summary>
+    private bool MatchesPathFilter(string url)
+    {
+        if (string.IsNullOrEmpty(_config.PathFilter)) return true;
+
+        try
+        {
+            var path = new Uri(url).AbsolutePath;
+            var pattern = _config.PathFilter;
+
+            // Simple glob: convert to regex
+            // * matches any sequence of non-/ characters
+            // ** matches any sequence including /
+            var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
+                .Replace("\\*\\*", ".*")
+                .Replace("\\*", "[^/]*") + "$";
+
+            return System.Text.RegularExpressions.Regex.IsMatch(
+                path, regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     private static bool IsBlockedExtension(string url)
@@ -256,4 +328,7 @@ public record CrawlConfig
 
     /// <summary>Timeout per page in seconds.</summary>
     public int TimeoutSeconds { get; init; } = 15;
+
+    /// <summary>URL path filter (glob pattern, e.g. "/blog/*"). Null means no filter.</summary>
+    public string? PathFilter { get; init; }
 }

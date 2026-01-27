@@ -37,6 +37,12 @@ app.Configure(config =>
         .WithExample("crawl", "https://intranet.company.com", "--name", "intranet", "--depth", "5")
         .WithExample("crawl", "https://wiki.local", "-n", "wiki", "-m", "500");
 
+    config.AddCommand<ShowCommand>("show")
+        .WithDescription("List knowledge base collections and their contents")
+        .WithExample("show")
+        .WithExample("show", "docs")
+        .WithExample("show", "docs", "--full");
+
     config.AddCommand<SourcesCommand>("sources")
         .WithDescription("List available sources and examples")
         .WithExample("sources");

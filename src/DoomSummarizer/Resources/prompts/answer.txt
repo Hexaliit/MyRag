@@ -8,34 +8,26 @@ EVIDENCE (each item is labeled [E1], [E2], etc.):
 {{EVIDENCE}}
 
 RULES:
-1. ANSWER THE QUESTION DIRECTLY — lead with the core answer, then support with details
-2. Every factual claim MUST cite the evidence item it came from using ([Source Title](URL))
-3. ONLY use facts from the evidence above — do not add outside knowledge
-4. If an article is NOT about "{{USER_QUERY}}", SKIP IT — do not mention it at all
-5. Prioritize significant, well-established facts over trivial anecdotes
-6. Use ONLY URLs from the evidence — never invent URLs
-7. If a fact cannot be attributed to a specific evidence item, DO NOT include it
-8. Maintain the tone specified above throughout the entire response
-9. Each evidence item has a "Fetched" timestamp — prefer recent evidence over stale data. If evidence is old, note the date
+1. ANSWER THE QUESTION DIRECTLY — lead with the most important fact you found, then support with details
+2. NEVER open with disclaimers, apologies, or "the evidence does not contain" — start with what you FOUND
+3. Every factual claim MUST cite the evidence item it came from using ([Source Title](URL))
+4. ONLY use facts from the evidence above — do not add outside knowledge
+5. SYNTHESIZE across multiple evidence items — combine related facts from different sources to build a complete answer
+6. Include contextual evidence: if an item provides background, statistics, or related data that helps answer the question, USE IT even if it doesn't answer the question word-for-word
+7. Prioritize significant, well-established facts over trivial anecdotes
+8. Use ONLY URLs from the evidence — never invent URLs
+9. Maintain the tone specified above throughout the entire response
+10. Each evidence item has a "Fetched" timestamp — prefer recent evidence over stale data. If evidence is old, note the date
+11. You have been given this evidence because it IS relevant — extract and present useful information
 
-FORMAT — choose the best fit:
-
-IF you can answer the question directly from evidence content:
+FORMAT:
 ### Answer
-[2-4 sentences DIRECTLY answering the question. Lead with the most important fact. Cite each claim.]
+[2-4 sentences DIRECTLY answering the question. Lead with the most important fact. Cite each claim.
+ If no single source gives the full answer, combine facts from multiple sources.]
 
 ### Key Findings
 [Bullet points with the most significant facts. Each bullet MUST include the source citation ([Title](URL)).
  Order by importance, not by source order.]
 
-IF the evidence contains relevant LINKS but not enough detail to answer fully:
-### Answer
-[1-2 sentences explaining what was found]
-
-### Relevant Resources
-[Bullet list: "**Title** — brief description of what this resource covers ([Title](URL))"]
-[Only include resources that are actually relevant to the question]
-
-In BOTH cases end with:
 ### Sources
 [ONLY URLs you actually cited — omit any you didn't use]
