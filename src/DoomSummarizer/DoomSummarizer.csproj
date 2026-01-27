@@ -25,6 +25,7 @@
 
         <!-- Allow unsafe for ONNX -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <UserSecretsId>bc19ab4d-717e-4cf3-bdd3-a5ee817de654</UserSecretsId>
 
     </PropertyGroup>
 
@@ -64,7 +65,7 @@
         <PackageReference Include="Polly.Core" Version="8.6.5" />
 
         <!-- Console image display -->
-        <PackageReference Include="mostlylucid.consoleimage" Version="4.1.0" />
+        <PackageReference Include="mostlylucid.consoleimage" Version="4.1.2" />
         <PackageReference Include="YamlDotNet" Version="16.3.0" />
     </ItemGroup>
 

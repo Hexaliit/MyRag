@@ -1,6 +1,6 @@
 using OpenCvSharp;
 
-namespace Mostlylucid.DocSummarizer.Services.Preprocessing;
+namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
 /// Assesses document image quality to determine preprocessing needs.

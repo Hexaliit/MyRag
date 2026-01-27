@@ -12,6 +12,8 @@ public record DoomConfig
     public StorageConfig Storage { get; init; } = new();
     public LinkFollowingConfig LinkFollowing { get; init; } = new();
     public Dictionary<string, string> Vibes { get; init; } = new();
+    public List<ApiKeyEntry> Keys { get; init; } = [];
+    public ApiBudgetConfig ApiBudget { get; init; } = new();
 }
 
 public record SourcesConfig
@@ -80,6 +82,25 @@ public record OllamaConfig
     public string EmbedModel { get; init; } = "nomic-embed-text";
     public double Temperature { get; init; } = 0.4;
     public int TimeoutSeconds { get; init; } = 300;
+
+    /// <summary>Context window size (tokens) for the main model. Used to budget evidence content.</summary>
+    public int ContextSize { get; init; } = 8192;
+
+    /// <summary>Context window size (tokens) for the sentinel model.</summary>
+    public int SentinelContextSize { get; init; } = 32768;
+
+    /// <summary>
+    /// Compute max chars of evidence content per item for the given model context.
+    /// Reserves space for prompt overhead (~300 tokens) and output (~500 tokens).
+    /// Assumes ~3.5 chars per token for English text.
+    /// </summary>
+    public int MaxEvidenceCharsPerItem(bool sentinel, int itemCount)
+    {
+        var ctx = sentinel ? SentinelContextSize : ContextSize;
+        var availableTokens = ctx - 800; // reserve for prompt + output
+        var perItem = Math.Max(100, availableTokens / Math.Max(1, itemCount));
+        return (int)(perItem * 3.5);
+    }
 }
 
 public record EmbeddingConfig
@@ -138,6 +159,57 @@ public record LinkFollowingConfig
     ];
 }
 
+/// <summary>
+/// A single API service definition.
+/// Each entry is self-contained: name, key, service-specific config, enabled flag, and budget.
+/// API keys loaded from config JSON, user secrets ("keys:0:GoogleSearch"), or env vars (DOOM_GOOGLE_SEARCH).
+/// </summary>
+public record ApiKeyEntry
+{
+    /// <summary>Service identifier: "google_search", "google_places".</summary>
+    public string Name { get; init; } = "";
+
+    /// <summary>API key. Prefer user-secrets or env vars over storing in plain text.</summary>
+    public string? ApiKey { get; init; }
+
+    /// <summary>Service-specific extra ID (e.g., Google Custom Search Engine ID).</summary>
+    public string? SearchEngineId { get; init; }
+
+    /// <summary>Whether this service is enabled.</summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>Max requests per day for this service. 0 = use global limit.</summary>
+    public int MaxRequestsPerDay { get; init; } = 100;
+
+    /// <summary>Lifetime request cap. 0 = unlimited.</summary>
+    public int MaxRequests { get; init; } = 0;
+
+    /// <summary>Daily budget in USD for this service. 0 = use global budget.</summary>
+    public double DailyBudgetUsd { get; init; } = 0;
+
+    /// <summary>Estimated cost per API call in USD.</summary>
+    public double CostPerRequest { get; init; } = 0.005;
+
+    /// <summary>Context window size (tokens) for the main model. Used for evidence budgeting.</summary>
+    public int ContextSize { get; init; } = 0;
+
+    /// <summary>Context window size (tokens) for the sentinel model.</summary>
+    public int SentinelContextSize { get; init; } = 0;
+}
+
+/// <summary>
+/// Global budget controls across all paid/limited APIs.
+/// Individual service limits on each ApiKeyEntry override these when set.
+/// </summary>
+public record ApiBudgetConfig
+{
+    /// <summary>Global daily request limit across all paid APIs. 0 = unlimited.</summary>
+    public int GlobalMaxRequestsPerDay { get; init; } = 200;
+
+    /// <summary>Global daily budget in USD. 0 = unlimited.</summary>
+    public double GlobalDailyBudgetUsd { get; init; } = 2.0;
+}
+
 // JSON serialization context for AOT
 [JsonSourceGenerationOptions(
     WriteIndented = true,
@@ -155,6 +227,9 @@ public record LinkFollowingConfig
 [JsonSerializable(typeof(OutputConfig))]
 [JsonSerializable(typeof(StorageConfig))]
 [JsonSerializable(typeof(LinkFollowingConfig))]
+[JsonSerializable(typeof(ApiKeyEntry))]
+[JsonSerializable(typeof(ApiBudgetConfig))]
+[JsonSerializable(typeof(List<ApiKeyEntry>))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(Dictionary<string, double>))]

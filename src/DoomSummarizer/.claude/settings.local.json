@@ -32,7 +32,19 @@
       "Bash(dir:*)",
       "Bash(cd:*)",
       "Bash(pushd:*)",
-      "Bash(popd)"
+      "Bash(popd)",
+      "WebFetch(domain:arxiv.org)",
+      "Bash(powershell -Command:*)",
+      "WebFetch(domain:lite.duckduckgo.com)",
+      "Bash(dotnet user-secrets:*)",
+      "WebFetch(domain:www.kdnuggets.com)",
+      "Bash(cmd /c dir \"%APPDATA%\\\\Microsoft\\\\UserSecrets\\\\bc19ab4d-717e-4cf3-bdd3-a5ee817de654\"\")",
+      "WebFetch(domain:api.search.brave.com)",
+      "WebFetch(domain:newsapi.org)",
+      "WebFetch(domain:docs.tavily.com)",
+      "WebFetch(domain:serper.dev)",
+      "WebFetch(domain:newsdata.io)",
+      "WebFetch(domain:jina.ai)"
     ]
   }
 }

@@ -3,7 +3,7 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
 
-namespace Mostlylucid.DocSummarizer.Services.Preprocessing;
+namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
 /// ML-based super-resolution using Real-ESRGAN for OCR enhancement.

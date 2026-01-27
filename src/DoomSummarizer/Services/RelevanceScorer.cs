@@ -84,7 +84,8 @@ public class RelevanceScorer
         var (idf, avgDocLen) = BuildCorpusStats(items);
 
         // Score each signal independently, then rank
-        var bm25Scores = items.Select(i => (item: i, score: BM25Score(ItemText(i), queryTokens, idf, avgDocLen))).ToList();
+        // Use BM25F (field-weighted) to boost title matches over content matches
+        var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen))).ToList();
         var freshnessScores = items.Select(i => (item: i, score: ComputeFreshness(i))).ToList();
         var authorityScores = items.Select(i => (item: i, score: NormalizeAuthority(i, items))).ToList();
 
@@ -98,12 +99,13 @@ public class RelevanceScorer
         // When embeddings are available, add semantic query similarity in Phase 1
         // This is the key fix: "pharmaceutical" embedding matches "drug pricing" content
         // without needing synonym dictionaries
+        List<(ContentItem item, double score)>? querySimScores = null;
         if (queryEmbedding != null)
         {
-            var querySim = items.Select(i => (item: i, score: i.Embedding != null
+            querySimScores = items.Select(i => (item: i, score: i.Embedding != null
                 ? (double)EmbeddingService.CosineSimilarity(i.Embedding, queryEmbedding)
                 : 0.0)).ToList();
-            signals.Add((querySim, _querySimWeight));
+            signals.Add((querySimScores, _querySimWeight));
         }
 
         // RRF fusion across Phase 1 signals
@@ -114,6 +116,21 @@ public class RelevanceScorer
             item.RelevanceScore = score;
 
         var sorted = rrfScores.OrderByDescending(x => x.score).Select(x => x.item).ToList();
+
+        // Hard gate: remove items with near-zero relevance signals.
+        // An item survives if it has EITHER decent embedding similarity OR keyword matches.
+        // This prevents the gate from being overly aggressive on specific QA queries where
+        // search results have good keyword overlap but low embedding similarity.
+        if (querySimScores != null)
+        {
+            var simLookup = querySimScores.ToDictionary(x => x.item.Id, x => x.score);
+            var bm25Lookup = bm25Scores.ToDictionary(x => x.item.Id, x => x.score);
+            sorted = sorted
+                .Where(i => simLookup.GetValueOrDefault(i.Id, 0) >= 0.10 ||
+                            bm25Lookup.GetValueOrDefault(i.Id, 0) > 0 ||
+                            i.Embedding == null)
+                .ToList();
+        }
 
         // Discard bottom tier
         if (discardRatio > 0 && sorted.Count > 3)
@@ -145,8 +162,8 @@ public class RelevanceScorer
         var queryTokens = Tokenize(query);
         var (idf, avgDocLen) = BuildCorpusStats(items);
 
-        // Phase 1 signals (recomputed for refined batch)
-        var bm25Scores = items.Select(i => (item: i, score: BM25Score(ItemText(i), queryTokens, idf, avgDocLen))).ToList();
+        // Phase 1 signals (recomputed for refined batch) — BM25F for field weighting
+        var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen))).ToList();
         var freshnessScores = items.Select(i => (item: i, score: ComputeFreshness(i))).ToList();
         var authorityScores = items.Select(i => (item: i, score: NormalizeAuthority(i, items))).ToList();
 
@@ -176,7 +193,19 @@ public class RelevanceScorer
         foreach (var (item, score) in rrfScores)
             item.RelevanceScore = score;
 
-        return rrfScores.OrderByDescending(x => x.score).Select(x => x.item).ToList();
+        // Hard gate: remove items with near-zero query embedding similarity.
+        // RRF can inflate scores via authority/freshness even when an item has
+        // zero topical relevance (e.g., "Grok AI" appearing in "transistor" results).
+        // Minimum cosine similarity of 0.10 ensures basic topical alignment.
+        var querySimLookup = querySim.ToDictionary(x => x.item.Id, x => x.score);
+        var gated = rrfScores
+            .Where(x => querySimLookup.GetValueOrDefault(x.item.Id, 0) >= 0.10
+                        || x.item.Embedding == null) // keep items without embeddings (can't gate)
+            .OrderByDescending(x => x.score)
+            .Select(x => x.item)
+            .ToList();
+
+        return gated;
     }
 
     /// <summary>
@@ -218,8 +247,9 @@ public class RelevanceScorer
     #region Signal Computations
 
     /// <summary>
-    /// Inline BM25 scoring: how well does the item text match the query keywords?
-    /// Uses batch-level IDF statistics.
+    /// BM25F scoring: field-weighted BM25 that boosts title matches over content matches.
+    /// Title matches are worth TitleBoost× more than content matches.
+    /// Falls back to standard BM25 when called with plain text (no field separation).
     /// </summary>
     internal static double BM25Score(
         string docText,
@@ -241,6 +271,46 @@ public class RelevanceScorer
             if (!tf.TryGetValue(term, out var freq)) continue;
             var termIdf = idf.GetValueOrDefault(term, 0);
             score += termIdf * freq * (k1 + 1) / (freq + k1 * (1 - b + b * docTokens.Count / avgDocLen));
+        }
+
+        return score;
+    }
+
+    /// <summary>
+    /// BM25F: field-weighted variant that scores title and content separately.
+    /// Title matches get a 2.0× boost — a query term in the title is much stronger
+    /// evidence of relevance than the same term buried in the body.
+    /// </summary>
+    internal static double BM25FScore(
+        ContentItem item,
+        List<string> queryTokens,
+        Dictionary<string, double> idf,
+        double avgDocLen)
+    {
+        const double k1 = 1.5, b = 0.75;
+        const double titleBoost = 2.0;
+
+        var titleTokens = Tokenize(item.Title);
+        var contentTokens = Tokenize(item.Content ?? "");
+        var allTokens = titleTokens.Concat(contentTokens).ToList();
+        if (allTokens.Count == 0 || avgDocLen < 0.001) return 0;
+
+        // Build field-weighted TF: title occurrences count as titleBoost× content occurrences
+        var titleTf = titleTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+        var contentTf = contentTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+        double score = 0;
+        foreach (var term in queryTokens.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var titleFreq = titleTf.GetValueOrDefault(term, 0);
+            var contentFreq = contentTf.GetValueOrDefault(term, 0);
+            var weightedFreq = titleFreq * titleBoost + contentFreq;
+            if (weightedFreq < 0.001) continue;
+
+            var termIdf = idf.GetValueOrDefault(term, 0);
+            score += termIdf * weightedFreq * (k1 + 1) / (weightedFreq + k1 * (1 - b + b * allTokens.Count / avgDocLen));
         }
 
         return score;
@@ -365,6 +435,77 @@ public class RelevanceScorer
     /// </summary>
     public const string PositiveAnchorText = "positive success innovation breakthrough opportunity progress achievement growth improvement launch exciting";
     public const string NegativeAnchorText = "negative crisis failure risk threat problem decline loss concern warning vulnerability layoff";
+
+    #endregion
+
+    #region MMR (Maximal Marginal Relevance)
+
+    /// <summary>
+    /// MMR re-ranking: select items that balance relevance and diversity.
+    /// Each selected item maximizes: λ × relevance(item, query) - (1-λ) × max_sim(item, selected).
+    /// This prevents the synthesis LLM from receiving 5 articles about the same story.
+    /// </summary>
+    /// <param name="items">Candidate items with embeddings.</param>
+    /// <param name="queryEmbedding">Query embedding for relevance scoring.</param>
+    /// <param name="k">Number of items to select.</param>
+    /// <param name="lambda">Balance: 1.0 = pure relevance, 0.0 = pure diversity. Default 0.7.</param>
+    /// <returns>MMR-reranked selection (most relevant + diverse items first).</returns>
+    public static List<ContentItem> MMRSelect(
+        List<ContentItem> items,
+        float[] queryEmbedding,
+        int k = 10,
+        double lambda = 0.7)
+    {
+        if (items.Count <= k) return items;
+
+        var candidates = items.Where(i => i.Embedding != null).ToList();
+        var noEmbedding = items.Where(i => i.Embedding == null).ToList();
+
+        if (candidates.Count == 0) return items.Take(k).ToList();
+
+        // Pre-compute query similarities
+        var querySim = candidates.ToDictionary(
+            c => c.Id,
+            c => (double)EmbeddingService.CosineSimilarity(c.Embedding!, queryEmbedding));
+
+        var selected = new List<ContentItem>();
+        var remaining = new HashSet<string>(candidates.Select(c => c.Id));
+
+        for (var i = 0; i < Math.Min(k, candidates.Count); i++)
+        {
+            string? bestId = null;
+            var bestMMR = double.MinValue;
+
+            foreach (var id in remaining)
+            {
+                var candidate = candidates.First(c => c.Id == id);
+                var relevance = querySim[id];
+
+                // Max similarity to any already-selected item
+                double maxSimToSelected = 0;
+                foreach (var s in selected)
+                {
+                    var sim = (double)EmbeddingService.CosineSimilarity(candidate.Embedding!, s.Embedding!);
+                    if (sim > maxSimToSelected) maxSimToSelected = sim;
+                }
+
+                var mmrScore = lambda * relevance - (1 - lambda) * maxSimToSelected;
+                if (mmrScore > bestMMR)
+                {
+                    bestMMR = mmrScore;
+                    bestId = id;
+                }
+            }
+
+            if (bestId == null) break;
+            selected.Add(candidates.First(c => c.Id == bestId));
+            remaining.Remove(bestId);
+        }
+
+        // Append items without embeddings at the end
+        selected.AddRange(noEmbedding.Take(k - selected.Count));
+        return selected;
+    }
 
     #endregion
 

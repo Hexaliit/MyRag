@@ -1,6 +1,6 @@
 using OpenCvSharp;
 
-namespace Mostlylucid.DocSummarizer.Services.Preprocessing;
+namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
 /// Ink extraction (binarization) with multiple methods.

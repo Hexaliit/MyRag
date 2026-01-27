@@ -36,6 +36,9 @@ public record ContentItem
 
     // One-hop linked content (populated by LinkFollowingService)
     public List<LinkedPage> LinkedPages { get; set; } = [];
+
+    // Structured metadata from API sources (Places, etc.)
+    public Dictionary<string, string>? Metadata { get; init; }
 }
 
 /// <summary>

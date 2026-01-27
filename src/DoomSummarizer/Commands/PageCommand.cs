@@ -201,20 +201,47 @@ public sealed class PageCommand : AsyncCommand<PageCommand.Settings>
                     // Synchronous wrapper for display; actual generation below
                 });
 
-            // Analyze article via sentinel
-            var analysis = await ollama.AnalyzeProcessedArticleAsync(
-                processed, vibePrompt, includeReferences: true, ct: ct);
+            // Deterministic analysis from top segments (no LLM for analysis)
+            var topSegments = processed.TopSegments
+                .OrderByDescending(s => s.SalienceScore)
+                .Take(3)
+                .ToList();
+            var segmentSummary = topSegments.Count > 0
+                ? string.Join(" ", topSegments.Select(s =>
+                    s.Text.Length > 200 ? s.Text[..200] : s.Text))
+                : (item.Content?.Length > 300
+                    ? item.Content[..300] + "..."
+                    : item.Content ?? item.Title);
+            item.Summary = segmentSummary;
 
-            item.Summary = analysis.Summary;
-            item.DetectedTopic = analysis.Topic;
-            item.SentimentScore = analysis.Sentiment;
+            // Topic and sentiment already set by embedding analysis in Stage 2
+            var analysis = new ArticleAnalysis
+            {
+                Summary = segmentSummary,
+                Topic = item.DetectedTopic ?? "general",
+                Sentiment = item.SentimentScore,
+                KeyPoints = topSegments.Select(s =>
+                    s.Text.Length > 100 ? s.Text[..100] : s.Text).ToList(),
+                Confidence = topSegments.Count > 0 ? topSegments.Average(s => s.SalienceScore) : 0.5
+            };
 
             var template = settings.Template.ToLowerInvariant();
 
-            if (template is "blog-article" or "blog-timeline")
+            // Load templates including YAML definitions
+            var templateService = new TemplateService();
+            var templatesDir = Path.Combine(ConfigService.GetConfigDir(), "templates");
+            await templateService.LoadCustomTemplatesAsync(templatesDir);
+
+            // Resolve YAML template definition (if any)
+            var templateDef = templateService.GetDefinition(template);
+            var effectiveBase = templateDef?.BaseTemplate ?? template;
+            var isBlogArticle = effectiveBase is "blog-article" or "blog-timeline"
+                                || template is "blog-article" or "blog-timeline";
+
+            if (isBlogArticle)
             {
                 // Full blog article synthesis from single page
-                var queryType = template == "blog-timeline"
+                var queryType = effectiveBase == "blog-timeline" || template == "blog-timeline"
                     ? QueryType.Timeline
                     : QueryTypeDetector.Detect(item.Title);
 
@@ -226,9 +253,8 @@ public sealed class PageCommand : AsyncCommand<PageCommand.Settings>
                 var blogResult = await ollama.SynthesizeBlogArticleAsync(
                     analyzedItems, settings.Vibe, vibePrompt,
                     item.Title, queryType,
-                    [item], embedding.Embed, ct);
+                    [item], embedding.Embed, templateDef, ct);
 
-                var templateService = new TemplateService();
                 var digestData = new DigestData
                 {
                     Date = DateTimeOffset.Now,
@@ -243,8 +269,10 @@ public sealed class PageCommand : AsyncCommand<PageCommand.Settings>
                     SourceUrls = blogResult.SourceUrls
                 };
 
-                finalOutput = templateService.Render(digestData,
-                    template == "blog-timeline" ? "blog-timeline" : "blog-article");
+                var renderTemplate = templateDef?.Template != null ? template
+                    : effectiveBase == "blog-timeline" ? "blog-timeline"
+                    : "blog-article";
+                finalOutput = templateService.Render(digestData, renderTemplate);
             }
             else
             {

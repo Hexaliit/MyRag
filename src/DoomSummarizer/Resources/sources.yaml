@@ -13,6 +13,16 @@ sources:
     description: DuckDuckGo HTML search (no API key)
     search: true
 
+  google_search:
+    type: google_search
+    description: Google Custom Search API (requires API key + CX)
+    search: true
+
+  google_places:
+    type: google_places
+    description: Google Places Text Search (requires API key)
+    search: true
+
   # -- Major news RSS feeds --
   bbc:
     type: rss
@@ -36,6 +46,8 @@ sources:
         - https://feeds.bbci.co.uk/news/politics/rss.xml
       entertainment:
         - https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml
+      sport:
+        - https://feeds.bbci.co.uk/sport/rss.xml
 
   guardian:
     type: rss
@@ -53,17 +65,19 @@ sources:
         - https://www.theguardian.com/society/health/rss
       environment:
         - https://www.theguardian.com/environment/rss
+      sport:
+        - https://www.theguardian.com/sport/rss
 
   reuters:
     type: rss
-    description: Reuters
+    description: Reuters (via Google News proxy — Reuters killed their own RSS in 2020)
     feeds:
       default:
-        - https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best
+        - https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&ceid=US:en&hl=en-US&gl=US
       business:
-        - https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best
+        - https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com+business+OR+economy+OR+market&ceid=US:en&hl=en-US&gl=US
       world:
-        - https://www.reutersagency.com/feed/?taxonomy=best-regions&post_type=best
+        - https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com+world+OR+international&ceid=US:en&hl=en-US&gl=US
 
   cnn:
     type: rss
@@ -298,7 +312,8 @@ routing:
     google_news_topic: ENTERTAINMENT
 
   sports:
-    sources: [google_news, bbc, guardian]
+    sources: [google_news, bbc, guardian, npr]
+    bbc_category: sport
     google_news_topic: SPORTS
 
   ai:
@@ -336,12 +351,12 @@ topic_keywords:
   finance: [finance, stock, crypto, bitcoin, trading, investor, wall street, nasdaq]
   politics: [politics, election, government, policy, legislation, congress, parliament, vote, democrat, republican]
   world: [war, conflict, international, diplomatic, treaty, united nations, nato, geopolitical]
-  entertainment: [movie, film, music, celebrity, award, oscar, grammy, streaming, netflix, disney]
+  entertainment: [movie, film, music, celebrity, award, oscar, grammy, streaming, netflix, disney, snl, saturday night live, tv, television, show, host, sitcom, comedy, talk show, late night, reality tv, actor, actress, concert, broadway, podcast, comedian, standup, series, premiere, season, episode, theater, theatre, performance, talent, audition, red carpet, box office, trailer, blockbuster, hbo, hulu, amazon prime, apple tv]
   sports: [sport, football, soccer, basketball, tennis, cricket, olympics, championship, league, nfl, nba]
   technology: [tech, software, hardware, computer, programming, code, developer, api, cloud]
   ai: [ai, artificial intelligence, llm, chatgpt, openai, deepseek, machine learning, neural, gpt, claude]
   pharma: [pharmaceutical, pharma, drug approval, fda, clinical trial, biotech, medication, drug, vaccine, drug pricing, prescription]
   space: [space, spacex, nasa, rocket, launch, satellite, orbit, astronaut, iss, mars, moon, starship]
   disaster: [earthquake, tsunami, volcano, hurricane, tornado, flood, wildfire, disaster, seismic, magnitude]
-  humor: [funny, humor, satire, satirical, comedy, parody, joke, onion, meme, hilarious, laughing]
+  humor: [funny, humor, satire, satirical, comedy, parody, joke, onion, meme, hilarious, laughing, stand-up, roast, sketch, improv, prank]
   factcheck: [fact check, misinformation, disinformation, false claim, debunk, hoax, fake news, verify, snopes, politifact]

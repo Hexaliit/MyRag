@@ -15,6 +15,13 @@ public class OllamaService
     private readonly OllamaConfig _config;
     private readonly ResiliencePipeline<string> _pipeline;
 
+    /// <summary>
+    /// Optional LLM router for cloud provider fallback.
+    /// When set, GenerateWithModelAsync delegates to the router, which checks budgets
+    /// and tries cloud providers (OpenAI/Anthropic) before falling back to Ollama.
+    /// </summary>
+    public LlmRouter? Router { get; set; }
+
     public OllamaService(OllamaConfig config)
     {
         _config = config;
@@ -33,6 +40,13 @@ public class OllamaService
             })
             .Build();
     }
+
+    /// <summary>
+    /// Get max evidence chars per item, using the cloud provider's context window if routed.
+    /// </summary>
+    internal int GetMaxEvidenceCharsPerItem(bool sentinel, int itemCount) =>
+        Router?.MaxEvidenceCharsPerItem(sentinel, itemCount)
+        ?? GetMaxEvidenceCharsPerItem(sentinel, itemCount);
 
     public async Task<bool> IsAvailableAsync()
     {
@@ -70,27 +84,52 @@ public class OllamaService
     }
 
     public async Task<string> GenerateAsync(string prompt, string? systemPrompt = null, double? temperature = null, CancellationToken ct = default)
-        => await GenerateWithModelAsync(_config.Model, prompt, systemPrompt, temperature, ct);
+        => await GenerateWithModelAsync(_config.Model, prompt, systemPrompt, temperature, format: null, ct);
 
     /// <summary>
     /// Generate using the sentinel (fast/small) model — for per-article triage.
     /// </summary>
     public async Task<string> SentinelGenerateAsync(string prompt, string? systemPrompt = null, double? temperature = null, CancellationToken ct = default)
-        => await GenerateWithModelAsync(_config.SentinelModel, prompt, systemPrompt, temperature, ct);
+        => await GenerateWithModelAsync(_config.SentinelModel, prompt, systemPrompt, temperature, format: null, ct);
 
-    private async Task<string> GenerateWithModelAsync(string model, string prompt, string? systemPrompt = null, double? temperature = null, CancellationToken ct = default)
+    /// <summary>
+    /// Generate using the main model with forced JSON output.
+    /// Ollama's format:"json" ensures the response is always valid JSON.
+    /// </summary>
+    public async Task<string> GenerateJsonAsync(string prompt, string? systemPrompt = null, double? temperature = null, CancellationToken ct = default)
+        => await GenerateWithModelAsync(_config.Model, prompt, systemPrompt, temperature, format: "json", ct);
+
+    private async Task<string> GenerateWithModelAsync(string model, string prompt, string? systemPrompt = null, double? temperature = null, string? format = null, CancellationToken ct = default)
     {
+        // When a cloud router is configured, delegate to it for budget-checked multi-provider fallback
+        if (Router != null)
+        {
+            var isSentinel = model == _config.SentinelModel;
+            return await Router.GenerateAsync(
+                prompt, systemPrompt,
+                temperature ?? _config.Temperature,
+                role: isSentinel ? "sentinel" : "main",
+                jsonMode: format == "json",
+                ct: ct);
+        }
+
+        // Direct Ollama call (default when no router)
         return await _pipeline.ExecuteAsync(async token =>
         {
+            var isSentinel = model == _config.SentinelModel;
+            var numCtx = isSentinel ? _config.SentinelContextSize : _config.ContextSize;
+
             var request = new OllamaGenerateRequest
             {
                 Model = model,
                 Prompt = prompt,
                 System = systemPrompt,
                 Stream = false,
+                Format = format,
                 Options = new OllamaOptions
                 {
-                    Temperature = temperature ?? _config.Temperature
+                    Temperature = temperature ?? _config.Temperature,
+                    NumCtx = numCtx
                 }
             };
 
@@ -112,13 +151,16 @@ public class OllamaService
     /// </summary>
     public async Task<BenchmarkResult> GenerateWithTimingAsync(string model, string prompt, string? systemPrompt = null, double temperature = 0.4, CancellationToken ct = default)
     {
+        var isSentinel = model == _config.SentinelModel;
+        var numCtx = isSentinel ? _config.SentinelContextSize : _config.ContextSize;
+
         var request = new OllamaGenerateRequest
         {
             Model = model,
             Prompt = prompt,
             System = systemPrompt,
             Stream = false,
-            Options = new OllamaOptions { Temperature = temperature }
+            Options = new OllamaOptions { Temperature = temperature, NumCtx = numCtx }
         };
 
         var json = JsonSerializer.Serialize(request, OllamaJsonContext.Default.OllamaGenerateRequest);
@@ -152,9 +194,10 @@ public class OllamaService
     public async Task<(string summary, string topic, float sentiment)> AnalyzeContentAsync(
         string title, string? content, string vibePrompt, CancellationToken ct = default)
     {
+        var maxContentChars = GetMaxEvidenceCharsPerItem(sentinel: true, 1);
         var textToAnalyze = string.IsNullOrEmpty(content)
             ? title
-            : $"{title}\n\n{content[..Math.Min(content.Length, 1500)]}";
+            : $"{title}\n\n{content[..Math.Min(content.Length, maxContentChars)]}";
 
         var prompt = $$"""
             Analyze this content and respond with JSON only:
@@ -217,13 +260,73 @@ public class OllamaService
         {
             // Query mode: include actual content snippets from the top relevant items
             // so the LLM has real material to extract facts from (not just summaries).
+            // Two-stage filter: relevance score floor + semantic similarity to query.
+            var queryType = QueryTypeDetector.Detect(userQuery);
+            var isRoundup = queryType == QueryType.Roundup;
             var evidence = new StringBuilder();
-            var topItems = items.OrderByDescending(i => i.relevance).Take(15).ToList();
+            var sortedItems = items.OrderByDescending(i => i.relevance).ToList();
+            var bestRelevance = sortedItems.FirstOrDefault().relevance;
+            var relevanceFloor = Math.Max(0.15, bestRelevance * 0.30); // at least 30% of top item
+            var topItems = sortedItems
+                .Where(i => i.relevance >= relevanceFloor)
+                // Deduplicate by URL (keep the higher-relevance duplicate)
+                // For unresolved Google News URLs, deduplicate by title instead
+                .GroupBy(i => i.url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase)
+                    ? i.title : i.url)
+                .Select(g => g.First())
+                .Take(15)
+                .ToList();
+
+            // Roundup source diversity: cap items per domain so no single source dominates
+            if (isRoundup && topItems.Count > 5)
+            {
+                const int maxPerDomain = 3;
+                var domainCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                topItems = topItems.Where(item =>
+                {
+                    var domain = GetSourceFromUrl(item.url);
+                    domainCounts.TryGetValue(domain, out var count);
+                    if (count >= maxPerDomain) return false;
+                    domainCounts[domain] = count + 1;
+                    return true;
+                }).ToList();
+            }
+
+            // Re-rank by semantic similarity to query when embedder is available.
+            // This promotes the most query-relevant items to the top of the evidence
+            // without discarding items (the upstream ScoreFast/ScoreFull already gated).
+            if (embedder != null && topItems.Count > 1)
+            {
+                var queryEmb = embedder(userQuery);
+                topItems = topItems
+                    .Select(item =>
+                    {
+                        var itemText = $"{item.title} {item.summary}";
+                        var itemEmb = embedder(itemText);
+                        var sim = (double)EmbeddingService.CosineSimilarity(queryEmb, itemEmb);
+                        return (item, sim);
+                    })
+                    .OrderByDescending(x => x.sim)
+                    .Take(10)
+                    .Select(x => x.item)
+                    .ToList();
+            }
+            else
+            {
+                topItems = topItems.Take(10).ToList();
+            }
+
+            var maxCharsPerItem = GetMaxEvidenceCharsPerItem(sentinel: false, topItems.Count);
 
             foreach (var item in topItems)
             {
                 evidence.AppendLine($"\n### {item.title}");
-                evidence.AppendLine($"URL: {item.url}");
+                // Use source name for unresolved Google News redirect URLs
+                // (opaque base64 URLs are useless to cite)
+                var displayUrl = item.url.Contains("news.google.com/rss/articles/", StringComparison.OrdinalIgnoreCase)
+                    ? "Google News (URL not available)"
+                    : item.url;
+                evidence.AppendLine($"URL: {displayUrl}");
                 evidence.AppendLine($"Topic: {item.topic} | Relevance: {item.relevance:F2}");
 
                 // Include actual content — use TextRank centrality when embedder
@@ -233,13 +336,13 @@ public class OllamaService
                 var contentSnippet = contentItem?.Content;
                 if (!string.IsNullOrEmpty(contentSnippet))
                 {
-                    if (contentSnippet.Length > 800)
+                    if (contentSnippet.Length > maxCharsPerItem)
                     {
                         // TextRank: select most informative sentences (graph centrality)
                         // Falls back to simple truncation if embedder is unavailable
                         contentSnippet = embedder != null
-                            ? TextRankExtractor.ExtractKeySentences(contentSnippet, embedder, maxChars: 800)
-                            : contentSnippet[..800] + "...";
+                            ? TextRankExtractor.ExtractKeySentences(contentSnippet, embedder, maxChars: maxCharsPerItem)
+                            : contentSnippet[..maxCharsPerItem] + "...";
                     }
                     evidence.AppendLine($"CONTENT: {contentSnippet}");
                 }
@@ -249,32 +352,88 @@ public class OllamaService
                 }
             }
 
-            prompt = $"""
-                Answer the following question using ONLY the evidence provided below.
+            // Safety: if too few items survived filtering, report it honestly
+            if (topItems.Count == 0)
+            {
+                return "### Answer\nNo relevant evidence found for this query. Try a more specific search or different sources.\n";
+            }
 
-                QUESTION: {userQuery}
-                DATE: {today}
+            if (isRoundup)
+            {
+                prompt = $"""
+                    Create a headline roundup using ONLY the evidence provided below.
+                    WRITE IN THIS TONE: {vibePrompt}
 
-                EVIDENCE:
-                {evidence}
+                    QUERY: {userQuery}
+                    DATE: {today}
 
-                INSTRUCTIONS:
-                1. Read each article's CONTENT carefully
-                2. Find facts, quotes, examples, or data that answer the QUESTION
-                3. If no evidence answers the question, say "No relevant information found"
-                4. Use ONLY URLs from the evidence — never invent URLs
-                5. Apply this tone: {vibePrompt}
+                    EVIDENCE:
+                    {evidence}
 
-                FORMAT:
-                ### Answer
-                [2-4 sentences directly answering the question with specific facts from the evidence]
+                    RULES:
+                    1. List individual stories as headlines with 1-2 line descriptions each
+                    2. ONLY use stories from the evidence above — do not add outside knowledge
+                    3. SKIP any item that is NOT a current news story (no "on this day", no historical pieces)
+                    4. SKIP any item whose title or content is NOT relevant to the query topic
+                    5. Use ONLY URLs from the evidence — never invent URLs
+                    6. Maintain the tone specified above throughout
+                    7. Order by significance — most important story first
 
-                ### Key Findings
-                [Bullet points with specific facts extracted from article CONTENT. Include source URL.]
+                    FORMAT:
+                    ### Headlines for {today}
+                    [1-2 sentences setting the theme of today's stories]
 
-                ### Sources
-                [3-5 most relevant URLs]
-                """;
+                    1. **[Story headline]** — [1-2 sentences: what happened, why it matters] ([source](URL))
+                    2. **[Story headline]** — [1-2 sentences] ([source](URL))
+                    [continue for all relevant stories, up to 10]
+
+                    ### Sources
+                    [ONLY URLs you actually cited — omit any you didn't use]
+                    """;
+            }
+            else
+            {
+                prompt = $"""
+                    Answer the following question using ONLY the evidence provided below.
+                    WRITE IN THIS TONE: {vibePrompt}
+
+                    QUESTION: {userQuery}
+                    DATE: {today}
+
+                    EVIDENCE:
+                    {evidence}
+
+                    RULES:
+                    1. ANSWER THE QUESTION DIRECTLY — lead with the core answer, then support with details
+                    2. ONLY use facts from the evidence above — do not add outside knowledge
+                    3. If an article is NOT about "{userQuery}", SKIP IT — do not mention it at all
+                    4. Prioritize significant, well-established facts over trivial anecdotes
+                    5. Use ONLY URLs from the evidence — never invent URLs
+                    6. Maintain the tone specified above throughout the entire response
+
+                    FORMAT — choose the best fit:
+
+                    IF you can answer the question directly from evidence content:
+                    ### Answer
+                    [2-4 sentences DIRECTLY answering the question. Lead with the most important fact.]
+
+                    ### Key Findings
+                    [Bullet points with the most significant facts. Include source URL.
+                     Order by importance, not by source order.]
+
+                    IF the evidence contains relevant LINKS but not enough detail to answer fully:
+                    ### Answer
+                    [1-2 sentences explaining what was found]
+
+                    ### Relevant Resources
+                    [Bullet list: "**Title** — brief description of what this resource covers (URL)"]
+                    [Only include resources that are actually relevant to the question]
+
+                    In BOTH cases end with:
+                    ### Sources
+                    [ONLY URLs you actually cited — omit any you didn't use]
+                    """;
+            }
         }
         else
         {
@@ -435,12 +594,14 @@ public class OllamaService
         QueryType queryType,
         List<ContentItem>? contentItems = null,
         Func<string, float[]>? embedder = null,
+        TemplateDefinition? templateDef = null,
         CancellationToken ct = default)
     {
         var today = DateTime.Now.ToString("MMMM d, yyyy");
         var topItems = items.OrderByDescending(i => i.relevance).Take(15).ToList();
 
-        // Build evidence block with content snippets
+        // Build evidence block with content snippets — budget is model-context-aware
+        var outlineMaxChars = GetMaxEvidenceCharsPerItem(sentinel: true, topItems.Count);
         var evidenceBlock = new StringBuilder();
         for (var i = 0; i < topItems.Count; i++)
         {
@@ -451,11 +612,11 @@ public class OllamaService
             var snippet = contentItem?.Content;
             if (!string.IsNullOrEmpty(snippet))
             {
-                if (snippet.Length > 600)
+                if (snippet.Length > outlineMaxChars)
                 {
                     snippet = embedder != null
-                        ? TextRankExtractor.ExtractKeySentences(snippet, embedder, maxChars: 600)
-                        : snippet[..600] + "...";
+                        ? TextRankExtractor.ExtractKeySentences(snippet, embedder, maxChars: outlineMaxChars)
+                        : snippet[..outlineMaxChars] + "...";
                 }
                 evidenceBlock.AppendLine($"    {snippet}");
             }
@@ -465,59 +626,89 @@ public class OllamaService
             }
         }
 
-        // Pass 1: Generate outline via sentinel
-        var outlineInstructions = queryType == QueryType.Timeline
-            ? """
-              Create a CHRONOLOGICAL outline with eras/periods as sections.
-              Each section heading should include a year range (e.g., "2017-2018: The Transformer Revolution").
-              Order sections from earliest to most recent.
-              """
-            : """
-              Create a logical outline with 4-6 sections that flow naturally.
-              Start broad (context/background), go deep (key developments), end forward-looking.
-              """;
-
-        var outlinePrompt = $$"""
-            Create an article outline from these evidence items about: "{{query}}"
-
-            EVIDENCE:
-            {{evidenceBlock}}
-
-            {{outlineInstructions}}
-
-            Respond with JSON only:
-            {
-              "title": "compelling article title",
-              "sections": [
-                {"heading": "section heading", "key_items": [0, 2, 5], "notes": "what to cover"},
-                ...
-              ],
-              "conclusion_angle": "forward-looking angle for conclusion"
-            }
-
-            Rules:
-            - 4-6 sections maximum
-            - Each section references 2-4 evidence items by index number
-            - Every evidence item should be referenced at least once
-            - Notes should guide what to extract from each item
-            """;
-
+        // Pass 1: Generate outline
         BlogOutline? outline = null;
-        try
+
+        if (templateDef is { HasFixedSections: true })
         {
-            var outlineJson = await SentinelGenerateAsync(outlinePrompt, null, 0.1, ct);
-            var jsonStart = outlineJson.IndexOf('{');
-            var jsonEnd = outlineJson.LastIndexOf('}');
-            if (jsonStart >= 0 && jsonEnd > jsonStart)
+            // YAML-defined fixed structure — skip sentinel, use template sections
+            var itemsPerSection = Math.Max(1, topItems.Count / Math.Max(1, templateDef.Sections.Count));
+            var sectionIdx = 0;
+            outline = new BlogOutline
             {
-                outline = JsonSerializer.Deserialize(
-                    outlineJson[jsonStart..(jsonEnd + 1)],
-                    OllamaJsonContext.Default.BlogOutline);
-            }
+                Title = $"{query}",
+                Sections = templateDef.Sections.Select(s =>
+                {
+                    var startIdx = sectionIdx * itemsPerSection;
+                    var keyItems = Enumerable.Range(startIdx, Math.Min(itemsPerSection, topItems.Count - startIdx))
+                        .Select(i => (int)i).ToList();
+                    sectionIdx++;
+                    return new BlogOutlineSection
+                    {
+                        Heading = s.Heading,
+                        KeyItems = keyItems,
+                        Notes = s.Prompt
+                    };
+                }).ToList(),
+                ConclusionAngle = templateDef.Conclusion?.Prompt ?? "Forward-looking conclusion"
+            };
         }
-        catch
+        else
         {
-            // Fallback outline
+            // Sentinel-generated outline (default)
+            var outlineInstructions = templateDef?.OutlineInstructions
+                ?? (queryType == QueryType.Timeline
+                    ? """
+                      Create a CHRONOLOGICAL outline with eras/periods as sections.
+                      Each section heading should include a year range (e.g., "2017-2018: The Transformer Revolution").
+                      Order sections from earliest to most recent.
+                      """
+                    : """
+                      Create a logical outline with 4-6 sections that flow naturally.
+                      Start broad (context/background), go deep (key developments), end forward-looking.
+                      """);
+
+            var outlinePrompt = $$"""
+                Create an article outline from these evidence items about: "{{query}}"
+
+                EVIDENCE:
+                {{evidenceBlock}}
+
+                {{outlineInstructions}}
+
+                Respond with JSON only:
+                {
+                  "title": "compelling article title",
+                  "sections": [
+                    {"heading": "section heading", "key_items": [0, 2, 5], "notes": "what to cover"},
+                    ...
+                  ],
+                  "conclusion_angle": "forward-looking angle for conclusion"
+                }
+
+                Rules:
+                - 4-6 sections maximum
+                - Each section references 2-4 evidence items by index number
+                - Every evidence item should be referenced at least once
+                - Notes should guide what to extract from each item
+                """;
+
+            try
+            {
+                var outlineJson = await SentinelGenerateAsync(outlinePrompt, null, 0.1, ct);
+                var jsonStart = outlineJson.IndexOf('{');
+                var jsonEnd = outlineJson.LastIndexOf('}');
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                {
+                    outline = JsonSerializer.Deserialize(
+                        outlineJson[jsonStart..(jsonEnd + 1)],
+                        OllamaJsonContext.Default.BlogOutline);
+                }
+            }
+            catch
+            {
+                // Fallback outline
+            }
         }
 
         // Fallback: create a default outline if sentinel failed
@@ -546,17 +737,19 @@ public class OllamaService
                 introEvidence.AppendLine($"- {topItems[idx].title}: {topItems[idx].summary}");
         }
 
-        var timelineIntroExtra = queryType == QueryType.Timeline
-            ? "Include the time span covered (e.g., 'from the 1920s to today')."
-            : "";
+        var introExtra = templateDef?.Introduction?.Prompt
+            ?? (queryType == QueryType.Timeline
+                ? "Include the time span covered (e.g., 'from the 1920s to today')."
+                : "");
+        var introWords = templateDef?.Introduction?.TargetWords ?? 100;
 
         var introPrompt = $"""
-            Write a compelling introduction (3-4 sentences) for an article titled "{outline.Title}".
+            Write a compelling introduction ({introWords} words) for an article titled "{outline.Title}".
 
             Topic: {query}
             Date: {today}
             Tone: {vibePrompt}
-            {timelineIntroExtra}
+            {introExtra}
 
             Key evidence to reference:
             {introEvidence}
@@ -569,8 +762,14 @@ public class OllamaService
             """;
         var introduction = await GenerateAsync(introPrompt, null, 0.5, ct);
 
-        // Generate each body section
-        foreach (var section in outline.Sections)
+        // Generate each body section — evidence budget is model-context-aware
+        var sectionEvidenceMaxChars = GetMaxEvidenceCharsPerItem(sentinel: false,
+            outline.Sections.SelectMany(s => s.KeyItems).Distinct().Count());
+
+        // Pair outline sections with template section defs (if available)
+        var templateSections = templateDef?.Sections;
+
+        foreach (var (section, sectionIndex) in outline.Sections.Select((s, i) => (s, i)))
         {
             var sectionEvidence = new StringBuilder();
             var sectionUrls = new List<string>();
@@ -586,11 +785,11 @@ public class OllamaService
                 var content = contentItem?.Content;
                 if (!string.IsNullOrEmpty(content))
                 {
-                    if (content.Length > 800)
+                    if (content.Length > sectionEvidenceMaxChars)
                     {
                         content = embedder != null
-                            ? TextRankExtractor.ExtractKeySentences(content, embedder, maxChars: 800)
-                            : content[..800] + "...";
+                            ? TextRankExtractor.ExtractKeySentences(content, embedder, maxChars: sectionEvidenceMaxChars)
+                            : content[..sectionEvidenceMaxChars] + "...";
                     }
                     sectionEvidence.AppendLine($"### {item.title}");
                     sectionEvidence.AppendLine($"URL: {item.url}");
@@ -609,6 +808,15 @@ public class OllamaService
                 ? $"PREVIOUS SECTION ENDED WITH: \"{previousContext}\"\nMaintain narrative flow from this."
                 : "";
 
+            // Template-driven section prompt: use per-section prompt and word count if available
+            var sectionDef = templateSections != null && sectionIndex < templateSections.Count
+                ? templateSections[sectionIndex]
+                : null;
+
+            var sectionFocus = sectionDef?.Prompt ?? section.Notes;
+            var targetWords = sectionDef?.TargetWords ?? 300;
+            var wordRange = $"{Math.Max(100, targetWords - 100)}-{targetWords + 100}";
+
             var timelineSectionExtra = queryType == QueryType.Timeline
                 ? """
                   Structure as a timeline. For key milestones use:
@@ -619,7 +827,7 @@ public class OllamaService
 
             var sectionPrompt = $"""
                 Write section "{section.Heading}" for an article about "{query}".
-                {(section.Notes != null ? $"Focus: {section.Notes}" : "")}
+                {(sectionFocus != null ? $"Focus: {sectionFocus}" : "")}
 
                 {contextBridge}
 
@@ -630,7 +838,7 @@ public class OllamaService
                 {sectionEvidence}
 
                 Rules:
-                - Write 200-400 words of flowing prose
+                - Write {wordRange} words of flowing prose
                 - Extract specific facts, names, dates, and quotes from the evidence
                 - Cite sources naturally (e.g., "according to [source]" or "as reported by")
                 - Use ONLY URLs from the evidence — never invent URLs
@@ -655,13 +863,16 @@ public class OllamaService
                 : sectionContent.Length > 200 ? sectionContent[^200..] : sectionContent;
         }
 
-        // Conclusion
+        // Conclusion — use template definition if available
+        var conclusionExtra = templateDef?.Conclusion?.Prompt ?? "";
+        var conclusionWords = templateDef?.Conclusion?.TargetWords ?? 80;
         var conclusionPrompt = $"""
-            Write a conclusion (2-3 sentences) for an article titled "{outline.Title}".
+            Write a conclusion ({conclusionWords} words) for an article titled "{outline.Title}".
 
             Angle: {outline.ConclusionAngle ?? "forward-looking insights"}
             Tone: {vibePrompt}
             Previous section ended with: "{previousContext}"
+            {conclusionExtra}
 
             Rules:
             - Tie back to the introduction's hook
@@ -1022,6 +1233,13 @@ public record OllamaGenerateRequest
     [JsonPropertyName("system")] public string? System { get; init; }
     [JsonPropertyName("stream")] public bool Stream { get; init; }
     [JsonPropertyName("options")] public OllamaOptions? Options { get; init; }
+
+    /// <summary>
+    /// Output format. Set to "json" to force Ollama to output valid JSON.
+    /// </summary>
+    [JsonPropertyName("format")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Format { get; init; }
 }
 
 public record OllamaGenerateResponse
@@ -1039,6 +1257,7 @@ public record OllamaGenerateResponse
 public record OllamaOptions
 {
     [JsonPropertyName("temperature")] public double Temperature { get; init; }
+    [JsonPropertyName("num_ctx")] public int? NumCtx { get; init; }
 }
 
 public record ContentAnalysis
@@ -1185,4 +1404,6 @@ public record NewsletterQuickHit
 [JsonSerializable(typeof(BlogOutline))]
 [JsonSerializable(typeof(BlogOutlineSection))]
 [JsonSerializable(typeof(List<BlogOutlineSection>))]
+[JsonSerializable(typeof(SentinelIntent))]
+[JsonSerializable(typeof(Dictionary<string, double>))]
 public partial class OllamaJsonContext : JsonSerializerContext;

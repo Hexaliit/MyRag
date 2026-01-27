@@ -18,7 +18,9 @@ public class DuckDuckGoSearch
     }
 
     /// <summary>
-    /// Search DuckDuckGo and return results
+    /// Search DuckDuckGo and return results.
+    /// Tries the HTML endpoint first, falls back to the lite endpoint.
+    /// Both endpoints may block bot-like requests (CAPTCHA / timeout).
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(string query, int maxResults = 10, Action<string>? progress = null)
     {
@@ -26,29 +28,58 @@ public class DuckDuckGoSearch
 
         progress?.Invoke($"Searching DuckDuckGo for: {query}");
 
-        try
+        // Try HTML endpoint first, then lite endpoint
+        string[] endpoints =
+        [
+            $"https://html.duckduckgo.com/html/?q={HttpUtility.UrlEncode(query)}",
+            $"https://lite.duckduckgo.com/lite/?q={HttpUtility.UrlEncode(query)}"
+        ];
+
+        foreach (var url in endpoints)
         {
-            // Use DuckDuckGo HTML search (no API needed)
-            var encodedQuery = HttpUtility.UrlEncode(query);
-            var url = $"https://html.duckduckgo.com/html/?q={encodedQuery}";
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
 
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Add("User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+                request.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+                request.Headers.Add("Accept-Language", "en-US,en;q=0.9");
 
-            var response = await _httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
+                var response = await _httpClient.SendAsync(request, cts.Token);
+                response.EnsureSuccessStatusCode();
 
-            var html = await response.Content.ReadAsStringAsync();
+                var html = await response.Content.ReadAsStringAsync(cts.Token);
 
-            // Parse results from HTML
-            items = await ParseSearchResultsAsync(html, maxResults);
+                // Detect CAPTCHA / bot-block pages
+                if (html.Contains("bots use DuckDuckGo", StringComparison.OrdinalIgnoreCase)
+                    || html.Contains("challenge/", StringComparison.OrdinalIgnoreCase))
+                {
+                    AnsiConsole.MarkupLine($"[yellow]DuckDuckGo returned CAPTCHA for {new Uri(url).Host}[/]");
+                    continue;
+                }
 
-            progress?.Invoke($"Found {items.Count} search results");
+                items = await ParseSearchResultsAsync(html, maxResults);
+
+                if (items.Count > 0)
+                {
+                    progress?.Invoke($"Found {items.Count} search results");
+                    return items;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                AnsiConsole.MarkupLine($"[yellow]DuckDuckGo timed out ({new Uri(url).Host})[/]");
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine($"[yellow]DuckDuckGo failed ({new Uri(url).Host}): {ex.Message}[/]");
+            }
         }
-        catch (Exception ex)
-        {
-            AnsiConsole.MarkupLine($"[yellow]Warning: DuckDuckGo search failed: {ex.Message}[/]");
-        }
+
+        if (items.Count == 0)
+            AnsiConsole.MarkupLine("[yellow]DuckDuckGo: all endpoints blocked or timed out — skipping[/]");
 
         return items;
     }

@@ -87,7 +87,23 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                     AnsiConsole.MarkupLine($"   [grey]ollama pull {config.Ollama.SentinelModel}[/]");
                 }
 
-                // 5. Download NER model if requested
+                // 5. Create templates directory
+                var templatesDir = Path.Combine(ConfigService.GetConfigDir(), "templates");
+                if (!Directory.Exists(templatesDir))
+                {
+                    Directory.CreateDirectory(templatesDir);
+                    AnsiConsole.MarkupLine($"[green]\u2713[/] Templates directory: {templatesDir}");
+                    AnsiConsole.MarkupLine("   [grey]Place .yaml or .liquid files here for custom output templates[/]");
+                }
+                else
+                {
+                    var yamlCount = Directory.EnumerateFiles(templatesDir, "*.yaml")
+                        .Concat(Directory.EnumerateFiles(templatesDir, "*.yml")).Count();
+                    var liquidCount = Directory.GetFiles(templatesDir, "*.liquid").Length;
+                    AnsiConsole.MarkupLine($"[green]\u2713[/] Templates: {yamlCount} YAML + {liquidCount} Liquid in {templatesDir}");
+                }
+
+                // 6. Download NER model if requested
                 if (settings.Ner)
                 {
                     ctx.Status("Downloading NER model...");
@@ -107,7 +123,7 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                         AnsiConsole.MarkupLine("[grey]-[/] NER skipped (use --ner to download, needed for --entities)");
                 }
 
-                // 6. Install Playwright if requested
+                // 7. Install Playwright if requested
                 if (settings.Playwright)
                 {
                     ctx.Status("Installing Playwright browsers...");
@@ -146,6 +162,8 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
         AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll \"query\" --local[/]           - Query stored KB");
         AnsiConsole.MarkupLine("  [cyan]doomsummarizer trends[/]                           - Historical trends");
         AnsiConsole.MarkupLine("  [cyan]doomsummarizer config --show[/]                    - View configuration");
+        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll --list-templates[/]           - List output templates");
+        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll -t problem-solution \"topic\"[/] - Use YAML template");
 
         return 0;
     }

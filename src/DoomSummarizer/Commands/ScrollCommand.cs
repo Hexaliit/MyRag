@@ -92,6 +92,9 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         if (settings.ListTemplates)
         {
             var templateService = new TemplateService();
+            await templateService.LoadCustomTemplatesAsync(
+                Path.Combine(ConfigService.GetConfigDir(), "templates"));
+
             AnsiConsole.MarkupLine("[bold cyan]Available Templates:[/]");
             var table = new Table()
                 .Border(TableBorder.Rounded)
@@ -113,8 +116,20 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             table.AddRow("[bold]blog-newsletter[/]", "[cyan]Curated newsletter with editorial picks[/]");
             table.AddRow("[bold]blog-newsletter-html[/]", "[cyan]Newsletter as styled HTML email[/]");
 
+            // Show YAML-defined templates
+            foreach (var name in templateService.ListDefinitions())
+            {
+                var def = templateService.GetDefinition(name);
+                var desc = def?.Description ?? "Custom YAML template";
+                var sections = def?.HasFixedSections == true
+                    ? $" ({def.Sections.Count} sections)"
+                    : "";
+                table.AddRow($"[bold yellow]{Markup.Escape(name)}[/]",
+                    $"[yellow]{Markup.Escape(desc)}{sections}[/]");
+            }
+
             AnsiConsole.Write(table);
-            AnsiConsole.MarkupLine("\n[grey]Custom templates: place .liquid files in ~/.doomsummarizer/templates/[/]");
+            AnsiConsole.MarkupLine("\n[grey]Custom templates: place .liquid or .yaml files in ~/.doomsummarizer/templates/[/]");
             return 0;
         }
 
@@ -141,6 +156,17 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         using var embedding = new EmbeddingService();
         var ollama = new OllamaService(config.Ollama);
 
+        // Initialize API key service and budget tracker for paid APIs
+        var apiKeys = ApiKeyService.Load(config);
+        await using var apiBudget = new ApiBudgetService(config.ApiBudget, apiKeys, dbPath);
+        await apiBudget.InitializeAsync();
+
+        // Wire cloud LLM providers (OpenAI/Anthropic) through the router
+        // When available, OllamaService delegates generate calls through the router
+        // with budget enforcement and automatic fallback to local Ollama
+        var llmRouter = LlmRouter.Build(config.Ollama, apiKeys, apiBudget);
+        ollama.Router = llmRouter;
+
         // Auto-setup: download ONNX models if not present (first run)
         await embedding.EnsureReadyAsync(msg =>
         {
@@ -150,6 +176,24 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         httpClient.DefaultRequestHeaders.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
+
+        // NER preprocessing: extract entities from query BEFORE the LLM sentinel
+        // This gives us structured search filters, cached segment lookups, and URL dedup
+        QueryNerContext? nerContext = null;
+        if (!string.IsNullOrEmpty(settings.Prompt))
+        {
+            nerContext = await QueryPreprocessor.PreprocessAsync(
+                settings.Prompt, embedding, storage, cancellationToken);
+
+            if (!settings.Quiet && nerContext.HasEntities)
+            {
+                var entityStr = string.Join(", ", nerContext.Entities
+                    .Select(e => $"{e.Text} ({e.Type})"));
+                AnsiConsole.MarkupLine($"[grey]NER: {Markup.Escape(entityStr)}[/]");
+                if (nerContext.HasCachedData)
+                    AnsiConsole.MarkupLine($"[grey]Cache: {nerContext.CachedItems.Count} matching segments, {nerContext.KnownUrls.Count} known URLs[/]");
+            }
+        }
 
         // Interpret the prompt if provided
         InterpretedPrompt? interpreted = null;
@@ -161,7 +205,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 AnsiConsole.MarkupLine($"[grey]Interpreting: {Markup.Escape(settings.Prompt)}[/]");
 
             var interpreter = new PromptInterpreter(ollama, embedding);
-            interpreted = await interpreter.InterpretAsync(settings.Prompt);
+            interpreted = await interpreter.InterpretAsync(settings.Prompt, nerContext);
 
             // Use interpreted vibe unless explicitly overridden
             if (settings.Vibe == "neutral" && interpreted.Vibe != "neutral")
@@ -173,6 +217,14 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     .Concat(interpreted.Websites)
                     .Concat(interpreted.SearchQueries.Select(q => $"search:{q}")));
                 AnsiConsole.MarkupLine($"[grey]Detected: sources=[[{Markup.Escape(sourcesStr)}]], vibe={vibe}[/]");
+
+                // Show sentinel intent details for debugging routing decisions
+                if (interpreted.SentinelIntent is { } si)
+                {
+                    var cats = string.Join(", ", si.Categories.Select(c => $"{c.Key}={c.Value:F1}"));
+                    var queries = string.Join(", ", si.SearchQueries);
+                    AnsiConsole.MarkupLine($"[grey]Sentinel: intent={Markup.Escape(si.Intent)}, cats={Markup.Escape(cats)}, queries={Markup.Escape(queries)}[/]");
+                }
             }
         }
 
@@ -207,7 +259,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         if (!settings.Force && !settings.LocalOnly && !string.IsNullOrWhiteSpace(queryText))
         {
             earlyQueryEmbedding = embedding.Embed(queryText);
-            cachedQuery = await storage.FindSimilarQueryAsync(earlyQueryEmbedding, threshold: 0.85);
+            cachedQuery = await storage.FindSimilarQueryAsync(earlyQueryEmbedding, threshold: 0.97);
             if (cachedQuery != null)
             {
                 useCachedSegments = true;
@@ -384,13 +436,120 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     {
                         var query = source[7..]; // Keep original case for search
                         var qualifiedQuery = QualifySearchQuery(query, vibe);
-                        // Fetch 2x for search sources so we can filter by sentiment
                         var searchLimit = perSourceLimit * 2;
+
+                        // Use the best available search API (priority order)
                         fetchTasks.Add(Task.Run(async () =>
                         {
-                            var search = new DuckDuckGoSearch(httpClient);
-                            return await search.SearchAsync(qualifiedQuery, searchLimit);
+                            if (apiKeys.HasGoogleSearch)
+                                return await new GoogleSearchService(httpClient, apiKeys, apiBudget)
+                                    .SearchAsync(qualifiedQuery, searchLimit);
+                            if (apiKeys.IsAvailable("brave_search"))
+                                return await new BraveSearchService(httpClient, apiKeys, apiBudget)
+                                    .SearchAsync(qualifiedQuery, searchLimit);
+                            if (apiKeys.IsAvailable("serper"))
+                                return await new SerperSearchService(httpClient, apiKeys, apiBudget)
+                                    .SearchAsync(qualifiedQuery, searchLimit);
+                            if (apiKeys.IsAvailable("tavily"))
+                                return await new TavilySearchService(httpClient, apiKeys, apiBudget)
+                                    .SearchAsync(qualifiedQuery, searchLimit);
+                            // DDG as last resort
+                            return await new DuckDuckGoSearch(httpClient)
+                                .SearchAsync(qualifiedQuery, searchLimit);
                         }));
+                    }
+                    else if (src.StartsWith("gsearch:") || src == "gsearch")
+                    {
+                        var query = src == "gsearch"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[8..];
+                        var qualifiedQuery = QualifySearchQuery(query, vibe);
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new GoogleSearchService(httpClient, apiKeys, apiBudget)
+                                .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
+                    }
+                    else if (src.StartsWith("gplaces:") || src == "gplaces")
+                    {
+                        var query = src == "gplaces"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[8..];
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new GooglePlacesService(httpClient, apiKeys, apiBudget)
+                                .SearchAsync(query, perSourceLimit)));
+                    }
+                    else if (src.StartsWith("brave:") || src == "brave")
+                    {
+                        var query = src == "brave"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[6..];
+                        var qualifiedQuery = QualifySearchQuery(query, vibe);
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new BraveSearchService(httpClient, apiKeys, apiBudget)
+                                .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
+                    }
+                    else if (src.StartsWith("bravenews:") || src == "bravenews")
+                    {
+                        var query = src == "bravenews"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[10..];
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new BraveSearchService(httpClient, apiKeys, apiBudget)
+                                .SearchAsync(query, perSourceLimit, newsOnly: true)));
+                    }
+                    else if (src.StartsWith("serper:") || src == "serper")
+                    {
+                        var query = src == "serper"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[7..];
+                        var qualifiedQuery = QualifySearchQuery(query, vibe);
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new SerperSearchService(httpClient, apiKeys, apiBudget)
+                                .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
+                    }
+                    else if (src.StartsWith("serpernews:") || src == "serpernews")
+                    {
+                        var query = src == "serpernews"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[11..];
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new SerperSearchService(httpClient, apiKeys, apiBudget)
+                                .SearchAsync(query, perSourceLimit, newsOnly: true)));
+                    }
+                    else if (src.StartsWith("tavily:") || src == "tavily")
+                    {
+                        var query = src == "tavily"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[7..];
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new TavilySearchService(httpClient, apiKeys, apiBudget)
+                                .SearchAsync(query, perSourceLimit)));
+                    }
+                    else if (src.StartsWith("newsapi:") || src == "newsapi")
+                    {
+                        var query = src == "newsapi"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[8..];
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new NewsApiService(httpClient, apiKeys, apiBudget)
+                                .SearchAsync(query, perSourceLimit)));
+                    }
+                    else if (src.StartsWith("newsdata:") || src == "newsdata")
+                    {
+                        var query = src == "newsdata"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[9..];
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new NewsDataService(httpClient, apiKeys, apiBudget)
+                                .SearchAsync(query, perSourceLimit)));
+                    }
+                    else if (src.StartsWith("jina:") || src == "jina")
+                    {
+                        var query = src == "jina"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[5..];
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new JinaSearchService(httpClient, apiKeys, apiBudget)
+                                .SearchAsync(query, perSourceLimit)));
                     }
                     else if (src == "so" || src.StartsWith("so:"))
                     {
@@ -524,31 +683,79 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 fetchTask.Value = 80;
 
                 // Source diversity fallback: if initial fetch returned too few items,
-                // auto-add DuckDuckGo search as a fallback to fill the gap
+                // auto-add search fallbacks to fill the gap
                 var minDesired = Math.Max(15, settings.Limit / 2);
                 if (items.Count < minDesired && !string.IsNullOrEmpty(interpreted?.RawPrompt ?? settings.Prompt))
                 {
                     var fallbackQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
                     var fallbackSources = new List<Task<List<ContentItem>>>();
 
-                    // Add DuckDuckGo if not already present
-                    if (!sources.Any(s => s.StartsWith("search:", StringComparison.OrdinalIgnoreCase)))
+                    // Use available search APIs as fallback (cascade through services)
+                    var hasSearchSource = sources.Any(s =>
+                        s.StartsWith("search:", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("gsearch", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("brave", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("serper", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("tavily", StringComparison.OrdinalIgnoreCase));
+
+                    if (!hasSearchSource)
                     {
-                        fallbackSources.Add(Task.Run(async () =>
+                        // Pick the best available search API
+                        if (apiKeys.IsAvailable("brave_search"))
                         {
-                            var ddg = new DuckDuckGoSearch(httpClient);
-                            return await ddg.SearchAsync(fallbackQuery, perSourceLimit * 2);
-                        }));
+                            fallbackSources.Add(Task.Run(async () =>
+                                await new BraveSearchService(httpClient, apiKeys, apiBudget)
+                                    .SearchAsync(fallbackQuery, perSourceLimit * 2)));
+                        }
+                        else if (apiKeys.IsAvailable("serper"))
+                        {
+                            fallbackSources.Add(Task.Run(async () =>
+                                await new SerperSearchService(httpClient, apiKeys, apiBudget)
+                                    .SearchAsync(fallbackQuery, perSourceLimit * 2)));
+                        }
+                        else if (apiKeys.IsAvailable("tavily"))
+                        {
+                            fallbackSources.Add(Task.Run(async () =>
+                                await new TavilySearchService(httpClient, apiKeys, apiBudget)
+                                    .SearchAsync(fallbackQuery, perSourceLimit)));
+                        }
+                        else if (apiKeys.HasGoogleSearch)
+                        {
+                            fallbackSources.Add(Task.Run(async () =>
+                                await new GoogleSearchService(httpClient, apiKeys, apiBudget)
+                                    .SearchAsync(fallbackQuery, perSourceLimit * 2)));
+                        }
+                        else
+                        {
+                            fallbackSources.Add(Task.Run(async () =>
+                                await new DuckDuckGoSearch(httpClient)
+                                    .SearchAsync(fallbackQuery, perSourceLimit * 2)));
+                        }
                     }
 
-                    // Add Google News search if not already present
-                    if (!sources.Any(s => s.StartsWith("gnews", StringComparison.OrdinalIgnoreCase)))
+                    // Add news fallbacks if not already present
+                    var hasNewsSource = sources.Any(s =>
+                        s.StartsWith("gnews", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("newsapi", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("newsdata", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("bravenews", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("serpernews", StringComparison.OrdinalIgnoreCase));
+
+                    if (!hasNewsSource)
                     {
-                        fallbackSources.Add(Task.Run(async () =>
+                        // Use news APIs in parallel for diversity
+                        if (apiKeys.IsAvailable("newsapi"))
                         {
-                            var gnews = new GoogleNewsFetcher(httpClient);
-                            return await gnews.SearchAsync(fallbackQuery, perSourceLimit, daysBack: 7);
-                        }));
+                            fallbackSources.Add(Task.Run(async () =>
+                                await new NewsApiService(httpClient, apiKeys, apiBudget)
+                                    .SearchAsync(fallbackQuery, perSourceLimit)));
+                        }
+                        else
+                        {
+                            fallbackSources.Add(Task.Run(async () =>
+                                await new GoogleNewsFetcher(httpClient)
+                                    .SearchAsync(fallbackQuery, perSourceLimit, daysBack: 7)));
+                        }
                     }
 
                     if (fallbackSources.Count > 0)
@@ -581,7 +788,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     var preFilterCount = items.Count;
 
-                    items = items.Where(item =>
+                    var filtered = items.Where(item =>
                     {
                         // Keep all items from topic-aware sources (they already filtered)
                         if (topicAwareSources.Contains(item.Source))
@@ -592,8 +799,79 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         return topicTerms.Any(term => text.Contains(term.ToLowerInvariant()));
                     }).ToList();
 
-                    if (!settings.Quiet && items.Count < preFilterCount)
-                        AnsiConsole.MarkupLine($"[grey]Topic filter: {preFilterCount} → {items.Count} items[/]");
+                    // Graceful fallback: if topic filter is too aggressive (< 5 items),
+                    // keep all topic-aware items + relax to allow partial term matches
+                    if (filtered.Count < 5 && preFilterCount >= 5)
+                    {
+                        // Softer filter: any single word from topic terms (not full phrases)
+                        var singleWords = topicTerms
+                            .SelectMany(t => t.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                            .Where(w => w.Length > 3)
+                            .Select(w => w.ToLowerInvariant())
+                            .Distinct()
+                            .ToList();
+
+                        filtered = items.Where(item =>
+                        {
+                            if (topicAwareSources.Contains(item.Source))
+                                return true;
+                            var text = $"{item.Title} {item.Content ?? ""}".ToLowerInvariant();
+                            return singleWords.Any(word => text.Contains(word));
+                        }).ToList();
+
+                        // If still too few, skip topic filter entirely (rely on downstream relevance)
+                        if (filtered.Count < 5)
+                        {
+                            if (!settings.Quiet)
+                                AnsiConsole.MarkupLine($"[grey]Topic filter: {preFilterCount} → {filtered.Count} (too aggressive, skipping)[/]");
+                            filtered = items;
+                        }
+                        else if (!settings.Quiet)
+                        {
+                            AnsiConsole.MarkupLine($"[grey]Topic filter: {preFilterCount} → {filtered.Count} items (relaxed)[/]");
+                        }
+                    }
+                    else if (!settings.Quiet && filtered.Count < preFilterCount)
+                    {
+                        AnsiConsole.MarkupLine($"[grey]Topic filter: {preFilterCount} → {filtered.Count} items[/]");
+                    }
+
+                    items = filtered;
+                }
+
+                // Roundup intent: date-gate and penalize topic drift
+                var earlyQueryType = QueryTypeDetector.Detect(interpreted?.RawPrompt ?? settings.Prompt, interpreted?.SentinelIntent);
+                if (earlyQueryType == QueryType.Roundup)
+                {
+                    var preRoundupCount = items.Count;
+
+                    // Penalize "on this day" / historical drift content
+                    foreach (var item in items)
+                    {
+                        if (QueryTypeDetector.IsTopicDrift(item))
+                            item.RelevanceScore *= 0.3; // Heavy penalty
+                    }
+
+                    // Date-gate: if user said "today", strongly prefer last 48h
+                    if (QueryTypeDetector.ImpliesDateGating(interpreted?.RawPrompt ?? settings.Prompt))
+                    {
+                        var maxAge = TimeSpan.FromHours(48);
+                        foreach (var item in items)
+                        {
+                            var mult = QueryTypeDetector.GetFreshnessMultiplier(item, maxAge);
+                            item.RelevanceScore *= mult;
+                        }
+
+                        // Re-sort by relevance after freshness adjustment
+                        items = items.OrderByDescending(i => i.RelevanceScore).ToList();
+
+                        if (!settings.Quiet)
+                        {
+                            var freshCount = items.Count(i =>
+                                (DateTimeOffset.UtcNow - i.CreatedAt) <= maxAge);
+                            AnsiConsole.MarkupLine($"[grey]Roundup date-gate: {freshCount}/{items.Count} items within 48h[/]");
+                        }
+                    }
                 }
 
                 // Show raw content if requested
@@ -624,6 +902,27 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                 // Combine fresh items first (higher priority), then stored items
                 items.AddRange(storedContentItems);
+
+                // Inject NER-matched cached items (entity-specific, high relevance)
+                if (nerContext?.HasCachedData == true)
+                {
+                    var existingUrls = new HashSet<string>(
+                        items.Where(i => !string.IsNullOrEmpty(i.Url)).Select(i => i.Url!),
+                        StringComparer.OrdinalIgnoreCase);
+
+                    var nerCachedItems = nerContext.CachedItems
+                        .Where(s => !string.IsNullOrEmpty(s.Summary))
+                        .Select(s => s.ToContentItem())
+                        .Where(c => !existingUrls.Contains(c.Url ?? ""))
+                        .ToList();
+
+                    if (nerCachedItems.Count > 0)
+                    {
+                        items.AddRange(nerCachedItems);
+                        if (!settings.Quiet)
+                            AnsiConsole.MarkupLine($"[grey]NER cache: injected {nerCachedItems.Count} entity-matched items[/]");
+                    }
+                }
                 } // end normal fetch mode
 
                 // Stage 2: Deduplicate by URL (not embedding - topic queries have similar content)
@@ -936,15 +1235,22 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     }
                 }
 
-                // Stage 3: Signal-based analysis with salience scoring
+                // Stage 3: Deterministic signal analysis — no LLM
+                // Segments, sentiment, topic all computed via ONNX embeddings and article processing.
+                // The LLM is reserved for Stage 4 (synthesis) only.
                 var analyzedItems = new List<(string title, string summary, string topic, float sentiment, string url, double relevance)>();
-                var processedArticles = new List<(ProcessedArticle article, ArticleAnalysis analysis)>();
 
-                if (ollamaAvailable)
                 {
                     var itemsToAnalyze = uniqueItems.Take(settings.Limit).ToList();
 
-                    // Skip LLM analysis for items that already have summaries (cached/stored items)
+                    // Pre-compute anchor embeddings once for sentiment and topic inference
+                    var positiveAnchor = embedding.Embed(RelevanceScorer.PositiveAnchorText);
+                    var negativeAnchor = embedding.Embed(RelevanceScorer.NegativeAnchorText);
+                    var topicAnchors = RelevanceScorer.TopicAnchorTexts.ToDictionary(
+                        kv => kv.Key,
+                        kv => embedding.Embed(kv.Value));
+
+                    // Split: items with existing summaries skip re-analysis
                     var alreadyAnalyzed = itemsToAnalyze
                         .Where(i => !string.IsNullOrEmpty(i.Summary) && i.Summary != i.Title)
                         .ToList();
@@ -955,7 +1261,6 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     if (alreadyAnalyzed.Count > 0 && !settings.Quiet)
                         AnsiConsole.MarkupLine($"[grey]Skipping analysis for {alreadyAnalyzed.Count} pre-analyzed items[/]");
 
-                    // Add pre-analyzed items directly
                     foreach (var item in alreadyAnalyzed)
                     {
                         analyzedItems.Add((item.Title, item.Summary!, item.DetectedTopic ?? "general",
@@ -970,114 +1275,63 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     }
                     else
                     {
-                        // Phase 1: Pre-process articles that need analysis (CPU-bound, fast)
+                        // Phase 1: Segment extraction via ArticleProcessor (CPU-bound)
                         using var articleProcessor = new ArticleProcessor();
-                        var preProcessed = new List<(ContentItem item, ProcessedArticle processed)>();
+
                         foreach (var item in needsAnalysis)
                         {
                             try
                             {
                                 var processed = await articleProcessor.ProcessAsync(item);
-                                preProcessed.Add((item, processed));
+
+                                // Summary from top salience segments (deterministic, no LLM)
+                                var topSegments = processed.TopSegments
+                                    .OrderByDescending(s => s.SalienceScore)
+                                    .Take(3)
+                                    .ToList();
+                                item.Summary = topSegments.Count > 0
+                                    ? string.Join(" ", topSegments.Select(s =>
+                                        s.Text.Length > 200 ? s.Text[..200] : s.Text))
+                                    : (item.Content?.Length > 300
+                                        ? item.Content[..300] + "..."
+                                        : item.Content ?? item.Title);
+
+                                // Structural analysis
+                                if (item.Content != null)
+                                    item.ContentStructure = MarkdownContentAnalyzer.Analyze(item.Content);
                             }
                             catch
                             {
-                                // Pre-processing failed — will use fallback
+                                // Segmentation failed — use content truncation
+                                var content = item.Content ?? "";
+                                item.Summary = content.Length > 300
+                                    ? content[..300] + "..."
+                                    : (content.Length > 0 ? content : item.Title);
                             }
+
+                            // Phase 2: Embedding-based sentiment + topic (pure math)
+                            if (item.Embedding != null)
+                            {
+                                item.SentimentScore = RelevanceScorer.ComputeEmbeddingSentiment(
+                                    item.Embedding, positiveAnchor, negativeAnchor);
+                                item.DetectedTopic = RelevanceScorer.InferTopic(item.Embedding, topicAnchors);
+                            }
+                            else
+                            {
+                                item.DetectedTopic = InferTopicFromSource(item.Source);
+                            }
+
+                            analyzedItems.Add((item.Title, item.Summary!, item.DetectedTopic ?? "general",
+                                item.SentimentScore, item.Url ?? "", item.RelevanceScore));
+                            analyzeTask.Increment(1);
                         }
-
-                        // Phase 2: Parallel sentinel analysis (bounded concurrency)
-                        var lockObj = new object();
-                        using var sentinelSemaphore = new SemaphoreSlim(3);
-                        var sentinelTasks = preProcessed.Select(async pp =>
-                        {
-                            await sentinelSemaphore.WaitAsync();
-                            try
-                            {
-                                var analysis = await ollama.AnalyzeProcessedArticleAsync(
-                                    pp.processed, vibePrompt, includeReferences: false);
-
-                                pp.item.Summary = analysis.Summary;
-                                pp.item.DetectedTopic = analysis.Topic;
-                                pp.item.SentimentScore = analysis.Sentiment;
-
-                                lock (lockObj)
-                                {
-                                    analyzedItems.Add((pp.item.Title, analysis.Summary, analysis.Topic,
-                                        analysis.Sentiment, pp.item.Url ?? "", pp.item.RelevanceScore));
-                                    processedArticles.Add((pp.processed, analysis));
-                                }
-                            }
-                            catch
-                            {
-                                pp.item.Summary = pp.item.Title;
-                                pp.item.DetectedTopic = "general";
-                                lock (lockObj)
-                                {
-                                    analyzedItems.Add((pp.item.Title, pp.item.Title, "general", 0,
-                                        pp.item.Url ?? "", pp.item.RelevanceScore));
-                                }
-                            }
-                            finally
-                            {
-                                sentinelSemaphore.Release();
-                                analyzeTask.Increment(1);
-                            }
-                        });
-                        await Task.WhenAll(sentinelTasks);
                     }
 
-                    // Save all to storage (sequential — DB writes)
+                    // Save to storage
                     foreach (var item in itemsToAnalyze)
                         await storage.SaveItemAsync(item);
 
-                    analyzeTask.Description = $"[green]Analyzed {analyzedItems.Count} items[/]";
-                }
-                else
-                {
-                    // No LLM - full signal enrichment: embeddings + sentiment + topic + NER
-                    // All signals computed cheaply via ONNX (no LLM calls)
-                    var enrichTask = ctx.AddTask("[cyan]Enriching signals[/]", maxValue: Math.Min(uniqueItems.Count, settings.Limit));
-
-                    // Pre-compute anchor embeddings once for sentiment and topic inference
-                    var positiveAnchor = embedding.Embed(RelevanceScorer.PositiveAnchorText);
-                    var negativeAnchor = embedding.Embed(RelevanceScorer.NegativeAnchorText);
-                    var topicAnchors = RelevanceScorer.TopicAnchorTexts.ToDictionary(
-                        kv => kv.Key,
-                        kv => embedding.Embed(kv.Value));
-
-                    var itemsToEnrich = uniqueItems.Take(settings.Limit).ToList();
-
-                    // Parallel signal enrichment (sentiment + topic from embeddings are pure math)
-                    Parallel.ForEach(itemsToEnrich, item =>
-                    {
-                        var content = item.Content ?? "";
-                        item.Summary = content.Length > 300 ? content[..300] + "..." : (content.Length > 0 ? content : item.Title);
-
-                        if (item.Embedding != null)
-                        {
-                            // Embedding-based sentiment scoring
-                            item.SentimentScore = RelevanceScorer.ComputeEmbeddingSentiment(
-                                item.Embedding, positiveAnchor, negativeAnchor);
-                            // Embedding-based topic inference
-                            item.DetectedTopic = RelevanceScorer.InferTopic(item.Embedding, topicAnchors);
-                        }
-                        else
-                        {
-                            item.DetectedTopic = InferTopicFromSource(item.Source);
-                        }
-                    });
-
-                    // Save enriched items to storage (signals persist for later use)
-                    foreach (var item in itemsToEnrich)
-                    {
-                        analyzedItems.Add((item.Title, item.Summary!, item.DetectedTopic ?? "general",
-                            item.SentimentScore, item.Url ?? "", item.RelevanceScore));
-                        await storage.SaveItemAsync(item);
-                        enrichTask.Increment(1);
-                    }
-
-                    enrichTask.Description = $"[green]Enriched {itemsToEnrich.Count} items (sentiment + topic + RRF)[/]";
+                    analyzeTask.Description = $"[green]Analyzed {analyzedItems.Count} items (deterministic)[/]";
                 }
 
                 // Debug: Show enriched signals
@@ -1252,8 +1506,10 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     summaryTask.Value = 10;
                     var userQuery = interpreted?.RawPrompt ?? settings.Prompt;
 
-                    // Detect query type for source quality weighting and template auto-selection
-                    var detectedQueryType = QueryTypeDetector.Detect(userQuery);
+                    // Detect query type for source quality weighting and template auto-selection.
+                    // Use sentinel intent when available — the LLM is better at distinguishing
+                    // QA from roundup (e.g., "What's the SNL host this week?" is QA, not roundup).
+                    var detectedQueryType = QueryTypeDetector.Detect(userQuery, interpreted?.SentinelIntent);
 
                     // Apply source quality multipliers based on query type
                     if (detectedQueryType is QueryType.Timeline or QueryType.Explainer
@@ -1288,11 +1544,17 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     summaryTask.Value = 20;
 
+                    // Resolve YAML template definition (if any)
+                    var templateDef = outputTemplates.GetDefinition(template);
+                    var effectiveBase = templateDef?.BaseTemplate ?? template;
+                    var isBlogArticle = effectiveBase is "blog-article" or "blog-timeline"
+                                        || template is "blog-article" or "blog-timeline";
+
                     // Route to appropriate synthesis based on template
-                    if (template is "blog-article" or "blog-timeline")
+                    if (isBlogArticle)
                     {
                         // Force timeline for blog-timeline, otherwise auto-detect
-                        var articleQueryType = template == "blog-timeline"
+                        var articleQueryType = effectiveBase == "blog-timeline" || template == "blog-timeline"
                             ? QueryType.Timeline
                             : detectedQueryType;
 
@@ -1300,7 +1562,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             analyzedItems, vibe, vibePrompt,
                             userQuery ?? "topic overview",
                             articleQueryType,
-                            uniqueItems, embedding.Embed, cancellationToken);
+                            uniqueItems, embedding.Embed, templateDef, cancellationToken);
 
                         // Build template data
                         templateData = new DigestData
@@ -1325,8 +1587,11 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             }).ToList()
                         };
 
-                        finalSummary = outputTemplates.Render(templateData,
-                            template == "blog-timeline" ? "blog-timeline" : "blog-article");
+                        // Use YAML template's own Liquid template if registered, else base template
+                        var renderTemplate = templateDef?.Template != null ? template
+                            : effectiveBase == "blog-timeline" ? "blog-timeline"
+                            : "blog-article";
+                        finalSummary = outputTemplates.Render(templateData, renderTemplate);
                     }
                     else if (template is "blog-newsletter" or "blog-newsletter-html")
                     {
@@ -1367,7 +1632,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         summaryTask.Value = 50;
 
                         // Entity disambiguation: detect ambiguous entities in top items
-                        if (!string.IsNullOrWhiteSpace(userQuery))
+                        // Skip for roundup queries — they are about collecting diverse stories
+                        if (!string.IsNullOrWhiteSpace(userQuery) && detectedQueryType != QueryType.Roundup)
                         {
                             var topForDisambig = uniqueItems
                                 .OrderByDescending(i => i.RelevanceScore)

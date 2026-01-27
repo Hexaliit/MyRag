@@ -1,6 +1,6 @@
 using OpenCvSharp;
 
-namespace Mostlylucid.DocSummarizer.Services.Preprocessing;
+namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
 /// Detects over-correction by comparing bounding box metrics before/after processing.

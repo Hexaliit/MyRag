@@ -1,7 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DoomSummarizer.Models;
 using Fluid;
 using Fluid.Values;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace DoomSummarizer.Services;
 
@@ -14,7 +17,12 @@ public class TemplateService
     private readonly FluidParser _parser;
     private readonly Dictionary<string, IFluidTemplate> _compiledTemplates = new();
     private readonly Dictionary<string, string> _templateSources;
+    private readonly Dictionary<string, TemplateDefinition> _definitions = new();
     private readonly TemplateOptions _options;
+    private static readonly IDeserializer YamlDeserializer = new DeserializerBuilder()
+        .WithNamingConvention(UnderscoredNamingConvention.Instance)
+        .IgnoreUnmatchedProperties()
+        .Build();
 
     public TemplateService()
     {
@@ -41,11 +49,14 @@ public class TemplateService
 
     /// <summary>
     /// Load custom templates from config directory.
+    /// Supports .liquid files (Liquid rendering templates) and
+    /// .yaml/.yml files (YAML template definitions that control LLM structure + rendering).
     /// </summary>
     public async Task LoadCustomTemplatesAsync(string templatesDir)
     {
         if (!Directory.Exists(templatesDir)) return;
 
+        // Load Liquid templates
         foreach (var file in Directory.GetFiles(templatesDir, "*.liquid"))
         {
             try
@@ -64,9 +75,51 @@ public class TemplateService
                 // Skip invalid templates
             }
         }
+
+        // Load YAML template definitions
+        foreach (var file in Directory.EnumerateFiles(templatesDir, "*.yaml")
+                     .Concat(Directory.EnumerateFiles(templatesDir, "*.yml")))
+        {
+            try
+            {
+                var yaml = await File.ReadAllTextAsync(file);
+                var def = YamlDeserializer.Deserialize<TemplateDefinition>(yaml);
+                if (def == null) continue;
+
+                // Use filename as name if not specified in YAML
+                if (string.IsNullOrEmpty(def.Name))
+                    def.Name = Path.GetFileNameWithoutExtension(file);
+
+                _definitions[def.Name] = def;
+
+                // If the definition includes a custom Liquid template, compile and register it
+                if (!string.IsNullOrEmpty(def.Template))
+                {
+                    if (_parser.TryParse(def.Template, out var compiled, out _))
+                    {
+                        _compiledTemplates[def.Name] = compiled;
+                        _templateSources[def.Name] = def.Template;
+                    }
+                }
+            }
+            catch
+            {
+                // Skip invalid definitions
+            }
+        }
     }
 
     public IEnumerable<string> ListTemplates() => _compiledTemplates.Keys;
+
+    /// <summary>List all loaded YAML template definitions.</summary>
+    public IEnumerable<string> ListDefinitions() => _definitions.Keys;
+
+    /// <summary>
+    /// Get a template definition by name.
+    /// Returns null if no YAML definition exists for this template.
+    /// </summary>
+    public TemplateDefinition? GetDefinition(string name) =>
+        _definitions.GetValueOrDefault(name);
 
     public string? GetTemplateSource(string name) =>
         _templateSources.GetValueOrDefault(name);

@@ -1,6 +1,6 @@
 using OpenCvSharp;
 
-namespace Mostlylucid.DocSummarizer.Services.Preprocessing;
+namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
 /// Document skew correction with multiple methods.

@@ -154,10 +154,12 @@ public class RelevanceScorerTests
     public void ScoreFast_DiscardsBottomTier()
     {
         var scorer = new RelevanceScorer();
+        // Give relevant items stronger signals: more recent creation time + matching content
         var items = Enumerable.Range(1, 20).Select(i =>
             MakeItem($"item-{i}",
                 i <= 5 ? $"Pharmaceutical drug item {i}" : $"Unrelated content about topic {i}",
-                i <= 5 ? "FDA drug approval pharmaceutical" : "gardening recipes cooking sports")
+                i <= 5 ? "FDA drug approval pharmaceutical treatment medicine" : "gardening recipes cooking sports weather",
+                createdAt: i <= 5 ? DateTimeOffset.UtcNow.AddMinutes(-i) : DateTimeOffset.UtcNow.AddDays(-i))
         ).ToList();
 
         var ranked = scorer.ScoreFast(items, "pharmaceutical drug", discardRatio: 0.25);

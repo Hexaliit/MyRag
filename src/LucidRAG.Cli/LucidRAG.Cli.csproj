@@ -25,6 +25,7 @@
 
         <!-- Allow duplicate content files - CLI's appsettings.json takes precedence -->
         <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+        <UserSecretsId>6996a582-b070-4f5e-8d8b-bd10fa30fb2c</UserSecretsId>
     </PropertyGroup>
 
     <!-- Core library references -->

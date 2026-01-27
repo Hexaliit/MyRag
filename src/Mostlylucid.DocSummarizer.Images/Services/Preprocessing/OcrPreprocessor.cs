@@ -3,7 +3,7 @@ using OpenCvSharp;
 
 // ReSharper disable TemplateIsNotCompileTimeConstantProblem
 
-namespace Mostlylucid.DocSummarizer.Services.Preprocessing;
+namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
 /// Unified OCR preprocessing pipeline with fast quality check and adaptive enhancement.

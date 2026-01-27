@@ -53,15 +53,29 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         using var embedding = new EmbeddingService();
         var ollama = new OllamaService(config.Ollama);
 
+        // Initialize API key service and budget tracker for paid APIs
+        var apiKeys = ApiKeyService.Load(config);
+        await using var apiBudget = new ApiBudgetService(config.ApiBudget, apiKeys, dbPath);
+        await apiBudget.InitializeAsync();
+
+        // Wire cloud LLM providers through the router
+        var llmRouter = LlmRouter.Build(config.Ollama, apiKeys, apiBudget);
+        ollama.Router = llmRouter;
+
         // Auto-setup
         await embedding.EnsureReadyAsync(msg =>
             AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(msg)}[/]"));
 
         var ollamaAvailable = await ollama.IsAvailableAsync();
-        if (!ollamaAvailable)
+        var hasCloudLlm = llmRouter.HasCloudProvider;
+        if (!ollamaAvailable && !hasCloudLlm)
         {
-            AnsiConsole.MarkupLine("[yellow]Ollama not available.[/] Answers will be limited to evidence listing.");
-            AnsiConsole.MarkupLine("[grey]Start Ollama: ollama serve[/]");
+            AnsiConsole.MarkupLine("[yellow]No LLM available (Ollama down, no cloud keys).[/] Answers will be limited to evidence listing.");
+            AnsiConsole.MarkupLine("[grey]Start Ollama: ollama serve  —or—  set OPENAI_API_KEY / ANTHROPIC_API_KEY[/]");
+        }
+        else if (!ollamaAvailable && hasCloudLlm)
+        {
+            AnsiConsole.MarkupLine("[cyan]Ollama not available — using cloud LLM provider[/]");
         }
 
         // Determine search window
@@ -120,9 +134,10 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
                 continue;
             }
 
-            // Search and answer
+            // Search and answer — cloud LLM counts as available
+            var llmAvailable = ollamaAvailable || hasCloudLlm;
             await AnswerQuestion(question, settings, config, storage, embedding, ollama,
-                ollamaAvailable, searchDays, history, cancellationToken);
+                llmAvailable, searchDays, history, cancellationToken);
 
             if (settings.Once) break;
             question = null;

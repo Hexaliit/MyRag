@@ -1,0 +1,36 @@
+name: deep-dive
+description: "Comprehensive deep-dive with technical detail, background context, and implications"
+base_template: blog-article
+
+introduction:
+  prompt: "Start with a hook that conveys the significance. Set up the deep-dive structure."
+  target_words: 150
+
+sections:
+  - heading: "Context & Background"
+    prompt: "Provide essential background the reader needs. Historical context, key players, prior work."
+    target_words: 300
+    evidence_strategy: oldest
+
+  - heading: "Technical Analysis"
+    prompt: "Dive into the technical details. Explain mechanisms, architectures, methodologies. Use precise language."
+    target_words: 400
+    evidence_strategy: highest_relevance
+
+  - heading: "Key Findings"
+    prompt: "Present the most important results, benchmarks, or discoveries. Be specific with numbers and comparisons."
+    target_words: 350
+    evidence_strategy: highest_relevance
+
+  - heading: "Expert Perspectives"
+    prompt: "Include expert opinions, community reactions, or diverse viewpoints from the evidence."
+    target_words: 250
+    evidence_strategy: newest
+
+  - heading: "Implications & What's Next"
+    prompt: "Analyze what this means for the field. Identify trends, risks, and opportunities."
+    target_words: 300
+
+conclusion:
+  prompt: "Tie it all together with a memorable closing insight. What should the reader remember?"
+  target_words: 100

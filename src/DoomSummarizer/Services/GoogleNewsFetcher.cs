@@ -309,6 +309,18 @@ public class GoogleNewsFetcher(HttpClient httpClient)
 
         if (googleItems.Count == 0) return;
 
+        // Use a separate HttpClient with cookie support for redirect resolution.
+        // Google News requires cookies to resolve article URLs; without them,
+        // redirects land on policies.google.com/technologies/cookies.
+        using var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = true,
+            UseCookies = true,
+            CookieContainer = new System.Net.CookieContainer(),
+            AutomaticDecompression = System.Net.DecompressionMethods.All
+        };
+        using var redirectClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
+
         using var semaphore = new SemaphoreSlim(5);
         var tasks = googleItems.Select(async item =>
         {
@@ -318,11 +330,12 @@ public class GoogleNewsFetcher(HttpClient httpClient)
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
                 var request = new HttpRequestMessage(HttpMethod.Get, item.Url);
                 request.Headers.Add("User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 MostlyLucid-DoomSummarizer/1.0");
-                request.Headers.Add("Accept", "text/html,application/xhtml+xml");
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+                request.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+                request.Headers.Add("Accept-Language", "en-US,en;q=0.9");
 
                 // Fetch full body (needed for JS-redirect pages)
-                using var response = await httpClient.SendAsync(request, cts.Token);
+                using var response = await redirectClient.SendAsync(request, cts.Token);
 
                 // Strategy 1: Check if HTTP redirect resolved it
                 var finalUrl = response.RequestMessage?.RequestUri?.AbsoluteUri;
@@ -402,6 +415,8 @@ public class GoogleNewsFetcher(HttpClient httpClient)
         !string.IsNullOrEmpty(url)
         && !url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase)
         && !url.Contains("consent.google.com", StringComparison.OrdinalIgnoreCase)
+        && !url.Contains("policies.google.com", StringComparison.OrdinalIgnoreCase)
+        && !url.Contains("accounts.google.com", StringComparison.OrdinalIgnoreCase)
         && !url.Contains("google.com/sorry", StringComparison.OrdinalIgnoreCase)
         && (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
             || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));

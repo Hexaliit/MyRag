@@ -29,7 +29,7 @@ public class NewsFetcher(HttpClient httpClient)
         ["verge"] = ["https://www.theverge.com/rss/index.xml"],
         ["wired"] = ["https://www.wired.com/feed/rss"],
         ["techcrunch"] = ["https://techcrunch.com/feed/"],
-        ["reuters"] = ["https://www.reutersagency.com/feed/?best-topics=tech&post_type=best"],
+        ["reuters"] = ["https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&ceid=US:en&hl=en-US&gl=US"],
         ["nytimes"] = ["https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml"],
         ["hackernoon"] = ["https://hackernoon.com/feed"],
         ["devto"] = ["https://dev.to/feed"],
@@ -67,33 +67,31 @@ public class NewsFetcher(HttpClient httpClient)
             if (apiItems.Count > 0) return apiItems;
         }
 
-        // Try SourceRouter for category-specific feeds first
-        // The query might be a category name (e.g., "health", "science")
-        if (!string.IsNullOrEmpty(query))
+        // Try SourceRouter (YAML-defined feeds) first — category-specific or default
+        try
         {
-            try
+            var router = SourceRouter.Load();
+            var category = !string.IsNullOrEmpty(query) ? query.ToLowerInvariant() : null;
+            var yamlFeeds = router.GetFeeds(sourceName, category);
+            if (yamlFeeds.Count > 0)
             {
-                var router = SourceRouter.Load();
-                var categoryFeeds = router.GetFeeds(sourceName, query.ToLowerInvariant());
-                if (categoryFeeds.Count > 0)
+                var items = new List<ContentItem>();
+                foreach (var feedUrl in yamlFeeds)
                 {
-                    var items = new List<ContentItem>();
-                    foreach (var feedUrl in categoryFeeds)
-                    {
-                        var feedItems = await FetchRssAsync(feedUrl, sourceName, limit);
-                        items.AddRange(feedItems);
-                        if (items.Count >= limit) break;
-                    }
-                    if (items.Count > 0)
-                        return items.Take(limit).ToList();
+                    var feedItems = await FetchRssAsync(feedUrl, sourceName, limit);
+                    items.AddRange(feedItems);
+                    if (items.Count >= limit) break;
                 }
-            }
-            catch
-            {
-                // Fall through to default feeds
+                if (items.Count > 0)
+                    return items.Take(limit).ToList();
             }
         }
+        catch
+        {
+            // Fall through to hardcoded feeds
+        }
 
+        // Fallback to hardcoded KnownFeeds
         if (!KnownFeeds.TryGetValue(sourceName, out var feeds))
         {
             AnsiConsole.MarkupLine($"[yellow]Unknown news source: {sourceName}. Known: {string.Join(", ", KnownFeeds.Keys)}[/]");

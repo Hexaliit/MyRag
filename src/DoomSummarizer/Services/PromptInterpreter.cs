@@ -20,101 +20,108 @@ public class PromptInterpreter
     }
 
     /// <summary>
-    /// Interpret a natural language prompt into fetch actions
+    /// Interpret a natural language prompt into fetch actions.
+    /// Overload without NER context — delegates to the full version.
     /// </summary>
     public async Task<InterpretedPrompt> InterpretAsync(string prompt, CancellationToken ct = default)
+        => await InterpretAsync(prompt, nerContext: null, ct);
+
+    /// <summary>
+    /// Interpret a natural language prompt into fetch actions.
+    /// Uses a structured sentinel LLM that outputs category weights and intent type
+    /// instead of picking specific sources — source selection is heuristic.
+    /// When NER context is provided, entity-specific search queries are injected
+    /// for more precise API filtering.
+    /// </summary>
+    public async Task<InterpretedPrompt> InterpretAsync(string prompt, QueryNerContext? nerContext, CancellationToken ct = default)
     {
         // If Ollama isn't available, use keyword-based fallback
         if (!await _ollama.IsAvailableAsync())
         {
-            return FallbackInterpret(prompt);
+            var fallback = FallbackInterpret(prompt);
+            if (nerContext != null)
+                EnrichWithNerContext(fallback, nerContext);
+            return fallback;
         }
 
-        var systemPrompt = """
-            You are a query interpreter for a news aggregation tool. Parse the user's request and output JSON.
+        var systemPrompt = BuildStructuredSentinelPrompt(nerContext);
 
-            Output format (JSON only, no markdown):
-            {
-                "sources": ["hn", "reddit", "so", "bbc", "search:query terms"],
-                "vibe": "neutral",
-                "searchQueries": ["optional search terms"],
-                "websites": ["https://example.com"],
-                "limit": 20,
-                "topics": ["optional topic filters"]
-            }
+        // Build user prompt — include NER entities when available
+        string userPrompt;
+        if (nerContext?.HasEntities == true)
+        {
+            var entityInfo = string.Join(", ", nerContext.Entities
+                .Select(e => $"{e.Text} ({e.Type}: {e.Type switch {
+                    "PER" => "person",
+                    "ORG" => "organization",
+                    "LOC" => "location",
+                    _ => "entity"
+                }})"));
+            userPrompt = $"""
+                Classify this request: "{prompt}"
 
-            Source types (pick 3-6 diverse sources per query):
-
-            SEARCH ENGINES (query-based, broad coverage):
-            - "gnews:query" = Google News search — best first source for ANY topic
-            - "gnews_topic:TOPIC" = Google News topic feed (HEALTH, SCIENCE, BUSINESS, TECHNOLOGY, ENTERTAINMENT, SPORTS, WORLD, NATION)
-            - "search:query" = DuckDuckGo search — good fallback, web-wide results
-
-            TECH COMMUNITY (developer discussions, open source, startups):
-            - "hn" = Hacker News — tech, startups, CS research, Show HN projects
-            - "reddit" / "reddit:subreddit" = Reddit — community discussion; use reddit:science, reddit:worldnews, etc. for non-tech
-            - "lobsters" = Lobsters — curated tech/CS, higher signal than HN
-            - "devto" = Dev.to — developer blogs, tutorials, career advice
-            - "so" / "so:tag" / "so:search:query" = StackOverflow — technical Q&A
-
-            NEWS OUTLETS (journalism, current events, analysis):
-            - "bbc" / "bbc:category" = BBC News — categories: technology, health, science, business, world, politics, entertainment, environment
-            - "guardian" = The Guardian — strong on environment, science, world affairs
-            - "cnn" = CNN — breaking news, US focus
-            - "reuters" = Reuters — wire service, business, world events, factual
-            - "npr" = NPR — US public radio, good on health, science, politics
-            - "theregister" = The Register — UK tech journalism, security, enterprise IT
-
-            TECH MEDIA (product launches, industry analysis):
-            - "ars" = Ars Technica — deep tech analysis, science coverage
-            - "verge" = The Verge — consumer tech, AI, platforms
-            - "techcrunch" = TechCrunch — startups, funding, product launches
-            - "wired" = Wired — tech culture, longform
-
-            SCIENCE & RESEARCH (papers, preprints, data):
-            - "arxiv:query" = arXiv preprints — full paper abstracts, AI/ML/physics/math/bio
-            - "sciencedaily" = Science Daily — research news summaries
-            - "phys" = Phys.org — science news aggregator
-            - "carbonbrief" = Carbon Brief — climate science analysis
-            - "spaceflight" = Spaceflight News API — launches, NASA, ESA, SpaceX
-
-            SPECIALIZED APIs (structured data, fact-checking):
-            - "factcheck" = Fact-checkers (Snopes, PolitiFact, FullFact)
-            - "earthquake" = USGS seismic data (real-time earthquakes)
-            - "wikipedia" = Wikipedia current events, featured articles
-
-            Direct URLs for specific websites also work.
-
-            STRATEGY: Always include gnews:query for non-tech topics. For research/academic queries, include arxiv. Mix news outlets + community + search for diversity.
-
-            Vibes: "doom" (negative focus), "hopeful" (positive), "snarky" (witty), "neutral" (balanced)
-
-            Examples:
-            - "summarize tech news" -> {"sources": ["hn", "reddit", "verge", "techcrunch"], "vibe": "neutral", "limit": 20}
-            - "what's happening on bbc and the guardian" -> {"sources": ["bbc", "guardian"], "vibe": "neutral"}
-            - "doom scroll hacker news" -> {"sources": ["hn"], "vibe": "doom", "limit": 30}
-            - "snarky summary of AI news" -> {"sources": ["gnews:AI artificial intelligence", "hn", "verge", "arxiv:artificial intelligence", "techcrunch"], "vibe": "snarky", "topics": ["ai"]}
-            - "latest AI research" -> {"sources": ["arxiv:large language models", "gnews:AI research", "hn", "ars"], "vibe": "neutral", "topics": ["ai"]}
-            - "new pharmaceutical news" -> {"sources": ["gnews:pharmaceutical drug", "bbc:health", "guardian", "arxiv:drug discovery", "sciencedaily"], "vibe": "neutral", "topics": ["pharma"]}
-            - "latest health news" -> {"sources": ["gnews_topic:HEALTH", "bbc:health", "npr", "sciencedaily"], "vibe": "neutral", "topics": ["health"]}
-            - "climate change policy updates" -> {"sources": ["gnews:climate change policy", "guardian", "bbc:environment", "carbonbrief", "npr"], "vibe": "neutral", "topics": ["climate"]}
-            - "business and finance updates" -> {"sources": ["gnews_topic:BUSINESS", "bbc:business", "reuters", "cnn"], "vibe": "neutral", "topics": ["business"]}
-            - "what are c# devs talking about" -> {"sources": ["reddit:csharp", "so:csharp", "hn", "devto"], "vibe": "neutral"}
-            - "latest space news" -> {"sources": ["spaceflight", "gnews:space launch", "bbc:science", "ars", "arxiv:astrophysics"], "vibe": "neutral", "topics": ["space"]}
-            """;
-
-        var userPrompt = $"Parse this request: \"{prompt}\"";
+                DETECTED ENTITIES: {entityInfo}
+                Include entity names in search_queries with quotes for exact matching.
+                """;
+        }
+        else
+        {
+            userPrompt = $"Classify this request: \"{prompt}\"";
+        }
 
         try
         {
-            var response = await _ollama.GenerateAsync(userPrompt, systemPrompt, 0.1, ct);
+            // Use JSON mode to force valid JSON output from Ollama
+            var response = await _ollama.GenerateJsonAsync(userPrompt, systemPrompt, 0.1, ct);
 
-            // Extract JSON from response
-            var jsonStart = response.IndexOf('{');
-            var jsonEnd = response.LastIndexOf('}');
-            if (jsonStart >= 0 && jsonEnd > jsonStart)
+            // With JSON mode, the response should be valid JSON directly
+            if (string.IsNullOrWhiteSpace(response))
             {
-                var json = response[jsonStart..(jsonEnd + 1)];
+                Spectre.Console.AnsiConsole.MarkupLine("[yellow]Sentinel returned empty response[/]");
+                throw new InvalidOperationException("Empty sentinel response");
+            }
+            var json = response.Trim();
+            if (!json.StartsWith('{'))
+            {
+                // Fallback: extract JSON from response text
+                var jsonStart = response.IndexOf('{');
+                var jsonEnd = response.LastIndexOf('}');
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                    json = response[jsonStart..(jsonEnd + 1)];
+            }
+
+            if (json.StartsWith('{'))
+            {
+                // Try structured SentinelIntent first
+                SentinelIntent? intent = null;
+                try
+                {
+                    intent = JsonSerializer.Deserialize(json, OllamaJsonContext.Default.SentinelIntent);
+                }
+                catch (JsonException ex)
+                {
+                    Spectre.Console.AnsiConsole.MarkupLine(
+                        $"[red]Sentinel JSON parse error: {Spectre.Console.Markup.Escape(ex.Message)}[/]");
+                    Spectre.Console.AnsiConsole.MarkupLine(
+                        $"[grey]Sentinel raw: {Spectre.Console.Markup.Escape(json[..Math.Min(json.Length, 400)])}[/]");
+                }
+
+                if (intent != null && (intent.Categories?.Count ?? 0) > 0)
+                {
+                    var router = GetRouter();
+                    var result = SentinelSourceMapper.ToInterpretedPrompt(intent, router, prompt, nerContext);
+                    return result;
+                }
+
+                // Log why SentinelIntent failed
+                if (intent != null)
+                    Spectre.Console.AnsiConsole.MarkupLine(
+                        $"[yellow]Sentinel: parsed but empty categories. intent={Spectre.Console.Markup.Escape(intent.Intent ?? "null")}, queries={Spectre.Console.Markup.Escape(string.Join(", ", intent.SearchQueries ?? []))}[/]");
+                else
+                    Spectre.Console.AnsiConsole.MarkupLine(
+                        $"[yellow]Sentinel: deserialized null. Raw: {Spectre.Console.Markup.Escape(json[..Math.Min(json.Length, 300)])}[/]");
+
+                // Fallback: try legacy ParsedPrompt format (backward compatibility)
                 var parsed = JsonSerializer.Deserialize(json, PromptJsonContext.Default.ParsedPrompt);
                 if (parsed != null)
                 {
@@ -129,21 +136,52 @@ public class PromptInterpreter
                         RawPrompt = prompt
                     };
 
-                    // Enrich LLM result with YAML routing — the LLM often returns
-                    // sparse sources (e.g., only gnews). YAML routing ensures full
-                    // source spread for the detected topic.
                     EnrichWithYamlRouting(result, prompt);
-
+                    if (nerContext != null)
+                        EnrichWithNerContext(result, nerContext);
                     return result;
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Fall back to keyword interpretation
+            var trace = ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim() ?? "";
+            Spectre.Console.AnsiConsole.MarkupLine(
+                $"[red]Sentinel failed: {Spectre.Console.Markup.Escape(ex.GetType().Name)}: {Spectre.Console.Markup.Escape(ex.Message)}[/]");
+            if (!string.IsNullOrEmpty(trace))
+                Spectre.Console.AnsiConsole.MarkupLine($"[grey]  at {Spectre.Console.Markup.Escape(trace)}[/]");
         }
 
-        return FallbackInterpret(prompt);
+        var fallbackResult = FallbackInterpret(prompt);
+        if (nerContext != null)
+            EnrichWithNerContext(fallbackResult, nerContext);
+        return fallbackResult;
+    }
+
+    /// <summary>
+    /// Build the structured sentinel system prompt.
+    /// Kept concise for small local models — Ollama JSON mode ensures valid output.
+    /// </summary>
+    private static string BuildStructuredSentinelPrompt(QueryNerContext? nerContext)
+    {
+        var today = DateTime.Now.ToString("MMMM d, yyyy");
+        return $"""
+            You are a search query optimizer. Given a user's request, output JSON with two main goals:
+            1. Craft the best possible search engine queries (for Google News and DuckDuckGo)
+            2. Categorize the topic with weights so we know what kind of news sources to check
+
+            JSON fields:
+            - "intent": "news" | "roundup" | "research" | "howto" | "qa"
+            - "categories": topic weights 0.0-1.0. ONLY use these exact categories: technology, ai, security, programming, science, health, pharma, business, finance, politics, world, entertainment, humor, sports, environment, climate, space, disaster, factcheck. Do NOT invent categories. Do NOT use "news" as a category.
+            - "tone": "neutral" | "doom" | "hopeful" | "snarky" | "funny" | "upbeat" | "friendly"
+            - "time_sensitivity": "breaking" | "today" | "week" | "any"
+            - "search_queries": 2-3 optimized search engine queries. Fix spelling. Expand abbreviations (SNL → Saturday Night Live). Quote entity names. Add time/date context when relevant. Today is {today}. Do NOT include search engine names in the query text.
+            - "entities": named entities found in the query
+            - "explicit_sources": only if user named a specific source (hn, bbc, reddit, etc.)
+            - "limit": number (default 20)
+
+            Only assign categories that match the actual topic. Do NOT default to technology.
+            """;
     }
 
     /// <summary>
@@ -413,10 +451,66 @@ public class PromptInterpreter
     }
 
     /// <summary>
+    /// Enrich an interpreted prompt with NER-extracted entity queries.
+    /// Only adds precise entity search queries (gnews + search) — does NOT add
+    /// news outlet preferences (bbc:business, reuters, etc.) because NER entity type
+    /// (ORG/PER/LOC) doesn't determine topic category (e.g., "SNL" is ORG but entertainment).
+    /// Topic-based source routing is handled by the sentinel LLM and YAML routing.
+    /// </summary>
+    private static void EnrichWithNerContext(InterpretedPrompt result, QueryNerContext nerContext)
+    {
+        if (!nerContext.HasEntities) return;
+
+        foreach (var eq in nerContext.EntityQueries)
+        {
+            // Add entity-specific quoted queries as search queries
+            if (!result.SearchQueries.Any(q =>
+                q.Contains(eq.EntityText, StringComparison.OrdinalIgnoreCase)))
+            {
+                result.SearchQueries.Add(eq.Query);
+            }
+
+            // Add entity-specific gnews queries
+            var gnewsQuery = $"gnews:{eq.EntityText}";
+            if (!result.Sources.Any(s =>
+                s.Equals(gnewsQuery, StringComparison.OrdinalIgnoreCase) ||
+                (s.StartsWith("gnews:", StringComparison.OrdinalIgnoreCase) &&
+                 s.Contains(eq.EntityText, StringComparison.OrdinalIgnoreCase))))
+            {
+                // Insert after existing gnews sources (don't displace them)
+                var lastGnews = result.Sources.FindLastIndex(s =>
+                    s.StartsWith("gnews", StringComparison.OrdinalIgnoreCase));
+                result.Sources.Insert(lastGnews + 1, gnewsQuery);
+            }
+        }
+
+        // Store NER context on the prompt for downstream use
+        result.NerContext = nerContext;
+    }
+
+    /// <summary>
+    /// Tech-only sources that should be removed when query isn't about tech.
+    /// The legacy sentinel LLM often defaults to tech sources (hn, reddit)
+    /// even for entertainment, health, sports queries.
+    /// </summary>
+    private static readonly HashSet<string> TechOnlySources = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "hn", "lobsters", "devto", "techcrunch", "wired", "theregister", "ars", "verge"
+    };
+
+    /// <summary>
+    /// Topics that warrant tech-specific sources.
+    /// </summary>
+    private static readonly HashSet<string> TechTopics = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "technology", "programming", "ai", "security"
+    };
+
+    /// <summary>
     /// Enrich an interpreted prompt with YAML-driven routing.
-    /// The LLM often returns sparse sources (e.g., only gnews for an AI query).
-    /// YAML routing ensures the full source spread for the detected topic
-    /// (e.g., AI → hn, bbc:technology, verge, techcrunch, reddit).
+    /// The LLM often returns sparse or mismatched sources (e.g., tech sources for entertainment).
+    /// YAML routing ensures the correct source spread for the detected topic AND removes
+    /// tech-only sources when the topic is non-tech.
     /// </summary>
     private void EnrichWithYamlRouting(InterpretedPrompt result, string prompt)
     {
@@ -426,7 +520,14 @@ public class PromptInterpreter
 
         var routing = router.RouteByTopic(detectedTopic, prompt);
 
-        // Add YAML-routed sources that the LLM didn't include
+        // If detected topic is NOT tech, remove tech-only sources the LLM mistakenly added.
+        // This prevents the legacy sentinel from defaulting to hn/reddit for entertainment queries.
+        if (!TechTopics.Contains(detectedTopic))
+        {
+            result.Sources.RemoveAll(s => TechOnlySources.Contains(s.Split(':')[0]));
+        }
+
+        // Add YAML-routed sources that aren't already present
         foreach (var src in routing.Sources)
         {
             var mapped = MapYamlSourceToCliSource(src, routing, prompt);
@@ -498,6 +599,18 @@ public record InterpretedPrompt
     /// Specific image query extracted from prompt
     /// </summary>
     public string? ImageQuery { get; set; }
+
+    /// <summary>
+    /// NER-extracted entity context from query preprocessing.
+    /// Available when NER model is installed and query contains named entities.
+    /// </summary>
+    public QueryNerContext? NerContext { get; set; }
+
+    /// <summary>
+    /// Structured sentinel intent (when using structured JSON sentinel).
+    /// Contains category weights, intent type, tone, time sensitivity.
+    /// </summary>
+    public SentinelIntent? SentinelIntent { get; set; }
 }
 
 public record ParsedPrompt

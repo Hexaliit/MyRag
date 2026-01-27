@@ -1,4 +1,4 @@
-namespace Mostlylucid.DocSummarizer.Services.Preprocessing;
+namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
 /// Configuration for the OCR preprocessing pipeline.
