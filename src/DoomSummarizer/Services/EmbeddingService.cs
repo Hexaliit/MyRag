@@ -75,10 +75,26 @@ public class EmbeddingService : IDisposable
         progress?.Report("ONNX model setup complete");
     }
 
+    /// <summary>
+    /// Ensure models are downloaded and initialize. Auto-downloads if needed.
+    /// </summary>
+    public async Task EnsureReadyAsync(Action<string>? onStatus = null)
+    {
+        if (_initialized) return;
+
+        if (!IsSetup)
+        {
+            onStatus?.Invoke("Downloading embedding model (first run)...");
+            await SetupAsync(new Progress<string>(msg => onStatus?.Invoke(msg)));
+        }
+
+        Initialize();
+    }
+
     public void Initialize()
     {
         if (_initialized) return;
-        if (!IsSetup) throw new InvalidOperationException("Run 'doomsummarizer setup' first to download models");
+        if (!IsSetup) throw new InvalidOperationException("Embedding models not found — run 'doomsummarizer setup' or allow auto-download");
 
         var modelPath = Path.Combine(_modelDir, "model.onnx");
         var vocabPath = Path.Combine(_modelDir, "vocab.txt");

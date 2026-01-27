@@ -108,6 +108,10 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             table.AddRow("slack", "Slack-formatted message");
             table.AddRow("json", "Raw JSON for API/automation");
             table.AddRow("image", "Single item with featured image");
+            table.AddRow("[bold]blog-article[/]", "[cyan]Multi-section long-form article (auto-detects timeline)[/]");
+            table.AddRow("[bold]blog-timeline[/]", "[cyan]Chronological article with timeline structure[/]");
+            table.AddRow("[bold]blog-newsletter[/]", "[cyan]Curated newsletter with editorial picks[/]");
+            table.AddRow("[bold]blog-newsletter-html[/]", "[cyan]Newsletter as styled HTML email[/]");
 
             AnsiConsole.Write(table);
             AnsiConsole.MarkupLine("\n[grey]Custom templates: place .liquid files in ~/.doomsummarizer/templates/[/]");
@@ -137,14 +141,12 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         using var embedding = new EmbeddingService();
         var ollama = new OllamaService(config.Ollama);
 
-        // Check prerequisites - embeddings always required for ranking (BM25 + embedding similarity)
-        if (!embedding.IsSetup)
+        // Auto-setup: download ONNX models if not present (first run)
+        await embedding.EnsureReadyAsync(msg =>
         {
-            AnsiConsole.MarkupLine("[red]ONNX models not found. Run 'doomsummarizer setup' first.[/]");
-            return 1;
-        }
-
-        embedding.Initialize();
+            if (!settings.Quiet)
+                AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(msg)}[/]");
+        });
 
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         httpClient.DefaultRequestHeaders.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
@@ -196,6 +198,29 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             AnsiConsole.MarkupLine("[yellow]Warning: Ollama not available. Summaries will be limited.[/]");
         }
 
+        // Query feedback: check for similar recent query to reuse cached segments
+        var queryText = interpreted?.RawPrompt ?? settings.Prompt ?? "";
+        float[]? earlyQueryEmbedding = null;
+        QueryMatch? cachedQuery = null;
+        var useCachedSegments = false;
+
+        if (!settings.Force && !settings.LocalOnly && !string.IsNullOrWhiteSpace(queryText))
+        {
+            earlyQueryEmbedding = embedding.Embed(queryText);
+            cachedQuery = await storage.FindSimilarQueryAsync(earlyQueryEmbedding, threshold: 0.85);
+            if (cachedQuery != null)
+            {
+                useCachedSegments = true;
+                if (!settings.Quiet)
+                {
+                    var ageMin = (int)(DateTimeOffset.UtcNow - cachedQuery.IssuedAt).TotalMinutes;
+                    AnsiConsole.MarkupLine($"[grey]Reusing {cachedQuery.ItemIds.Count} segments from similar query ({cachedQuery.Similarity:F2} match, {ageMin}m ago): \"{Markup.Escape(cachedQuery.QueryText)}\"[/]");
+                    if (cachedQuery.Vibe != vibe)
+                        AnsiConsole.MarkupLine($"[grey]Different vibe ({cachedQuery.Vibe} → {vibe}): will regenerate synthesis[/]");
+                }
+            }
+        }
+
         var items = new List<ContentItem>();
         var uniqueItems = new List<ContentItem>();
 
@@ -216,27 +241,19 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 if (settings.LocalOnly)
                 {
                     var localQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
-                    var storedLocal = await storage.GetRecentItemsAsync(days: 30);
+
+                    // Check for source filter (e.g. --source crawl:mysite for KB queries)
+                    var sourceFilter = settings.Sources?.FirstOrDefault(s =>
+                        s.StartsWith("crawl:", StringComparison.OrdinalIgnoreCase));
+                    var storedLocal = sourceFilter != null
+                        ? await storage.GetRecentItemsAsync(days: 365, source: sourceFilter)
+                        : await storage.GetRecentItemsAsync(days: 30);
                     fetchTask.Value = 40;
 
                     // Convert stored items to ContentItems
                     var localItems = storedLocal
                         .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
-                        .Select(s => new ContentItem
-                        {
-                            Id = s.Id,
-                            Source = s.Source,
-                            Title = s.Title,
-                            Url = s.Url,
-                            Content = s.Summary ?? s.Title,
-                            Summary = s.Summary,
-                            DetectedTopic = s.DetectedTopic,
-                            SentimentScore = s.SentimentScore,
-                            Score = s.Score,
-                            CreatedAt = s.CreatedAt,
-                            FetchedAt = s.FetchedAt,
-                            Embedding = s.Embedding != null ? EmbeddingService.FromBytes(s.Embedding) : null
-                        })
+                        .Select(s => s.ToContentItem())
                         .ToList();
 
                     // If we have a query and embeddings, do semantic search to filter
@@ -276,7 +293,21 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         AnsiConsole.MarkupLine($"[grey]Local mode: {storedLocal.Count} stored items, {items.Count} matched query[/]");
                 }
 
-                if (!settings.LocalOnly)
+                // Segment reuse: load cached items from a similar recent query
+                if (!settings.LocalOnly && useCachedSegments && cachedQuery != null)
+                {
+                    var cachedStored = await storage.GetItemsByIdsAsync(cachedQuery.ItemIds);
+                    var cachedItems = cachedStored
+                        .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
+                        .Select(s => s.ToContentItem())
+                        .ToList();
+
+                    items.AddRange(cachedItems);
+                    fetchTask.Value = 100;
+                    fetchTask.Description = $"[green]Reused {items.Count} cached segments (skipped fetching)[/]";
+                }
+
+                if (!settings.LocalOnly && !useCachedSegments)
                 {
                 // Normal fetch mode
                 var fetchTasks = new List<Task<List<ContentItem>>>();
@@ -588,21 +619,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 var storedItems = settings.Force ? [] : await storage.GetRecentItemsAsync(days: 1);
                 var storedContentItems = storedItems
                     .Where(s => !string.IsNullOrEmpty(s.Summary)) // Only include analyzed items
-                    .Select(s => new ContentItem
-                    {
-                        Id = s.Id,
-                        Source = s.Source,
-                        Title = s.Title,
-                        Url = s.Url,
-                        Content = s.Summary, // Use stored summary as content
-                        Summary = s.Summary,
-                        DetectedTopic = s.DetectedTopic,
-                        SentimentScore = s.SentimentScore,
-                        Score = 0, // Lower priority than fresh items
-                        CreatedAt = s.CreatedAt,
-                        FetchedAt = s.FetchedAt,
-                        Embedding = s.Embedding != null ? EmbeddingService.FromBytes(s.Embedding) : null
-                    })
+                    .Select(s => s.ToContentItem() with { Score = 0 }) // Lower priority than fresh items
                     .ToList();
 
                 // Combine fresh items first (higher priority), then stored items
@@ -637,6 +654,16 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 dedupeTask.Description = $"[green]Found {uniqueItems.Count} unique items[/]";
+
+                // Stage 2.1: Source domain filtering (allow/block lists)
+                if (config.SourceFilter.AllowedDomains.Count > 0 || config.SourceFilter.BlockedDomains.Count > 0)
+                {
+                    var preFilterCount = uniqueItems.Count;
+                    uniqueItems = ApplySourceDomainFilter(uniqueItems, config.SourceFilter);
+
+                    if (!settings.Quiet && uniqueItems.Count < preFilterCount)
+                        AnsiConsole.MarkupLine($"[grey]Source filter: {preFilterCount} → {uniqueItems.Count} items[/]");
+                }
 
                 // Stage 2.5: Embedding computation + two-phase relevance scoring with RRF
                 var scorer = new RelevanceScorer();
@@ -782,7 +809,53 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     }
                 }
 
-                // Stage 2.5b: One-hop link following for richer context
+                // Stage 2.5a: Apply source reliability weights (RRF score multipliers)
+                if (config.SourceFilter.Weights.Count > 0)
+                {
+                    var weightedCount = ApplySourceWeights(uniqueItems, config.SourceFilter);
+                    if (!settings.Quiet && weightedCount > 0)
+                        AnsiConsole.MarkupLine($"[grey]Source weights: {weightedCount} items adjusted[/]");
+
+                    // Re-sort after weight adjustment
+                    var weighted = uniqueItems.OrderByDescending(i => i.RelevanceScore).ToList();
+                    uniqueItems.Clear();
+                    uniqueItems.AddRange(weighted);
+                }
+
+                // Stage 2.5b: LFU diversity decay — penalize items returned too often
+                if (uniqueItems.Count > 0)
+                {
+                    var itemIds = uniqueItems.Select(i => i.Id).ToList();
+                    var usageStats = await storage.GetItemUsageAsync(itemIds);
+                    if (usageStats.Count > 0)
+                    {
+                        var lfuAdjusted = 0;
+                        foreach (var item in uniqueItems)
+                        {
+                            if (usageStats.TryGetValue(item.Id, out var usage) && usage.accessCount > 1)
+                            {
+                                // Mild decay: 1/(1 + 0.1 * log2(accessCount))
+                                // 2 accesses → 0.91x, 4 → 0.83x, 8 → 0.77x, 16 → 0.71x
+                                var decay = 1.0 / (1.0 + 0.1 * Math.Log2(usage.accessCount));
+                                item.RelevanceScore *= decay;
+                                lfuAdjusted++;
+                            }
+                        }
+
+                        if (lfuAdjusted > 0)
+                        {
+                            // Re-sort after LFU decay
+                            var lfuSorted = uniqueItems.OrderByDescending(i => i.RelevanceScore).ToList();
+                            uniqueItems.Clear();
+                            uniqueItems.AddRange(lfuSorted);
+
+                            if (!settings.Quiet)
+                                AnsiConsole.MarkupLine($"[grey]LFU diversity: {lfuAdjusted} frequently-seen items decayed[/]");
+                        }
+                    }
+                }
+
+                // Stage 2.5c: One-hop link following for richer context
                 var linkCacheHits = 0;
                 var linksSkippedByRelevance = 0;
                 if (config.LinkFollowing.Enabled && !settings.NoLinks)
@@ -870,63 +943,89 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 if (ollamaAvailable)
                 {
                     var itemsToAnalyze = uniqueItems.Take(settings.Limit).ToList();
-                    var analyzeTask = ctx.AddTask("[cyan]Analyzing content[/]", maxValue: itemsToAnalyze.Count);
 
-                    // Phase 1: Pre-process all articles (CPU-bound, fast)
-                    using var articleProcessor = new ArticleProcessor();
-                    var preProcessed = new List<(ContentItem item, ProcessedArticle processed)>();
-                    foreach (var item in itemsToAnalyze)
+                    // Skip LLM analysis for items that already have summaries (cached/stored items)
+                    var alreadyAnalyzed = itemsToAnalyze
+                        .Where(i => !string.IsNullOrEmpty(i.Summary) && i.Summary != i.Title)
+                        .ToList();
+                    var needsAnalysis = itemsToAnalyze
+                        .Where(i => string.IsNullOrEmpty(i.Summary) || i.Summary == i.Title)
+                        .ToList();
+
+                    if (alreadyAnalyzed.Count > 0 && !settings.Quiet)
+                        AnsiConsole.MarkupLine($"[grey]Skipping analysis for {alreadyAnalyzed.Count} pre-analyzed items[/]");
+
+                    // Add pre-analyzed items directly
+                    foreach (var item in alreadyAnalyzed)
                     {
-                        try
-                        {
-                            var processed = await articleProcessor.ProcessAsync(item);
-                            preProcessed.Add((item, processed));
-                        }
-                        catch
-                        {
-                            // Pre-processing failed — will use fallback
-                        }
+                        analyzedItems.Add((item.Title, item.Summary!, item.DetectedTopic ?? "general",
+                            item.SentimentScore, item.Url ?? "", item.RelevanceScore));
                     }
 
-                    // Phase 2: Parallel sentinel analysis (bounded concurrency)
-                    var lockObj = new object();
-                    using var sentinelSemaphore = new SemaphoreSlim(3);
-                    var sentinelTasks = preProcessed.Select(async pp =>
+                    var analyzeTask = ctx.AddTask("[cyan]Analyzing content[/]", maxValue: Math.Max(1, needsAnalysis.Count));
+                    if (needsAnalysis.Count == 0)
                     {
-                        await sentinelSemaphore.WaitAsync();
-                        try
+                        analyzeTask.Value = 1;
+                        analyzeTask.Description = $"[green]Analyzed {analyzedItems.Count} items ({alreadyAnalyzed.Count} cached)[/]";
+                    }
+                    else
+                    {
+                        // Phase 1: Pre-process articles that need analysis (CPU-bound, fast)
+                        using var articleProcessor = new ArticleProcessor();
+                        var preProcessed = new List<(ContentItem item, ProcessedArticle processed)>();
+                        foreach (var item in needsAnalysis)
                         {
-                            var analysis = await ollama.AnalyzeProcessedArticleAsync(
-                                pp.processed, vibePrompt, includeReferences: false);
-
-                            pp.item.Summary = analysis.Summary;
-                            pp.item.DetectedTopic = analysis.Topic;
-                            pp.item.SentimentScore = analysis.Sentiment;
-
-                            lock (lockObj)
+                            try
                             {
-                                analyzedItems.Add((pp.item.Title, analysis.Summary, analysis.Topic,
-                                    analysis.Sentiment, pp.item.Url ?? "", pp.item.RelevanceScore));
-                                processedArticles.Add((pp.processed, analysis));
+                                var processed = await articleProcessor.ProcessAsync(item);
+                                preProcessed.Add((item, processed));
+                            }
+                            catch
+                            {
+                                // Pre-processing failed — will use fallback
                             }
                         }
-                        catch
+
+                        // Phase 2: Parallel sentinel analysis (bounded concurrency)
+                        var lockObj = new object();
+                        using var sentinelSemaphore = new SemaphoreSlim(3);
+                        var sentinelTasks = preProcessed.Select(async pp =>
                         {
-                            pp.item.Summary = pp.item.Title;
-                            pp.item.DetectedTopic = "general";
-                            lock (lockObj)
+                            await sentinelSemaphore.WaitAsync();
+                            try
                             {
-                                analyzedItems.Add((pp.item.Title, pp.item.Title, "general", 0,
-                                    pp.item.Url ?? "", pp.item.RelevanceScore));
+                                var analysis = await ollama.AnalyzeProcessedArticleAsync(
+                                    pp.processed, vibePrompt, includeReferences: false);
+
+                                pp.item.Summary = analysis.Summary;
+                                pp.item.DetectedTopic = analysis.Topic;
+                                pp.item.SentimentScore = analysis.Sentiment;
+
+                                lock (lockObj)
+                                {
+                                    analyzedItems.Add((pp.item.Title, analysis.Summary, analysis.Topic,
+                                        analysis.Sentiment, pp.item.Url ?? "", pp.item.RelevanceScore));
+                                    processedArticles.Add((pp.processed, analysis));
+                                }
                             }
-                        }
-                        finally
-                        {
-                            sentinelSemaphore.Release();
-                            analyzeTask.Increment(1);
-                        }
-                    });
-                    await Task.WhenAll(sentinelTasks);
+                            catch
+                            {
+                                pp.item.Summary = pp.item.Title;
+                                pp.item.DetectedTopic = "general";
+                                lock (lockObj)
+                                {
+                                    analyzedItems.Add((pp.item.Title, pp.item.Title, "general", 0,
+                                        pp.item.Url ?? "", pp.item.RelevanceScore));
+                                }
+                            }
+                            finally
+                            {
+                                sentinelSemaphore.Release();
+                                analyzeTask.Increment(1);
+                            }
+                        });
+                        await Task.WhenAll(sentinelTasks);
+                    }
 
                     // Save all to storage (sequential — DB writes)
                     foreach (var item in itemsToAnalyze)
@@ -1141,16 +1240,165 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                 // Stage 4: Generate summary
                 var summaryTask = ctx.AddTask("[cyan]Generating summary[/]", maxValue: 100);
+                var template = settings.Template.ToLowerInvariant();
+                var isBlogTemplate = template is "blog-article" or "blog-timeline"
+                    or "blog-newsletter" or "blog-newsletter-html";
 
                 string finalSummary;
+                DigestData? templateData = null;
+
                 if (ollamaAvailable && analyzedItems.Count > 0)
                 {
-                    summaryTask.Value = 50;
-                    // Pass raw prompt + content items so LLM can extract actual facts
+                    summaryTask.Value = 10;
                     var userQuery = interpreted?.RawPrompt ?? settings.Prompt;
-                    finalSummary = await ollama.SynthesizeSummaryAsync(
-                        analyzedItems, vibe, vibePrompt, userQuery, uniqueItems,
-                        embedder: embedding.Embed);
+
+                    // Detect query type for source quality weighting and template auto-selection
+                    var detectedQueryType = QueryTypeDetector.Detect(userQuery);
+
+                    // Apply source quality multipliers based on query type
+                    if (detectedQueryType is QueryType.Timeline or QueryType.Explainer
+                            or QueryType.Roundup)
+                    {
+                        var qualityAdjusted = 0;
+                        foreach (var item in uniqueItems)
+                        {
+                            var multiplier = QueryTypeDetector.GetSourceQualityMultiplier(
+                                detectedQueryType, item.Url);
+                            if (Math.Abs(multiplier - 1.0) > 0.01)
+                            {
+                                item.RelevanceScore *= multiplier;
+                                qualityAdjusted++;
+                            }
+                        }
+                        if (qualityAdjusted > 0)
+                        {
+                            var sorted = uniqueItems.OrderByDescending(i => i.RelevanceScore).ToList();
+                            uniqueItems.Clear();
+                            uniqueItems.AddRange(sorted);
+                            // Also re-sort analyzedItems to match
+                            analyzedItems = analyzedItems
+                                .OrderByDescending(a => a.relevance)
+                                .ToList();
+
+                            if (!settings.Quiet)
+                                AnsiConsole.MarkupLine(
+                                    $"[grey]Source quality ({detectedQueryType}): {qualityAdjusted} items adjusted[/]");
+                        }
+                    }
+
+                    summaryTask.Value = 20;
+
+                    // Route to appropriate synthesis based on template
+                    if (template is "blog-article" or "blog-timeline")
+                    {
+                        // Force timeline for blog-timeline, otherwise auto-detect
+                        var articleQueryType = template == "blog-timeline"
+                            ? QueryType.Timeline
+                            : detectedQueryType;
+
+                        var blogResult = await ollama.SynthesizeBlogArticleAsync(
+                            analyzedItems, vibe, vibePrompt,
+                            userQuery ?? "topic overview",
+                            articleQueryType,
+                            uniqueItems, embedding.Embed, cancellationToken);
+
+                        // Build template data
+                        templateData = new DigestData
+                        {
+                            Date = DateTimeOffset.Now,
+                            Vibe = vibe,
+                            Query = userQuery,
+                            ArticleTitle = blogResult.Title,
+                            Introduction = blogResult.Introduction,
+                            Sections = blogResult.Sections
+                                .Select(s => new DigestSection(s.Heading, s.Content, s.SourceUrls))
+                                .ToList(),
+                            Conclusion = blogResult.Conclusion,
+                            SourceUrls = blogResult.SourceUrls,
+                            Items = analyzedItems.Select(a => new DigestItem
+                            {
+                                Title = a.title,
+                                Url = a.url,
+                                Summary = a.summary,
+                                Topic = a.topic,
+                                Sentiment = a.sentiment
+                            }).ToList()
+                        };
+
+                        finalSummary = outputTemplates.Render(templateData,
+                            template == "blog-timeline" ? "blog-timeline" : "blog-article");
+                    }
+                    else if (template is "blog-newsletter" or "blog-newsletter-html")
+                    {
+                        var newsletterResult = await ollama.SynthesizeNewsletterAsync(
+                            analyzedItems, vibe, vibePrompt,
+                            userQuery,
+                            uniqueItems, embedding.Embed, cancellationToken);
+
+                        templateData = new DigestData
+                        {
+                            Date = DateTimeOffset.Now,
+                            Vibe = vibe,
+                            Query = userQuery,
+                            Introduction = newsletterResult.Introduction,
+                            TopPicks = newsletterResult.TopPicks
+                                .Select(p => new DigestPick(p.Title, p.Url, p.Commentary, p.Source))
+                                .ToList(),
+                            QuickHits = newsletterResult.QuickHits
+                                .Select(q => new DigestQuickHit(q.Title, q.Url, q.OneLiner))
+                                .ToList(),
+                            SignOff = newsletterResult.SignOff,
+                            Items = analyzedItems.Select(a => new DigestItem
+                            {
+                                Title = a.title,
+                                Url = a.url,
+                                Summary = a.summary,
+                                Topic = a.topic,
+                                Sentiment = a.sentiment
+                            }).ToList()
+                        };
+
+                        finalSummary = outputTemplates.Render(templateData,
+                            template == "blog-newsletter-html" ? "blog-newsletter-html" : "blog-newsletter");
+                    }
+                    else
+                    {
+                        // Standard synthesis path
+                        summaryTask.Value = 50;
+
+                        // Entity disambiguation: detect ambiguous entities in top items
+                        if (!string.IsNullOrWhiteSpace(userQuery))
+                        {
+                            var topForDisambig = uniqueItems
+                                .OrderByDescending(i => i.RelevanceScore)
+                                .Take(settings.Limit)
+                                .ToList();
+
+                            var disambiguator = new EntityDisambiguationService();
+                            var disambiguation = await disambiguator.DisambiguateFastAsync(
+                                topForDisambig, userQuery, embedding, storage);
+
+                            if (disambiguation.IsAmbiguous && disambiguation.Clusters.Count >= 2)
+                            {
+                                var entityLines = disambiguation.Clusters
+                                    .Select(c => $"- Entity: \"{c.Label}\"")
+                                    .ToList();
+
+                                userQuery = $"""
+                                    IMPORTANT: Evidence contains distinct entities with similar names.
+                                    Summarize EACH entity separately under its own heading:
+                                    {string.Join("\n", entityLines)}
+                                    Do NOT conflate these into one entity.
+
+                                    ORIGINAL QUERY: {userQuery}
+                                    """;
+                            }
+                        }
+
+                        finalSummary = await ollama.SynthesizeSummaryAsync(
+                            analyzedItems, vibe, vibePrompt, userQuery, uniqueItems,
+                            embedder: embedding.Embed);
+                    }
                 }
                 else
                 {
@@ -1158,10 +1406,20 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 summaryTask.Value = 100;
-                summaryTask.Description = "[green]Summary generated[/]";
+                summaryTask.Description = isBlogTemplate
+                    ? $"[green]{template} generated[/]"
+                    : "[green]Summary generated[/]";
 
                 // Save summary
                 await storage.SaveSummaryAsync(vibe, finalSummary, analyzedItems.Count);
+
+                // Log query for segment reuse (LFU tracking + similar query matching)
+                if (!string.IsNullOrWhiteSpace(queryText))
+                {
+                    var returnedIds = uniqueItems.Take(settings.Limit).Select(i => i.Id).ToList();
+                    var logEmbedding = earlyQueryEmbedding ?? (queryText.Length > 0 ? embedding.Embed(queryText) : null);
+                    await storage.LogQueryAsync(queryText, logEmbedding, vibe, returnedIds);
+                }
 
                 // Output
                 if (settings.Json)
@@ -1326,9 +1584,12 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 else
                 {
                     AnsiConsole.WriteLine();
-                    var escapedSummary = Markup.Escape(finalSummary);
-                    AnsiConsole.Write(new Panel(escapedSummary)
-                        .Header($"[bold cyan]Doom Scroll Digest ({vibe})[/]")
+                    var renderedMarkup = MarkdownToSpectre(finalSummary);
+                    var header = isBlogTemplate
+                        ? $"[bold cyan]{Markup.Escape(template)}[/]"
+                        : $"[bold cyan]Doom Scroll Digest ({vibe})[/]";
+                    AnsiConsole.Write(new Panel(renderedMarkup)
+                        .Header(header)
                         .Border(BoxBorder.Rounded)
                         .Padding(1, 1));
 
@@ -1545,6 +1806,118 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         };
     }
 
+    /// <summary>
+    /// Convert markdown to Spectre.Console markup for rich console rendering.
+    /// Handles headings, bold, italic, links, bullets, and horizontal rules.
+    /// </summary>
+    internal static string MarkdownToSpectre(string markdown)
+    {
+        if (string.IsNullOrEmpty(markdown))
+            return "";
+
+        var lines = markdown.Split('\n');
+        var result = new System.Text.StringBuilder();
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd('\r');
+
+            // Horizontal rule
+            if (line.Trim() is "---" or "***" or "___")
+            {
+                result.AppendLine("[dim]────────────────────────────────────────[/]");
+                continue;
+            }
+
+            // Headings
+            if (line.StartsWith("### "))
+            {
+                var text = Markup.Escape(line[4..].Trim());
+                result.AppendLine($"[bold cyan]{text}[/]");
+                continue;
+            }
+            if (line.StartsWith("## "))
+            {
+                var text = Markup.Escape(line[3..].Trim());
+                result.AppendLine($"[bold underline yellow]{text}[/]");
+                continue;
+            }
+            if (line.StartsWith("# "))
+            {
+                var text = Markup.Escape(line[2..].Trim());
+                result.AppendLine($"[bold underline green]{text}[/]");
+                continue;
+            }
+
+            // Bullet points
+            if (line.TrimStart().StartsWith("- ") || line.TrimStart().StartsWith("* "))
+            {
+                var indent = line.Length - line.TrimStart().Length;
+                var bulletText = line.TrimStart()[2..];
+                var indentStr = new string(' ', indent);
+                result.AppendLine($"{indentStr}[cyan]•[/] {FormatInlineMarkdown(bulletText)}");
+                continue;
+            }
+
+            // Regular line — process inline markdown
+            result.AppendLine(FormatInlineMarkdown(line));
+        }
+
+        return result.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Process inline markdown: **bold**, *italic*, [links](url), `code`.
+    /// Uses placeholder tokens so markdown patterns are processed on raw text
+    /// (with their content escaped), then remaining literal text is escaped afterward.
+    /// </summary>
+    private static string FormatInlineMarkdown(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return "";
+
+        var replacements = new List<string>();
+        string Store(string spectreMarkup)
+        {
+            var idx = replacements.Count;
+            replacements.Add(spectreMarkup);
+            return $"\x01{idx}\x02";
+        }
+
+        // Process patterns on raw text (order matters: code > links > bold > italic)
+        // Each captured group's content is Markup.Escaped individually.
+
+        // Inline code: `code` → [grey on grey15]code[/]
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text, @"`([^`]+)`",
+            m => Store($"[grey on grey15]{Markup.Escape(m.Groups[1].Value)}[/]"));
+
+        // Links: [text](url) → [cyan underline]text[/] [dim](url)[/]
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text, @"\[([^\]]+)\]\(([^)]+)\)",
+            m => Store($"[cyan underline]{Markup.Escape(m.Groups[1].Value)}[/] [dim]({Markup.Escape(m.Groups[2].Value)})[/]"));
+
+        // Bold: **text** → [bold]text[/]
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text, @"\*\*(.+?)\*\*",
+            m => Store($"[bold]{Markup.Escape(m.Groups[1].Value)}[/]"));
+
+        // Italic: *text* → [italic]text[/] (single asterisks not consumed by bold)
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text, @"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)",
+            m => Store($"[italic]{Markup.Escape(m.Groups[1].Value)}[/]"));
+
+        // Escape remaining literal text (Markup.Escape only affects [ and ],
+        // so \x01/\x02 placeholder chars pass through untouched)
+        text = Markup.Escape(text);
+
+        // Restore placeholders with their Spectre markup
+        for (var i = 0; i < replacements.Count; i++)
+            text = text.Replace($"\x01{i}\x02", replacements[i]);
+
+        return text;
+    }
+
     private static string GetSourceFromUrl(string url)
     {
         if (string.IsNullOrEmpty(url)) return "?";
@@ -1554,6 +1927,97 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             return host.Split('.')[0];
         }
         catch { return "?"; }
+    }
+
+    /// <summary>
+    /// Filter items by allowed/blocked domain lists.
+    /// AllowedDomains = allowlist (if non-empty, only these pass).
+    /// BlockedDomains = blocklist (removed after allow check).
+    /// </summary>
+    internal static List<ContentItem> ApplySourceDomainFilter(
+        List<ContentItem> items, SourceFilterConfig filter)
+    {
+        var result = new List<ContentItem>(items.Count);
+
+        foreach (var item in items)
+        {
+            var host = GetHostFromUrl(item.Url);
+            if (string.IsNullOrEmpty(host))
+            {
+                result.Add(item); // Keep items without URLs (e.g., local content)
+                continue;
+            }
+
+            // Allowlist: if configured, item must match
+            if (filter.AllowedDomains.Count > 0)
+            {
+                if (!filter.AllowedDomains.Any(d =>
+                    host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+            }
+
+            // Blocklist: remove matching items
+            if (filter.BlockedDomains.Any(d =>
+                host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            result.Add(item);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Apply source reliability weights as RRF score multipliers.
+    /// Matches by source name first, then by URL domain.
+    /// Returns count of items that had weights applied.
+    /// </summary>
+    internal static int ApplySourceWeights(
+        List<ContentItem> items, SourceFilterConfig filter)
+    {
+        var count = 0;
+
+        foreach (var item in items)
+        {
+            var weight = 1.0;
+
+            // Match by source name first (hn, reddit, bbc, gnews, search, etc.)
+            if (filter.Weights.TryGetValue(item.Source, out var sourceWeight))
+            {
+                weight = sourceWeight;
+            }
+            else
+            {
+                // Fall back to domain matching
+                var host = GetHostFromUrl(item.Url);
+                if (!string.IsNullOrEmpty(host))
+                {
+                    foreach (var (pattern, w) in filter.Weights)
+                    {
+                        if (host.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                        {
+                            weight = w;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (Math.Abs(weight - 1.0) > 0.001)
+            {
+                item.RelevanceScore = Math.Min(1.0, item.RelevanceScore * weight);
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static string? GetHostFromUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return null;
+        try { return new Uri(url).Host.ToLowerInvariant(); }
+        catch { return null; }
     }
 
     /// <summary>

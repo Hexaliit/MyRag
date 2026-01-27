@@ -5,6 +5,7 @@ namespace DoomSummarizer.Models;
 public record DoomConfig
 {
     public SourcesConfig Sources { get; init; } = new();
+    public SourceFilterConfig SourceFilter { get; init; } = new();
     public OllamaConfig Ollama { get; init; } = new();
     public EmbeddingConfig Embedding { get; init; } = new();
     public OutputConfig Output { get; init; } = new();
@@ -44,11 +45,38 @@ public record WebsiteConfig
     public bool UsePlaywright { get; init; }
 }
 
+/// <summary>
+/// Global source filtering and reliability weighting.
+/// Controls which domains are allowed/blocked and how sources are weighted in RRF scoring.
+/// </summary>
+public record SourceFilterConfig
+{
+    /// <summary>
+    /// If non-empty, ONLY items from these domains are kept (allowlist mode).
+    /// Useful for intranet/focused crawling. Matches domain suffix (e.g. "bbc.co.uk").
+    /// </summary>
+    public List<string> AllowedDomains { get; init; } = [];
+
+    /// <summary>
+    /// Items from these domains are removed post-fetch.
+    /// Matches domain suffix (e.g. "medium.com" blocks all Medium articles).
+    /// </summary>
+    public List<string> BlockedDomains { get; init; } = [];
+
+    /// <summary>
+    /// Source reliability weights applied as RRF score multipliers.
+    /// Key = source name (hn, reddit, bbc, gnews, search) or domain substring (reuters.com, bbc.co.uk).
+    /// Value = multiplier: 1.0 = neutral, >1 = boost, less than 1 = penalize, 0 = effectively block.
+    /// Unmatched sources default to 1.0.
+    /// </summary>
+    public Dictionary<string, double> Weights { get; init; } = new();
+}
+
 public record OllamaConfig
 {
     public string BaseUrl { get; init; } = "http://localhost:11434";
-    public string Model { get; init; } = "qwen3:8b";
-    public string SentinelModel { get; init; } = "llama3.2:1b";
+    public string Model { get; init; } = "gemma3:4b";
+    public string SentinelModel { get; init; } = "qwen3:0.6b";
     public string EmbedModel { get; init; } = "nomic-embed-text";
     public double Temperature { get; init; } = 0.4;
     public int TimeoutSeconds { get; init; } = 300;
@@ -118,6 +146,7 @@ public record LinkFollowingConfig
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(DoomConfig))]
 [JsonSerializable(typeof(SourcesConfig))]
+[JsonSerializable(typeof(SourceFilterConfig))]
 [JsonSerializable(typeof(HackerNewsConfig))]
 [JsonSerializable(typeof(RedditConfig))]
 [JsonSerializable(typeof(WebsiteConfig))]
@@ -128,4 +157,5 @@ public record LinkFollowingConfig
 [JsonSerializable(typeof(LinkFollowingConfig))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
+[JsonSerializable(typeof(Dictionary<string, double>))]
 public partial class DoomConfigContext : JsonSerializerContext;

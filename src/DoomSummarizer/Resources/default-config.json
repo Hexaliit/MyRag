@@ -21,10 +21,24 @@
     },
     "websites": []
   },
+  "sourceFilter": {
+    "allowedDomains": [],
+    "blockedDomains": [],
+    "weights": {
+      "reuters": 1.4,
+      "bbc": 1.3,
+      "guardian": 1.2,
+      "ars": 1.2,
+      "hn": 1.1,
+      "arxiv": 1.3,
+      "reddit": 0.9,
+      "search": 0.8
+    }
+  },
   "ollama": {
     "baseUrl": "http://localhost:11434",
-    "model": "qwen3:8b",
-    "sentinelModel": "llama3.2:1b",
+    "model": "gemma3:4b",
+    "sentinelModel": "qwen3:0.6b",
     "embedModel": "nomic-embed-text",
     "temperature": 0.4,
     "timeoutSeconds": 300

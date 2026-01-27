@@ -57,6 +57,7 @@ public record StoredItem
     public required string Title { get; init; }
     public string? Url { get; init; }
     public string? Summary { get; init; }
+    public string? Content { get; init; }
     public float SentimentScore { get; init; }
     public string? DetectedTopic { get; init; }
     public string? Tags { get; init; } // JSON array
@@ -64,6 +65,25 @@ public record StoredItem
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset FetchedAt { get; init; }
     public byte[]? Embedding { get; init; }
+
+    /// <summary>
+    /// Convert a stored item back to a ContentItem for ranking/display.
+    /// </summary>
+    public ContentItem ToContentItem() => new()
+    {
+        Id = Id,
+        Source = Source,
+        Title = Title,
+        Url = Url,
+        Content = Content ?? Summary ?? Title,
+        Summary = Summary,
+        DetectedTopic = DetectedTopic,
+        SentimentScore = SentimentScore,
+        Score = Score,
+        CreatedAt = CreatedAt,
+        FetchedAt = FetchedAt,
+        Embedding = Embedding != null ? EmbeddingService.FromBytes(Embedding) : null
+    };
 }
 
 public record TrendAnalysis

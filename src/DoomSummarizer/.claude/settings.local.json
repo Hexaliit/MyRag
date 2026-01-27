@@ -26,7 +26,13 @@
       "WebFetch(domain:gist.github.com)",
       "WebFetch(domain:github.com)",
       "Bash(taskkill:*)",
-      "Bash(del \"E:\\\\source\\\\lucidrag\\\\src\\\\DoomSummarizer\\\\test_output.json\")"
+      "Bash(del \"E:\\\\source\\\\lucidrag\\\\src\\\\DoomSummarizer\\\\test_output.json\")",
+      "Bash(sqlite3:*)",
+      "Bash(test:*)",
+      "Bash(dir:*)",
+      "Bash(cd:*)",
+      "Bash(pushd:*)",
+      "Bash(popd)"
     ]
   }
 }

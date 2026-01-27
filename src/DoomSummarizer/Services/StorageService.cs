@@ -101,6 +101,38 @@ public class StorageService : IAsyncDisposable
             );
             CREATE INDEX IF NOT EXISTS idx_url_cache_fetched ON url_cache(last_fetched);
 
+            -- Query feedback: log queries with embeddings for segment reuse
+            CREATE TABLE IF NOT EXISTS query_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query_text TEXT NOT NULL,
+                query_embedding BLOB,
+                vibe TEXT,
+                item_ids TEXT,
+                item_count INTEGER DEFAULT 0,
+                issued_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_query_log_issued ON query_log(issued_at);
+
+            -- Item usage frequency (LFU decay signal)
+            CREATE TABLE IF NOT EXISTS item_usage (
+                item_id TEXT PRIMARY KEY,
+                access_count INTEGER DEFAULT 0,
+                last_accessed TEXT NOT NULL,
+                avg_rank REAL DEFAULT 0.0
+            );
+            CREATE INDEX IF NOT EXISTS idx_item_usage_accessed ON item_usage(last_accessed);
+
+            -- Feature cache for entity disambiguation
+            CREATE TABLE IF NOT EXISTS feature_cache (
+                term TEXT PRIMARY KEY,
+                category TEXT,
+                embedding BLOB NOT NULL,
+                hit_count INTEGER DEFAULT 1,
+                created_at TEXT NOT NULL,
+                last_used TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_feature_cache_category ON feature_cache(category);
+
             -- Knowledge graph: entity co-occurrence relationships
             CREATE TABLE IF NOT EXISTS entity_relationships (
                 source_entity_id TEXT NOT NULL,
@@ -508,6 +540,212 @@ public class StorageService : IAsyncDisposable
         return (0, 0, 0);
     }
 
+    // --- Query Feedback / LFU Methods ---
+
+    /// <summary>
+    /// Log a query and the item IDs it returned, for segment reuse on similar future queries.
+    /// </summary>
+    public async Task LogQueryAsync(string queryText, float[]? queryEmbedding, string? vibe, List<string> itemIds)
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO query_log (query_text, query_embedding, vibe, item_ids, item_count, issued_at)
+            VALUES (@query, @embedding, @vibe, @itemIds, @count, @now)
+            """;
+        cmd.Parameters.AddWithValue("@query", queryText);
+        cmd.Parameters.AddWithValue("@embedding", queryEmbedding != null ? EmbeddingService.ToBytes(queryEmbedding) : DBNull.Value);
+        cmd.Parameters.AddWithValue("@vibe", (object?)vibe ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@itemIds", JsonSerializer.Serialize(itemIds));
+        cmd.Parameters.AddWithValue("@count", itemIds.Count);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
+        await cmd.ExecuteNonQueryAsync();
+
+        // Update item_usage counters for LFU
+        for (var i = 0; i < itemIds.Count; i++)
+        {
+            await using var usageCmd = _connection.CreateCommand();
+            usageCmd.CommandText = """
+                INSERT INTO item_usage (item_id, access_count, last_accessed, avg_rank)
+                VALUES (@id, 1, @now, @rank)
+                ON CONFLICT(item_id) DO UPDATE SET
+                    access_count = access_count + 1,
+                    last_accessed = @now,
+                    avg_rank = (avg_rank * (access_count - 1) + @rank) / access_count
+                """;
+            usageCmd.Parameters.AddWithValue("@id", itemIds[i]);
+            usageCmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
+            usageCmd.Parameters.AddWithValue("@rank", i + 1);
+            await usageCmd.ExecuteNonQueryAsync();
+        }
+    }
+
+    /// <summary>
+    /// Find a recent query whose embedding is similar to the given one.
+    /// Returns the item IDs from that query if found, null otherwise.
+    /// Only considers queries within the last <paramref name="maxAgeHours"/>.
+    /// </summary>
+    public async Task<QueryMatch?> FindSimilarQueryAsync(float[] queryEmbedding, double threshold = 0.85, int maxAgeHours = 4)
+    {
+        var cutoff = DateTimeOffset.UtcNow.AddHours(-maxAgeHours).ToString("O");
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT id, query_text, query_embedding, vibe, item_ids, issued_at FROM query_log WHERE issued_at >= @cutoff AND query_embedding IS NOT NULL ORDER BY issued_at DESC LIMIT 50";
+        cmd.Parameters.AddWithValue("@cutoff", cutoff);
+
+        QueryMatch? best = null;
+        var bestSim = 0.0f;
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var storedEmbedding = EmbeddingService.FromBytes((byte[])reader["query_embedding"]);
+            var similarity = EmbeddingService.CosineSimilarity(queryEmbedding, storedEmbedding);
+
+            if (similarity >= threshold && similarity > bestSim)
+            {
+                bestSim = similarity;
+                var itemIdsJson = reader.GetString(reader.GetOrdinal("item_ids"));
+                best = new QueryMatch
+                {
+                    QueryId = reader.GetInt64(0),
+                    QueryText = reader.GetString(1),
+                    Vibe = reader.IsDBNull(reader.GetOrdinal("vibe")) ? null : reader.GetString(reader.GetOrdinal("vibe")),
+                    ItemIds = JsonSerializer.Deserialize<List<string>>(itemIdsJson) ?? [],
+                    IssuedAt = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("issued_at"))),
+                    Similarity = similarity
+                };
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Load content items by their IDs (for segment reuse from a cached query).
+    /// </summary>
+    public async Task<List<StoredItem>> GetItemsByIdsAsync(List<string> ids)
+    {
+        if (ids.Count == 0) return [];
+
+        var items = new List<StoredItem>();
+        // SQLite parameter limit workaround: batch queries
+        foreach (var batch in ids.Chunk(50))
+        {
+            await using var cmd = _connection!.CreateCommand();
+            var placeholders = new List<string>();
+            for (var i = 0; i < batch.Length; i++)
+            {
+                placeholders.Add($"@id{i}");
+                cmd.Parameters.AddWithValue($"@id{i}", batch[i]);
+            }
+            cmd.CommandText = $"SELECT * FROM items WHERE id IN ({string.Join(",", placeholders)})";
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                items.Add(ReadStoredItem(reader));
+            }
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    /// Get LFU usage stats for items (access count and recency).
+    /// Returns a dictionary of item_id → (accessCount, lastAccessed).
+    /// </summary>
+    public async Task<Dictionary<string, (int accessCount, DateTimeOffset lastAccessed)>> GetItemUsageAsync(List<string> itemIds)
+    {
+        var result = new Dictionary<string, (int, DateTimeOffset)>();
+        if (itemIds.Count == 0) return result;
+
+        foreach (var batch in itemIds.Chunk(50))
+        {
+            await using var cmd = _connection!.CreateCommand();
+            var placeholders = new List<string>();
+            for (var i = 0; i < batch.Length; i++)
+            {
+                placeholders.Add($"@id{i}");
+                cmd.Parameters.AddWithValue($"@id{i}", batch[i]);
+            }
+            cmd.CommandText = $"SELECT item_id, access_count, last_accessed FROM item_usage WHERE item_id IN ({string.Join(",", placeholders)})";
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                result[reader.GetString(0)] = (
+                    reader.GetInt32(1),
+                    DateTimeOffset.Parse(reader.GetString(2))
+                );
+            }
+        }
+
+        return result;
+    }
+
+    // --- Feature Cache Methods (Entity Disambiguation) ---
+
+    /// <summary>
+    /// Get a cached feature embedding by term. Returns (embeddingBytes, category) or null.
+    /// Bumps hit_count and last_used on cache hit.
+    /// </summary>
+    public async Task<(byte[] embedding, string? category)?> GetCachedFeatureEmbeddingAsync(string term)
+    {
+        byte[]? embeddingBytes = null;
+        string? category = null;
+
+        // Read and fully consume the reader before issuing the UPDATE
+        await using (var cmd = _connection!.CreateCommand())
+        {
+            cmd.CommandText = "SELECT embedding, category FROM feature_cache WHERE term = @term";
+            cmd.Parameters.AddWithValue("@term", term);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                embeddingBytes = (byte[])reader["embedding"];
+                category = reader.IsDBNull(1) ? null : reader.GetString(1);
+            }
+        }
+
+        if (embeddingBytes == null)
+            return null;
+
+        // Bump hit_count and last_used (reader is closed)
+        await using (var updateCmd = _connection!.CreateCommand())
+        {
+            updateCmd.CommandText = """
+                UPDATE feature_cache
+                SET hit_count = hit_count + 1, last_used = @now
+                WHERE term = @term
+                """;
+            updateCmd.Parameters.AddWithValue("@term", term);
+            updateCmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
+            await updateCmd.ExecuteNonQueryAsync();
+        }
+
+        return (embeddingBytes, category);
+    }
+
+    /// <summary>
+    /// Insert or update a feature cache entry.
+    /// </summary>
+    public async Task UpsertFeatureCacheAsync(string term, string? category, byte[] embeddingBytes)
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO feature_cache (term, category, embedding, hit_count, created_at, last_used)
+            VALUES (@term, @category, @embedding, 1, @now, @now)
+            ON CONFLICT(term) DO UPDATE SET
+                hit_count = hit_count + 1,
+                last_used = @now
+            """;
+        cmd.Parameters.AddWithValue("@term", term);
+        cmd.Parameters.AddWithValue("@category", (object?)category ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@embedding", embeddingBytes);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     // --- URL Cache Methods ---
 
     /// <summary>
@@ -606,6 +844,12 @@ public class StorageService : IAsyncDisposable
 
             -- Clean up old URL cache entries
             DELETE FROM url_cache WHERE last_fetched < @cutoff;
+
+            -- Clean up old query logs
+            DELETE FROM query_log WHERE issued_at < @cutoff;
+
+            -- Clean up old feature cache entries
+            DELETE FROM feature_cache WHERE last_used < @cutoff;
             """;
         cmd.Parameters.AddWithValue("@cutoff", cutoff);
         await cmd.ExecuteNonQueryAsync();
@@ -621,6 +865,7 @@ public class StorageService : IAsyncDisposable
             Title = reader.GetString(reader.GetOrdinal("title")),
             Url = reader.IsDBNull(reader.GetOrdinal("url")) ? null : reader.GetString(reader.GetOrdinal("url")),
             Summary = reader.IsDBNull(reader.GetOrdinal("summary")) ? null : reader.GetString(reader.GetOrdinal("summary")),
+            Content = reader.IsDBNull(reader.GetOrdinal("content")) ? null : reader.GetString(reader.GetOrdinal("content")),
             SentimentScore = reader.IsDBNull(reader.GetOrdinal("sentiment_score")) ? 0 : reader.GetFloat(reader.GetOrdinal("sentiment_score")),
             DetectedTopic = reader.IsDBNull(reader.GetOrdinal("detected_topic")) ? null : reader.GetString(reader.GetOrdinal("detected_topic")),
             Tags = reader.IsDBNull(reader.GetOrdinal("tags")) ? null : reader.GetString(reader.GetOrdinal("tags")),
@@ -639,6 +884,19 @@ public class StorageService : IAsyncDisposable
             await _connection.DisposeAsync();
         }
     }
+}
+
+/// <summary>
+/// A past query that matched the current one by embedding similarity.
+/// </summary>
+public record QueryMatch
+{
+    public long QueryId { get; init; }
+    public required string QueryText { get; init; }
+    public string? Vibe { get; init; }
+    public List<string> ItemIds { get; init; } = [];
+    public DateTimeOffset IssuedAt { get; init; }
+    public float Similarity { get; init; }
 }
 
 /// <summary>

@@ -47,20 +47,44 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                 await storage.InitializeAsync();
                 AnsiConsole.MarkupLine($"[green]\u2713[/] Database initialized: {dbPath}");
 
-                // 4. Check Ollama
+                // 4. Check Ollama availability and models
                 ctx.Status("Checking Ollama availability...");
                 var ollama = new OllamaService(config.Ollama);
                 if (await ollama.IsAvailableAsync())
                 {
                     AnsiConsole.MarkupLine($"[green]\u2713[/] Ollama available at {config.Ollama.BaseUrl}");
-                    AnsiConsole.MarkupLine($"   Model: {config.Ollama.Model}");
+
+                    var models = await ollama.GetAvailableModelsAsync();
+                    var requiredModels = new[] { config.Ollama.Model, config.Ollama.SentinelModel };
+                    foreach (var required in requiredModels.Distinct())
+                    {
+                        var found = models.Any(m => m.StartsWith(required.Split(':')[0], StringComparison.OrdinalIgnoreCase));
+                        if (found)
+                        {
+                            AnsiConsole.MarkupLine($"   [green]\u2713[/] Model [bold]{required}[/] available");
+                        }
+                        else
+                        {
+                            AnsiConsole.MarkupLine($"   [yellow]\u26a0[/] Model [bold]{required}[/] not found — pull it:");
+                            AnsiConsole.MarkupLine($"     [grey]ollama pull {required}[/]");
+                        }
+                    }
+
+                    if (models.Count > 0)
+                    {
+                        var otherModels = models.Where(m => !requiredModels.Any(r =>
+                            m.StartsWith(r.Split(':')[0], StringComparison.OrdinalIgnoreCase))).Take(5).ToList();
+                        if (otherModels.Count > 0)
+                            AnsiConsole.MarkupLine($"   [grey]Other available: {string.Join(", ", otherModels)}[/]");
+                    }
                 }
                 else
                 {
                     AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Ollama not running at {config.Ollama.BaseUrl}");
-                    AnsiConsole.MarkupLine("   Summaries will be basic. Start Ollama for full features:");
+                    AnsiConsole.MarkupLine("   Summaries will use ONNX signals only (no LLM). Start Ollama:");
                     AnsiConsole.MarkupLine("   [grey]ollama serve[/]");
                     AnsiConsole.MarkupLine($"   [grey]ollama pull {config.Ollama.Model}[/]");
+                    AnsiConsole.MarkupLine($"   [grey]ollama pull {config.Ollama.SentinelModel}[/]");
                 }
 
                 // 5. Download NER model if requested
@@ -115,12 +139,13 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
         AnsiConsole.MarkupLine("[bold green]Setup complete![/]");
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("Quick start:");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll[/]              - Fetch and summarize (neutral vibe)");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll --vibe doom[/]  - Pessimistic summary");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll --vibe hopeful[/] - Optimistic summary");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll --vibe snarky[/] - Witty commentary");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer trends[/]              - View historical trends");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer config --show[/]       - View configuration");
+        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll[/]                          - Fetch and summarize");
+        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll \"AI news\" --vibe snarky[/]   - Topic + vibe");
+        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll --json --nollm[/]            - Fast JSON for tools");
+        AnsiConsole.MarkupLine("  [cyan]doomsummarizer crawl https://docs.example.com[/]   - Build knowledge base");
+        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll \"query\" --local[/]           - Query stored KB");
+        AnsiConsole.MarkupLine("  [cyan]doomsummarizer trends[/]                           - Historical trends");
+        AnsiConsole.MarkupLine("  [cyan]doomsummarizer config --show[/]                    - View configuration");
 
         return 0;
     }
