@@ -1,14 +1,22 @@
 # DoomSummarizer
 
-A console-first, local-first research assistant + personal knowledge base.
+[![GitHub release](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Release&logo=github)](https://github.com/scottgal/lucidrag/releases)
+[![GitHub Downloads](https://img.shields.io/github/downloads/scottgal/lucidrag/total?label=Downloads&logo=github)](https://github.com/scottgal/lucidrag/releases)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/scottgal/lucidrag/releases)
+
+A distillation of [**LucidRAG**](https://github.com/scottgal/lucidrag) principles — hybrid search, entity extraction, knowledge graph construction, evidence-grounded synthesis — into a console-first, local-first research assistant and personal knowledge base.
 
 - **Scroll** — Fetch + rank news/search results into a digest, article, or newsletter
 - **Ask** — Interactive Q&A over your stored knowledge base
-- **Crawl** — Index any website for semantic search
+- **Crawl** — Index any website for semantic search (incremental with HTTP ETag caching)
 - **Page** — Summarize a single URL
+- **Show** — Browse knowledge base collections
 - **Long-form** — Generate evidence-grounded multi-section articles with validation
 
 Works fully offline after initial model downloads. No API keys required for default sources. Optional cloud LLM and search providers are budget-controlled.
+
+**Download**: Grab pre-built binaries for Windows, Linux, and macOS from [**Releases**](https://github.com/scottgal/lucidrag/releases).
 
 ## Quick Start
 
