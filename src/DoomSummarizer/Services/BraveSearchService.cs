@@ -16,8 +16,6 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
     private const string WebEndpoint = "https://api.search.brave.com/res/v1/web/search";
     private const string NewsEndpoint = "https://api.search.brave.com/res/v1/news/search";
 
-    // Free tier: 1 request/second — serialize all Brave API calls
-    private static readonly SemaphoreSlim RateLimiter = new(1, 1);
 
     public bool IsAvailable => keys.IsAvailable(ServiceName);
 
@@ -55,32 +53,13 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(15));
 
-            // Serialize requests: free tier allows 1 req/sec
-            await RateLimiter.WaitAsync(cts.Token);
-            HttpResponseMessage response;
-            try
+            var response = await ApiRateLimiter.ExecuteAsync(ServiceName, async token =>
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Add("X-Subscription-Token", svcEntry.ApiKey);
-                request.Headers.Add("Accept", "application/json");
-
-                response = await httpClient.SendAsync(request, cts.Token);
-
-                // Retry once on 429 after waiting
-                if ((int)response.StatusCode == 429)
-                {
-                    await Task.Delay(1500, cts.Token);
-                    request = new HttpRequestMessage(HttpMethod.Get, url);
-                    request.Headers.Add("X-Subscription-Token", svcEntry.ApiKey);
-                    request.Headers.Add("Accept", "application/json");
-                    response = await httpClient.SendAsync(request, cts.Token);
-                }
-            }
-            finally
-            {
-                // Enforce minimum 1.1s between requests
-                _ = Task.Delay(1100).ContinueWith(_ => RateLimiter.Release());
-            }
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Add("X-Subscription-Token", svcEntry.ApiKey);
+                req.Headers.Add("Accept", "application/json");
+                return await httpClient.SendAsync(req, token);
+            }, cts.Token);
 
             await budget.RecordUsageAsync(ServiceName);
 

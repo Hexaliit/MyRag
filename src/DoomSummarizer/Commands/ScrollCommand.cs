@@ -156,15 +156,16 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         using var embedding = new EmbeddingService();
         var ollama = new OllamaService(config.Ollama);
 
-        // Initialize API key service and budget tracker for paid APIs
+        // Initialize API key service, resilience pipeline, and budget tracker
         var apiKeys = ApiKeyService.Load(config);
+        ApiRateLimiter.Configure(apiKeys);
         await using var apiBudget = new ApiBudgetService(config.ApiBudget, apiKeys, dbPath);
         await apiBudget.InitializeAsync();
 
         // Wire cloud LLM providers (OpenAI/Anthropic) through the router
         // When available, OllamaService delegates generate calls through the router
         // with budget enforcement and automatic fallback to local Ollama
-        var llmRouter = LlmRouter.Build(config.Ollama, apiKeys, apiBudget);
+        var llmRouter = await LlmRouter.BuildAsync(config.Ollama, apiKeys, apiBudget, cancellationToken);
         ollama.Router = llmRouter;
 
         // Auto-setup: download ONNX models if not present (first run)
@@ -477,21 +478,21 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             await new GooglePlacesService(httpClient, apiKeys, apiBudget)
                                 .SearchAsync(query, perSourceLimit)));
                     }
-                    else if (src.StartsWith("brave:") || src == "brave")
+                    else if (src.StartsWith("brave:") || src.StartsWith("brave_search:") || src is "brave" or "brave_search")
                     {
-                        var query = src == "brave"
+                        var query = src is "brave" or "brave_search"
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[6..];
+                            : source[(source.IndexOf(':') + 1)..];
                         var qualifiedQuery = QualifySearchQuery(query, vibe);
                         fetchTasks.Add(Task.Run(async () =>
                             await new BraveSearchService(httpClient, apiKeys, apiBudget)
                                 .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
                     }
-                    else if (src.StartsWith("bravenews:") || src == "bravenews")
+                    else if (src.StartsWith("bravenews:") || src.StartsWith("brave_news:") || src is "bravenews" or "brave_news")
                     {
-                        var query = src == "bravenews"
+                        var query = src is "bravenews" or "brave_news"
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[10..];
+                            : source[(source.IndexOf(':') + 1)..];
                         fetchTasks.Add(Task.Run(async () =>
                             await new BraveSearchService(httpClient, apiKeys, apiBudget)
                                 .SearchAsync(query, perSourceLimit, newsOnly: true)));
@@ -506,11 +507,11 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             await new SerperSearchService(httpClient, apiKeys, apiBudget)
                                 .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
                     }
-                    else if (src.StartsWith("serpernews:") || src == "serpernews")
+                    else if (src.StartsWith("serpernews:") || src.StartsWith("serper_news:") || src is "serpernews" or "serper_news")
                     {
-                        var query = src == "serpernews"
+                        var query = src is "serpernews" or "serper_news"
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[11..];
+                            : source[(source.IndexOf(':') + 1)..];
                         fetchTasks.Add(Task.Run(async () =>
                             await new SerperSearchService(httpClient, apiKeys, apiBudget)
                                 .SearchAsync(query, perSourceLimit, newsOnly: true)));
@@ -524,20 +525,20 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             await new TavilySearchService(httpClient, apiKeys, apiBudget)
                                 .SearchAsync(query, perSourceLimit)));
                     }
-                    else if (src.StartsWith("newsapi:") || src == "newsapi")
+                    else if (src.StartsWith("newsapi:") || src.StartsWith("news_api:") || src is "newsapi" or "news_api")
                     {
-                        var query = src == "newsapi"
+                        var query = src is "newsapi" or "news_api"
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[8..];
+                            : source[(source.IndexOf(':') + 1)..];
                         fetchTasks.Add(Task.Run(async () =>
                             await new NewsApiService(httpClient, apiKeys, apiBudget)
                                 .SearchAsync(query, perSourceLimit)));
                     }
-                    else if (src.StartsWith("newsdata:") || src == "newsdata")
+                    else if (src.StartsWith("newsdata:") || src.StartsWith("news_data:") || src is "newsdata" or "news_data")
                     {
-                        var query = src == "newsdata"
+                        var query = src is "newsdata" or "news_data"
                             ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[9..];
+                            : source[(source.IndexOf(':') + 1)..];
                         fetchTasks.Add(Task.Run(async () =>
                             await new NewsDataService(httpClient, apiKeys, apiBudget)
                                 .SearchAsync(query, perSourceLimit)));
@@ -2462,7 +2463,9 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
         foreach (var group in byTopic)
         {
-            var topicTitle = char.ToUpper(group.Key[0]) + group.Key[1..];
+            var topicTitle = group.Key.Length > 0
+                ? char.ToUpper(group.Key[0]) + group.Key[1..]
+                : "Uncategorized";
             var avgSentiment = group.Average(g => g.sentiment);
             var topRelevance = group.Max(g => g.relevance);
             var sentimentIndicator = avgSentiment switch

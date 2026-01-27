@@ -53,13 +53,14 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         using var embedding = new EmbeddingService();
         var ollama = new OllamaService(config.Ollama);
 
-        // Initialize API key service and budget tracker for paid APIs
+        // Initialize API key service, resilience pipeline, and budget tracker
         var apiKeys = ApiKeyService.Load(config);
+        ApiRateLimiter.Configure(apiKeys);
         await using var apiBudget = new ApiBudgetService(config.ApiBudget, apiKeys, dbPath);
         await apiBudget.InitializeAsync();
 
         // Wire cloud LLM providers through the router
-        var llmRouter = LlmRouter.Build(config.Ollama, apiKeys, apiBudget);
+        var llmRouter = await LlmRouter.BuildAsync(config.Ollama, apiKeys, apiBudget, cancellationToken);
         ollama.Router = llmRouter;
 
         // Auto-setup

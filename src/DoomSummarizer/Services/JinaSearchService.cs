@@ -47,18 +47,18 @@ public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBud
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(15)); // Jina can be slow
 
-            // Jina search: POST with JSON body
-            var request = new HttpRequestMessage(HttpMethod.Post, Endpoint)
+            var jsonPayload = JsonSerializer.Serialize(new { q = query });
+            var response = await ApiRateLimiter.ExecuteAsync(ServiceName, async token =>
             {
-                Content = new StringContent(
-                    JsonSerializer.Serialize(new { q = query }),
-                    Encoding.UTF8, "application/json")
-            };
-            request.Headers.Add("Authorization", $"Bearer {svcEntry.ApiKey}");
-            request.Headers.Add("Accept", "application/json");
-            request.Headers.Add("X-No-Cache", "true");
-
-            var response = await httpClient.SendAsync(request, cts.Token);
+                var req = new HttpRequestMessage(HttpMethod.Post, Endpoint)
+                {
+                    Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
+                };
+                req.Headers.Add("Authorization", $"Bearer {svcEntry.ApiKey}");
+                req.Headers.Add("Accept", "application/json");
+                req.Headers.Add("X-No-Cache", "true");
+                return await httpClient.SendAsync(req, token);
+            }, cts.Token);
             await budget.RecordUsageAsync(ServiceName);
 
             if (!response.IsSuccessStatusCode)

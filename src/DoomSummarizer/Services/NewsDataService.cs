@@ -55,7 +55,8 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(10));
 
-            var response = await httpClient.GetAsync(url, cts.Token);
+            var response = await ApiRateLimiter.ExecuteAsync(ServiceName, async token =>
+                await httpClient.GetAsync(url, token), cts.Token);
             await budget.RecordUsageAsync(ServiceName);
 
             if (!response.IsSuccessStatusCode)

@@ -37,9 +37,34 @@ public class AnthropicLlmProvider : ILlmProvider
 
     public async Task<bool> IsAvailableAsync(CancellationToken ct = default)
     {
-        // Anthropic doesn't have a lightweight health check endpoint.
-        // Just verify the key is non-empty.
-        return !string.IsNullOrEmpty(_apiKey);
+        if (string.IsNullOrEmpty(_apiKey))
+            return false;
+
+        try
+        {
+            // Send a minimal request with an empty messages array.
+            // Valid key → 400 (validation error). Invalid key → 401.
+            // No tokens consumed either way.
+            var payload = JsonSerializer.Serialize(new { model = _sentinelModel, messages = Array.Empty<object>(), max_tokens = 1 });
+            var request = new HttpRequestMessage(HttpMethod.Post, Endpoint)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            };
+            request.Headers.Add("x-api-key", _apiKey);
+            request.Headers.Add("anthropic-version", ApiVersion);
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
+
+            var response = await Http.SendAsync(request, cts.Token);
+
+            // 401/403 = key is invalid or forbidden
+            return (int)response.StatusCode != 401 && (int)response.StatusCode != 403;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task<string> GenerateAsync(LlmRequest request, CancellationToken ct = default)

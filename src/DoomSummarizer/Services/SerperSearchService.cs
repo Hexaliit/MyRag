@@ -57,13 +57,16 @@ public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(10));
 
-            var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            var jsonPayload = JsonSerializer.Serialize(payload);
+            var response = await ApiRateLimiter.ExecuteAsync(ServiceName, async token =>
             {
-                Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-            };
-            request.Headers.Add("X-API-KEY", svcEntry.ApiKey);
-
-            var response = await httpClient.SendAsync(request, cts.Token);
+                var req = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
+                };
+                req.Headers.Add("X-API-KEY", svcEntry.ApiKey);
+                return await httpClient.SendAsync(req, token);
+            }, cts.Token);
             await budget.RecordUsageAsync(ServiceName);
 
             if (!response.IsSuccessStatusCode)

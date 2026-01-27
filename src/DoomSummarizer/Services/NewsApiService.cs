@@ -60,10 +60,12 @@ public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudget
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(10));
 
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("X-Api-Key", svcEntry.ApiKey);
-
-            var response = await httpClient.SendAsync(request, cts.Token);
+            var response = await ApiRateLimiter.ExecuteAsync(ServiceName, async token =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Add("X-Api-Key", svcEntry.ApiKey);
+                return await httpClient.SendAsync(req, token);
+            }, cts.Token);
             await budget.RecordUsageAsync(ServiceName);
 
             if (!response.IsSuccessStatusCode)

@@ -94,7 +94,11 @@
       "maxRequestsPerDay": 100,
       "maxRequests": 0,
       "dailyBudgetUsd": 0.50,
-      "costPerRequest": 0.005
+      "costPerRequest": 0.005,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 60
     },
     {
       "name": "google_places",
@@ -104,7 +108,11 @@
       "maxRequestsPerDay": 50,
       "maxRequests": 0,
       "dailyBudgetUsd": 0.85,
-      "costPerRequest": 0.017
+      "costPerRequest": 0.017,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 60
     },
     {
       "name": "openai",
@@ -114,7 +122,11 @@
       "maxRequestsPerDay": 200,
       "maxRequests": 0,
       "dailyBudgetUsd": 1.00,
-      "costPerRequest": 0.0003
+      "costPerRequest": 0.0003,
+      "rateLimitMs": 100,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 60
     },
     {
       "name": "anthropic",
@@ -124,7 +136,11 @@
       "maxRequestsPerDay": 200,
       "maxRequests": 0,
       "dailyBudgetUsd": 1.00,
-      "costPerRequest": 0.003
+      "costPerRequest": 0.003,
+      "rateLimitMs": 100,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 60
     },
     {
       "name": "brave_search",
@@ -133,7 +149,11 @@
       "maxRequestsPerDay": 60,
       "maxRequests": 0,
       "dailyBudgetUsd": 0,
-      "costPerRequest": 0
+      "costPerRequest": 0,
+      "rateLimitMs": 1100,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 60
     },
     {
       "name": "serper",
@@ -142,7 +162,11 @@
       "maxRequestsPerDay": 40,
       "maxRequests": 2400,
       "dailyBudgetUsd": 0,
-      "costPerRequest": 0
+      "costPerRequest": 0,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 60
     },
     {
       "name": "newsapi",
@@ -151,7 +175,11 @@
       "maxRequestsPerDay": 90,
       "maxRequests": 0,
       "dailyBudgetUsd": 0,
-      "costPerRequest": 0
+      "costPerRequest": 0,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 60
     },
     {
       "name": "newsdata",
@@ -160,7 +188,11 @@
       "maxRequestsPerDay": 180,
       "maxRequests": 0,
       "dailyBudgetUsd": 0,
-      "costPerRequest": 0
+      "costPerRequest": 0,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 60
     },
     {
       "name": "tavily",
@@ -169,7 +201,11 @@
       "maxRequestsPerDay": 30,
       "maxRequests": 0,
       "dailyBudgetUsd": 0,
-      "costPerRequest": 0
+      "costPerRequest": 0,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 60
     },
     {
       "name": "jina",
@@ -178,7 +214,11 @@
       "maxRequestsPerDay": 50,
       "maxRequests": 0,
       "dailyBudgetUsd": 0,
-      "costPerRequest": 0
+      "costPerRequest": 0,
+      "rateLimitMs": 500,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 60
     }
   ],
   "apiBudget": {

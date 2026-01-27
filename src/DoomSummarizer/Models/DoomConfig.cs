@@ -195,6 +195,18 @@ public record ApiKeyEntry
 
     /// <summary>Context window size (tokens) for the sentinel model.</summary>
     public int SentinelContextSize { get; init; } = 0;
+
+    /// <summary>Minimum delay (ms) between API requests. Prevents rate limiting on free tiers.</summary>
+    public int RateLimitMs { get; init; } = 200;
+
+    /// <summary>Max retry attempts on 429/5xx errors (0 = no retry).</summary>
+    public int MaxRetries { get; init; } = 2;
+
+    /// <summary>Consecutive failures before circuit breaker opens. 0 = disabled.</summary>
+    public int CircuitBreakerThreshold { get; init; } = 3;
+
+    /// <summary>Seconds before circuit breaker resets to half-open.</summary>
+    public int CircuitBreakerResetSeconds { get; init; } = 60;
 }
 
 /// <summary>

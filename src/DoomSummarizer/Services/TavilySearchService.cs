@@ -62,13 +62,16 @@ public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiB
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(15)); // Tavily can be slower
 
-            var request = new HttpRequestMessage(HttpMethod.Post, Endpoint)
+            var jsonPayload = JsonSerializer.Serialize(payload);
+            var response = await ApiRateLimiter.ExecuteAsync(ServiceName, async token =>
             {
-                Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-            };
-            request.Headers.Add("Authorization", $"Bearer {svcEntry.ApiKey}");
-
-            var response = await httpClient.SendAsync(request, cts.Token);
+                var req = new HttpRequestMessage(HttpMethod.Post, Endpoint)
+                {
+                    Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
+                };
+                req.Headers.Add("Authorization", $"Bearer {svcEntry.ApiKey}");
+                return await httpClient.SendAsync(req, token);
+            }, cts.Token);
             await budget.RecordUsageAsync(ServiceName);
 
             if (!response.IsSuccessStatusCode)

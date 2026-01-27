@@ -141,7 +141,8 @@ Default sources are free (RSS/HTML) and require no API keys. Some search/news pr
 |----------|---------|---------|
 | Tech | Hacker News, Reddit, Lobsters, Slashdot, Dev.to, HackerNoon | `-s hn`, `-s reddit:dotnet` |
 | News | BBC, CNN, Reuters, Guardian, Ars Technica, The Verge, Wired, TechCrunch | `-s bbc:health`, `-s guardian` |
-| Search | Google News (topic + query), DuckDuckGo | `-s "search:rust programming"` |
+| Search (free) | Google News (topic + query), DuckDuckGo | `-s "search:rust programming"` |
+| Search (API) | Brave, Serper, Tavily, NewsAPI, NewsData, Jina | `-s brave`, `-s serper`, `-s newsapi` |
 | Academic | arXiv papers | `-s arxiv` |
 | Q&A | StackOverflow (hot, by tag, search) | `-s so:csharp` |
 | Fact Check | Snopes, PolitiFact, FactCheck.org, FullFact | `-s factcheck:snopes` |
@@ -202,16 +203,31 @@ Without Ollama, the full signal pipeline still runs:
 - NER entity extraction (with `--entities`)
 - All signals stored to SQLite
 
-## Two-Tier Model Architecture
+## LLM Providers
+
+### Cloud LLMs (via API keys)
+
+When configured, cloud providers are validated at startup and used with automatic fallback:
+
+| Provider | Models | Key |
+|----------|--------|-----|
+| Anthropic | Claude Sonnet 4 (main), Claude 3.5 Haiku (sentinel) | `ANTHROPIC_API_KEY` or user secrets |
+| OpenAI | GPT-4o-mini (main + sentinel) | `OPENAI_API_KEY` or user secrets |
+
+Cloud providers are budget-controlled with per-service rate limits, retry with backoff, and circuit breakers. Invalid keys are detected at startup and skipped.
+
+### Local Models (Ollama)
 
 | Role | Default Model | Purpose |
 |------|--------------|---------|
 | Synthesis | `gemma3:4b` | Digest generation, evidence-grounded answers |
 | Sentinel | `qwen3:0.6b` | Per-article triage, JSON analysis, fast classification |
 
-Selected via benchmarking. Synthesis alternatives: `qwen3:8b` (higher quality, slower). Sentinel alternatives: `qwen2.5:1.5b` (fastest wall-clock), `gemma3:1b`.
+Selected via benchmarking. Use `benchmark` to find the best model for your hardware. Ollama is always available as a free fallback when cloud providers are unavailable or over budget.
 
-Use `benchmark` to find the best model for your hardware.
+### Provider Priority
+
+Cloud providers → Ollama (free fallback). Each cloud call checks budget before use. If all fail, Ollama handles the request locally.
 
 ## Vibes
 
@@ -268,9 +284,39 @@ Local override (current directory): `doomsummarizer.json`
     "timeoutSeconds": 300
   },
   "embedding": { "backend": "onnx", "model": "all-MiniLM-L6-v2" },
-  "linkFollowing": { "enabled": true, "maxLinksPerArticle": 3, "maxTotalLinks": 15 }
+  "linkFollowing": { "enabled": true, "maxLinksPerArticle": 3, "maxTotalLinks": 15 },
+  "keys": [
+    { "name": "anthropic", "apiKey": "", "enabled": true, "maxRequestsPerDay": 200, "rateLimitMs": 100 },
+    { "name": "brave_search", "apiKey": "", "enabled": true, "maxRequestsPerDay": 60, "rateLimitMs": 1100 }
+  ],
+  "apiBudget": { "globalMaxRequestsPerDay": 500, "globalDailyBudgetUsd": 2.0 }
 }
 ```
+
+### API Keys
+
+Keys are loaded in priority order: .NET user secrets (highest) > environment variables > config JSON.
+
+```bash
+# .NET user secrets (recommended — never stored in plain text)
+dotnet user-secrets set "Anthropic" "sk-ant-..."
+dotnet user-secrets set "BraveSearch" "BSA..."
+
+# Environment variables
+export ANTHROPIC_API_KEY=sk-ant-...
+export DOOM_BRAVE_SEARCH=BSA...
+```
+
+### Resilience
+
+Each API service has configurable rate limiting, retry, and circuit breaker:
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `rateLimitMs` | 200 | Minimum delay between requests |
+| `maxRetries` | 2 | Retry attempts on 429/5xx |
+| `circuitBreakerThreshold` | 3 | Consecutive failures before circuit opens |
+| `circuitBreakerResetSeconds` | 60 | Time before circuit resets |
 
 Output templates: run `doomsummarizer scroll --list-templates`. Custom templates live in `~/.doomsummarizer/templates/`.
 

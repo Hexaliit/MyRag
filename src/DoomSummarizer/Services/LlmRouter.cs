@@ -27,33 +27,52 @@ public class LlmRouter
 
     /// <summary>
     /// Build a router from config. Always includes Ollama as final fallback.
-    /// Cloud providers are added if their API keys are configured and enabled.
+    /// Cloud providers are validated at startup — keys are checked against the
+    /// actual API to detect invalid/expired/scoped-wrong keys before first use.
     /// </summary>
-    public static LlmRouter Build(OllamaConfig ollamaConfig, ApiKeyService keys, ApiBudgetService? budget)
+    public static async Task<LlmRouter> BuildAsync(
+        OllamaConfig ollamaConfig, ApiKeyService keys, ApiBudgetService? budget,
+        CancellationToken ct = default)
     {
         var router = new LlmRouter(budget, ollamaConfig);
 
-        // Add cloud providers in priority order (if configured)
+        // Validate cloud providers in priority order
         if (keys.IsAvailable("anthropic"))
         {
             var entry = AutoFillContextSizes(keys.GetService("anthropic")!);
-            AnsiConsole.MarkupLine($"[grey]LLM: Anthropic ({entry.SearchEngineId}, {entry.ContextSize / 1000}K ctx)[/]");
-            router._providers.Add(new(new AnthropicLlmProvider(entry), "anthropic", false, entry));
+            var provider = new AnthropicLlmProvider(entry);
+            if (await provider.IsAvailableAsync(ct))
+            {
+                AnsiConsole.MarkupLine($"[grey]LLM: Anthropic ({entry.SearchEngineId}, {entry.ContextSize / 1000}K ctx)[/]");
+                router._providers.Add(new(provider, "anthropic", false, entry));
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("[yellow]LLM: Anthropic key invalid or expired — skipping[/]");
+            }
         }
         else
         {
-            AnsiConsole.MarkupLine("[grey]LLM: Anthropic not available[/]");
+            AnsiConsole.MarkupLine("[grey]LLM: Anthropic not configured[/]");
         }
 
         if (keys.IsAvailable("openai"))
         {
             var entry = AutoFillContextSizes(keys.GetService("openai")!);
-            AnsiConsole.MarkupLine($"[grey]LLM: OpenAI ({entry.SearchEngineId}, {entry.ContextSize / 1000}K ctx)[/]");
-            router._providers.Add(new(new OpenAiLlmProvider(entry), "openai", false, entry));
+            var provider = new OpenAiLlmProvider(entry);
+            if (await provider.IsAvailableAsync(ct))
+            {
+                AnsiConsole.MarkupLine($"[grey]LLM: OpenAI ({entry.SearchEngineId}, {entry.ContextSize / 1000}K ctx)[/]");
+                router._providers.Add(new(provider, "openai", false, entry));
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("[yellow]LLM: OpenAI key invalid or insufficient scopes — skipping[/]");
+            }
         }
         else
         {
-            AnsiConsole.MarkupLine("[grey]LLM: OpenAI not available[/]");
+            AnsiConsole.MarkupLine("[grey]LLM: OpenAI not configured[/]");
         }
 
         // Ollama always available as free fallback
