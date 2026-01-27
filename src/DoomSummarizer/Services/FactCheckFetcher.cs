@@ -82,7 +82,7 @@ public class FactCheckFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Fact-check feed '{siteName}' failed: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: Fact-check feed '{siteName}' failed: {Markup.Escape(ex.Message)}[/]");
         }
 
         return items;

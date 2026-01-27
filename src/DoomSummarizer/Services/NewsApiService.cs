@@ -92,7 +92,7 @@ public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudget
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]NewsAPI error: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]NewsAPI error: {Markup.Escape(ex.Message)}[/]");
             return [];
         }
     }

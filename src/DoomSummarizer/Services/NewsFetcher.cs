@@ -123,7 +123,7 @@ public class NewsFetcher(HttpClient httpClient)
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch {feedUrl}: {ex.Message}[/]");
+                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch {feedUrl}: {Markup.Escape(ex.Message)}[/]");
             }
         }
 
@@ -171,7 +171,7 @@ public class NewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: API search failed for {sourceName}: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: API search failed for {sourceName}: {Markup.Escape(ex.Message)}[/]");
         }
 
         return items;
@@ -266,7 +266,7 @@ public class NewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: RSS parse error for {feedUrl}: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: RSS parse error for {feedUrl}: {Markup.Escape(ex.Message)}[/]");
         }
 
         return items;

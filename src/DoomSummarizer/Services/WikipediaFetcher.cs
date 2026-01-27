@@ -111,7 +111,7 @@ public class WikipediaFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Wikipedia API failed: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: Wikipedia API failed: {Markup.Escape(ex.Message)}[/]");
         }
 
         return items.Take(limit).ToList();

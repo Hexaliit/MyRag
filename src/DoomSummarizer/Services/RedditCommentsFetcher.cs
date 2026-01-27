@@ -60,7 +60,7 @@ public class RedditCommentsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch Reddit comments: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch Reddit comments: {Markup.Escape(ex.Message)}[/]");
         }
 
         return discussion;
@@ -106,7 +106,7 @@ public class RedditCommentsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Failed to search r/{subreddit}: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: Failed to search r/{subreddit}: {Markup.Escape(ex.Message)}[/]");
         }
 
         return discussions;

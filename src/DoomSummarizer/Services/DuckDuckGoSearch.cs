@@ -74,7 +74,7 @@ public class DuckDuckGoSearch
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]DuckDuckGo failed ({new Uri(url).Host}): {ex.Message}[/]");
+                AnsiConsole.MarkupLine($"[yellow]DuckDuckGo failed ({new Uri(url).Host}): {Markup.Escape(ex.Message)}[/]");
             }
         }
 

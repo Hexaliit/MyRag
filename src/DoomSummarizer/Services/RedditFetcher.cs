@@ -77,7 +77,7 @@ public class RedditFetcher(HttpClient httpClient)
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch r/{subreddit}: {ex.Message}[/]");
+                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch r/{subreddit}: {Markup.Escape(ex.Message)}[/]");
             }
 
             if (items.Count >= limit) break;

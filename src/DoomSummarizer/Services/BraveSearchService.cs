@@ -86,7 +86,7 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Brave Search error: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Brave Search error: {Markup.Escape(ex.Message)}[/]");
             return [];
         }
     }

@@ -141,7 +141,7 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                     }
                     catch (Exception ex)
                     {
-                        AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Playwright installation failed: {ex.Message}");
+                        AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Playwright installation failed: {Markup.Escape(ex.Message)}");
                         AnsiConsole.MarkupLine("   Run manually: [grey]playwright install chromium[/]");
                     }
                 }

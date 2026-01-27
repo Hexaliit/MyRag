@@ -113,7 +113,7 @@ public class UsgsEarthquakeFetcher(HttpClient httpClient)
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Warning: USGS earthquake feed failed: {ex.Message}[/]");
+                AnsiConsole.MarkupLine($"[yellow]Warning: USGS earthquake feed failed: {Markup.Escape(ex.Message)}[/]");
             }
         }
 

@@ -105,7 +105,7 @@ public class WebsiteFetcher : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch {site.Url}: {ex.Message}[/]");
+                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch {site.Url}: {Markup.Escape(ex.Message)}[/]");
             }
         }
 

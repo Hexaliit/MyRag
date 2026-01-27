@@ -85,7 +85,7 @@ public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBud
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Jina error: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Jina error: {Markup.Escape(ex.Message)}[/]");
             return [];
         }
     }

@@ -81,7 +81,7 @@ public class GoogleSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Google Search error: {ex.Message}[/]");
+                AnsiConsole.MarkupLine($"[yellow]Google Search error: {Markup.Escape(ex.Message)}[/]");
                 break;
             }
         }

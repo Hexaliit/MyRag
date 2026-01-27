@@ -114,7 +114,7 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]NewsData error: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]NewsData error: {Markup.Escape(ex.Message)}[/]");
             return [];
         }
     }

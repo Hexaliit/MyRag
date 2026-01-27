@@ -65,7 +65,7 @@ public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiB
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Google Places error: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Google Places error: {Markup.Escape(ex.Message)}[/]");
             return [];
         }
     }

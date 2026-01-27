@@ -98,7 +98,7 @@ public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiB
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Tavily error: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Tavily error: {Markup.Escape(ex.Message)}[/]");
             return [];
         }
     }

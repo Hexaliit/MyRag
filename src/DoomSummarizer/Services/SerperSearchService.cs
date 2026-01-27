@@ -93,7 +93,7 @@ public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Serper error: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Serper error: {Markup.Escape(ex.Message)}[/]");
             return [];
         }
     }

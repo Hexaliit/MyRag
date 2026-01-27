@@ -74,7 +74,7 @@ public class HackerNewsFetcher(HttpClient httpClient)
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch HN {section}: {ex.Message}[/]");
+                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch HN {section}: {Markup.Escape(ex.Message)}[/]");
             }
 
             if (items.Count >= limit) break;

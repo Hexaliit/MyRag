@@ -99,7 +99,7 @@ public class ArxivFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: arXiv search failed: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: arXiv search failed: {Markup.Escape(ex.Message)}[/]");
         }
 
         return items;
@@ -162,7 +162,7 @@ public class ArxivFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: arXiv category fetch failed: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: arXiv category fetch failed: {Markup.Escape(ex.Message)}[/]");
         }
 
         return items;

@@ -58,7 +58,7 @@ public class SpaceflightNewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Spaceflight News API failed: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: Spaceflight News API failed: {Markup.Escape(ex.Message)}[/]");
         }
 
         return items;
@@ -105,7 +105,7 @@ public class SpaceflightNewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Spaceflight events API failed: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: Spaceflight events API failed: {Markup.Escape(ex.Message)}[/]");
         }
 
         return items;

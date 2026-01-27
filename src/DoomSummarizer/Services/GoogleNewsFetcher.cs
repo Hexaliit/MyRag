@@ -69,7 +69,7 @@ public class GoogleNewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Google News search failed: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: Google News search failed: {Markup.Escape(ex.Message)}[/]");
         }
 
         // Resolve Google News redirect URLs to actual article URLs
@@ -125,7 +125,7 @@ public class GoogleNewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Google News topic '{topic}' feed failed, falling back to search: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[yellow]Warning: Google News topic '{topic}' feed failed, falling back to search: {Markup.Escape(ex.Message)}[/]");
             // Fall back to keyword search — topic feeds can be unreliable
             // (SearchAsync already resolves redirect URLs)
             return await SearchAsync(topic.ToLowerInvariant().Replace("_", " "), maxResults, daysBack: 7);

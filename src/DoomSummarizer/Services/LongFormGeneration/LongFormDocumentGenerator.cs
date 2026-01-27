@@ -70,7 +70,7 @@ public class LongFormDocumentGenerator
             corpus, query, queryType, vibe, _ollama, _articleProcessor.Embed, templateDef, ct);
 
         AnsiConsole.MarkupLine(
-            $"[grey]  Plan: \"{plan.Title}\" — {plan.Sections.Count} sections[/]");
+            $"[grey]  Plan: \"{Markup.Escape(plan.Title)}\" — {plan.Sections.Count} sections[/]");
 
         // ── Phase 3: Evidence Assignment (deterministic) ──
         AnsiConsole.MarkupLine("[grey]Long-form: Phase 3 — Assigning evidence to sections...[/]");
@@ -84,7 +84,7 @@ public class LongFormDocumentGenerator
         foreach (var section in plan.Sections)
         {
             AnsiConsole.MarkupLine(
-                $"[grey]  [{section.Heading}]: {section.AssignedEvidence.Count} segments " +
+                $"[grey]  [[{Markup.Escape(section.Heading)}]]: {section.AssignedEvidence.Count} segments " +
                 $"from {section.SourceUrls.Count} sources[/]");
         }
 

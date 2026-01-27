@@ -174,7 +174,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
                 catch (Exception ex)
                 {
-                    AnsiConsole.MarkupLine($"[yellow]Could not clear vector store: {ex.Message}[/]");
+                    AnsiConsole.MarkupLine($"[yellow]Could not clear vector store: {Markup.Escape(ex.Message)}[/]");
                 }
             }
 

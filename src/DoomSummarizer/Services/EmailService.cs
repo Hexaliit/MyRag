@@ -152,7 +152,7 @@ public sealed class EmailService
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]SMTP error: {ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[red]SMTP error: {Markup.Escape(ex.Message)}[/]");
             return false;
         }
     }
