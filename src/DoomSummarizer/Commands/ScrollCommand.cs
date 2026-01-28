@@ -106,6 +106,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [Description("Delete all cached data (segments, queries, entities) and exit")]
         public bool ClearStorage { get; init; }
 
+        [CommandOption("--backfill-entity-profiles")]
+        [Description("Backfill entity profiles for existing KB items (one-time migration) and exit")]
+        public bool BackfillEntityProfiles { get; init; }
+
         [CommandOption("--model")]
         [Description("Override LLM model for generation (e.g., qwen3:8b, llama3.2:8b)")]
         public string? Model { get; init; }
@@ -184,12 +188,12 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             await storage.ClearAllAsync();
 
             // Also clear the DuckDB vector store (knowledge graph, HNSW embeddings)
-            var vectorDbPath = ConfigService.GetVectorDbPath();
-            if (File.Exists(vectorDbPath))
+            var clearVectorDbPath = ConfigService.GetVectorDbPath();
+            if (File.Exists(clearVectorDbPath))
             {
                 try
                 {
-                    await using var vs = new DuckDbVectorStore(vectorDbPath);
+                    await using var vs = new DuckDbVectorStore(clearVectorDbPath);
                     await vs.InitializeAsync();
                     await vs.ClearAllAsync();
                     AnsiConsole.MarkupLine("[green]Vector store cleared (knowledge graph, HNSW embeddings)[/]");
@@ -210,13 +214,60 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             await BackfillFtsIndexAsync(storage, settings.Quiet);
         }
 
-        // Initialize DuckDB vector store for HNSW-backed knowledge graph (only when --graph is requested)
+        // Initialize DuckDB vector store for HNSW-backed knowledge graph
+        // Used for: --graph display, entity profile retrieval, item embedding indexing
         DuckDbVectorStore? vectorStore = null;
-        if (settings.Graph)
+        var vectorDbPath = ConfigService.GetVectorDbPath();
+        if (File.Exists(vectorDbPath) || settings.Graph || settings.BackfillEntityProfiles)
         {
-            var vectorDbPath = ConfigService.GetVectorDbPath();
+            // Open existing DB for entity profile retrieval, or create new if --graph requested
             vectorStore = new DuckDbVectorStore(vectorDbPath);
             await vectorStore.InitializeAsync();
+        }
+
+        // Handle --backfill-entity-profiles: compute entity profiles for existing KB items
+        if (settings.BackfillEntityProfiles)
+        {
+            if (vectorStore == null)
+            {
+                AnsiConsole.MarkupLine("[yellow]No vector store found. Run with --graph flag first to create the knowledge graph.[/]");
+                return 1;
+            }
+
+            using var backfillEmbedding = new EmbeddingService();
+            await backfillEmbedding.EnsureReadyAsync();
+
+            var entityProfileService = new EntityProfileService(backfillEmbedding);
+            var graphService = new KnowledgeGraphService(vectorStore, entityProfileService);
+
+            AnsiConsole.MarkupLine("[cyan]Backfilling entity profiles for existing KB items...[/]");
+
+            var processed = await AnsiConsole.Status()
+                .StartAsync("Computing entity profiles...", async ctx =>
+                {
+                    var total = 0;
+                    var batch = 0;
+                    while (true)
+                    {
+                        var count = await graphService.BackfillEntityProfilesAsync(batchSize: 50, cancellationToken);
+                        if (count == 0) break;
+                        total += count;
+                        batch++;
+                        ctx.Status($"Computed {total} entity profiles (batch {batch})...");
+                    }
+                    return total;
+                });
+
+            if (processed > 0)
+            {
+                AnsiConsole.MarkupLine($"[green]Backfill complete: {processed} entity profiles computed[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("[yellow]No items needed backfilling (all items already have entity profiles, or no entity mentions exist)[/]");
+            }
+
+            return 0;
         }
 
         // Initialize template service for output rendering
@@ -269,7 +320,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             hasStatusLine = true;
         }
 
-        WriteStatus($"[grey]LLM: {Markup.Escape(llmRouter.StatusDescription)}[/]");
+        var embeddingStatus = embedding.IsGpuAccelerated
+            ? $"[green]{Markup.Escape(embedding.ExecutionProvider)}[/]"
+            : $"[grey]{Markup.Escape(embedding.ExecutionProvider)}[/]";
+        WriteStatus($"[grey]LLM: {Markup.Escape(llmRouter.StatusDescription)} | Embed: {embeddingStatus}[/]");
 
         // NER preprocessing: extract entities from query BEFORE the LLM sentinel
         // This gives us structured search filters, cached segment lookups, and URL dedup
@@ -480,10 +534,61 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         var embeddingResults = await storage.FindSimilarAsync(
                             queryEmbed, limit: settings.Limit * 2, threshold: 0.20, source: sourceFilter);
                         var embeddingIds = embeddingResults.Select(r => r.Id).ToHashSet();
+                        fetchTask.Value = 55;
+
+                        // Entity profile HNSW search (when entity profiles exist)
+                        // Uses query entities (extracted by Sentinel) to find semantically related docs
+                        var entityProfileIds = new HashSet<string>();
+                        if (vectorStore != null && interpreted?.SentinelIntent?.Entities?.Count >= 2)
+                        {
+                            try
+                            {
+                                var hasProfiles = await vectorStore.HasEntityProfilesAsync();
+                                if (hasProfiles)
+                                {
+                                    var entityProfileService = new EntityProfileService(embedding);
+                                    var entityDocCounts = await vectorStore.GetEntityDocCountsAsync();
+                                    var totalDocs = await vectorStore.GetTotalDocsWithEntitiesAsync();
+
+                                    // Convert Sentinel entities to typed format for profile computation
+                                    // Infer entity types using heuristics (ORG, PER, LOC, MISC)
+                                    var queryEntities = interpreted.SentinelIntent.Entities
+                                        .Select(e => (name: e, type: EntityProfileService.InferEntityType(e), confidence: 0.8f))
+                                        .ToList();
+
+                                    var queryEntityProfile = entityProfileService.ComputeQueryProfile(
+                                        queryEntities, entityDocCounts, totalDocs);
+
+                                    if (queryEntityProfile.Length > 0)
+                                    {
+                                        var entityResults = await vectorStore.FindRelatedByEntityProfileAsync(
+                                            queryEntityProfile, topK: settings.Limit, minSimilarity: 0.25f);
+
+                                        foreach (var (itemId, _, _) in entityResults)
+                                            entityProfileIds.Add(itemId);
+
+                                        if (settings.DebugPipeline && entityResults.Count > 0)
+                                        {
+                                            AnsiConsole.MarkupLine($"[grey]Entity profile HNSW: {entityResults.Count} candidates from {queryEntities.Count} query entities[/]");
+                                            foreach (var (itemId, title, sim) in entityResults.Take(3))
+                                            {
+                                                var truncTitle = title.Length > 40 ? title[..37] + "..." : title;
+                                                AnsiConsole.MarkupLine($"[grey]  ⤷ {Markup.Escape(truncTitle)}: {sim:F3}[/]");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                if (settings.DebugPipeline)
+                                    AnsiConsole.MarkupLine($"[grey]Entity profile search skipped: {ex.Message}[/]");
+                            }
+                        }
                         fetchTask.Value = 60;
 
-                        // Fuse results: union of Lucene + embedding results
-                        var allCandidateIds = luceneIds.Union(embeddingIds).ToList();
+                        // Fuse results: union of Lucene + embedding + entity profile results
+                        var allCandidateIds = luceneIds.Union(embeddingIds).Union(entityProfileIds).ToList();
 
                         if (allCandidateIds.Count > 0)
                         {
@@ -497,9 +602,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                     item.RelevanceScore = luceneScore / 10.0; // Normalize Lucene score
                             }
 
-                            fetchTask.Description = $"[cyan]Lucene: {luceneResults.Count} | Embed: {embeddingResults.Count} | Fused: {allCandidateIds.Count}[/]";
+                            var entityInfo = entityProfileIds.Count > 0 ? $" | Entity: {entityProfileIds.Count}" : "";
+                            fetchTask.Description = $"[cyan]Lucene: {luceneResults.Count} | Embed: {embeddingResults.Count}{entityInfo} | Fused: {allCandidateIds.Count}[/]";
                             if (settings.DebugPipeline)
-                                AnsiConsole.MarkupLine($"[grey]Lucene: {luceneResults.Count} hits, Embedding: {embeddingResults.Count} hits, Fused: {allCandidateIds.Count} unique[/]");
+                                AnsiConsole.MarkupLine($"[grey]Lucene: {luceneResults.Count} hits, Embedding: {embeddingResults.Count} hits, Entity: {entityProfileIds.Count} hits, Fused: {allCandidateIds.Count} unique[/]");
                         }
                         else
                         {
@@ -1278,6 +1384,44 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 AnsiConsole.MarkupLine($"[grey]Embedding search skipped: {ex.Message}[/]");
                         }
 
+                        // Layer 3: Entity profile HNSW search (when entity profiles exist)
+                        var entityCount = 0;
+                        if (vectorStore != null && interpreted?.SentinelIntent?.Entities?.Count >= 2)
+                        {
+                            try
+                            {
+                                var hasProfiles = await vectorStore.HasEntityProfilesAsync();
+                                if (hasProfiles)
+                                {
+                                    var entityProfileService = new EntityProfileService(embedding);
+                                    var entityDocCounts = await vectorStore.GetEntityDocCountsAsync();
+                                    var totalDocs = await vectorStore.GetTotalDocsWithEntitiesAsync();
+
+                                    // Infer entity types using heuristics (ORG, PER, LOC, MISC)
+                                    var queryEntities = interpreted.SentinelIntent.Entities
+                                        .Select(e => (name: e, type: EntityProfileService.InferEntityType(e), confidence: 0.8f))
+                                        .ToList();
+
+                                    var queryEntityProfile = entityProfileService.ComputeQueryProfile(
+                                        queryEntities, entityDocCounts, totalDocs);
+
+                                    if (queryEntityProfile.Length > 0)
+                                    {
+                                        var entityResults = await vectorStore.FindRelatedByEntityProfileAsync(
+                                            queryEntityProfile, topK: 8, minSimilarity: 0.25f);
+                                        foreach (var (itemId, _, _) in entityResults)
+                                            candidateIds.Add(itemId);
+                                        entityCount = entityResults.Count;
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                if (settings.DebugPipeline)
+                                    AnsiConsole.MarkupLine($"[grey]Entity profile search skipped: {ex.Message}[/]");
+                            }
+                        }
+
                         // Merge into results
                         if (candidateIds.Count > 0)
                         {
@@ -1295,8 +1439,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             {
                                 uniqueItems.AddRange(newFromKb);
                                 fetchTask.Description = $"[cyan]KB enrichment: +{newFromKb.Count} items[/]";
+                                var entityInfo = entityCount > 0 ? $", Entity={entityCount}" : "";
                                 if (settings.DebugPipeline)
-                                    AnsiConsole.MarkupLine($"[grey]KB enrichment: Lucene={luceneCount}, Embed={embedCount}, Merged={newFromKb.Count}[/]");
+                                    AnsiConsole.MarkupLine($"[grey]KB enrichment: Lucene={luceneCount}, Embed={embedCount}{entityInfo}, Merged={newFromKb.Count}[/]");
                             }
                         }
                     }
@@ -1536,11 +1681,16 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // Prevents "RAG for Implementers" from ranking alongside HTMX articles
                 // when the query is "How does HTMX work with ASP.NET?".
                 // Skipped for Roundup queries where diverse topics are expected.
+                // Uses semantic similarity when query embedding is available for better detection
+                // (e.g., "Google Auth" is semantically related to "authentication" query).
                 if (earlyQueryType != QueryType.Roundup && globalCorpus != null && !string.IsNullOrWhiteSpace(bm25Query))
                 {
                     var qt = RelevanceScorer.Tokenize(bm25Query);
                     var (idfForCoverage, _) = RelevanceScorer.BuildCorpusStats(uniqueItems, globalCorpus, globalCorpusSize);
-                    var penalties = RelevanceScorer.ComputeQueryTermCoverage(uniqueItems, qt, idfForCoverage);
+                    // Pass query embedding for semantic outlier detection (catches synonyms/related terms)
+                    var outlierQueryEmbed = refinedQueryEmbedding ?? queryEmbedding;
+                    var penalties = RelevanceScorer.ComputeQueryTermCoverage(
+                        uniqueItems, qt, idfForCoverage, queryEmbedding: outlierQueryEmbed);
                     var penalizedCount = RelevanceScorer.ApplyOutlierPenalties(uniqueItems, penalties);
 
                     if (penalizedCount > 0)
@@ -1550,7 +1700,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         fetchTask.Description = $"[cyan]Outlier filter: {penalizedCount} penalized[/]";
                         if (settings.DebugPipeline)
                         {
-                            AnsiConsole.MarkupLine($"[grey]Outlier detection: {penalizedCount} items penalized for missing distinctive query terms[/]");
+                            var detectionMode = outlierQueryEmbed != null ? "semantic" : "term-based";
+                            AnsiConsole.MarkupLine($"[grey]Outlier detection ({detectionMode}): {penalizedCount} items penalized[/]");
                             foreach (var (id, penalty) in penalties)
                             {
                                 var title = uniqueItems.FirstOrDefault(i => i.Id == id)?.Title ?? id;
@@ -2040,9 +2191,12 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     }
                 }
 
-                // Layer 3: Graph enrichment — discover related documents via shared entities
-                // Uses entity_mentions to find docs sharing 2+ entities with top results
-                if (extractEntities && uniqueItems.Count >= 3)
+                // Layer 3: Graph enrichment — discover related documents via entity similarity
+                // Uses entity profile HNSW when available (semantic entity matching),
+                // falls back to SQL entity count when entity profiles don't exist yet.
+                // Enabled when: (a) --entities flag is set, OR (b) entity profiles exist in KB
+                var hasEntityProfiles = vectorStore != null && await vectorStore.HasEntityProfilesAsync();
+                if ((extractEntities || hasEntityProfiles) && uniqueItems.Count >= 3)
                 {
                     var topItemIds = uniqueItems
                         .OrderByDescending(i => i.RelevanceScore)
@@ -2051,8 +2205,38 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         .ToList();
 
                     var existingIds = new HashSet<string>(uniqueItems.Select(i => i.Id));
-                    var relatedIds = await storage.FindRelatedByEntitiesAsync(
-                        topItemIds, excludeIds: existingIds.ToList(), limit: 3);
+                    List<string> relatedIds;
+                    var enrichmentMethod = "entities";
+
+                    // Prefer entity profile HNSW when available (O(log N) semantic matching)
+                    if (hasEntityProfiles && vectorStore != null)
+                    {
+                        var entityProfileService = new EntityProfileService(embedding);
+                        var graphService = new KnowledgeGraphService(vectorStore, entityProfileService);
+                        var related = await graphService.FindRelatedByEntityProfileAsync(
+                            topItemIds, topK: 3, minSimilarity: 0.3f);
+                        relatedIds = related
+                            .Where(r => !existingIds.Contains(r.itemId))
+                            .Select(r => r.itemId)
+                            .ToList();
+                        enrichmentMethod = "entity profile HNSW";
+
+                        if (settings.DebugPipeline && related.Count > 0)
+                        {
+                            AnsiConsole.MarkupLine($"[grey]Entity profile HNSW: found {related.Count} candidates[/]");
+                            foreach (var (itemId, title, sim) in related.Take(5))
+                            {
+                                var truncTitle = title.Length > 40 ? title[..37] + "..." : title;
+                                AnsiConsole.MarkupLine($"[grey]  ⤷ {Markup.Escape(truncTitle)}: {sim:F3}[/]");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Fallback: SQL-based shared entity count (legacy O(N²) approach)
+                        relatedIds = await storage.FindRelatedByEntitiesAsync(
+                            topItemIds, excludeIds: existingIds.ToList(), limit: 3);
+                    }
 
                     if (relatedIds.Count > 0)
                     {
@@ -2075,7 +2259,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         if (relatedItems.Count > 0)
                             fetchTask.Description = $"[cyan]Graph: +{relatedItems.Count} related[/]";
                         if (settings.DebugPipeline && relatedItems.Count > 0)
-                            AnsiConsole.MarkupLine($"[grey]Graph enrichment: +{relatedItems.Count} entity-related items[/]");
+                            AnsiConsole.MarkupLine($"[grey]Graph enrichment ({enrichmentMethod}): +{relatedItems.Count} items[/]");
                     }
                 }
 
@@ -2093,11 +2277,12 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     indexTask.Description = $"[green]Indexed {itemsWithEmbeddings.Count} embeddings[/]";
                 }
 
-                // Ingest entities into knowledge graph
+                // Ingest entities into knowledge graph (with entity profiles for HNSW search)
                 if (settings.Graph && vectorStore != null && articleEntityMap.Count > 0)
                 {
                     var graphTask = ctx.AddTask("[cyan]Building knowledge graph[/]", maxValue: 100);
-                    var graphService = new KnowledgeGraphService(vectorStore);
+                    var entityProfileService = new EntityProfileService(embedding);
+                    var graphService = new KnowledgeGraphService(vectorStore, entityProfileService);
                     await graphService.IngestEntitiesAsync(articleEntityMap);
 
                     // Ingest linked page entities with lower confidence

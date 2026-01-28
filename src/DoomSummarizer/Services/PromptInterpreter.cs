@@ -168,39 +168,33 @@ public partial class PromptInterpreter
         var today = DateTime.Now.ToString("MMMM d, yyyy");
         var todayIso = DateTime.Now.ToString("yyyy-MM-dd");
         return $"""
-            You are a search query optimizer. Given a user's request, output JSON with two main goals:
-            1. Craft the best possible search engine queries (for Google News and DuckDuckGo)
-            2. Categorize the topic with weights so we know what kind of news sources to check
+            You are a search query optimizer. Given a user's request, output JSON with three goals:
+            1. Correct any spelling errors and expand abbreviations in the query
+            2. Extract filter keywords for database/index search
+            3. Craft optimized search engine queries
 
-            JSON fields:
+            JSON fields (REQUIRED):
+            - "corrected_query": the query with spelling fixed and abbreviations expanded (SNL → Saturday Night Live, htmx → HTMX, aspnet → ASP.NET). Always include this.
+            - "filter_keywords": 3-6 MUST-MATCH terms for filtering documents. These are the salient nouns, verbs, and technical terms. NO stop words. Example: "history of LLMs" → ["llm", "language model", "history", "ai"]
+            - "lucene_query": Lucene search syntax with boosts. Use title:term^3 for key terms, "phrase"~2 for multi-word, term~ for fuzzy. Example: title:LLM^3 "language model"~2 history~
+            - "search_queries": 2-3 optimized search engine queries. Quote entity names. Add time context if relevant. Today is {today}.
             - "intent": "news" | "roundup" | "research" | "howto" | "qa" | "trend" | "comparison"
-            - "categories": topic weights 0.0-1.0. ONLY use these exact categories: technology, ai, security, programming, science, health, pharma, business, finance, politics, world, entertainment, humor, sports, environment, climate, space, disaster, factcheck. Do NOT invent categories. Do NOT use "news" as a category.
+            - "categories": topic weights 0.0-1.0. ONLY use: technology, ai, security, programming, science, health, pharma, business, finance, politics, world, entertainment, humor, sports, environment, climate, space, disaster, factcheck.
             - "tone": "neutral" | "doom" | "hopeful" | "snarky" | "funny" | "upbeat" | "friendly" | "toon"
             - "time_sensitivity": "breaking" | "today" | "week" | "any"
 
-            TEMPORAL EXTRACTION - Keep it simple, we compute dates in code:
-            - "time_sensitivity": "breaking" (past hour) | "today" (24-48h) | "week" (7 days) | "any"
-            - "requires_fresh": true if user wants RECENT content. Set true for: "recent", "latest", "new", "current", "today", "this week", "just happened", "breaking".
-            - "date_range": ONLY include unit and count - we compute actual dates in code.
-              Just set: original (the temporal phrase), unit (day/week/month), count (number).
-              DO NOT compute start/end dates - just extract the semantic info.
-              Examples:
-                "last week" → original="last week", unit="week", count=1
-                "recent" → original="recent", unit="week", count=2
-                "past 3 days" → original="past 3 days", unit="day", count=3
-                "this month" → original="this month", unit="month", count=1
-              Omit if no temporal constraint.
-            - "is_continuation": true for "since last time", "update on", "what's new with".
+            TEMPORAL EXTRACTION:
+            - "requires_fresh": true for "recent", "latest", "new", "current", "breaking"
+            - "date_range": original (phrase), unit (day/week/month), count. Example: "last week" → original="last week", unit="week", count=1
+            - "is_continuation": true for "since last time", "update on", "what's new with"
 
-            IMPORTANT: If query has "recent", "latest", "new" → requires_fresh=true AND time_sensitivity="week".
-
-            - "search_queries": 2-3 optimized search engine queries. Fix spelling. Expand abbreviations (SNL → Saturday Night Live). Quote entity names. Add time/date context when relevant. Today is {today}. Do NOT include search engine names in the query text.
-            - "entities": named entities found in the query
-            - "explicit_sources": only if user named a specific source (hn, bbc, reddit, etc.)
-            - "graph_scope": "local" | "global" | "connective". Use "local" for specific questions. Use "global" for sensemaking. Use "connective" for relationship queries. Default "local".
+            OTHER FIELDS:
+            - "entities": named entities (people, orgs, products)
+            - "explicit_sources": only if user named a source (hn, bbc, reddit)
+            - "graph_scope": "local" (specific) | "global" (sensemaking) | "connective" (relationships)
             - "limit": number (default 20)
 
-            Only assign categories that match the actual topic. Do NOT default to technology.
+            Only assign categories matching the topic. Default to "local" graph_scope.
             """;
     }
 

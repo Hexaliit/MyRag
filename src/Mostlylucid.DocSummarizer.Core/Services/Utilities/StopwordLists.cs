@@ -57,66 +57,79 @@ public static class StopwordLists
 
     /// <summary>
     ///     Check if word is a stopword (pronouns, determiners, conjunctions, etc.)
+    ///     Optimized: HashSet is case-insensitive, no ToLowerInvariant() needed.
     /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     public static bool IsStopword(string word)
     {
-        return Stopwords.Contains(word.ToLowerInvariant());
+        // Fast path: very short words are often stopwords
+        if (word.Length <= 3) return Stopwords.Contains(word);
+        // HashSet uses OrdinalIgnoreCase, no allocation needed
+        return Stopwords.Contains(word);
     }
 
     /// <summary>
-    ///     Check if word is an honorific title
+    ///     Check if word is an honorific title.
+    ///     All HashSets use OrdinalIgnoreCase - no case conversion needed.
     /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     public static bool IsHonorific(string word)
     {
-        return Honorifics.Contains(word.TrimEnd('.').ToLowerInvariant()) ||
-               Honorifics.Contains(word.ToLowerInvariant());
+        // Check with and without trailing period (Dr vs Dr.)
+        return Honorifics.Contains(word) ||
+               (word.Length > 1 && word[^1] == '.' && Honorifics.Contains(word.AsSpan(0, word.Length - 1).ToString()));
     }
 
     /// <summary>
     ///     Check if word is a place indicator suffix
     /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     public static bool IsPlaceIndicator(string word)
     {
-        return PlaceIndicators.Contains(word.TrimEnd('.').ToLowerInvariant());
+        return PlaceIndicators.Contains(word) ||
+               (word.Length > 1 && word[^1] == '.' && PlaceIndicators.Contains(word.AsSpan(0, word.Length - 1).ToString()));
     }
 
     /// <summary>
     ///     Check if word is a code/technical keyword
     /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     public static bool IsCodeKeyword(string word)
     {
-        return CodeKeywords.Contains(word.ToUpperInvariant()) ||
-               CodeKeywords.Contains(word.ToLowerInvariant());
+        // HashSet is case-insensitive, single Contains suffices
+        return CodeKeywords.Contains(word);
     }
 
     /// <summary>
     ///     Check if word is a day name
     /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     public static bool IsDayName(string word)
     {
-        return DayNames.Contains(word.ToLowerInvariant());
+        return DayNames.Contains(word);
     }
 
     /// <summary>
     ///     Check if word is a month name
     /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     public static bool IsMonthName(string word)
     {
-        return MonthNames.Contains(word.ToLowerInvariant());
+        return MonthNames.Contains(word);
     }
 
     /// <summary>
     ///     Check if word should be filtered from entity extraction
     ///     (any category except honorific - honorifics precede names)
     /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     public static bool ShouldFilter(string word)
     {
-        var lower = word.ToLowerInvariant();
-        return Stopwords.Contains(lower) ||
-               CodeKeywords.Contains(lower) ||
-               CodeKeywords.Contains(word.ToUpperInvariant()) ||
-               DayNames.Contains(lower) ||
-               MonthNames.Contains(lower);
+        // All HashSets use OrdinalIgnoreCase - no case conversion needed
+        return Stopwords.Contains(word) ||
+               CodeKeywords.Contains(word) ||
+               DayNames.Contains(word) ||
+               MonthNames.Contains(word);
     }
 
     /// <summary>

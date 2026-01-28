@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services.Utilities;
 
 namespace DoomSummarizer.Services;
 
@@ -89,19 +90,8 @@ namespace DoomSummarizer.Services;
 /// </summary>
 public partial class RelevanceScorer
 {
-
-    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with",
-        "by", "from", "as", "is", "was", "are", "were", "been", "be", "have", "has", "had",
-        "do", "does", "did", "will", "would", "could", "should", "may", "might", "must",
-        "shall", "can", "this", "that", "these", "those", "it", "its", "he", "she", "they",
-        "him", "her", "them", "his", "their", "my", "your", "our", "who", "which", "what",
-        "when", "where", "why", "how", "all", "each", "every", "both", "few", "more", "most",
-        "other", "some", "such", "no", "not", "only", "same", "so", "than", "too", "very",
-        "just", "also", "now", "here", "there", "then", "once", "i", "you", "we", "me", "us",
-        "about", "show", "latest", "new", "news", "recent", "any", "current", "tell", "give"
-    };
+    // Use the shared stopword list from DocSummarizer.Core (includes dotnet-stop-words package)
+    // See StopwordLists.cs for the full list including honorifics, code keywords, etc.
 
     /// <summary>
     /// RRF constant k=60 (Cormack et al., 2009). Higher values produce more uniform blending
@@ -921,11 +911,9 @@ public partial class RelevanceScorer
     #region Outlier Detection
 
     /// <summary>
-    /// Detect off-topic outliers using query-term coverage.
-    /// For each item, check what fraction of the distinctive query tokens
-    /// (high IDF — rare, topic-defining words) appear in its title or keywords.
-    /// Items missing distinctive terms are likely off-topic even if embedding
-    /// similarity is moderate (common in same-domain KB collections).
+    /// Detect off-topic outliers using embedding similarity.
+    /// Items with low semantic similarity to the query are penalized.
+    /// This catches cases where string matching fails (e.g., "Google Auth" for "authentication").
     ///
     /// Returns penalty multipliers: 1.0 = no penalty, &lt;1.0 = penalized.
     /// Should be skipped for Roundup queries (diverse topics expected).
@@ -934,15 +922,37 @@ public partial class RelevanceScorer
         List<ContentItem> items,
         List<string> queryTokens,
         Dictionary<string, double> idf,
-        double idfThreshold = 1.0)
+        double idfThreshold = 1.0,
+        float[]? queryEmbedding = null)
     {
-        // Find distinctive query tokens (above-threshold IDF = rare/topic-defining)
+        var penalties = new Dictionary<string, double>();
+
+        // If we have a query embedding, use semantic similarity for outlier detection
+        if (queryEmbedding != null)
+        {
+            foreach (var item in items)
+            {
+                if (item.Embedding == null) continue;
+
+                var similarity = VectorMath.CosineSimilarity(queryEmbedding, item.Embedding);
+
+                // Items with decent semantic similarity (>= 0.25) are not penalized
+                if (similarity >= 0.25) continue;
+
+                // Low similarity items get penalized proportionally
+                // sim 0.20 → penalty 0.8, sim 0.10 → penalty 0.5, sim 0.0 → penalty 0.3
+                var penalty = Math.Max(0.3, similarity * 2.0 + 0.3);
+                penalties[item.Id] = penalty;
+            }
+            return penalties;
+        }
+
+        // Fallback: string-based coverage when no query embedding available
         var distinctiveTokens = queryTokens
             .Where(t => idf.GetValueOrDefault(t, 0) >= idfThreshold)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // If no distinctive tokens found, lower threshold and try again
         if (distinctiveTokens.Count == 0)
         {
             var avgIdf = queryTokens.Count > 0
@@ -955,23 +965,20 @@ public partial class RelevanceScorer
         }
 
         if (distinctiveTokens.Count == 0)
-            return new Dictionary<string, double>();
-
-        var penalties = new Dictionary<string, double>();
+            return penalties;
 
         foreach (var item in items)
         {
-            // Check title + keywords for distinctive query terms
-            var itemText = $"{item.Title} {item.Keywords ?? ""}".ToLowerInvariant();
+            var contentPreview = item.Content?.Length > 1000
+                ? item.Content[..1000]
+                : item.Content ?? "";
+            var itemText = $"{item.Title} {item.Keywords ?? ""} {contentPreview}".ToLowerInvariant();
             var covered = distinctiveTokens.Count(t =>
                 itemText.Contains(t, StringComparison.OrdinalIgnoreCase));
             var coverage = (double)covered / distinctiveTokens.Count;
 
-            if (coverage >= 0.5)
-                continue; // Item covers enough distinctive terms — no penalty
+            if (coverage >= 0.5) continue;
 
-            // Penalty scales with how many distinctive terms are missing
-            // coverage 0.0 → penalty 0.3, coverage 0.25 → penalty 0.55, coverage 0.5 → no penalty
             penalties[item.Id] = Math.Max(0.3, coverage * 1.0 + 0.3);
         }
 
@@ -1018,7 +1025,7 @@ public partial class RelevanceScorer
     {
         return TokenPattern().Matches(text.ToLowerInvariant())
             .Select(m => m.Value)
-            .Where(t => t.Length > 1 && !StopWords.Contains(t))
+            .Where(t => t.Length > 1 && !StopwordLists.IsStopword(t))
             .ToList();
     }
 

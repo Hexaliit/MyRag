@@ -314,11 +314,19 @@ public class RelevanceScorerTests
     [Fact]
     public void Tokenize_LowercasesAndFiltersShort()
     {
-        var tokens = RelevanceScorer.Tokenize("AI is a BIG Deal");
-        tokens.Should().NotContain("a"); // Too short
-        tokens.Should().Contain("ai");
-        tokens.Should().Contain("big");
-        tokens.Should().Contain("deal");
+        // Test that tokenization lowercases and filters stopwords
+        // Uses words that won't be in the comprehensive stopword list (dotnet-stop-words package)
+        var tokens = RelevanceScorer.Tokenize("Machine LEARNING creates INNOVATIONS for HEALTHCARE");
+        tokens.Should().NotContain("for"); // Stopword
+        tokens.Should().NotContain("a"); // Too short (1 char)
+        tokens.Should().Contain("machine");
+        tokens.Should().Contain("learning");
+        tokens.Should().Contain("creates");
+        tokens.Should().Contain("innovations");
+        tokens.Should().Contain("healthcare");
+        // Verify lowercase transformation
+        tokens.Should().NotContain("LEARNING");
+        tokens.Should().NotContain("INNOVATIONS");
     }
 
     #endregion

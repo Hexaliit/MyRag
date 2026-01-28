@@ -22,8 +22,30 @@ if (args.Length > 0 && args[0] is "--mcp" or "-mcp")
     return 0;
 }
 
-// Standard CLI mode — ScrollCommand is the default (no command name needed)
-var app = new CommandApp<ScrollCommand>();
+// Standard CLI mode
+// Smart routing: no args → help, URL → page, text → scroll
+if (args.Length == 0)
+{
+    args = ["--help"];
+}
+else if (args.Length > 0 && !args[0].StartsWith('-') && !IsKnownCommand(args[0]))
+{
+    // First arg is not a flag and not a known command — smart route
+    // URL → page command, otherwise → scroll command
+    if (IsUrl(args[0]))
+        args = ["page", .. args];
+    else
+        args = ["scroll", .. args];
+}
+
+var app = new CommandApp();
+
+static bool IsUrl(string arg) =>
+    arg.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+    arg.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+static bool IsKnownCommand(string arg) =>
+    arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "benchmark" or "page";
 
 app.Configure(config =>
 {

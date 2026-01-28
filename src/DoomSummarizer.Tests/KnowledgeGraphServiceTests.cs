@@ -192,6 +192,108 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
         id1.Should().Be(id2);
     }
 
+    // --- Entity Profile Integration Tests ---
+
+    [Fact]
+    public async Task IngestEntities_WithEntityProfileService_ComputesProfiles()
+    {
+        // Create service with EntityProfileService
+        using var embeddingService = new EmbeddingService();
+        await embeddingService.EnsureReadyAsync();
+        var entityProfileService = new EntityProfileService(embeddingService);
+        var graphWithProfiles = new KnowledgeGraphService(_store, entityProfileService);
+
+        var item = CreateContentItem("item1", "OpenAI Launches GPT-5");
+        item.Embedding = CreateRandomEmbedding();
+        var entities = new List<NerEntity>
+        {
+            new() { Text = "OpenAI", Type = "ORG", Confidence = 0.9f },
+            new() { Text = "GPT-5", Type = "MISC", Confidence = 0.85f }
+        };
+
+        await graphWithProfiles.IngestEntitiesAsync([(item, entities)]);
+
+        // Verify entity profile was computed
+        var hasProfiles = await _store.HasEntityProfilesAsync();
+        hasProfiles.Should().BeTrue("entity profile should be computed and stored");
+    }
+
+    [Fact]
+    public async Task FindRelatedByEntityProfile_FindsSimilarDocuments()
+    {
+        // Create service with EntityProfileService
+        using var embeddingService = new EmbeddingService();
+        await embeddingService.EnsureReadyAsync();
+        var entityProfileService = new EntityProfileService(embeddingService);
+        var graphWithProfiles = new KnowledgeGraphService(_store, entityProfileService);
+
+        // Create multiple AI-related articles with similar entities
+        var item1 = CreateContentItem("ai_article_1", "OpenAI Announces New AI Model");
+        item1.Embedding = CreateRandomEmbedding();
+        var item2 = CreateContentItem("ai_article_2", "Anthropic Releases Claude Update");
+        item2.Embedding = CreateRandomEmbedding();
+        var item3 = CreateContentItem("cooking_article", "Best Pasta Recipes for Summer");
+        item3.Embedding = CreateRandomEmbedding();
+
+        // AI articles share similar entities (AI companies)
+        var aiEntities1 = new List<NerEntity>
+        {
+            new() { Text = "OpenAI", Type = "ORG", Confidence = 0.95f },
+            new() { Text = "GPT", Type = "MISC", Confidence = 0.9f },
+            new() { Text = "artificial intelligence", Type = "MISC", Confidence = 0.85f }
+        };
+        var aiEntities2 = new List<NerEntity>
+        {
+            new() { Text = "Anthropic", Type = "ORG", Confidence = 0.95f },
+            new() { Text = "Claude", Type = "MISC", Confidence = 0.9f },
+            new() { Text = "artificial intelligence", Type = "MISC", Confidence = 0.85f }
+        };
+        var cookingEntities = new List<NerEntity>
+        {
+            new() { Text = "pasta", Type = "MISC", Confidence = 0.9f },
+            new() { Text = "Italian cuisine", Type = "MISC", Confidence = 0.85f }
+        };
+
+        await graphWithProfiles.IngestEntitiesAsync([
+            (item1, aiEntities1),
+            (item2, aiEntities2),
+            (item3, cookingEntities)
+        ]);
+
+        // Find related to ai_article_1 - should find ai_article_2 (similar AI entities)
+        var related = await graphWithProfiles.FindRelatedByEntityProfileAsync(
+            ["ai_article_1"], topK: 3, minSimilarity: 0.1f);
+
+        related.Should().NotBeEmpty();
+        // The AI article should be in results
+        var relatedIds = related.Select(r => r.itemId).ToList();
+        relatedIds.Should().Contain("ai_article_2", "AI articles should be related via shared entity themes");
+    }
+
+    [Fact]
+    public async Task HasEntityProfiles_ReturnsTrueAfterIngestion()
+    {
+        using var embeddingService = new EmbeddingService();
+        await embeddingService.EnsureReadyAsync();
+        var entityProfileService = new EntityProfileService(embeddingService);
+        var graphWithProfiles = new KnowledgeGraphService(_store, entityProfileService);
+
+        // Before ingestion
+        var hasBefore = await graphWithProfiles.HasEntityProfilesAsync();
+        hasBefore.Should().BeFalse();
+
+        // Ingest with entities
+        var item = CreateContentItem("item1", "Test");
+        item.Embedding = CreateRandomEmbedding();
+        await graphWithProfiles.IngestEntitiesAsync([(item, [
+            new NerEntity { Text = "Test Entity", Type = "ORG", Confidence = 0.9f }
+        ])]);
+
+        // After ingestion
+        var hasAfter = await graphWithProfiles.HasEntityProfilesAsync();
+        hasAfter.Should().BeTrue();
+    }
+
     private static ContentItem CreateContentItem(string id, string title) => new()
     {
         Id = id,

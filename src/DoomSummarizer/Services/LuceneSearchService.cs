@@ -423,52 +423,108 @@ public static partial class LuceneQueryGenerator
     }
 
     /// <summary>
-    /// Build a simple Lucene query without LLM assistance.
-    /// Adds fuzzy matching to longer terms and phrase detection.
+    /// Build an optimized Lucene query without LLM assistance.
+    /// Features: required primary term (+), title field boosting, fuzzy matching, phrase detection.
+    /// Uses RelevanceScorer.Tokenize for stop word filtering.
     /// </summary>
     public static string BuildSimpleQuery(string naturalLanguageQuery)
     {
-        var tokens = naturalLanguageQuery
+        // Get filtered tokens (stop words removed) via RelevanceScorer
+        var filteredTokens = RelevanceScorer.Tokenize(naturalLanguageQuery);
+        if (filteredTokens.Count == 0) return "";
+
+        // Raw tokens preserve capitalization for phrase detection
+        var rawTokens = naturalLanguageQuery
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Where(t => t.Length > 1)
             .ToList();
 
-        if (tokens.Count == 0) return "";
-
-        var parts = new List<string>();
+        var requiredTerms = new List<string>();  // MUST match (first important noun)
+        var boostTerms = new List<string>();     // SHOULD match with boost
+        var keyTerms = new List<string>();
+        var filteredSet = new HashSet<string>(filteredTokens, StringComparer.OrdinalIgnoreCase);
+        var foundPrimarySubject = false;
         var i = 0;
 
-        while (i < tokens.Count)
+        while (i < rawTokens.Count)
         {
-            var token = tokens[i];
+            var token = rawTokens[i];
+
+            // Skip if this token was filtered as a stop word
+            if (!filteredSet.Contains(token))
+            {
+                i++;
+                continue;
+            }
 
             // Check for potential phrase (consecutive capitalized words)
-            if (i < tokens.Count - 1 && char.IsUpper(token[0]))
+            if (i < rawTokens.Count - 1 && char.IsUpper(token[0]))
             {
                 var phraseTokens = new List<string> { token };
                 var j = i + 1;
-                while (j < tokens.Count && char.IsUpper(tokens[j][0]))
+                while (j < rawTokens.Count && char.IsUpper(rawTokens[j][0]))
                 {
-                    phraseTokens.Add(tokens[j]);
+                    phraseTokens.Add(rawTokens[j]);
                     j++;
                 }
 
                 if (phraseTokens.Count > 1)
                 {
-                    parts.Add($"\"{string.Join(" ", phraseTokens)}\"");
+                    var phrase = string.Join(" ", phraseTokens);
+                    // Multi-word phrases are boosted but not required (could be context)
+                    boostTerms.Add($"\"{phrase}\"^2");
+                    keyTerms.Add(phrase);
                     i = j;
                     continue;
                 }
             }
 
-            // Add fuzzy for longer terms (likely to have typos or variants)
-            if (token.Length >= 4 && !token.Contains('.'))
-                parts.Add($"{token.ToLowerInvariant()}~");
+            // Detect technical terms (PascalCase, camelCase, acronyms, numbers)
+            var isTechnical = char.IsUpper(token[0]) ||
+                              token.Any(char.IsDigit) ||
+                              token.Any(c => char.IsUpper(c) && token.IndexOf(c) > 0);
+
+            // First non-technical content word is the PRIMARY SUBJECT - make it REQUIRED
+            // This ensures "authentication" in "authentication for React" is mandatory
+            if (!foundPrimarySubject && !isTechnical && token.Length >= 4)
+            {
+                foundPrimarySubject = true;
+                var term = token.ToLowerInvariant();
+                requiredTerms.Add($"+{term}");  // MUST match
+                keyTerms.Add(term);
+            }
+            // Technical terms: exact match with boost, no fuzzy
+            else if (isTechnical)
+            {
+                boostTerms.Add($"{token}^1.5");
+                keyTerms.Add(token);
+            }
+            // Add fuzzy for longer non-technical terms
+            else if (token.Length >= 4 && !token.Contains('.'))
+            {
+                boostTerms.Add($"{token.ToLowerInvariant()}~");
+                keyTerms.Add(token.ToLowerInvariant());
+            }
             else
-                parts.Add(token.ToLowerInvariant());
+            {
+                boostTerms.Add(token.ToLowerInvariant());
+            }
 
             i++;
         }
+
+        // Add title-boosted versions of key terms (up to 3 most important)
+        var titleBoosts = keyTerms
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .Select(t => $"title:{t}^3")
+            .ToList();
+
+        // Combine: required terms first, then boost terms, then title boosts
+        var parts = new List<string>();
+        parts.AddRange(requiredTerms);
+        parts.AddRange(boostTerms);
+        parts.AddRange(titleBoosts);
 
         return string.Join(" ", parts);
     }

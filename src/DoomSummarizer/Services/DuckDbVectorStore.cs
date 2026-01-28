@@ -50,9 +50,20 @@ public class DuckDbVectorStore : IAsyncDisposable
                 source VARCHAR,
                 url VARCHAR,
                 embedding FLOAT[{_dim}],
+                entity_profile FLOAT[{_dim}],
                 indexed_at TIMESTAMP DEFAULT current_timestamp
             )
             """);
+
+        // Migration: add entity_profile column if not exists
+        try
+        {
+            await ExecAsync($"ALTER TABLE item_embeddings ADD COLUMN entity_profile FLOAT[{_dim}]");
+        }
+        catch
+        {
+            // Column already exists
+        }
 
         // Entity nodes with optional embeddings
         await ExecAsync($"""
@@ -119,6 +130,20 @@ public class DuckDbVectorStore : IAsyncDisposable
         {
             // Non-fatal
         }
+
+        // HNSW index for entity profiles (TF×IDF×confidence weighted entity embeddings)
+        try
+        {
+            await ExecAsync($"""
+                CREATE INDEX IF NOT EXISTS item_entity_profile_hnsw
+                ON item_embeddings USING HNSW (entity_profile)
+                WITH (metric = 'cosine')
+                """);
+        }
+        catch
+        {
+            // Non-fatal
+        }
     }
 
     // --- Item Embeddings ---
@@ -171,6 +196,337 @@ public class DuckDbVectorStore : IAsyncDisposable
                     reader.IsDBNull(2) ? null : reader.GetString(2),
                     similarity));
             }
+        }
+
+        return results;
+    }
+
+    // --- Entity Profile Operations ---
+
+    /// <summary>
+    /// Upsert an item's entity profile for HNSW-backed entity similarity search.
+    /// Entity profiles are TF×IDF×confidence weighted embeddings that encode the document's entity fingerprint.
+    /// </summary>
+    public async Task UpsertItemEntityProfileAsync(string itemId, float[] entityProfile)
+    {
+        await ExecAsync(
+            """
+            UPDATE item_embeddings
+            SET entity_profile = $2
+            WHERE item_id = $1
+            """,
+            itemId, entityProfile);
+    }
+
+    /// <summary>
+    /// Find documents with similar entity profiles using HNSW cosine similarity search.
+    /// Returns item IDs ordered by entity profile similarity.
+    /// </summary>
+    public async Task<List<(string itemId, string title, float similarity)>> FindRelatedByEntityProfileAsync(
+        float[] queryEntityProfile, int topK = 5, float minSimilarity = 0.3f)
+    {
+        var results = new List<(string, string, float)>();
+        using var cmd = _conn!.CreateCommand();
+
+        cmd.CommandText = $"""
+            SELECT item_id, title,
+                   1.0 - array_cosine_distance(entity_profile, $1::FLOAT[{_dim}]) as similarity
+            FROM item_embeddings
+            WHERE entity_profile IS NOT NULL
+            ORDER BY array_cosine_distance(entity_profile, $1::FLOAT[{_dim}])
+            LIMIT $2
+            """;
+        cmd.Parameters.Add(new DuckDBParameter { Value = queryEntityProfile });
+        cmd.Parameters.Add(new DuckDBParameter { Value = topK });
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var similarity = reader.GetFloat(2);
+            if (similarity >= minSimilarity)
+            {
+                results.Add((
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    similarity));
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Check if any items have entity profiles computed.
+    /// Used to determine whether to enable entity profile enrichment.
+    /// </summary>
+    public async Task<bool> HasEntityProfilesAsync()
+    {
+        using var cmd = _conn!.CreateCommand();
+        cmd.CommandText = "SELECT 1 FROM item_embeddings WHERE entity_profile IS NOT NULL LIMIT 1";
+        using var reader = await cmd.ExecuteReaderAsync();
+        return await reader.ReadAsync();
+    }
+
+    /// <summary>
+    /// Get entity profiles for a list of item IDs.
+    /// Used to compute aggregate entity profiles for query expansion.
+    /// </summary>
+    public async Task<Dictionary<string, float[]>> GetEntityProfilesAsync(IEnumerable<string> itemIds)
+    {
+        var profiles = new Dictionary<string, float[]>();
+        var idList = itemIds.ToList();
+        if (idList.Count == 0) return profiles;
+
+        using var cmd = _conn!.CreateCommand();
+
+        // Build placeholders
+        var placeholders = string.Join(", ", idList.Select((_, i) => $"${i + 1}"));
+        // Use array_to_string to convert FLOAT[] to comma-separated string for reliable reading
+        cmd.CommandText = $"""
+            SELECT item_id, array_to_string(entity_profile, ',')
+            FROM item_embeddings
+            WHERE item_id IN ({placeholders}) AND entity_profile IS NOT NULL
+            """;
+
+        foreach (var id in idList)
+        {
+            cmd.Parameters.Add(new DuckDBParameter { Value = id });
+        }
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var itemId = reader.GetString(0);
+            if (!reader.IsDBNull(1))
+            {
+                var profileStr = reader.GetString(1);
+                var profile = ParseFloatArray(profileStr);
+                if (profile.Length > 0)
+                    profiles[itemId] = profile;
+            }
+        }
+
+        return profiles;
+    }
+
+    /// <summary>
+    /// Parse a comma-separated float string into a float array.
+    /// </summary>
+    private static float[] ParseFloatArray(string str)
+    {
+        if (string.IsNullOrEmpty(str)) return [];
+        var parts = str.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        var result = new float[parts.Length];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (float.TryParse(parts[i].Trim(), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var val))
+                result[i] = val;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Get document counts per entity for IDF computation.
+    /// Returns a dictionary mapping entity_id → number of documents mentioning that entity.
+    /// </summary>
+    public async Task<Dictionary<string, int>> GetEntityDocCountsAsync()
+    {
+        var counts = new Dictionary<string, int>();
+        using var cmd = _conn!.CreateCommand();
+
+        cmd.CommandText = """
+            SELECT entity_id, COUNT(DISTINCT item_id) as doc_count
+            FROM entity_mentions
+            GROUP BY entity_id
+            """;
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            counts[reader.GetString(0)] = reader.GetInt32(1);
+        }
+
+        return counts;
+    }
+
+    /// <summary>
+    /// Get total number of unique documents that have entity mentions.
+    /// Used as N in IDF computation.
+    /// </summary>
+    public async Task<int> GetTotalDocsWithEntitiesAsync()
+    {
+        using var cmd = _conn!.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(DISTINCT item_id) FROM entity_mentions";
+        var result = await cmd.ExecuteScalarAsync();
+        return Convert.ToInt32(result ?? 0);
+    }
+
+    /// <summary>
+    /// Get entities for a specific item with their mention counts.
+    /// Returns (entityId, name, confidence, mentions) tuples for entity profile computation.
+    /// </summary>
+    public async Task<List<(string entityId, string name, float confidence, int mentions)>> GetEntitiesForItemAsync(
+        string itemId)
+    {
+        var entities = new List<(string, string, float, int)>();
+        using var cmd = _conn!.CreateCommand();
+
+        cmd.CommandText = """
+            SELECT e.id, e.name, em.confidence,
+                   (SELECT COUNT(*) FROM entity_mentions WHERE entity_id = e.id AND item_id = $1) as mentions
+            FROM entity_mentions em
+            JOIN entities e ON em.entity_id = e.id
+            WHERE em.item_id = $1
+            """;
+        cmd.Parameters.Add(new DuckDBParameter { Value = itemId });
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            entities.Add((
+                reader.GetString(0),
+                reader.GetString(1),
+                (float)reader.GetDouble(2),
+                reader.GetInt32(3)));
+        }
+
+        return entities;
+    }
+
+    /// <summary>
+    /// Update entity embedding for a specific entity.
+    /// Used to cache entity text embeddings for future profile computations.
+    /// </summary>
+    public async Task UpdateEntityEmbeddingAsync(string entityId, float[] embedding)
+    {
+        // Convert embedding to string for storage
+        var embeddingStr = string.Join(",", embedding.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        await ExecAsync(
+            $"""
+            UPDATE entities
+            SET embedding = string_split($2, ',')::FLOAT[{_dim}]
+            WHERE id = $1 AND embedding IS NULL
+            """,
+            entityId, embeddingStr);
+    }
+
+    /// <summary>
+    /// Batch update entity embeddings.
+    /// </summary>
+    public async Task UpdateEntityEmbeddingsBatchAsync(Dictionary<string, float[]> embeddings)
+    {
+        foreach (var (entityId, embedding) in embeddings)
+        {
+            await UpdateEntityEmbeddingAsync(entityId, embedding);
+        }
+    }
+
+    /// <summary>
+    /// Get entity embeddings by entity IDs.
+    /// Used to avoid re-embedding entity names during profile computation.
+    /// </summary>
+    public async Task<Dictionary<string, float[]>> GetEntityEmbeddingsAsync(IEnumerable<string> entityIds)
+    {
+        var embeddings = new Dictionary<string, float[]>();
+        var idList = entityIds.ToList();
+        if (idList.Count == 0) return embeddings;
+
+        using var cmd = _conn!.CreateCommand();
+
+        var placeholders = string.Join(", ", idList.Select((_, i) => $"${i + 1}"));
+        // Use array_to_string to convert FLOAT[] to comma-separated string for reliable reading
+        cmd.CommandText = $"""
+            SELECT id, array_to_string(embedding, ',')
+            FROM entities
+            WHERE id IN ({placeholders}) AND embedding IS NOT NULL
+            """;
+
+        foreach (var id in idList)
+        {
+            cmd.Parameters.Add(new DuckDBParameter { Value = id });
+        }
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var entityId = reader.GetString(0);
+            if (!reader.IsDBNull(1))
+            {
+                var embeddingStr = reader.GetString(1);
+                var embedding = ParseFloatArray(embeddingStr);
+                if (embedding.Length > 0)
+                    embeddings[entityId] = embedding;
+            }
+        }
+
+        return embeddings;
+    }
+
+    /// <summary>
+    /// Get all item IDs that have entity mentions but no entity profile computed yet.
+    /// Used for backfilling entity profiles on existing KB items.
+    /// </summary>
+    public async Task<List<string>> GetItemsWithoutEntityProfilesAsync(int limit = 100)
+    {
+        var itemIds = new List<string>();
+        using var cmd = _conn!.CreateCommand();
+
+        cmd.CommandText = """
+            SELECT DISTINCT em.item_id
+            FROM entity_mentions em
+            JOIN item_embeddings ie ON em.item_id = ie.item_id
+            WHERE ie.entity_profile IS NULL
+            LIMIT $1
+            """;
+        cmd.Parameters.Add(new DuckDBParameter { Value = limit });
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            itemIds.Add(reader.GetString(0));
+        }
+
+        return itemIds;
+    }
+
+    /// <summary>
+    /// Get all entities for a batch of items.
+    /// Returns (itemId, entityId, name, type, confidence, mentions) tuples.
+    /// </summary>
+    public async Task<List<(string itemId, string entityId, string name, string type, float confidence, int mentions)>>
+        GetEntitiesForItemsAsync(IEnumerable<string> itemIds)
+    {
+        var results = new List<(string, string, string, string, float, int)>();
+        var idList = itemIds.ToList();
+        if (idList.Count == 0) return results;
+
+        using var cmd = _conn!.CreateCommand();
+
+        var placeholders = string.Join(", ", idList.Select((_, i) => $"${i + 1}"));
+        cmd.CommandText = $"""
+            SELECT em.item_id, e.id, e.name, e.type, em.confidence, 1 as mentions
+            FROM entity_mentions em
+            JOIN entities e ON em.entity_id = e.id
+            WHERE em.item_id IN ({placeholders})
+            ORDER BY em.item_id
+            """;
+
+        foreach (var id in idList)
+        {
+            cmd.Parameters.Add(new DuckDBParameter { Value = id });
+        }
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            results.Add((
+                reader.GetString(0),  // item_id
+                reader.GetString(1),  // entity_id
+                reader.GetString(2),  // name
+                reader.GetString(3),  // type
+                (float)reader.GetDouble(4),  // confidence
+                reader.GetInt32(5))); // mentions
         }
 
         return results;

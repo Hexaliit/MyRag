@@ -19,6 +19,20 @@ public class EmbeddingService : IDisposable
     // Lock for thread-safe tokenization (BertTokenizer.EncodeToIds is NOT thread-safe)
     private readonly object _tokenizeLock = new();
 
+    // Lock for GPU inference - DirectML/CUDA sessions are NOT thread-safe
+    // CPU sessions are thread-safe, so this lock is only used when GPU is active
+    private readonly object _gpuInferenceLock = new();
+
+    /// <summary>
+    /// Execution provider used for inference (set after Initialize).
+    /// </summary>
+    public string ExecutionProvider { get; private set; } = "CPU";
+
+    /// <summary>
+    /// Whether GPU acceleration is being used.
+    /// </summary>
+    public bool IsGpuAccelerated => ExecutionProvider != "CPU";
+
     public EmbeddingService()
     {
         _modelDir = Path.Combine(
@@ -102,16 +116,66 @@ public class EmbeddingService : IDisposable
         var modelPath = Path.Combine(_modelDir, "model.onnx");
         var vocabPath = Path.Combine(_modelDir, "vocab.txt");
 
-        // Create session options for efficiency
-        var sessionOptions = new SessionOptions
-        {
-            GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
-            IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount / 2)
-        };
-
-        _session = new InferenceSession(modelPath, sessionOptions);
+        // Try GPU providers first, fall back to CPU
+        _session = CreateSessionWithGpuFallback(modelPath);
         _tokenizer = BertTokenizer.Create(vocabPath);
         _initialized = true;
+    }
+
+    /// <summary>
+    /// Create an ONNX session with automatic GPU detection and fallback.
+    /// Tries: DirectML (Windows GPU) → CUDA (NVIDIA) → CPU
+    /// </summary>
+    private InferenceSession CreateSessionWithGpuFallback(string modelPath)
+    {
+        var baseOptions = new SessionOptions
+        {
+            GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+            IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount / 2),
+            LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR // Suppress warnings
+        };
+
+        // Try DirectML first (Windows only, works with AMD/Intel/NVIDIA)
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                var dmlOptions = new SessionOptions
+                {
+                    GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+                    LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR // Suppress warnings
+                };
+                dmlOptions.AppendExecutionProvider_DML(0); // Device 0 (primary GPU)
+                var session = new InferenceSession(modelPath, dmlOptions);
+                ExecutionProvider = "DirectML (GPU)";
+                return session;
+            }
+            catch
+            {
+                // DirectML not available or failed, try next
+            }
+        }
+
+        // Try CUDA (NVIDIA only) - requires Microsoft.ML.OnnxRuntime.Gpu package
+        try
+        {
+            var cudaOptions = new SessionOptions
+            {
+                GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL
+            };
+            cudaOptions.AppendExecutionProvider_CUDA(0);
+            var session = new InferenceSession(modelPath, cudaOptions);
+            ExecutionProvider = "CUDA (NVIDIA GPU)";
+            return session;
+        }
+        catch
+        {
+            // CUDA not available, fall back to CPU
+        }
+
+        // Fall back to CPU
+        ExecutionProvider = "CPU";
+        return new InferenceSession(modelPath, baseOptions);
     }
 
     public float[] Embed(string text)
@@ -145,12 +209,25 @@ public class EmbeddingService : IDisposable
             NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeTensor)
         };
 
-        // Run inference (InferenceSession.Run is thread-safe)
-        using var results = _session!.Run(inputs);
-
-        // Get the sentence embedding (SIMD-accelerated mean pooling of last hidden state)
-        var lastHiddenState = results.First().AsTensor<float>();
-        var embedding = VectorMath.MeanPool(lastHiddenState, attentionMask, EmbeddingDim);
+        // Run inference
+        // GPU providers (DirectML/CUDA) are NOT thread-safe — lock for concurrent access
+        // CPU provider IS thread-safe, so we skip the lock for better parallelism
+        float[] embedding;
+        if (IsGpuAccelerated)
+        {
+            lock (_gpuInferenceLock)
+            {
+                using var results = _session!.Run(inputs);
+                var lastHiddenState = results.First().AsTensor<float>();
+                embedding = VectorMath.MeanPool(lastHiddenState, attentionMask, EmbeddingDim);
+            }
+        }
+        else
+        {
+            using var results = _session!.Run(inputs);
+            var lastHiddenState = results.First().AsTensor<float>();
+            embedding = VectorMath.MeanPool(lastHiddenState, attentionMask, EmbeddingDim);
+        }
 
         // L2 normalize (SIMD-accelerated)
         VectorMath.L2Normalize(embedding);

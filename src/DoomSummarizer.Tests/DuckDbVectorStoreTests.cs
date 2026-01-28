@@ -172,6 +172,144 @@ public class DuckDbVectorStoreTests : IAsyncLifetime
         stats.entities.Should().Be(1, "recent data should survive cleanup");
     }
 
+    // --- Entity Profile Tests ---
+
+    [Fact]
+    public async Task UpsertItemEntityProfile_StoresProfile()
+    {
+        // First create an item
+        await _store.UpsertItemEmbeddingAsync("item1", "Test Article", "hn", null, CreateRandomEmbedding());
+
+        // Then add entity profile
+        var entityProfile = CreateRandomEmbedding();
+        await _store.UpsertItemEntityProfileAsync("item1", entityProfile);
+
+        // Verify it's stored
+        var hasProfiles = await _store.HasEntityProfilesAsync();
+        hasProfiles.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task HasEntityProfiles_ReturnsFalseWhenEmpty()
+    {
+        // No items with entity profiles
+        await _store.UpsertItemEmbeddingAsync("item1", "Test", "hn", null, CreateRandomEmbedding());
+
+        var hasProfiles = await _store.HasEntityProfilesAsync();
+        hasProfiles.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task FindRelatedByEntityProfile_FindsSimilarItems()
+    {
+        // Create items with entity profiles
+        var profile1 = CreateNormalizedEmbedding(1.0f);
+        var profile2 = CreateNormalizedEmbedding(0.9f);  // Similar to profile1
+        var profile3 = CreateNormalizedEmbedding(-1.0f); // Very different
+
+        await _store.UpsertItemEmbeddingAsync("item1", "AI Article 1", "hn", null, CreateRandomEmbedding());
+        await _store.UpsertItemEmbeddingAsync("item2", "AI Article 2", "hn", null, CreateRandomEmbedding());
+        await _store.UpsertItemEmbeddingAsync("item3", "Cooking Article", "hn", null, CreateRandomEmbedding());
+
+        await _store.UpsertItemEntityProfileAsync("item1", profile1);
+        await _store.UpsertItemEntityProfileAsync("item2", profile2);
+        await _store.UpsertItemEntityProfileAsync("item3", profile3);
+
+        // Search with a query profile similar to item1
+        var results = await _store.FindRelatedByEntityProfileAsync(profile1, topK: 10, minSimilarity: 0.5f);
+
+        results.Should().NotBeEmpty();
+        results.Should().Contain(r => r.itemId == "item1");
+        results.Should().Contain(r => r.itemId == "item2");
+        // item3 should have low similarity, might not be included due to threshold
+    }
+
+    [Fact]
+    public async Task GetEntityDocCounts_ReturnsCorrectCounts()
+    {
+        // Set up entities mentioned in multiple items
+        await _store.UpsertEntityAsync("org_openai", "OpenAI", "ORG", 0.9);
+        await _store.UpsertEntityAsync("per_altman", "Sam Altman", "PER", 0.85);
+
+        await _store.UpsertEntityMentionAsync("org_openai", "item1", 0.9);
+        await _store.UpsertEntityMentionAsync("org_openai", "item2", 0.8);
+        await _store.UpsertEntityMentionAsync("org_openai", "item3", 0.7);
+        await _store.UpsertEntityMentionAsync("per_altman", "item1", 0.85);
+
+        var counts = await _store.GetEntityDocCountsAsync();
+
+        counts["org_openai"].Should().Be(3);
+        counts["per_altman"].Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetTotalDocsWithEntities_ReturnsCorrectCount()
+    {
+        await _store.UpsertEntityAsync("org_a", "Acme", "ORG", 0.9);
+        await _store.UpsertEntityMentionAsync("org_a", "item1", 0.9);
+        await _store.UpsertEntityMentionAsync("org_a", "item2", 0.8);
+        await _store.UpsertEntityMentionAsync("org_a", "item3", 0.7);
+
+        var total = await _store.GetTotalDocsWithEntitiesAsync();
+        total.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task GetEntitiesForItem_ReturnsEntitiesWithCounts()
+    {
+        await _store.UpsertEntityAsync("org_openai", "OpenAI", "ORG", 0.9);
+        await _store.UpsertEntityAsync("per_altman", "Sam Altman", "PER", 0.85);
+
+        await _store.UpsertEntityMentionAsync("org_openai", "item1", 0.9);
+        await _store.UpsertEntityMentionAsync("per_altman", "item1", 0.85);
+
+        var entities = await _store.GetEntitiesForItemAsync("item1");
+
+        entities.Should().HaveCount(2);
+        entities.Should().Contain(e => e.entityId == "org_openai" && e.name == "OpenAI");
+        entities.Should().Contain(e => e.entityId == "per_altman" && e.name == "Sam Altman");
+    }
+
+    [Fact]
+    public async Task GetEntityProfiles_ReturnsStoredProfiles()
+    {
+        var profile1 = CreateRandomEmbedding();
+        var profile2 = CreateRandomEmbedding();
+
+        await _store.UpsertItemEmbeddingAsync("item1", "Article 1", "hn", null, CreateRandomEmbedding());
+        await _store.UpsertItemEmbeddingAsync("item2", "Article 2", "hn", null, CreateRandomEmbedding());
+        await _store.UpsertItemEmbeddingAsync("item3", "Article 3", "hn", null, CreateRandomEmbedding());
+
+        await _store.UpsertItemEntityProfileAsync("item1", profile1);
+        await _store.UpsertItemEntityProfileAsync("item2", profile2);
+        // item3 has no entity profile
+
+        var profiles = await _store.GetEntityProfilesAsync(["item1", "item2", "item3"]);
+
+        profiles.Should().HaveCount(2);
+        profiles.Should().ContainKey("item1");
+        profiles.Should().ContainKey("item2");
+        profiles.Should().NotContainKey("item3");
+    }
+
+    [Fact]
+    public async Task GetEntityEmbeddings_ReturnsCachedEmbeddings()
+    {
+        var embedding1 = CreateRandomEmbedding();
+        var embedding2 = CreateRandomEmbedding();
+
+        await _store.UpsertEntityAsync("org_openai", "OpenAI", "ORG", 0.9, embedding1);
+        await _store.UpsertEntityAsync("per_altman", "Sam Altman", "PER", 0.85, embedding2);
+        await _store.UpsertEntityAsync("loc_sf", "San Francisco", "LOC", 0.8); // No embedding
+
+        var embeddings = await _store.GetEntityEmbeddingsAsync(["org_openai", "per_altman", "loc_sf"]);
+
+        embeddings.Should().HaveCount(2);
+        embeddings.Should().ContainKey("org_openai");
+        embeddings.Should().ContainKey("per_altman");
+        embeddings.Should().NotContainKey("loc_sf");
+    }
+
     // Helper: create a random 384-dim embedding
     private static float[] CreateRandomEmbedding()
     {

@@ -79,8 +79,8 @@
         <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="10.0.1"/>
 
         <!-- ML/Embeddings -->
-        <!-- Cross-platform ONNX runtime - CPU only, works on all platforms -->
-        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2"/>
+        <!-- Cross-platform ONNX runtime - 1.23.0 to align with DirectML GPU package -->
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.0"/>
         <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0"/>
         <PackageReference Include="Markdig" Version="0.44.0"/>
 
