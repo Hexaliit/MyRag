@@ -26,9 +26,28 @@ public sealed partial class ScrollCommand
         var sourceParts = new List<string>();
         var shown = 0;
 
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in analyzedItems.OrderByDescending(a => a.relevance))
         {
             if (shown >= topN) break;
+
+            // Deduplicate by normalized URL or title
+            var normalizedUrl = !string.IsNullOrEmpty(item.url)
+                ? item.url.Split('?')[0].TrimEnd('/').ToLowerInvariant()
+                : "";
+            var dedupeKey = !string.IsNullOrEmpty(normalizedUrl)
+                ? normalizedUrl
+                : item.title.ToLowerInvariant().Trim();
+            if (!seenKeys.Add(dedupeKey))
+                continue;
+
+            // Count how many times this article appears
+            var refCount = analyzedItems.Count(a =>
+            {
+                var aUrl = !string.IsNullOrEmpty(a.url) ? a.url.Split('?')[0].TrimEnd('/').ToLowerInvariant() : "";
+                var aKey = !string.IsNullOrEmpty(aUrl) ? aUrl : a.title.ToLowerInvariant().Trim();
+                return string.Equals(aKey, dedupeKey, StringComparison.OrdinalIgnoreCase);
+            });
 
             // Find matching ContentItem for excerpt
             var contentItem = uniqueItems.FirstOrDefault(u =>
@@ -43,8 +62,9 @@ public sealed partial class ScrollCommand
             var domain = GetDomainFromUrl(item.url);
             var sourceLabel = !string.IsNullOrEmpty(domain) ? domain : (contentItem?.Source ?? "web");
 
+            var refSuffix = refCount > 1 ? $" ({refCount} refs)" : "";
             sourceParts.Add($"[cyan]{Markup.Escape(Truncate(item.title, 70))}[/]");
-            sourceParts.Add($"  [dim]{Markup.Escape(sourceLabel)}[/] [grey]|[/] [dim]{item.relevance:F2}[/]");
+            sourceParts.Add($"  [dim]{Markup.Escape(sourceLabel)}[/] [grey]|[/] [dim]{item.relevance:F2}{refSuffix}[/]");
             if (!string.IsNullOrEmpty(excerpt))
                 sourceParts.Add($"  [grey]{Markup.Escape(excerpt)}[/]");
             sourceParts.Add("");
@@ -72,6 +92,8 @@ public sealed partial class ScrollCommand
     {
         if (string.IsNullOrWhiteSpace(text)) return "";
 
+        // Strip HTML tags
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
         // Strip markdown noise
         text = text.Replace("##", "").Replace("**", "").Replace("*", "").Trim();
 

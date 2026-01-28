@@ -138,61 +138,23 @@ public class EmbeddingService : IDisposable
         // Run inference
         using var results = _session!.Run(inputs);
 
-        // Get the sentence embedding (mean pooling of last hidden state)
+        // Get the sentence embedding (SIMD-accelerated mean pooling of last hidden state)
         var lastHiddenState = results.First().AsTensor<float>();
-        var embedding = MeanPooling(lastHiddenState, attentionMask);
+        var embedding = VectorMath.MeanPool(lastHiddenState, attentionMask, EmbeddingDim);
 
-        // L2 normalize
-        var norm = MathF.Sqrt(embedding.Sum(x => x * x));
-        if (norm > 0)
-        {
-            for (var i = 0; i < embedding.Length; i++)
-                embedding[i] /= norm;
-        }
+        // L2 normalize (SIMD-accelerated)
+        VectorMath.L2Normalize(embedding);
 
         return embedding;
     }
 
-    private static float[] MeanPooling(Tensor<float> hiddenState, long[] attentionMask)
-    {
-        var seqLen = attentionMask.Length;
-        var embedding = new float[EmbeddingDim];
-        var validTokens = attentionMask.Sum();
-
-        if (validTokens == 0) return embedding;
-
-        for (var i = 0; i < seqLen; i++)
-        {
-            if (attentionMask[i] == 0) continue;
-            for (var j = 0; j < EmbeddingDim; j++)
-            {
-                embedding[j] += hiddenState[0, i, j];
-            }
-        }
-
-        for (var j = 0; j < EmbeddingDim; j++)
-        {
-            embedding[j] /= validTokens;
-        }
-
-        return embedding;
-    }
-
-    public static float CosineSimilarity(float[] a, float[] b)
-    {
-        if (a.Length != b.Length) return 0;
-
-        float dot = 0, normA = 0, normB = 0;
-        for (var i = 0; i < a.Length; i++)
-        {
-            dot += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
-        }
-
-        var denom = MathF.Sqrt(normA) * MathF.Sqrt(normB);
-        return denom > 0 ? dot / denom : 0;
-    }
+    /// <summary>
+    /// Cosine similarity using SIMD-accelerated vector math.
+    /// For L2-normalized vectors (as produced by <see cref="Embed"/>), delegates to
+    /// the optimized dot-product-only path.
+    /// </summary>
+    public static float CosineSimilarity(float[] a, float[] b) =>
+        VectorMath.CosineSimilarity(a, b);
 
     public static byte[] ToBytes(float[] embedding)
     {

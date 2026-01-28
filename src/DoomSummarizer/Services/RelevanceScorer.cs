@@ -215,12 +215,15 @@ public class RelevanceScorer
             return items.OrderByDescending(i => i.RelevanceScore).ToList();
         }
 
+        // Pre-tokenize all items once — avoids redundant Tokenize() calls in BM25 and corpus stats
+        var tokenCache = PreTokenizeItems(items);
+
         // Build BM25 corpus stats — use global corpus if available for proper IDF
-        var (idf, avgDocLen) = BuildCorpusStats(items, globalCorpus, globalCorpusSize);
+        var (idf, avgDocLen) = BuildCorpusStats(items, globalCorpus, globalCorpusSize, tokenCache);
 
         // Score each signal independently, then rank
         // Use BM25F (field-weighted) to boost title + keywords matches over content matches
-        var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen))).ToList();
+        var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen, tokenCache))).ToList();
         var freshnessScores = items.Select(i => (item: i, score: ComputeFreshness(i))).ToList();
         var authorityScores = ComputeAuthorityScores(items);
 
@@ -308,10 +311,13 @@ public class RelevanceScorer
         if (items.Count == 0) return items;
 
         var queryTokens = Tokenize(query);
-        var (idf, avgDocLen) = BuildCorpusStats(items, globalCorpus, globalCorpusSize);
+
+        // Pre-tokenize all items once — avoids redundant Tokenize() calls in BM25 and corpus stats
+        var tokenCache = PreTokenizeItems(items);
+        var (idf, avgDocLen) = BuildCorpusStats(items, globalCorpus, globalCorpusSize, tokenCache);
 
         // Phase 1 signals (recomputed for refined batch) — BM25F for field weighting
-        var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen))).ToList();
+        var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen, tokenCache))).ToList();
         var freshnessScores = items.Select(i => (item: i, score: ComputeFreshness(i))).ToList();
         var authorityScores = ComputeAuthorityScores(items);
 
@@ -443,16 +449,29 @@ public class RelevanceScorer
         ContentItem item,
         List<string> queryTokens,
         Dictionary<string, double> idf,
-        double avgDocLen)
+        double avgDocLen,
+        Dictionary<string, PreTokenized>? tokenCache = null)
     {
         const double k1 = 1.5, b = 0.75;
         const double titleBoost = 2.0;
         const double keywordsBoost = 2.5;
 
-        var titleTokens = Tokenize(item.Title);
-        var keywordTokens = Tokenize(item.Keywords ?? "");
-        var contentTokens = Tokenize(item.Content ?? "");
-        var allTokens = titleTokens.Concat(keywordTokens).Concat(contentTokens).ToList();
+        List<string> titleTokens, keywordTokens, contentTokens, allTokens;
+        if (tokenCache != null && tokenCache.TryGetValue(item.Id, out var pt))
+        {
+            titleTokens = pt.TitleTokens;
+            keywordTokens = pt.KeywordTokens;
+            contentTokens = pt.ContentTokens;
+            allTokens = pt.AllTokens;
+        }
+        else
+        {
+            titleTokens = Tokenize(item.Title);
+            keywordTokens = Tokenize(item.Keywords ?? "");
+            contentTokens = Tokenize(item.Content ?? "");
+            allTokens = titleTokens.Concat(keywordTokens).Concat(contentTokens).ToList();
+        }
+
         if (allTokens.Count == 0 || avgDocLen < 0.001) return 0;
 
         // Build field-weighted TF: title 2×, keywords 2.5×, content 1×
@@ -538,7 +557,8 @@ public class RelevanceScorer
     internal static (Dictionary<string, double> idf, double avgDocLen) BuildCorpusStats(
         List<ContentItem> items,
         Dictionary<string, int>? globalCorpus = null,
-        int? globalCorpusSize = null)
+        int? globalCorpusSize = null,
+        Dictionary<string, PreTokenized>? tokenCache = null)
     {
         // Always compute avgDocLen from the current batch
         long totalLen = 0;
@@ -546,7 +566,10 @@ public class RelevanceScorer
 
         foreach (var item in items)
         {
-            var tokens = Tokenize(ItemText(item));
+            // Use pre-tokenized data if available (avoids re-tokenizing content)
+            var tokens = tokenCache != null && tokenCache.TryGetValue(item.Id, out var pt)
+                ? pt.AllTokens
+                : Tokenize(ItemText(item));
             totalLen += tokens.Count;
             foreach (var t in tokens.Distinct(StringComparer.OrdinalIgnoreCase))
                 batchDocFreq[t] = batchDocFreq.GetValueOrDefault(t) + 1;
@@ -691,31 +714,18 @@ public class RelevanceScorer
         var dim = originalQueryEmbedding.Length;
         var centroid = new float[dim];
 
-        // Average the top-K embeddings
+        // Average the top-K embeddings (SIMD-accelerated accumulation)
+        var scale = 1.0f / topEmbeddings.Count;
         foreach (var emb in topEmbeddings)
-        {
-            for (var i = 0; i < dim; i++)
-                centroid[i] += emb[i];
-        }
-        for (var i = 0; i < dim; i++)
-            centroid[i] /= topEmbeddings.Count;
+            VectorMath.AddScaled(centroid, emb, scale);
 
-        // Blend: refined = α × original + (1-α) × centroid
+        // Blend: refined = α × original + (1-α) × centroid (SIMD-accelerated)
         var refined = new float[dim];
-        for (var i = 0; i < dim; i++)
-            refined[i] = alpha * originalQueryEmbedding[i] + (1 - alpha) * centroid[i];
+        VectorMath.AddScaled(refined, originalQueryEmbedding, alpha);
+        VectorMath.AddScaled(refined, centroid, 1 - alpha);
 
-        // L2 normalize the result
-        var norm = 0f;
-        for (var i = 0; i < dim; i++)
-            norm += refined[i] * refined[i];
-        norm = MathF.Sqrt(norm);
-
-        if (norm > 1e-8f)
-        {
-            for (var i = 0; i < dim; i++)
-                refined[i] /= norm;
-        }
+        // L2 normalize the result (SIMD-accelerated)
+        VectorMath.L2Normalize(refined);
 
         return refined;
     }
@@ -741,6 +751,36 @@ public class RelevanceScorer
             .ToList();
     }
 
+    /// <summary>
+    /// Pre-tokenized fields for a ContentItem, avoiding redundant tokenization
+    /// across BuildCorpusStats and BM25FScore calls.
+    /// </summary>
+    internal record PreTokenized(
+        List<string> TitleTokens,
+        List<string> KeywordTokens,
+        List<string> ContentTokens,
+        List<string> AllTokens);
+
+    /// <summary>
+    /// Pre-tokenize all items once. Returns a lookup by item ID.
+    /// Used to avoid re-tokenizing title/keywords/content across BuildCorpusStats and BM25FScore.
+    /// </summary>
+    internal static Dictionary<string, PreTokenized> PreTokenizeItems(List<ContentItem> items)
+    {
+        var result = new Dictionary<string, PreTokenized>(items.Count);
+        foreach (var item in items)
+        {
+            var titleTokens = Tokenize(item.Title);
+            var keywordTokens = Tokenize(item.Keywords ?? "");
+            var contentTokens = Tokenize(item.Content ?? "");
+            var allTokens = new List<string>(titleTokens.Count + keywordTokens.Count + contentTokens.Count);
+            allTokens.AddRange(titleTokens);
+            allTokens.AddRange(keywordTokens);
+            allTokens.AddRange(contentTokens);
+            result[item.Id] = new PreTokenized(titleTokens, keywordTokens, contentTokens, allTokens);
+        }
+        return result;
+    }
 
     #endregion
 }

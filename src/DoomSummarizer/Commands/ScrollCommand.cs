@@ -1116,7 +1116,14 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         {
                             var storedItems = await storage.LoadItemsByIdsAsync(storedCandidateIds);
                             var existingIds = new HashSet<string>(uniqueItems.Select(i => i.Id));
-                            var newFromKb = storedItems.Where(s => !existingIds.Contains(s.Id)).ToList();
+                            var existingUrls2 = new HashSet<string>(
+                                uniqueItems.Where(i => !string.IsNullOrEmpty(i.Url))
+                                    .Select(i => i.Url!.Split('?')[0].TrimEnd('/').ToLowerInvariant()),
+                                StringComparer.OrdinalIgnoreCase);
+                            var newFromKb = storedItems.Where(s =>
+                                !existingIds.Contains(s.Id) &&
+                                (string.IsNullOrEmpty(s.Url) || !existingUrls2.Contains(s.Url.Split('?')[0].TrimEnd('/').ToLowerInvariant())))
+                                .ToList();
                             if (newFromKb.Count > 0)
                             {
                                 uniqueItems.AddRange(newFromKb);
@@ -1531,7 +1538,18 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             {
                                 // Embed and deduplicate new results
                                 var existingIds = new HashSet<string>(uniqueItems.Select(i => i.Id));
-                                var newItems = reSearchResults.Where(i => !existingIds.Contains(i.Id)).ToList();
+                                var existingUrls = new HashSet<string>(
+                                    uniqueItems.Where(i => !string.IsNullOrEmpty(i.Url))
+                                        .Select(i => i.Url!.Split('?')[0].TrimEnd('/').ToLowerInvariant()),
+                                    StringComparer.OrdinalIgnoreCase);
+                                var existingTitles = new HashSet<string>(
+                                    uniqueItems.Select(i => i.Title.ToLowerInvariant().Trim()),
+                                    StringComparer.OrdinalIgnoreCase);
+                                var newItems = reSearchResults.Where(i =>
+                                    !existingIds.Contains(i.Id) &&
+                                    (string.IsNullOrEmpty(i.Url) || !existingUrls.Contains(i.Url.Split('?')[0].TrimEnd('/').ToLowerInvariant())) &&
+                                    !existingTitles.Contains(i.Title.ToLowerInvariant().Trim()))
+                                    .ToList();
 
                                 foreach (var item in newItems)
                                 {

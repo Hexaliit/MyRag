@@ -161,19 +161,11 @@ public static partial class TextRankExtractor
         return scores;
     }
 
-    private static float CosineSimilarity(float[] a, float[] b)
-    {
-        if (a.Length != b.Length) return 0;
-        float dot = 0, normA = 0, normB = 0;
-        for (var i = 0; i < a.Length; i++)
-        {
-            dot += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
-        }
-        var denom = MathF.Sqrt(normA) * MathF.Sqrt(normB);
-        return denom > 0 ? dot / denom : 0;
-    }
+    /// <summary>
+    /// Delegates to SIMD-accelerated <see cref="VectorMath.CosineSimilarity"/>.
+    /// </summary>
+    private static float CosineSimilarity(float[] a, float[] b) =>
+        VectorMath.CosineSimilarity(a, b);
 
     [GeneratedRegex(@"^#{1,6}\s+.*$", RegexOptions.Multiline)]
     private static partial Regex MarkdownHeading();
