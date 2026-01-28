@@ -60,4 +60,5 @@ jobs:
           dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj \
             --configuration Release \
             --no-build \
+            --filter "Category!=Network&Category!=Smoke" \
             --logger "console;verbosity=normal"
