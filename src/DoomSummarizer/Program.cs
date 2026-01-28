@@ -22,8 +22,8 @@ if (args.Length > 0 && args[0] is "--mcp" or "-mcp")
     return 0;
 }
 
-// Standard CLI mode
-var app = new CommandApp();
+// Standard CLI mode — ScrollCommand is the default (no command name needed)
+var app = new CommandApp<ScrollCommand>();
 
 app.Configure(config =>
 {

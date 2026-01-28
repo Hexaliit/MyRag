@@ -171,27 +171,34 @@ public class ArticleProcessor : IDisposable
     }
 
     /// <summary>
-    /// Process multiple articles in batch.
+    /// Process multiple articles in batch with bounded parallelism.
+    /// ONNX InferenceSession.Run() is thread-safe, enabling concurrent processing.
     /// </summary>
     public async Task<List<ProcessedArticle>> ProcessBatchAsync(
         List<ContentItem> items,
         IProgress<(int current, int total)>? progress = null,
         CancellationToken ct = default)
     {
-        var results = new List<ProcessedArticle>();
+        var results = new ProcessedArticle?[items.Count];
+        var completed = 0;
 
-        for (var i = 0; i < items.Count; i++)
-        {
-            ct.ThrowIfCancellationRequested();
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, items.Count),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 2, 4),
+                CancellationToken = ct
+            },
+            async (i, token) =>
+            {
+                var processed = await ProcessAsync(items[i], token);
+                results[i] = processed;
 
-            var item = items[i];
-            var processed = await ProcessAsync(item, ct);
-            results.Add(processed);
+                var count = Interlocked.Increment(ref completed);
+                progress?.Report((count, items.Count));
+            });
 
-            progress?.Report((i + 1, items.Count));
-        }
-
-        return results;
+        return results.Where(r => r != null).ToList()!;
     }
 
     /// <summary>

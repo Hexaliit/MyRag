@@ -54,8 +54,10 @@ public sealed partial class ScrollCommand
                 string.Equals(u.Title, item.title, StringComparison.Ordinal) ||
                 string.Equals(u.Url, item.url, StringComparison.Ordinal));
 
-            // Extract most salient excerpt: prefer content, fall back to summary
-            var excerptSource = contentItem?.Content ?? item.summary;
+            // Extract most salient excerpt: prefer summary (top salience segments), fall back to content
+            var excerptSource = !string.IsNullOrEmpty(item.summary) && item.summary != item.title
+                ? item.summary
+                : contentItem?.Content ?? item.summary;
             var excerpt = ExtractLeadExcerpt(excerptSource, maxChars: 120);
 
             // Domain from URL
@@ -92,10 +94,15 @@ public sealed partial class ScrollCommand
     {
         if (string.IsNullOrWhiteSpace(text)) return "";
 
-        // Strip HTML tags
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
-        // Strip markdown noise
-        text = text.Replace("##", "").Replace("**", "").Replace("*", "").Trim();
+        // Strip HTML tags, markdown noise, blockquotes, links, escaped chars
+        text = HtmlTagPattern().Replace(text, "");
+        text = MarkdownHeadingPrefixPattern().Replace(text, "");
+        text = BlockquotePattern().Replace(text, "");
+        text = MarkdownLinkPattern().Replace(text, "$1"); // [text](url) → text
+        text = text.Replace("**", "").Replace("*", "").Replace("`", "");
+        text = text.Replace("\\(", "(").Replace("\\)", ")").Replace("\\[", "[").Replace("\\]", "]");
+        text = text.Replace("~~~", "").Replace("```", "");
+        text = WhitespaceCollapsePattern().Replace(text, " ").Trim();
 
         // Try to find first complete sentence
         var dotIdx = text.IndexOf(". ", 20, StringComparison.Ordinal);
@@ -369,23 +376,19 @@ public sealed partial class ScrollCommand
         // Each captured group's content is Markup.Escaped individually.
 
         // Inline code: `code` → [grey on grey15]code[/]
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text, @"`([^`]+)`",
+        text = InlineCodePattern().Replace(text,
             m => Store($"[grey on grey15]{Markup.Escape(m.Groups[1].Value)}[/]"));
 
         // Links: [text](url) → [cyan underline]text[/] [dim](url)[/]
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text, @"\[([^\]]+)\]\(([^)]+)\)",
+        text = MarkdownLinkCapturePattern().Replace(text,
             m => Store($"[cyan underline]{Markup.Escape(m.Groups[1].Value)}[/] [dim]({Markup.Escape(m.Groups[2].Value)})[/]"));
 
         // Bold: **text** → [bold]text[/]
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text, @"\*\*(.+?)\*\*",
+        text = BoldPattern().Replace(text,
             m => Store($"[bold]{Markup.Escape(m.Groups[1].Value)}[/]"));
 
         // Italic: *text* → [italic]text[/] (single asterisks not consumed by bold)
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text, @"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)",
+        text = ItalicPattern().Replace(text,
             m => Store($"[italic]{Markup.Escape(m.Groups[1].Value)}[/]"));
 
         // Escape remaining literal text (Markup.Escape only affects [ and ],
@@ -398,4 +401,33 @@ public sealed partial class ScrollCommand
 
         return text;
     }
+
+    // --- Source-generated regex for rendering ---
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagPattern();
+
+    [GeneratedRegex(@"^#{1,6}\s+", RegexOptions.Multiline)]
+    private static partial Regex MarkdownHeadingPrefixPattern();
+
+    [GeneratedRegex(@"^>\s*", RegexOptions.Multiline)]
+    private static partial Regex BlockquotePattern();
+
+    [GeneratedRegex(@"\[([^\]]+)\]\([^\)]+\)")]
+    private static partial Regex MarkdownLinkPattern();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceCollapsePattern();
+
+    [GeneratedRegex(@"`([^`]+)`")]
+    private static partial Regex InlineCodePattern();
+
+    [GeneratedRegex(@"\[([^\]]+)\]\(([^)]+)\)")]
+    private static partial Regex MarkdownLinkCapturePattern();
+
+    [GeneratedRegex(@"\*\*(.+?)\*\*")]
+    private static partial Regex BoldPattern();
+
+    [GeneratedRegex(@"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)")]
+    private static partial Regex ItalicPattern();
 }

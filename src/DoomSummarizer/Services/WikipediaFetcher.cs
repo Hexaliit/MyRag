@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 
 namespace DoomSummarizer.Services;
@@ -9,7 +10,7 @@ namespace DoomSummarizer.Services;
 /// No API key required. Covers "In the news", "On this day", and featured articles.
 /// https://en.wikipedia.org/api/rest_v1/
 /// </summary>
-public class WikipediaFetcher(HttpClient httpClient)
+public partial class WikipediaFetcher(HttpClient httpClient)
 {
     private const string BaseUrl = "https://en.wikipedia.org/api/rest_v1";
 
@@ -118,15 +119,21 @@ public class WikipediaFetcher(HttpClient httpClient)
 
     private static string StripHtml(string html)
     {
-        var text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
+        var text = HtmlTagRegex().Replace(html, " ");
         text = System.Net.WebUtility.HtmlDecode(text);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+        text = WhitespaceRegex().Replace(text, " ").Trim();
         return text.Length > 1500 ? text[..1500] : text;
     }
 
     private static string GenerateId(string input) =>
         Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     // Wikimedia REST API response models
     private record WikiFeatured(

@@ -1171,13 +1171,17 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 float[]? vibeEmbedding = null;
                 if (!string.IsNullOrWhiteSpace(queryText))
                 {
-                    foreach (var item in uniqueItems)
+                    // ONNX InferenceSession.Run() is thread-safe — parallelize embedding computation
+                    var itemsNeedingEmbedding = uniqueItems.Where(i => i.Embedding == null).ToList();
+                    if (itemsNeedingEmbedding.Count > 0)
                     {
-                        if (item.Embedding == null)
-                        {
-                            var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
-                            item.Embedding = embedding.Embed(textToEmbed);
-                        }
+                        Parallel.ForEach(itemsNeedingEmbedding,
+                            new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 2, 4) },
+                            item =>
+                            {
+                                var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
+                                item.Embedding = embedding.Embed(textToEmbed);
+                            });
                     }
 
                     queryEmbedding = embedding.Embed(queryText);
@@ -1551,11 +1555,14 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                     !existingTitles.Contains(i.Title.ToLowerInvariant().Trim()))
                                     .ToList();
 
-                                foreach (var item in newItems)
-                                {
-                                    var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
-                                    item.Embedding = embedding.Embed(textToEmbed);
-                                }
+                                // ONNX InferenceSession.Run() is thread-safe — parallelize
+                                Parallel.ForEach(newItems,
+                                    new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 2, 4) },
+                                    item =>
+                                    {
+                                        var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
+                                        item.Embedding = embedding.Embed(textToEmbed);
+                                    });
 
                                 // Merge and re-score
                                 uniqueItems.AddRange(newItems);
@@ -1614,13 +1621,19 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     else
                     {
                         // Phase 1: Segment extraction via ArticleProcessor (CPU-bound)
+                        // ONNX InferenceSession.Run() is thread-safe — parallelize article processing
                         using var articleProcessor = new ArticleProcessor();
 
-                        foreach (var item in needsAnalysis)
+                        var parallelOpts = new ParallelOptions
+                        {
+                            MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 2, 4)
+                        };
+
+                        await Parallel.ForEachAsync(needsAnalysis, parallelOpts, async (item, ct) =>
                         {
                             try
                             {
-                                var processed = await articleProcessor.ProcessAsync(item);
+                                var processed = await articleProcessor.ProcessAsync(item, ct);
 
                                 // Summary from top salience segments (deterministic, no LLM)
                                 var topSegments = processed.TopSegments
@@ -1647,7 +1660,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                     : (content.Length > 0 ? content : item.Title);
                             }
 
-                            // Phase 2: Embedding-based sentiment + topic (pure math)
+                            // Phase 2: Embedding-based sentiment + topic (pure math, thread-safe)
                             if (item.Embedding != null)
                             {
                                 item.SentimentScore = RelevanceScorer.ComputeEmbeddingSentiment(
@@ -1659,29 +1672,28 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 item.DetectedTopic = InferTopicFromSource(item.Source);
                             }
 
+                            analyzeTask.Increment(1);
+                        });
+
+                        // Build analyzedItems after parallel completion (preserves order)
+                        foreach (var item in needsAnalysis)
+                        {
                             analyzedItems.Add((item.Title, item.Summary!, item.DetectedTopic ?? "general",
                                 item.SentimentScore, item.Url ?? "", item.RelevanceScore));
-                            analyzeTask.Increment(1);
                         }
                     }
 
                     // Save to storage + index into FTS5 for keyword pre-filtering
-                    foreach (var item in itemsToAnalyze)
+                    // Batch all writes in a single SQLite transaction for performance
+                    var batchEntries = itemsToAnalyze.Select(item =>
                     {
-                        // Compute keyword profile if not already set by ArticleProcessor
                         var kwProfile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
                         if (string.IsNullOrEmpty(item.Keywords))
                             item.Keywords = kwProfile.KeywordsText;
+                        return (item, kwProfile);
+                    }).ToList();
 
-                        await storage.SaveItemAsync(item);
-
-                        // Index into FTS5 for future keyword pre-filtering
-                        var contentPreview = (item.Content ?? "").Length > 2000
-                            ? item.Content![..2000]
-                            : item.Content ?? "";
-                        await storage.IndexDocumentFtsAsync(item.Id, item.Title, kwProfile.KeywordsText, contentPreview);
-                        await storage.UpdateKeywordCorpusAsync(kwProfile.TopKeywords.Select(k => k.Keyword));
-                    }
+                    await storage.SaveAndIndexBatchAsync(batchEntries);
 
                     analyzeTask.Description = $"[green]Analyzed {analyzedItems.Count} items (deterministic)[/]";
                 }
@@ -1759,7 +1771,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // NER entity extraction (--entities or --graph)
                 allEntities = new List<NerEntity>();
                 articleEntityMap = new List<(ContentItem item, List<NerEntity> entities)>();
-                extractEntities = settings.Entities; // NER is ONNX-based, no LLM needed
+                // Auto-enable entity extraction when GraphScope is Global or Connective (GraphRAG scope detection)
+                extractEntities = settings.Entities
+                    || (interpreted?.GraphScope is GraphScope.Global or GraphScope.Connective);
 
                 if (extractEntities)
                 {
@@ -1827,7 +1841,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                 // Layer 3: Graph enrichment — discover related documents via shared entities
                 // Uses entity_mentions to find docs sharing 2+ entities with top results
-                if (settings.Entities && uniqueItems.Count >= 3)
+                if (extractEntities && uniqueItems.Count >= 3)
                 {
                     var topItemIds = uniqueItems
                         .OrderByDescending(i => i.RelevanceScore)

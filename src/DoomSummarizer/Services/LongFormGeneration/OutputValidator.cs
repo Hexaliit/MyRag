@@ -9,27 +9,31 @@ namespace DoomSummarizer.Services.LongFormGeneration;
 /// against the evidence corpus. Detects hallucinated URLs, fabricated sources,
 /// and ungrounded facts using embedding similarity.
 /// </summary>
-public static class OutputValidator
+public static partial class OutputValidator
 {
     // Match markdown links [text](url) and bare URLs
-    private static readonly Regex UrlRegex = new(
-        @"(?:\[([^\]]*)\]\((https?://[^\s\)]+)\))|(https?://[^\s\)>\]]+)",
-        RegexOptions.Compiled);
+    [GeneratedRegex(@"(?:\[([^\]]*)\]\((https?://[^\s\)]+)\))|(https?://[^\s\)>\]]+)")]
+    private static partial Regex UrlRegex();
 
     // Match source references: "according to [Title]", "reported by [Title]"
-    private static readonly Regex TitleRefRegex = new(
-        @"(?:according to|reported by|says|notes|per|from)\s+\[?([A-Z][^,.\[\]]{3,60})\]?",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    [GeneratedRegex(@"(?:according to|reported by|says|notes|per|from)\s+\[?([A-Z][^,.\[\]]{3,60})\]?", RegexOptions.IgnoreCase)]
+    private static partial Regex TitleRefRegex();
 
     // Google News redirect pattern
-    private static readonly Regex GoogleRedirectRegex = new(
-        @"https?://news\.google\.com/rss/articles/",
-        RegexOptions.Compiled);
+    [GeneratedRegex(@"https?://news\.google\.com/rss/articles/")]
+    private static partial Regex GoogleRedirectRegex();
 
     // Transitional/structural sentence patterns (exempt from grounding)
-    private static readonly Regex TransitionalRegex = new(
-        @"^(In this section|As we|Moving on|Let's|Now,|Here,|Below|Above|First|Second|Finally|In conclusion|To summarize|Overall|In summary)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    [GeneratedRegex(@"^(In this section|As we|Moving on|Let's|Now,|Here,|Below|Above|First|Second|Finally|In conclusion|To summarize|Overall|In summary)", RegexOptions.IgnoreCase)]
+    private static partial Regex TransitionalRegex();
+
+    // Extract capitalized multi-word phrases from generated text
+    [GeneratedRegex(@"\b([A-Z][a-z]+(?:\s+(?:[A-Z][a-z]+|of|the|and|for))*(?:\s+[A-Z][a-z]+)+)\b")]
+    private static partial Regex EntityRegex();
+
+    // Split on sentence-ending punctuation followed by space or end
+    [GeneratedRegex(@"(?<=[.!?])\s+")]
+    private static partial Regex SentenceSplitRegex();
 
     /// <summary>
     /// Run all validation checks on the generated document.
@@ -111,7 +115,7 @@ public static class OutputValidator
         var hallucinated = new List<UrlIssue>();
         var verifiedCount = 0;
 
-        foreach (Match match in UrlRegex.Matches(text))
+        foreach (Match match in UrlRegex().Matches(text))
         {
             var linkText = match.Groups[1].Success ? match.Groups[1].Value : "";
             var url = match.Groups[2].Success ? match.Groups[2].Value
@@ -119,7 +123,7 @@ public static class OutputValidator
 
             if (string.IsNullOrEmpty(url)) continue;
 
-            if (GoogleRedirectRegex.IsMatch(url))
+            if (GoogleRedirectRegex().IsMatch(url))
             {
                 hallucinated.Add(new UrlIssue
                 {
@@ -163,13 +167,9 @@ public static class OutputValidator
         var ungrounded = new List<EntityIssue>();
         var groundedCount = 0;
 
-        // Extract capitalized multi-word phrases from generated text
-        var entityRegex = new Regex(
-            @"\b([A-Z][a-z]+(?:\s+(?:[A-Z][a-z]+|of|the|and|for))*(?:\s+[A-Z][a-z]+)+)\b");
-
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (Match match in entityRegex.Matches(text))
+        foreach (Match match in EntityRegex().Matches(text))
         {
             var entity = match.Value.Trim();
             if (entity.Length < 4 || seen.Contains(entity)) continue;
@@ -214,7 +214,7 @@ public static class OutputValidator
         var fabricated = new List<TitleIssue>();
         var verifiedCount = 0;
 
-        foreach (Match match in TitleRefRegex.Matches(text))
+        foreach (Match match in TitleRefRegex().Matches(text))
         {
             var title = match.Groups[1].Value.Trim();
             if (title.Length < 4) continue;
@@ -272,7 +272,7 @@ public static class OutputValidator
             foreach (var sentence in sentences)
             {
                 if (sentence.Length < 15) continue;
-                if (TransitionalRegex.IsMatch(sentence)) continue;
+                if (TransitionalRegex().IsMatch(sentence)) continue;
 
                 totalSentences++;
 
@@ -316,8 +316,7 @@ public static class OutputValidator
 
     private static List<string> SplitIntoSentences(string text)
     {
-        // Split on sentence-ending punctuation followed by space or end
-        return Regex.Split(text, @"(?<=[.!?])\s+")
+        return SentenceSplitRegex().Split(text)
             .Where(s => s.Length > 10)
             .Select(s => s.Trim())
             .ToList();

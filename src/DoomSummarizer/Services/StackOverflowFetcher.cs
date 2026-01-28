@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 
 namespace DoomSummarizer.Services;
@@ -9,7 +10,7 @@ namespace DoomSummarizer.Services;
 /// Fetches questions and answers from StackOverflow API.
 /// Supports tag-based queries, hot questions, and search.
 /// </summary>
-public class StackOverflowFetcher
+public partial class StackOverflowFetcher
 {
     private const string ApiBase = "https://api.stackexchange.com/2.3";
 
@@ -143,11 +144,17 @@ public class StackOverflowFetcher
     private static string StripHtml(string html)
     {
         // Simple HTML tag stripper - decode entities and remove tags
-        var text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
+        var text = HtmlTagRegex().Replace(html, " ");
         text = WebUtility.HtmlDecode(text);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+        text = WhitespaceRegex().Replace(text, " ").Trim();
         return text.Length > 2000 ? text[..2000] : text;
     }
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 }
 
 // StackOverflow API models

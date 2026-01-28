@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Spectre.Console;
@@ -189,28 +190,28 @@ public partial class ScrollCommand
         if (string.IsNullOrWhiteSpace(text)) return "";
 
         // Remove markdown headers (## Header)
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^#{1,6}\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = MarkdownHeaderRegex().Replace(text, "");
         // Remove markdown images ![alt](url) — complete or truncated
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"!\[([^\]]*)\]\([^)]*\)?", "$1");
+        text = MarkdownImageRegex().Replace(text, "$1");
         // Remove truncated image at end: ![text](url-without-close...
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"!\[([^\]]*)\]\([^)]*$", "$1");
+        text = MarkdownImageTruncatedRegex().Replace(text, "$1");
         // Remove bare ![ at start if no matching ]
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^!\[", "");
+        text = MarkdownBareImageRegex().Replace(text, "");
         // Convert [text](url) links to just "text" — complete or truncated
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\[([^\]]+)\]\([^)]*\)?", "$1");
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\[([^\]]+)\]\([^)]*$", "$1");
+        text = StripMarkdownLinkRegex().Replace(text, "$1");
+        text = MarkdownLinkTruncatedRegex().Replace(text, "$1");
         // Remove emphasis markers (*text*, **text**, _text_, __text__)
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"(\*{1,2}|_{1,2})(.+?)\1", "$2");
+        text = MarkdownEmphasisRegex().Replace(text, "$2");
         // Remove escaped special chars (\( \) \[ \] etc.)
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\\([()[\]])", "$1");
+        text = MarkdownEscapedCharsRegex().Replace(text, "$1");
         // Remove code fences and inline code
         text = text.Replace("```", "").Replace("~~~", "");
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"`([^`]+)`", "$1");
+        text = MarkdownInlineCodeRegex().Replace(text, "$1");
         // Remove list markers
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*[-*+]\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*\d+\.\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = MarkdownUnorderedListRegex().Replace(text, "");
+        text = MarkdownOrderedListRegex().Replace(text, "");
         // Collapse whitespace
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+        text = CollapseWhitespaceRegex().Replace(text, " ").Trim();
 
         return text;
     }
@@ -274,4 +275,42 @@ public partial class ScrollCommand
         if (!quiet)
             AnsiConsole.MarkupLine($"[green]FTS5 backfill complete: {count} items indexed[/]");
     }
+
+    // --- Generated Regex patterns for StripMarkdownForLlm ---
+
+    [GeneratedRegex(@"^#{1,6}\s+", RegexOptions.Multiline)]
+    private static partial Regex MarkdownHeaderRegex();
+
+    [GeneratedRegex(@"!\[([^\]]*)\]\([^)]*\)?")]
+    private static partial Regex MarkdownImageRegex();
+
+    [GeneratedRegex(@"!\[([^\]]*)\]\([^)]*$")]
+    private static partial Regex MarkdownImageTruncatedRegex();
+
+    [GeneratedRegex(@"^!\[")]
+    private static partial Regex MarkdownBareImageRegex();
+
+    [GeneratedRegex(@"\[([^\]]+)\]\([^)]*\)?")]
+    private static partial Regex StripMarkdownLinkRegex();
+
+    [GeneratedRegex(@"\[([^\]]+)\]\([^)]*$")]
+    private static partial Regex MarkdownLinkTruncatedRegex();
+
+    [GeneratedRegex(@"(\*{1,2}|_{1,2})(.+?)\1")]
+    private static partial Regex MarkdownEmphasisRegex();
+
+    [GeneratedRegex(@"\\([()[\]])")]
+    private static partial Regex MarkdownEscapedCharsRegex();
+
+    [GeneratedRegex(@"`([^`]+)`")]
+    private static partial Regex MarkdownInlineCodeRegex();
+
+    [GeneratedRegex(@"^\s*[-*+]\s+", RegexOptions.Multiline)]
+    private static partial Regex MarkdownUnorderedListRegex();
+
+    [GeneratedRegex(@"^\s*\d+\.\s+", RegexOptions.Multiline)]
+    private static partial Regex MarkdownOrderedListRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex CollapseWhitespaceRegex();
 }

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Web;
 using System.Xml.Linq;
 using DoomSummarizer.Models;
@@ -9,7 +10,7 @@ namespace DoomSummarizer.Services;
 /// Supports full-text search with time filtering.
 /// Primary source for non-tech topic queries.
 /// </summary>
-public class GoogleNewsFetcher(HttpClient httpClient)
+public partial class GoogleNewsFetcher(HttpClient httpClient)
 {
     private const string BaseUrl = "https://news.google.com/rss/search";
 
@@ -493,14 +494,12 @@ public class GoogleNewsFetcher(HttpClient httpClient)
 
             // Scan forward for an https:// URL in the response
             var searchRegion = body[idx..Math.Min(idx + 2000, body.Length)];
-            var urlMatch = System.Text.RegularExpressions.Regex.Match(
-                searchRegion, @"https?://[^""\\]+");
+            var urlMatch = BatchUrlRegex().Match(searchRegion);
             if (urlMatch.Success && IsValidArticleUrl(urlMatch.Value))
                 return urlMatch.Value;
 
             // Alternative: look for escaped URL in the JSON string
-            var escapedMatch = System.Text.RegularExpressions.Regex.Match(
-                searchRegion, @"https?:\\/\\/[^""]+");
+            var escapedMatch = BatchEscapedUrlRegex().Match(searchRegion);
             if (escapedMatch.Success)
             {
                 var unescaped = escapedMatch.Value.Replace("\\/", "/");
@@ -527,15 +526,13 @@ public class GoogleNewsFetcher(HttpClient httpClient)
     private static string? ExtractUrlFromGoogleNewsHtml(string html)
     {
         // Pattern 1: data-n-au attribute (Google News article URL)
-        var dataNauMatch = System.Text.RegularExpressions.Regex.Match(
-            html, @"data-n-au=""([^""]+)""");
+        var dataNauMatch = DataNauRegex().Match(html);
         if (dataNauMatch.Success && IsValidArticleUrl(dataNauMatch.Groups[1].Value))
             return System.Net.WebUtility.HtmlDecode(dataNauMatch.Groups[1].Value);
 
         // Pattern 2: <a href="..."> with class containing "article" or rel="noopener"
-        var anchorMatches = System.Text.RegularExpressions.Regex.Matches(
-            html, @"<a[^>]+href=""(https?://[^""]+)""[^>]*>");
-        foreach (System.Text.RegularExpressions.Match match in anchorMatches)
+        var anchorMatches = AnchorHrefRegex().Matches(html);
+        foreach (Match match in anchorMatches)
         {
             var href = System.Net.WebUtility.HtmlDecode(match.Groups[1].Value);
             if (IsValidArticleUrl(href))
@@ -543,15 +540,12 @@ public class GoogleNewsFetcher(HttpClient httpClient)
         }
 
         // Pattern 3: JavaScript redirect (window.location)
-        var jsMatch = System.Text.RegularExpressions.Regex.Match(
-            html, @"window\.location\s*[=.]\s*['""]?(https?://[^'"";\s]+)");
+        var jsMatch = WindowLocationRegex().Match(html);
         if (jsMatch.Success && IsValidArticleUrl(jsMatch.Groups[1].Value))
             return jsMatch.Groups[1].Value;
 
         // Pattern 4: meta refresh redirect
-        var metaMatch = System.Text.RegularExpressions.Regex.Match(
-            html, @"<meta[^>]+http-equiv=['""]refresh['""][^>]+url=(https?://[^""'>;\s]+)",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var metaMatch = MetaRefreshRegex().Match(html);
         if (metaMatch.Success && IsValidArticleUrl(metaMatch.Groups[1].Value))
             return metaMatch.Groups[1].Value;
 
@@ -570,9 +564,9 @@ public class GoogleNewsFetcher(HttpClient httpClient)
 
     private static string StripHtml(string html)
     {
-        var text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
+        var text = HtmlTagRegex().Replace(html, " ");
         text = System.Net.WebUtility.HtmlDecode(text);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+        text = WhitespaceRegex().Replace(text, " ").Trim();
         return text.Length > 1500 ? text[..1500] : text;
     }
 
@@ -587,4 +581,28 @@ public class GoogleNewsFetcher(HttpClient httpClient)
         return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
     }
+
+    [GeneratedRegex(@"https?://[^""\\]+")]
+    private static partial Regex BatchUrlRegex();
+
+    [GeneratedRegex(@"https?:\\/\\/[^""]+")]
+    private static partial Regex BatchEscapedUrlRegex();
+
+    [GeneratedRegex(@"data-n-au=""([^""]+)""")]
+    private static partial Regex DataNauRegex();
+
+    [GeneratedRegex(@"<a[^>]+href=""(https?://[^""]+)""[^>]*>")]
+    private static partial Regex AnchorHrefRegex();
+
+    [GeneratedRegex(@"window\.location\s*[=.]\s*['""]?(https?://[^'"";\s]+)")]
+    private static partial Regex WindowLocationRegex();
+
+    [GeneratedRegex(@"<meta[^>]+http-equiv=['""]refresh['""][^>]+url=(https?://[^""'>;\s]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex MetaRefreshRegex();
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 }

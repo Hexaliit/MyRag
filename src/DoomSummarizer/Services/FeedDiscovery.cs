@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using AngleSharp;
 using DoomSummarizer.Models;
@@ -8,7 +9,7 @@ namespace DoomSummarizer.Services;
 /// <summary>
 /// Discovers and parses RSS/Atom feeds from websites
 /// </summary>
-public class FeedDiscovery
+public partial class FeedDiscovery
 {
     private readonly HttpClient _httpClient;
 
@@ -286,9 +287,9 @@ public class FeedDiscovery
         if (string.IsNullOrEmpty(text)) return "";
 
         // Simple HTML tag removal
-        var result = System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", " ");
+        var result = HtmlTagRegex().Replace(text, " ");
         result = System.Net.WebUtility.HtmlDecode(result);
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"\s+", " ");
+        result = WhitespaceRegex().Replace(result, " ");
         return result.Trim();
     }
 
@@ -308,4 +309,10 @@ public class FeedDiscovery
         return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(input ?? ""))[..8]).ToLowerInvariant();
     }
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 }

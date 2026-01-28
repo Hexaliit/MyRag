@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 
 namespace DoomSummarizer.Services;
@@ -8,7 +9,7 @@ namespace DoomSummarizer.Services;
 /// Interprets natural language prompts into actionable fetch commands
 /// Uses a fast "sentinel" LLM for quick triage
 /// </summary>
-public class PromptInterpreter
+public partial class PromptInterpreter
 {
     private readonly OllamaService _ollama;
     private readonly EmbeddingService? _embedding;
@@ -178,6 +179,7 @@ public class PromptInterpreter
             - "search_queries": 2-3 optimized search engine queries. Fix spelling. Expand abbreviations (SNL → Saturday Night Live). Quote entity names. Add time/date context when relevant. Today is {today}. Do NOT include search engine names in the query text.
             - "entities": named entities found in the query
             - "explicit_sources": only if user named a specific source (hn, bbc, reddit, etc.)
+            - "graph_scope": "local" | "global" | "connective". Use "local" for specific questions ("What is X?", "How do I?"). Use "global" for sensemaking ("What are the main themes?", "Summarize all topics"). Use "connective" for relationship queries ("How does X relate to Y?", "What connects A and B?"). Default "local".
             - "limit": number (default 20)
 
             Only assign categories that match the actual topic. Do NOT default to technology.
@@ -195,7 +197,8 @@ public class PromptInterpreter
             RawPrompt = prompt,
             Sources = [],
             Vibe = "neutral",
-            Limit = 20
+            Limit = 20,
+            GraphScope = QueryTypeDetector.DetectGraphScope(prompt)
         };
 
         // Detect vibe
@@ -275,7 +278,7 @@ public class PromptInterpreter
         if (lower.Contains("reddit"))
         {
             // Check for specific subreddit: "r/csharp", "reddit csharp", etc.
-            var subredditMatch = System.Text.RegularExpressions.Regex.Match(lower, @"r/(\w+)|reddit[:\s]+(\w+)");
+            var subredditMatch = SubredditPattern().Match(lower);
             if (subredditMatch.Success)
             {
                 var sub = subredditMatch.Groups[1].Success ? subredditMatch.Groups[1].Value : subredditMatch.Groups[2].Value;
@@ -291,7 +294,7 @@ public class PromptInterpreter
         if (lower.Contains("stackoverflow") || lower.Contains("stack overflow") || lower.Contains(" so "))
         {
             // Check for tag: "so c#", "stackoverflow python"
-            var soTagMatch = System.Text.RegularExpressions.Regex.Match(lower, @"(?:stackoverflow|stack overflow|so)[:\s]+(\w+(?:#|\+\+)?)");
+            var soTagMatch = StackOverflowTagPattern().Match(lower);
             if (soTagMatch.Success)
             {
                 result.Sources.Add($"so:{soTagMatch.Groups[1].Value}");
@@ -586,6 +589,12 @@ public class PromptInterpreter
 
         return prompt;
     }
+
+    [GeneratedRegex(@"(?:r/|reddit\s+)(\w+)|reddit[:\s]+(\w+)", RegexOptions.IgnoreCase)]
+    private static partial Regex SubredditPattern();
+
+    [GeneratedRegex(@"(?:stackoverflow|stack overflow|so)[:\s]+(\w+(?:#|\+\+)?)", RegexOptions.IgnoreCase)]
+    private static partial Regex StackOverflowTagPattern();
 }
 
 public record InterpretedPrompt
@@ -619,6 +628,13 @@ public record InterpretedPrompt
     /// Contains category weights, intent type, tone, time sensitivity.
     /// </summary>
     public SentinelIntent? SentinelIntent { get; set; }
+
+    /// <summary>
+    /// GraphRAG scope: Local (specific), Global (sensemaking), Connective (DRIFT).
+    /// Auto-detected from query patterns and sentinel intent.
+    /// When Global or Connective, entity graph enrichment is auto-enabled.
+    /// </summary>
+    public GraphScope GraphScope { get; set; } = GraphScope.Local;
 }
 
 public record ParsedPrompt

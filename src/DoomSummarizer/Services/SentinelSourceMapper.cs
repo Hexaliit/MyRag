@@ -61,6 +61,14 @@ public record SentinelIntent
     /// </summary>
     [JsonPropertyName("limit")]
     public int Limit { get; init; } = 20;
+
+    /// <summary>
+    /// GraphRAG query scope: "local" (specific), "global" (sensemaking), "connective" (DRIFT).
+    /// When "global" or "connective", entity graph enrichment is auto-enabled.
+    /// See: https://microsoft.github.io/graphrag/
+    /// </summary>
+    [JsonPropertyName("graph_scope")]
+    public string? GraphScope { get; init; }
 }
 
 /// <summary>
@@ -363,7 +371,8 @@ public static class SentinelSourceMapper
             Limit = intent.Limit > 0 ? intent.Limit : 20,
             Topics = topics,
             NerContext = nerContext,
-            SentinelIntent = intent
+            SentinelIntent = intent,
+            GraphScope = QueryTypeDetector.DetectGraphScope(query, intent)
         };
     }
 

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Spectre.Console;
 
 namespace DoomSummarizer.Services;
@@ -123,7 +124,7 @@ public class MarkdownFormatter : IOutputFormatter
 /// <summary>
 /// Plain text formatter - strips markdown.
 /// </summary>
-public class TextFormatter : IOutputFormatter
+public partial class TextFormatter : IOutputFormatter
 {
     public string[] SupportedExtensions => [".txt"];
 
@@ -133,28 +134,43 @@ public class TextFormatter : IOutputFormatter
         var text = content;
 
         // Remove links but keep text: [text](url) -> text
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\[([^\]]+)\]\([^\)]+\)", "$1");
+        text = MarkdownLinkRegex().Replace(text, "$1");
 
         // Remove emphasis: **text** or *text* -> text
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\*+([^\*]+)\*+", "$1");
+        text = BoldItalicRegex().Replace(text, "$1");
 
         // Remove headers: # text -> text
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^#+\s*", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = HeadingPrefixRegex().Replace(text, "");
 
         // Remove horizontal rules
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^---+$", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = HorizontalRuleRegex().Replace(text, "");
 
         // Remove blockquotes
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*>\s*", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = BlockquoteRegex().Replace(text, "");
 
         return Task.FromResult(text.Trim());
     }
+
+    [GeneratedRegex(@"\[([^\]]+)\]\([^\)]+\)")]
+    private static partial Regex MarkdownLinkRegex();
+
+    [GeneratedRegex(@"\*+([^\*]+)\*+")]
+    private static partial Regex BoldItalicRegex();
+
+    [GeneratedRegex(@"^#+\s*", RegexOptions.Multiline)]
+    private static partial Regex HeadingPrefixRegex();
+
+    [GeneratedRegex(@"^---+$", RegexOptions.Multiline)]
+    private static partial Regex HorizontalRuleRegex();
+
+    [GeneratedRegex(@"^\s*>\s*", RegexOptions.Multiline)]
+    private static partial Regex BlockquoteRegex();
 }
 
 /// <summary>
 /// HTML formatter - wraps in basic HTML if not already HTML.
 /// </summary>
-public class HtmlFormatter : IOutputFormatter
+public partial class HtmlFormatter : IOutputFormatter
 {
     public string[] SupportedExtensions => [".html", ".htm"];
 
@@ -200,37 +216,70 @@ public class HtmlFormatter : IOutputFormatter
         var html = markdown;
 
         // Headers
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"^### (.+)$", "<h3>$1</h3>", System.Text.RegularExpressions.RegexOptions.Multiline);
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"^## (.+)$", "<h2>$1</h2>", System.Text.RegularExpressions.RegexOptions.Multiline);
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"^# (.+)$", "<h1>$1</h1>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = H3TagRegex().Replace(html, "<h3>$1</h3>");
+        html = H2TagRegex().Replace(html, "<h2>$1</h2>");
+        html = H1TagRegex().Replace(html, "<h1>$1</h1>");
 
         // Links: [text](url)
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"\[([^\]]+)\]\(([^\)]+)\)", "<a href=\"$2\">$1</a>");
+        html = HtmlLinkRegex().Replace(html, "<a href=\"$2\">$1</a>");
 
         // Bold: **text**
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*\*([^\*]+)\*\*", "<strong>$1</strong>");
+        html = HtmlBoldRegex().Replace(html, "<strong>$1</strong>");
 
         // Italic: *text*
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*([^\*]+)\*", "<em>$1</em>");
+        html = HtmlItalicRegex().Replace(html, "<em>$1</em>");
 
         // Blockquotes: > text
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"^\s*>\s*(.+)$", "<blockquote>$1</blockquote>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = HtmlBlockquoteRegex().Replace(html, "<blockquote>$1</blockquote>");
 
         // List items: - text
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"^- (.+)$", "<li>$1</li>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = HtmlListItemRegex().Replace(html, "<li>$1</li>");
 
         // Horizontal rules
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"^---+$", "<hr>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = HtmlHrRegex().Replace(html, "<hr>");
 
         // Paragraphs (double newlines)
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"\n\n+", "</p><p>");
+        html = ParagraphBreakRegex().Replace(html, "</p><p>");
         html = $"<p>{html}</p>";
 
         // Clean up empty paragraphs
-        html = System.Text.RegularExpressions.Regex.Replace(html, @"<p>\s*</p>", "");
+        html = EmptyParagraphRegex().Replace(html, "");
 
         return html;
     }
+
+    [GeneratedRegex(@"^### (.+)$", RegexOptions.Multiline)]
+    private static partial Regex H3TagRegex();
+
+    [GeneratedRegex(@"^## (.+)$", RegexOptions.Multiline)]
+    private static partial Regex H2TagRegex();
+
+    [GeneratedRegex(@"^# (.+)$", RegexOptions.Multiline)]
+    private static partial Regex H1TagRegex();
+
+    [GeneratedRegex(@"\[([^\]]+)\]\(([^\)]+)\)")]
+    private static partial Regex HtmlLinkRegex();
+
+    [GeneratedRegex(@"\*\*([^\*]+)\*\*")]
+    private static partial Regex HtmlBoldRegex();
+
+    [GeneratedRegex(@"\*([^\*]+)\*")]
+    private static partial Regex HtmlItalicRegex();
+
+    [GeneratedRegex(@"^\s*>\s*(.+)$", RegexOptions.Multiline)]
+    private static partial Regex HtmlBlockquoteRegex();
+
+    [GeneratedRegex(@"^- (.+)$", RegexOptions.Multiline)]
+    private static partial Regex HtmlListItemRegex();
+
+    [GeneratedRegex(@"^---+$", RegexOptions.Multiline)]
+    private static partial Regex HtmlHrRegex();
+
+    [GeneratedRegex(@"\n\n+")]
+    private static partial Regex ParagraphBreakRegex();
+
+    [GeneratedRegex(@"<p>\s*</p>")]
+    private static partial Regex EmptyParagraphRegex();
 }
 
 /// <summary>

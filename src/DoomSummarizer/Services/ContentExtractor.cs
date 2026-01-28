@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using SmartReader;
 using AngleSharp;
 using AngleSharp.Dom;
@@ -10,7 +11,7 @@ namespace DoomSummarizer.Services;
 /// Robust content extraction using SmartReader (Mozilla Readability port).
 /// Extracts main article content, removing boilerplate (ads, nav, sidebars).
 /// </summary>
-public class ContentExtractor
+public partial class ContentExtractor
 {
     private readonly HttpClient _httpClient;
 
@@ -203,7 +204,7 @@ public class ContentExtractor
                         document.QuerySelector("h1")?.TextContent ?? "";
 
             var content = contentElement.TextContent;
-            content = System.Text.RegularExpressions.Regex.Replace(content, @"\s+", " ").Trim();
+            content = WhitespaceRegex().Replace(content, " ").Trim();
 
             // Extract featured image
             var ogImage = document.QuerySelector("meta[property='og:image']")?.GetAttribute("content");
@@ -227,6 +228,8 @@ public class ContentExtractor
         }
     }
 
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 }
 
 /// <summary>

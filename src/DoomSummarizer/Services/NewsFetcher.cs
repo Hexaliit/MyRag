@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DoomSummarizer.Models;
 
@@ -7,7 +8,7 @@ namespace DoomSummarizer.Services;
 /// Fetches news from various RSS-based news sources.
 /// Supports BBC, The Guardian, Ars Technica, The Verge, and more.
 /// </summary>
-public class NewsFetcher(HttpClient httpClient)
+public partial class NewsFetcher(HttpClient httpClient)
 {
     // Known news source RSS feeds
     private static readonly Dictionary<string, string[]> KnownFeeds = new(StringComparer.OrdinalIgnoreCase)
@@ -278,11 +279,17 @@ public class NewsFetcher(HttpClient httpClient)
 
     private static string StripHtml(string html)
     {
-        var text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
+        var text = HtmlTagRegex().Replace(html, " ");
         text = System.Net.WebUtility.HtmlDecode(text);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+        text = WhitespaceRegex().Replace(text, " ").Trim();
         return text.Length > 1500 ? text[..1500] : text;
     }
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     private static DateTimeOffset TryParseDate(string? dateStr)
     {

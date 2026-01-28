@@ -212,4 +212,101 @@ public partial class StorageService
         var result = await cmd.ExecuteScalarAsync();
         return result is long l ? l == 0 : true;
     }
+
+    /// <summary>
+    /// Batch save items + FTS index + keyword corpus in a single SQLite transaction.
+    /// Much faster than per-item writes due to reduced fsync overhead.
+    /// </summary>
+    public async Task SaveAndIndexBatchAsync(List<(ContentItem item, DocumentProfile profile)> batch)
+    {
+        if (batch.Count == 0) return;
+
+        await using var transaction = await _connection!.BeginTransactionAsync();
+        try
+        {
+            // Collect all keywords for corpus update
+            var allKeywords = new List<string>();
+
+            foreach (var (item, profile) in batch)
+            {
+                // Save item
+                await using var saveCmd = _connection.CreateCommand();
+                saveCmd.Transaction = (SqliteTransaction)transaction;
+                saveCmd.CommandText = """
+                    INSERT OR REPLACE INTO items
+                    (id, source, title, url, summary, content, sentiment_score, detected_topic, tags, score, created_at, fetched_at, embedding, keywords)
+                    VALUES
+                    (@id, @source, @title, @url, @summary, @content, @sentiment, @topic, @tags, @score, @created, @fetched, @embedding, @keywords)
+                    """;
+                saveCmd.Parameters.AddWithValue("@id", item.Id);
+                saveCmd.Parameters.AddWithValue("@source", item.Source);
+                saveCmd.Parameters.AddWithValue("@title", item.Title);
+                saveCmd.Parameters.AddWithValue("@url", (object?)item.Url ?? DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@summary", (object?)item.Summary ?? DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@content", (object?)item.Content ?? DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@sentiment", item.SentimentScore);
+                saveCmd.Parameters.AddWithValue("@topic", (object?)item.DetectedTopic ?? DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@tags", item.Tags.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(item.Tags) : DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@score", item.Score);
+                saveCmd.Parameters.AddWithValue("@created", item.CreatedAt.ToString("O"));
+                saveCmd.Parameters.AddWithValue("@fetched", item.FetchedAt.ToString("O"));
+                saveCmd.Parameters.AddWithValue("@embedding", item.Embedding != null ? EmbeddingService.ToBytes(item.Embedding) : DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@keywords", (object?)item.Keywords ?? DBNull.Value);
+                await saveCmd.ExecuteNonQueryAsync();
+
+                // FTS5 index: delete then insert (FTS5 doesn't support UPSERT)
+                await using var delFts = _connection.CreateCommand();
+                delFts.Transaction = (SqliteTransaction)transaction;
+                delFts.CommandText = "DELETE FROM items_fts WHERE item_id = @id";
+                delFts.Parameters.AddWithValue("@id", item.Id);
+                await delFts.ExecuteNonQueryAsync();
+
+                var contentPreview = (item.Content ?? "").Length > 2000
+                    ? item.Content![..2000]
+                    : item.Content ?? "";
+
+                await using var ftsCmd = _connection.CreateCommand();
+                ftsCmd.Transaction = (SqliteTransaction)transaction;
+                ftsCmd.CommandText = """
+                    INSERT INTO items_fts (item_id, title, keywords_text, content_preview)
+                    VALUES (@id, @title, @keywords, @preview)
+                    """;
+                ftsCmd.Parameters.AddWithValue("@id", item.Id);
+                ftsCmd.Parameters.AddWithValue("@title", item.Title);
+                ftsCmd.Parameters.AddWithValue("@keywords", profile.KeywordsText);
+                ftsCmd.Parameters.AddWithValue("@preview", contentPreview);
+                await ftsCmd.ExecuteNonQueryAsync();
+
+                allKeywords.AddRange(profile.TopKeywords.Select(k => k.Keyword));
+            }
+
+            // Batch keyword corpus update
+            if (allKeywords.Count > 0)
+            {
+                var now = DateTimeOffset.UtcNow.ToString("O");
+                foreach (var keyword in allKeywords.Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    await using var kwCmd = _connection.CreateCommand();
+                    kwCmd.Transaction = (SqliteTransaction)transaction;
+                    kwCmd.CommandText = """
+                        INSERT INTO keyword_corpus (keyword, document_count, updated_at)
+                        VALUES (@kw, 1, @now)
+                        ON CONFLICT(keyword) DO UPDATE SET
+                            document_count = document_count + 1,
+                            updated_at = @now
+                        """;
+                    kwCmd.Parameters.AddWithValue("@kw", keyword.ToLowerInvariant());
+                    kwCmd.Parameters.AddWithValue("@now", now);
+                    await kwCmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
 }

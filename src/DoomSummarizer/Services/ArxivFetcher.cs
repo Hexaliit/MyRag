@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DoomSummarizer.Models;
 
@@ -9,7 +10,7 @@ namespace DoomSummarizer.Services;
 /// Great for scientific/research queries with substantive content.
 /// https://info.arxiv.org/help/api/basics.html
 /// </summary>
-public class ArxivFetcher(HttpClient httpClient)
+public partial class ArxivFetcher(HttpClient httpClient)
 {
     private const string BaseUrl = "http://export.arxiv.org/api/query";
     private static readonly XNamespace Atom = "http://www.w3.org/2005/Atom";
@@ -197,8 +198,11 @@ public class ArxivFetcher(HttpClient httpClient)
 
     private static string CleanWhitespace(string text)
     {
-        return System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+        return WhitespaceRegex().Replace(text, " ").Trim();
     }
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     private static DateTimeOffset TryParseDate(string? dateStr)
     {

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Spectre.Console;
@@ -456,18 +457,18 @@ public partial class ScrollCommand
     private static string CleanMarkdownForSnippet(string content)
     {
         // Remove markdown headings (# ## ###)
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"^#{1,6}\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        content = MarkdownHeadingRegex().Replace(content, "");
         // Remove markdown links [text](url) → text
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"\[([^\]]+)\]\([^)]+\)", "$1");
+        content = MarkdownLinkRegex().Replace(content, "$1");
         // Remove bold/italic markers
         content = content.Replace("**", "").Replace("__", "").Replace("*", "").Replace("_", " ");
         // Remove code blocks
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"```[\s\S]*?```", " ");
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"`[^`]+`", " ");
+        content = CodeBlockRegex().Replace(content, " ");
+        content = InlineCodeRegex().Replace(content, " ");
         // Remove bullet markers
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"^\s*[-*+]\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        content = BulletMarkerRegex().Replace(content, "");
         // Collapse whitespace
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"\s+", " ");
+        content = WhitespaceRegex().Replace(content, " ");
         return content.Trim();
     }
 
@@ -549,6 +550,24 @@ public partial class ScrollCommand
         || token.Contains(".net") || token.Contains(".org") || token.Contains(".io")
         || token.StartsWith("http") || token.Contains("/blog/")
         || token.All(c => c == '/' || c == '.' || c == ':');
+
+    [GeneratedRegex(@"^#{1,6}\s+", RegexOptions.Multiline)]
+    private static partial Regex MarkdownHeadingRegex();
+
+    [GeneratedRegex(@"\[([^\]]+)\]\([^)]+\)")]
+    private static partial Regex MarkdownLinkRegex();
+
+    [GeneratedRegex(@"```[\s\S]*?```")]
+    private static partial Regex CodeBlockRegex();
+
+    [GeneratedRegex(@"`[^`]+`")]
+    private static partial Regex InlineCodeRegex();
+
+    [GeneratedRegex(@"^\s*[-*+]\s+", RegexOptions.Multiline)]
+    private static partial Regex BulletMarkerRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     /// <summary>
     /// Theme briefing data model.

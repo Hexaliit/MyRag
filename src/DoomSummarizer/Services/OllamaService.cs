@@ -9,7 +9,7 @@ using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
-public class OllamaService
+public partial class OllamaService
 {
     private readonly HttpClient _httpClient;
     private readonly OllamaConfig _config;
@@ -874,15 +874,13 @@ public class OllamaService
         var result = new NewsletterResult { Topic = query };
 
         // Parse INTRO
-        var introMatch = Regex.Match(response, @"INTRO:\s*\n(.+?)(?=\nPICK_\d|\z)", RegexOptions.Singleline);
+        var introMatch = IntroRegex().Match(response);
         if (introMatch.Success)
             result = result with { Introduction = introMatch.Groups[1].Value.Trim() };
 
         // Parse PICKs
         var picks = new List<NewsletterPick>();
-        var pickMatches = Regex.Matches(response,
-            @"PICK_\d+:\s*\nTITLE:\s*(.+?)\nURL:\s*(.+?)\nSOURCE:\s*(.+?)\nCOMMENTARY:\s*(.+?)(?=\nPICK_\d|\nQUICK_HITS|\z)",
-            RegexOptions.Singleline);
+        var pickMatches = PickRegex().Matches(response);
 
         foreach (Match match in pickMatches)
         {
@@ -910,13 +908,13 @@ public class OllamaService
 
         // Parse QUICK_HITS
         var quickHits = new List<NewsletterQuickHit>();
-        var qhMatch = Regex.Match(response, @"QUICK_HITS:\s*\n(.+?)(?=\nSIGN_OFF|\z)", RegexOptions.Singleline);
+        var qhMatch = QuickHitsRegex().Match(response);
         if (qhMatch.Success)
         {
             var lines = qhMatch.Groups[1].Value.Split('\n', StringSplitOptions.RemoveEmptyEntries);
             foreach (var line in lines)
             {
-                var titleMatch = Regex.Match(line, @"TITLE:\s*(.+?)\s*\|\s*URL:\s*(.+?)\s*\|\s*LINE:\s*(.+)");
+                var titleMatch = QuickHitLineRegex().Match(line);
                 if (titleMatch.Success)
                 {
                     quickHits.Add(new NewsletterQuickHit
@@ -942,7 +940,7 @@ public class OllamaService
         result = result with { QuickHits = quickHits };
 
         // Parse SIGN_OFF
-        var signOffMatch = Regex.Match(response, @"SIGN_OFF:\s*\n(.+?)$", RegexOptions.Singleline);
+        var signOffMatch = SignOffRegex().Match(response);
         if (signOffMatch.Success)
             result = result with { SignOff = signOffMatch.Groups[1].Value.Trim() };
         else
@@ -950,6 +948,21 @@ public class OllamaService
 
         return result;
     }
+
+    [GeneratedRegex(@"INTRO:\s*\n(.+?)(?=\nPICK_\d|\z)", RegexOptions.Singleline)]
+    private static partial Regex IntroRegex();
+
+    [GeneratedRegex(@"PICK_\d+:\s*\nTITLE:\s*(.+?)\nURL:\s*(.+?)\nSOURCE:\s*(.+?)\nCOMMENTARY:\s*(.+?)(?=\nPICK_\d|\nQUICK_HITS|\z)", RegexOptions.Singleline)]
+    private static partial Regex PickRegex();
+
+    [GeneratedRegex(@"QUICK_HITS:\s*\n(.+?)(?=\nSIGN_OFF|\z)", RegexOptions.Singleline)]
+    private static partial Regex QuickHitsRegex();
+
+    [GeneratedRegex(@"TITLE:\s*(.+?)\s*\|\s*URL:\s*(.+?)\s*\|\s*LINE:\s*(.+)")]
+    private static partial Regex QuickHitLineRegex();
+
+    [GeneratedRegex(@"SIGN_OFF:\s*\n(.+?)$", RegexOptions.Singleline)]
+    private static partial Regex SignOffRegex();
 
     private static string GetSourceFromUrl(string url)
     {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 using Fluid;
 using Fluid.Values;
@@ -12,7 +13,7 @@ namespace DoomSummarizer.Services;
 /// Template rendering service using Liquid templates (Fluid engine).
 /// Supports console, file (markdown/html), and email formats.
 /// </summary>
-public class TemplateService
+public partial class TemplateService
 {
     private readonly FluidParser _parser;
     private readonly Dictionary<string, IFluidTemplate> _compiledTemplates = new();
@@ -207,11 +208,14 @@ public class TemplateService
     {
         var text = input.ToStringValue();
         if (string.IsNullOrEmpty(text)) return StringValue.Empty;
-        var stripped = System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
+        var stripped = HtmlTagRegex().Replace(text, "");
         return new StringValue(stripped);
     }
 
     #endregion
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
 
     private static Dictionary<string, string> GetBuiltInTemplates() => new()
     {

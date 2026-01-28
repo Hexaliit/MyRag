@@ -190,6 +190,71 @@ public static partial class QueryTypeDetector
     /// </summary>
     [GeneratedRegex(@"\b(on\s+this\s+day|today\s+in\s+history|born\s+on\s+this\s+day|anniversary\s+of|years?\s+ago\s+today|this\s+day\s+in|historical\s+event)\b", RegexOptions.IgnoreCase)]
     private static partial Regex TopicDriftPattern();
+
+    // --- GraphRAG Scope Detection ---
+
+    /// <summary>
+    /// Detect the GraphRAG scope of a query: Local (specific), Global (sensemaking), or Connective (DRIFT).
+    /// Uses heuristic patterns first, then sentinel intent when available.
+    /// </summary>
+    public static GraphScope DetectGraphScope(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return GraphScope.Local;
+
+        var q = query.ToLowerInvariant();
+
+        if (GlobalScopePattern().IsMatch(q))
+            return GraphScope.Global;
+
+        if (ConnectiveScopePattern().IsMatch(q))
+            return GraphScope.Connective;
+
+        return GraphScope.Local;
+    }
+
+    /// <summary>
+    /// Override graph scope using sentinel intent when available.
+    /// Sentinel "deep_dive" → Connective, "roundup" → Global.
+    /// </summary>
+    public static GraphScope DetectGraphScope(string? query, SentinelIntent? sentinelIntent)
+    {
+        var heuristic = DetectGraphScope(query);
+
+        if (sentinelIntent == null)
+            return heuristic;
+
+        // Sentinel graph_scope overrides heuristic when present
+        if (!string.IsNullOrWhiteSpace(sentinelIntent.GraphScope))
+        {
+            return sentinelIntent.GraphScope.ToLowerInvariant() switch
+            {
+                "global" => GraphScope.Global,
+                "connective" => GraphScope.Connective,
+                _ => heuristic
+            };
+        }
+
+        // Infer from intent type when graph_scope not explicitly set
+        if (sentinelIntent.Intent is "deep_dive" && heuristic == GraphScope.Local)
+            return GraphScope.Connective;
+
+        return heuristic;
+    }
+
+    /// <summary>
+    /// Sensemaking queries: "what are the main themes", "summarize the key topics",
+    /// "overview of all", "what patterns", "common threads", "big picture".
+    /// </summary>
+    [GeneratedRegex(@"\b(main\s+themes?|key\s+topics?|summarize\s+(all|everything|the\s+key)|overview\s+of\s+(all|the|my)|what\s+patterns?|common\s+threads?|big\s+picture|recurring\s+topics?|what\s+topics?\s+(do|does|are)|corpus|across\s+(all|the)\s+(documents?|articles?|sources?)|general\s+themes?|broad\s+trends?)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex GlobalScopePattern();
+
+    /// <summary>
+    /// Connective queries: "how does X relate to Y", "connection between",
+    /// "what links", "relationship between", "compare across".
+    /// </summary>
+    [GeneratedRegex(@"\b(how\s+does?\s+\w+\s+relate|relat(e|es|ed|ion|ionship)\s+(to|between|with)|connect(ion|ed|s)?\s+(between|to|with|across)|what\s+links?|bridge\s+between|compare\s+across|in\s+common\s+between|shared\s+between|overlap\s+between|how\s+are\s+\w+\s+(and|&)\s+\w+\s+(connected|related|linked))\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ConnectiveScopePattern();
 }
 
 public enum QueryType
@@ -199,4 +264,22 @@ public enum QueryType
     Comparison,
     Explainer,
     Roundup
+}
+
+/// <summary>
+/// GraphRAG-style query scope (Microsoft Research, 2024).
+/// Determines whether a query needs chunk-level retrieval (Local),
+/// corpus-level community summaries (Global), or entity graph traversal (Connective).
+/// See: https://microsoft.github.io/graphrag/
+/// </summary>
+public enum GraphScope
+{
+    /// <summary>Specific question — vector search + graph neighborhood. Default.</summary>
+    Local,
+
+    /// <summary>Sensemaking — "what are the main themes?", "summarize the key topics".</summary>
+    Global,
+
+    /// <summary>Connective — "how does X relate to Y?", "connections between A and B".</summary>
+    Connective
 }

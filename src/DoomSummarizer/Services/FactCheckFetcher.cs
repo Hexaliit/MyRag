@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DoomSummarizer.Models;
 
@@ -7,7 +8,7 @@ namespace DoomSummarizer.Services;
 /// Fetches from fact-checking RSS feeds: Snopes, PolitiFact, FactCheck.org, FullFact.
 /// No API keys required. Great for verifying claims and tracking misinformation.
 /// </summary>
-public class FactCheckFetcher(HttpClient httpClient)
+public partial class FactCheckFetcher(HttpClient httpClient)
 {
     private static readonly Dictionary<string, string> Feeds = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -94,11 +95,17 @@ public class FactCheckFetcher(HttpClient httpClient)
 
     private static string StripHtml(string html)
     {
-        var text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
+        var text = HtmlTagRegex().Replace(html, " ");
         text = System.Net.WebUtility.HtmlDecode(text);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+        text = WhitespaceRegex().Replace(text, " ").Trim();
         return text.Length > 1500 ? text[..1500] : text;
     }
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     private static DateTimeOffset TryParseDate(string? dateStr) =>
         string.IsNullOrEmpty(dateStr) ? DateTimeOffset.UtcNow

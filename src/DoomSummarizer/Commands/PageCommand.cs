@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text;
+using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Spectre.Console;
@@ -11,7 +12,7 @@ namespace DoomSummarizer.Commands;
 /// Download and summarize a single web page.
 /// Usage: doomsummarizer page https://example.com/article
 /// </summary>
-public sealed class PageCommand : AsyncCommand<PageCommand.Settings>
+public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
@@ -411,27 +412,25 @@ public sealed class PageCommand : AsyncCommand<PageCommand.Settings>
         var text = html;
 
         // Remove scripts and styles
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text, @"<script[^>]*>[\s\S]*?</script>", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text, @"<style[^>]*>[\s\S]*?</style>", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = ScriptTagRegex().Replace(text, "");
+        text = StyleTagRegex().Replace(text, "");
 
         // Convert common HTML to markdown-like text
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<h1[^>]*>(.*?)</h1>", "# $1\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<h2[^>]*>(.*?)</h2>", "## $1\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<h3[^>]*>(.*?)</h3>", "### $1\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<li[^>]*>(.*?)</li>", "- $1\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<p[^>]*>(.*?)</p>", "$1\n\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+        text = H1TagRegex().Replace(text, "# $1\n");
+        text = H2TagRegex().Replace(text, "## $1\n");
+        text = H3TagRegex().Replace(text, "### $1\n");
+        text = LiTagRegex().Replace(text, "- $1\n");
+        text = BrTagRegex().Replace(text, "\n");
+        text = PTagRegex().Replace(text, "$1\n\n");
 
         // Strip remaining tags
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
+        text = HtmlTagRegex().Replace(text, "");
 
         // Decode HTML entities
         text = System.Net.WebUtility.HtmlDecode(text);
 
         // Clean up whitespace
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\n{3,}", "\n\n");
+        text = ExcessiveNewlinesRegex().Replace(text, "\n\n");
         text = text.Trim();
 
         return text;
@@ -439,19 +438,51 @@ public sealed class PageCommand : AsyncCommand<PageCommand.Settings>
 
     private static string? ExtractTitle(string html)
     {
-        var match = System.Text.RegularExpressions.Regex.Match(
-            html, @"<title[^>]*>(.*?)</title>",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+        var match = TitleTagRegex().Match(html);
         if (match.Success)
             return System.Net.WebUtility.HtmlDecode(match.Groups[1].Value.Trim());
 
         // Try og:title
-        var ogMatch = System.Text.RegularExpressions.Regex.Match(
-            html, @"<meta\s+property=""og:title""\s+content=""([^""]+)""",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var ogMatch = OgTitleRegex().Match(html);
         if (ogMatch.Success)
             return System.Net.WebUtility.HtmlDecode(ogMatch.Groups[1].Value.Trim());
 
         return null;
     }
+
+    [GeneratedRegex(@"<script[^>]*>[\s\S]*?</script>", RegexOptions.IgnoreCase)]
+    private static partial Regex ScriptTagRegex();
+
+    [GeneratedRegex(@"<style[^>]*>[\s\S]*?</style>", RegexOptions.IgnoreCase)]
+    private static partial Regex StyleTagRegex();
+
+    [GeneratedRegex(@"<h1[^>]*>(.*?)</h1>", RegexOptions.IgnoreCase)]
+    private static partial Regex H1TagRegex();
+
+    [GeneratedRegex(@"<h2[^>]*>(.*?)</h2>", RegexOptions.IgnoreCase)]
+    private static partial Regex H2TagRegex();
+
+    [GeneratedRegex(@"<h3[^>]*>(.*?)</h3>", RegexOptions.IgnoreCase)]
+    private static partial Regex H3TagRegex();
+
+    [GeneratedRegex(@"<li[^>]*>(.*?)</li>", RegexOptions.IgnoreCase)]
+    private static partial Regex LiTagRegex();
+
+    [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase)]
+    private static partial Regex BrTagRegex();
+
+    [GeneratedRegex(@"<p[^>]*>(.*?)</p>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex PTagRegex();
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex(@"\n{3,}")]
+    private static partial Regex ExcessiveNewlinesRegex();
+
+    [GeneratedRegex(@"<title[^>]*>(.*?)</title>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex TitleTagRegex();
+
+    [GeneratedRegex(@"<meta\s+property=""og:title""\s+content=""([^""]+)""", RegexOptions.IgnoreCase)]
+    private static partial Regex OgTitleRegex();
 }
