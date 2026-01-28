@@ -13,6 +13,7 @@ A distillation of [**LucidRAG**](https://github.com/scottgal/lucidrag) principle
 - **Page** — Summarize a single URL
 - **Show** — Browse knowledge base collections
 - **Long-form** — Generate evidence-grounded multi-section articles with validation
+- **MCP Server** — Expose KB, search, and entity graph to AI agents via Model Context Protocol
 
 Works fully offline after initial model downloads. No API keys required for default sources. Optional cloud LLM and search providers are budget-controlled.
 
@@ -329,12 +330,15 @@ Sources are auto-selected via semantic topic routing (e.g., "pharmaceutical news
 ```
 Query → PromptInterpreter → SourceRouter (YAML) → Parallel Fetchers
   → Cache Check (reuse segments for similar queries)
-  → URL/Title Dedup
-  → Phase 1 RRF (BM25 + Freshness + Authority) → Discard bottom 25%
+  → URL/Title Dedup → FTS5 KB Enrichment (keyword pre-filter)
+  → Document Keyword Profiling (structural weighting: title 4x, headings 3x, intro 2x)
   → ONNX Embeddings (384-dim all-MiniLM-L6-v2)
-  → Phase 2 RRF (+ Query Similarity + Vibe Alignment)
+  → Phase 1 RRF (BM25F + Freshness + Authority + Quality) → Hard gate (cosine ≥ 0.20) → Discard bottom 25%
+  → PRF Centroid Refinement (top-5 embedding average, α=0.7)
+  → Phase 2 RRF (+ Query Similarity + Vibe Alignment + Quality) → Hard gate (cosine ≥ 0.20)
   → Source Reliability Weights → LFU Diversity Decay → In-Corpus PageRank
   → One-Hop Link Following → TextRank Sentence Extraction
+  → Entity Graph Enrichment (co-occurrence discovery, ≥2 shared entities)
   → LLM Synthesis (evidence-grounded) or Long-Form Pipeline (blog templates)
 ```
 
@@ -342,11 +346,12 @@ Query → PromptInterpreter → SourceRouter (YAML) → Parallel Fetchers
 
 | Signal | Weight | Phase | Description |
 |--------|--------|-------|-------------|
-| BM25 | 1.0 | 1 | TF-IDF keyword match |
+| BM25F | 1.0 | 1 | Field-weighted TF-IDF: title (2x), keywords (2.5x), content (1x) |
 | Freshness | 0.5 | 1 | Exponential decay (48h half-life) |
 | Authority | 0.3 | 1 | Platform score (HN upvotes, etc.) |
 | Query Similarity | 0.8 | 2 | Embedding cosine similarity |
 | Vibe Alignment | 0.4 | 2 | Embedding cosine to vibe |
+| Quality | 0.2 | 1+2 | Embedding-based clickbait vs substantive content scoring |
 
 ### `--no-llm` Mode
 
@@ -497,7 +502,83 @@ Override any LLM prompt by placing a file in `~/.doomsummarizer/prompts/`. Uses 
 - `docs/Config.md` — Config file, env vars, API keys, budgets
 - `docs/Automation.md` — JSON/file output and scheduling
 - `docs/Architecture.md` — Pipeline and storage architecture
+- `docs/MCP.md` — MCP server setup, tools reference, agent workflows
 - `docs/Troubleshooting.md` — Common issues
+
+## MCP Server (AI Agent Integration)
+
+DoomSummarizer exposes its knowledge base, search pipeline, and entity graph as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server. This lets AI agents like Claude Code, Claude Desktop, or any MCP client query your stored knowledge, ingest URLs, and explore entity relationships.
+
+### Starting the MCP Server
+
+```bash
+doomsummarizer --mcp
+```
+
+This launches a stdio-based MCP server. The server uses the same SQLite database and ONNX embedding model as the CLI.
+
+### Configuration
+
+**Claude Code** (`~/.claude.json`):
+```json
+{
+  "mcpServers": {
+    "doomsummarizer": {
+      "command": "doomsummarizer",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+**Claude Desktop** (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "doomsummarizer": {
+      "command": "/path/to/doomsummarizer",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| **search_kb** | Full RRF pipeline search (FTS5 pre-filter → BM25F + embeddings → PRF refinement) |
+| **keyword_search** | Fast FTS5 keyword-only search (no embeddings) |
+| **semantic_search** | Pure embedding cosine similarity search |
+| **get_item_content** | Retrieve full content, entities, and keyword profile for an item by ID |
+| **extract_keywords** | Deterministic keyword extraction from arbitrary text (structural weighting) |
+| **compare_items** | Cosine similarity + keyword Jaccard overlap between two items |
+| **ingest_url** | Fetch a URL, extract content, embed, profile, and index into the KB |
+| **list_collections** | List all KB collections with item counts and stats |
+| **get_collection_items** | Browse items in a collection with pagination |
+| **list_entities** | Top entities from the knowledge graph (filterable by type/recency) |
+| **get_entity_details** | Entity relationships and mentioning articles |
+| **get_entity_network** | Subgraph exploration — seed entities + neighbors + co-occurring articles |
+| **find_related_by_entities** | Discover documents sharing entities with given items |
+| **get_kb_stats** | KB overview: collections, entities, FTS5 index, embedding model info |
+| **get_trends** | Topic distribution and sentiment analysis over time |
+
+### Example Agent Workflows
+
+**Research assistant**: Search your crawled documentation, then follow up with entity graph exploration:
+```
+Agent: search_kb("authentication flow") → get_entity_details("oauth2") → find_related_by_entities(...)
+```
+
+**Knowledge ingestion**: Ingest a URL, then verify it was indexed:
+```
+Agent: ingest_url("https://example.com/article") → get_item_content(id) → extract_keywords(content)
+```
+
+**Comparative analysis**: Compare two articles' semantic overlap:
+```
+Agent: keyword_search("AI safety") → compare_items(id1, id2)
+```
 
 ## Building from Source
 
