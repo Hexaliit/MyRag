@@ -50,8 +50,8 @@ All tools return JSON.
 
 ### Search
 
-- `search_kb` — Full relevance pipeline: **FTS5 pre-filter → BM25F + global IDF → embeddings → PRF refinement → RRF**; returns ranked item IDs + metadata.
-- `keyword_search` — Fast keyword-only SQLite FTS5 search (no embeddings).
+- `search_kb` — Full relevance pipeline: **Lucene pre-filter (LLM-generated query) → BM25F + global IDF → embeddings → PRF refinement → RRF**; returns ranked item IDs + metadata.
+- `keyword_search` — Fast keyword-only Lucene search (no embeddings).
 - `semantic_search` — Pure embedding similarity search (cosine).
 
 ### Content

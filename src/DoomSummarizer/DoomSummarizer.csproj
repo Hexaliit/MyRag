@@ -7,7 +7,7 @@
         <Nullable>enable</Nullable>
         <RootNamespace>DoomSummarizer</RootNamespace>
         <AssemblyName>doomsummarizer</AssemblyName>
-        <Version>1.0.0</Version>
+        <Version>0.5.1</Version>
         <Authors>Scott Galloway</Authors>
         <Description>AI agent that doom-scrolls HN and Reddit so you don't have to</Description>
         <ApplicationIcon>icon.ico</ApplicationIcon>

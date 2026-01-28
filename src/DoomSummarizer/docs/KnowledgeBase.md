@@ -17,7 +17,7 @@ By default, data is stored in `$HOME/.doomsummarizer/doom.db` (configurable via 
 | Table | Purpose |
 |-------|---------|
 | `items` | Articles: title, URL, content, summary, sentiment, topic, 384-dim embedding |
-| `items_fts` | FTS5 keyword index for quick pre-filtering (lightweight, used for KB enrichment) |
+| `items_fts` | SQLite FTS5 index (legacy, lightweight backup for KB enrichment) |
 | `keyword_corpus` | Global term frequencies for proper IDF computation |
 | `entities` | NER-extracted entities (people, organizations, locations) |
 | `entity_mentions` | Entity-to-article provenance links |
@@ -42,7 +42,7 @@ A Lucene index is maintained at `$HOME/.doomsummarizer/lucene/<collection>/` for
 - Field-weighted search (title boosted)
 - LLM-generated query optimization (converts natural language to Lucene syntax)
 
-Lucene is used for KB queries (`--local`, `--name`), providing more sophisticated text search than FTS5. Results are fused with embedding similarity for hybrid retrieval.
+Lucene is the primary search engine for KB queries (`--local`, `--name`), providing sophisticated text search with Porter stemming, fuzzy matching, and field-weighted search. The sentinel LLM generates optimized Lucene queries from natural language. Results are fused with embedding similarity for hybrid retrieval.
 
 Retention:
 - `scroll` runs `CleanupOldDataAsync(retentionDays)` based on `storage.retentionDays`
@@ -125,18 +125,22 @@ How it behaves:
 
 When you query the KB, DoomSummarizer uses a **three-layer retrieval pipeline**:
 
-### Layer 1: FTS5 Pre-Filter (SQL, deterministic)
+### Layer 1: Lucene Pre-Filter (LLM-generated query)
 
-Fast keyword matching reduces the candidate set before expensive embedding comparisons:
+The sentinel LLM converts your natural language query into optimized Lucene syntax, then runs a fast full-text search to reduce candidates before expensive embedding comparisons:
 
 ```
 Query: "history of LLMs"
         │
         ▼
-   FTS5 keyword match on:
-   - Document title
+   Sentinel LLM generates Lucene query:
+   "title:history OR title:LLM OR content:language content:model"
+        │
+        ▼
+   Lucene search on:
+   - Document title (boosted)
    - Extracted keywords (structurally weighted)
-   - Content preview (first 2000 chars)
+   - Content
         │
         ▼
    30 docs → ~10-15 candidates
@@ -176,7 +180,7 @@ Each document is automatically profiled with structurally-weighted keywords:
 | Intro paragraphs | 2.0x | Opening sets context and thesis |
 | Body text | 1.0x | Baseline — lots of supporting detail |
 
-Keywords are stored in the `items.keywords` column and indexed in FTS5 for fast pre-filtering.
+Keywords are stored in the `items.keywords` column and indexed in Lucene for fast pre-filtering.
 
 ## Global IDF
 
@@ -347,7 +351,7 @@ doomsummarizer scroll "machine learning security" --debug
 - Sentinel intent classification (categories, tone, temporal)
 - Recognizer signals (dates, numbers, URLs detected)
 - NER entities extracted from query
-- FTS5 pre-filter candidates
+- Lucene pre-filter candidates
 - Phase 1 scoring (BM25, freshness, authority, similarity)
 - RRF fusion weights
 - Phase 2 full scoring
