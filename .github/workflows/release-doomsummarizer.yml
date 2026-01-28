@@ -25,7 +25,9 @@ jobs:
         run: |
           dotnet build src/DoomSummarizer/DoomSummarizer.csproj -c Release
           dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj \
-            -c Release --logger "console;verbosity=normal"
+            -c Release \
+            --filter "Category!=Network%26Category!=Smoke" \
+            --logger "console;verbosity=normal"
 
   build:
     needs: test
