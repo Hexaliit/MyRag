@@ -16,6 +16,9 @@ public class EmbeddingService : IDisposable
     private BertTokenizer? _tokenizer;
     private bool _initialized;
 
+    // Lock for thread-safe tokenization (BertTokenizer.EncodeToIds is NOT thread-safe)
+    private readonly object _tokenizeLock = new();
+
     public EmbeddingService()
     {
         _modelDir = Path.Combine(
@@ -119,11 +122,18 @@ public class EmbeddingService : IDisposable
         if (text.Length > 2000)
             text = text[..2000];
 
-        // Tokenize - use EncodeToIds with max length
-        var inputIds = _tokenizer!.EncodeToIds(text, MaxTokens, out _, out _).ToArray();
-        var attentionMask = Enumerable.Repeat(1L, inputIds.Length).ToArray();
+        // BertTokenizer.EncodeToIds is NOT thread-safe — it uses internal buffers
+        // that can cause "Index out of range" errors under concurrent access.
+        // Lock tokenization only; ONNX InferenceSession.Run() is thread-safe.
+        int[] inputIds;
+        long[] attentionMask;
+        lock (_tokenizeLock)
+        {
+            inputIds = _tokenizer!.EncodeToIds(text, MaxTokens, out _, out _).ToArray();
+            attentionMask = Enumerable.Repeat(1L, inputIds.Length).ToArray();
+        }
 
-        // Create tensors
+        // Create tensors (local, no shared state)
         var inputIdsTensor = new DenseTensor<long>(inputIds.Select(i => (long)i).ToArray(), [1, inputIds.Length]);
         var attentionTensor = new DenseTensor<long>(attentionMask, [1, attentionMask.Length]);
         var tokenTypeTensor = new DenseTensor<long>(new long[inputIds.Length], [1, inputIds.Length]);
@@ -135,7 +145,7 @@ public class EmbeddingService : IDisposable
             NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeTensor)
         };
 
-        // Run inference
+        // Run inference (InferenceSession.Run is thread-safe)
         using var results = _session!.Run(inputs);
 
         // Get the sentence embedding (SIMD-accelerated mean pooling of last hidden state)

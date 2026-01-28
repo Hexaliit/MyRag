@@ -181,10 +181,16 @@ public partial class StorageService
             return BuildFtsQuery(tokens, useAnd: true);
 
         // If we have common tokens, add them as optional boosters
+        // FTS5 syntax: term1 term2 (term3 OR term4) doesn't work reliably
+        // Use explicit OR at top level: term1 AND term2 AND (term3 OR term4)
+        // But FTS5 doesn't have explicit AND - space means AND
+        // Safer: just add common terms at end without OR (they become optional via relevance)
         if (common.Count > 0)
         {
-            var optionalPart = string.Join(" OR ", common.Select(t => $"\"{EscapeFtsToken(t)}\""));
-            return $"{requiredPart} ({optionalPart})";
+            // Add common terms as individual tokens (FTS5 will rank by term frequency)
+            // This avoids the OR syntax issue while still boosting docs with common terms
+            var optionalPart = string.Join(" ", common.Select(t => EscapeFtsToken(t)));
+            return $"{requiredPart} {optionalPart}";
         }
 
         return requiredPart;

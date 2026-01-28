@@ -37,6 +37,7 @@ public static class DoomScrollerTools
     // Lazy-initialized shared services
     private static StorageService? _storage;
     private static EmbeddingService? _embedding;
+    private static OllamaService? _ollama;
     private static DoomConfig? _config;
     private static bool _servicesInitialized;
     private static readonly SemaphoreSlim InitLock = new(1, 1);
@@ -60,6 +61,11 @@ public static class DoomScrollerTools
             if (_embedding.IsSetup)
                 _embedding.Initialize();
 
+            // Initialize Ollama for LLM-based Lucene query generation
+            _ollama = new OllamaService(_config.Ollama);
+            if (!await _ollama.IsAvailableAsync())
+                _ollama = null; // Fall back to deterministic if Ollama unavailable
+
             _servicesInitialized = true;
         }
         finally
@@ -75,7 +81,7 @@ public static class DoomScrollerTools
     [McpServerTool(Name = "search_kb")]
     [Description(
         "Search the knowledge base using the full relevance pipeline: " +
-        "FTS5 pre-filter → BM25F scoring with global IDF → embedding similarity → " +
+        "Lucene pre-filter (LLM-generated query) → BM25F scoring with global IDF → embedding similarity → " +
         "RRF (Reciprocal Rank Fusion) combining 4+ signals. " +
         "Returns ranked results with IDs (use with get_item_content), titles, URLs, " +
         "summaries, keywords, and multi-signal relevance scores. " +
@@ -93,17 +99,38 @@ public static class DoomScrollerTools
             await EnsureServicesAsync();
             limit = Math.Clamp(limit, 1, 50);
 
-            // Layer 1: FTS5 pre-filter (deterministic SQL)
-            var candidateIds = await _storage!.FtsPreFilterAsync(query, source: source, limit: limit * 3);
+            // Layer 1: Lucene search (deterministic query builder)
+            var candidateIds = new HashSet<string>();
+            try
+            {
+                var luceneIndexPath = Path.Combine(_storage!.DataPath, "lucene", "mcp");
+                using var lucene = new LuceneSearchService(luceneIndexPath);
+                lucene.Open();
+
+                // Ensure items are indexed
+                var recentItems = await _storage.GetRecentItemsAsync(days: 90, source: source);
+                var itemsToIndex = recentItems.Where(s => !lucene.ContainsDocument(s.Id)).Select(s => s.ToContentItem()).ToList();
+                if (itemsToIndex.Count > 0)
+                {
+                    lucene.IndexItems(itemsToIndex);
+                    lucene.Commit();
+                }
+
+                // Use LLM-based query generation when Ollama is available
+                var luceneQuery = await LuceneQueryGenerator.GenerateQueryAsync(query, _ollama!, CancellationToken.None, useLlm: _ollama != null);
+                var luceneResults = lucene.Search(luceneQuery, source, limit: limit * 3);
+                foreach (var r in luceneResults) candidateIds.Add(r.Id);
+            }
+            catch { /* Lucene search failed - fall through to embeddings */ }
 
             List<ContentItem> items;
             if (candidateIds.Count > 0)
             {
-                items = await _storage.LoadItemsByIdsAsync(candidateIds);
+                items = await _storage.LoadItemsByIdsAsync(candidateIds.ToList());
             }
             else if (_embedding is { IsSetup: true })
             {
-                // Fallback: embedding search when FTS5 misses
+                // Fallback: embedding search when Lucene misses
                 var queryEmbed = _embedding.Embed(query);
                 var similar = await _storage.FindSimilarAsync(queryEmbed, limit: limit * 2, threshold: 0.20, source: source);
                 items = similar.Select(s => s.ToContentItem()).ToList();
@@ -111,11 +138,27 @@ public static class DoomScrollerTools
             else
             {
                 return Json(new { success = true, query, results = Array.Empty<object>(),
-                    message = "No results. FTS5 returned no matches and embeddings unavailable." });
+                    message = "No results. Lucene returned no matches and embeddings unavailable.",
+                    diagnostics = GetDiagnostics(),
+                    suggestions = new[]
+                    {
+                        "Run 'doomsummarizer setup' to enable semantic search",
+                        "Ingest content first with 'doomsummarizer scroll' or 'doomsummarizer crawl'",
+                        "Try the ingest_url tool to add a specific URL to the knowledge base"
+                    }
+                });
             }
 
             if (items.Count == 0)
-                return Json(new { success = true, query, results = Array.Empty<object>() });
+                return Json(new { success = true, query, results = Array.Empty<object>(),
+                    message = "No matching documents found in the knowledge base.",
+                    suggestions = new[]
+                    {
+                        "Try a broader query with fewer specific terms",
+                        "Use list_collections to see what content is available",
+                        "Use ingest_url to add relevant content to the knowledge base"
+                    }
+                });
 
             // Ensure keyword profiles
             foreach (var item in items.Where(i => string.IsNullOrEmpty(i.Keywords)))
@@ -179,7 +222,7 @@ public static class DoomScrollerTools
             {
                 success = true,
                 query, source_filter = source,
-                pipeline = "FTS5 → ScoreFast (BM25F+Freshness+Authority) → PRF → ScoreFull (+QuerySim+Vibe) → RRF",
+                pipeline = "Lucene → ScoreFast (BM25F+Freshness+Authority) → PRF → ScoreFull (+QuerySim+Vibe) → RRF",
                 total_candidates = candidateIds.Count > 0 ? candidateIds.Count : items.Count,
                 result_count = results.Count,
                 global_corpus = new { terms = globalCorpus.Count, docs = globalCorpusSize },
@@ -194,7 +237,7 @@ public static class DoomScrollerTools
 
     [McpServerTool(Name = "keyword_search")]
     [Description(
-        "Fast keyword search using SQLite FTS5 with Porter stemming. " +
+        "Fast keyword search using Lucene with Porter stemming and fuzzy matching. " +
         "Returns item IDs, titles, and URLs. Lighter than search_kb — " +
         "use when you just need to check if content exists on a topic.")]
     public static async Task<string> KeywordSearchAsync(
@@ -209,7 +252,20 @@ public static class DoomScrollerTools
         {
             await EnsureServicesAsync();
 
-            var ids = await _storage!.FtsPreFilterAsync(keywords, source: source, limit: limit);
+            var ids = new List<string>();
+            try
+            {
+                var luceneIndexPath = Path.Combine(_storage!.DataPath, "lucene", "mcp");
+                using var lucene = new LuceneSearchService(luceneIndexPath);
+                lucene.Open();
+
+                // Use LLM-based query generation when Ollama is available
+                var luceneQuery = await LuceneQueryGenerator.GenerateQueryAsync(keywords, _ollama!, CancellationToken.None, useLlm: _ollama != null);
+                var luceneHits = lucene.Search(luceneQuery, source, limit: limit);
+                ids = luceneHits.Select(r => r.Id).ToList();
+            }
+            catch { /* Lucene failed */ }
+
             if (ids.Count == 0)
                 return Json(new { success = true, keywords, results = Array.Empty<object>() });
 
@@ -247,7 +303,17 @@ public static class DoomScrollerTools
             await EnsureServicesAsync();
 
             if (_embedding is not { IsSetup: true })
-                return Json(new { success = false, error = "Embedding model not available. Run 'doomsummarizer setup' first." });
+                return Json(new {
+                    success = false,
+                    error = "Embedding model not available",
+                    fix = new[]
+                    {
+                        "Run 'doomsummarizer setup' to download the ONNX embedding model",
+                        "The model (all-MiniLM-L6-v2, ~80MB) enables semantic search",
+                        "After setup, restart the MCP server"
+                    },
+                    diagnostics = GetDiagnostics()
+                });
 
             var queryEmbed = _embedding.Embed(query);
             var similar = await _storage!.FindSimilarAsync(queryEmbed, limit: limit,
@@ -828,7 +894,7 @@ public static class DoomScrollerTools
     [McpServerTool(Name = "get_kb_stats")]
     [Description(
         "Knowledge base overview: items, collections, entities, relationships, " +
-        "FTS5 index status, keyword corpus size, embedding model availability.")]
+        "Lucene index status, keyword corpus size, embedding model availability.")]
     public static async Task<string> GetKbStatsAsync()
     {
         try
@@ -848,11 +914,12 @@ public static class DoomScrollerTools
                 total_collections = collections.Count,
                 items_with_embeddings = collections.Sum(c => c.WithEmbeddings),
                 entities, relationships, entity_mentions = mentions,
-                fts5_indexed = !ftsEmpty,
+                lucene_indexed = !ftsEmpty,
                 keyword_corpus = new { terms = corpus.Count, docs = corpusSize },
                 embedding = new { model = "all-MiniLM-L6-v2", dimensions = 384,
                     available = _embedding?.IsSetup ?? false },
-                available_tools = 15
+                available_tools = 15,
+                diagnostics = GetDiagnostics()
             });
         }
         catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
@@ -901,5 +968,68 @@ public static class DoomScrollerTools
     {
         if (text == null) return null;
         return text.Length <= maxLen ? text : text[..(maxLen - 3)] + "...";
+    }
+
+    /// <summary>
+    /// Returns diagnostic info for troubleshooting when things aren't working.
+    /// Designed to help calling LLMs guide users through fixes.
+    /// </summary>
+    private static object GetDiagnostics()
+    {
+        var diag = new List<object>();
+
+        // Ollama status
+        if (_ollama == null)
+        {
+            diag.Add(new
+            {
+                issue = "Ollama not available",
+                impact = "Using deterministic Lucene queries instead of LLM-optimized queries",
+                fix = new[]
+                {
+                    "Ensure Ollama is running: 'ollama serve'",
+                    $"Pull the configured model: 'ollama pull {_config?.Ollama.Model ?? "gemma3:4b"}'",
+                    $"Pull the sentinel model: 'ollama pull {_config?.Ollama.SentinelModel ?? "qwen3:0.6b"}'",
+                    "Check Ollama URL in config (default: http://localhost:11434)"
+                }
+            });
+        }
+
+        // Embedding status
+        if (_embedding is not { IsSetup: true })
+        {
+            diag.Add(new
+            {
+                issue = "ONNX embedding model not available",
+                impact = "Semantic search disabled, only keyword search works",
+                fix = new[]
+                {
+                    "Run 'doomsummarizer setup' to download the embedding model",
+                    "The model (all-MiniLM-L6-v2) is ~80MB and stored in ~/.doomsummarizer/models/"
+                }
+            });
+        }
+
+        // Storage status
+        if (_storage == null)
+        {
+            diag.Add(new
+            {
+                issue = "Storage not initialized",
+                impact = "No knowledge base available",
+                fix = new[] { "This is unexpected — try restarting the MCP server" }
+            });
+        }
+
+        return new
+        {
+            ollama_available = _ollama != null,
+            ollama_model = _config?.Ollama.Model,
+            ollama_sentinel = _config?.Ollama.SentinelModel,
+            ollama_url = _config?.Ollama.BaseUrl,
+            embeddings_available = _embedding?.IsSetup ?? false,
+            storage_path = _storage?.DataPath,
+            issues = diag.Count > 0 ? diag : null
+        };
     }
 }

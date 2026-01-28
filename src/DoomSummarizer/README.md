@@ -439,14 +439,20 @@ Without Ollama, the full signal pipeline still runs: ONNX embeddings, BM25, sent
 
 ## LLM Providers
 
-### Cloud LLMs
+### Cloud LLMs (Recommended for best quality)
 
-| Provider | Models | Key |
-|----------|--------|-----|
-| Anthropic | Claude Sonnet 4 (main), Claude 3.5 Haiku (sentinel) | `ANTHROPIC_API_KEY` |
-| OpenAI | GPT-4o-mini (main + sentinel) | `OPENAI_API_KEY` |
+| Provider | Default Models | Key | Docs |
+|----------|---------------|-----|------|
+| Anthropic | Claude Sonnet 4 (main), Claude 3.5 Haiku (sentinel) | `ANTHROPIC_API_KEY` | [CloudLLM.md](docs/CloudLLM.md) |
+| OpenAI | GPT-4o (main), GPT-4o-mini (sentinel) | `OPENAI_API_KEY` | [CloudLLM.md](docs/CloudLLM.md) |
 
-Budget-controlled with per-service rate limits, retry with backoff, and circuit breakers.
+Quick setup:
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+export DOOM_ANTHROPIC_MODELS="claude-sonnet-4-20250514|claude-3-5-haiku-latest"
+```
+
+Cloud LLMs provide dramatically better results: larger context windows (200K tokens), superior temporal understanding ("since last week"), and higher-quality synthesis. Budget-controlled with per-service rate limits, retry with backoff, and circuit breakers. See [docs/CloudLLM.md](docs/CloudLLM.md) for model selection and configuration.
 
 ### Local Models (Ollama)
 

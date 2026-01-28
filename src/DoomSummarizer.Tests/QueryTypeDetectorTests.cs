@@ -38,27 +38,47 @@ public class QueryTypeDetectorTests
         QueryTypeDetector.Detect(query).Should().NotBe(QueryType.Roundup);
     }
 
-    // --- Date-gating ---
+    // --- Date-gating (uses SentinelIntent, not query patterns) ---
 
     [Theory]
-    [InlineData("most interesting technology stories from today")]
-    [InlineData("what happened today")]
-    [InlineData("this morning's tech news")]
-    [InlineData("breaking news")]
-    [InlineData("last 24 hours in AI")]
-    public void ImpliesDateGating_TodayQueries_ReturnsTrue(string query)
+    [InlineData("today")]
+    [InlineData("breaking")]
+    [InlineData("week")]
+    public void ImpliesDateGating_TodayTimeSensitivity_ReturnsTrue(string timeSensitivity)
     {
-        QueryTypeDetector.ImpliesDateGating(query).Should().BeTrue();
+        var intent = new SentinelIntent { TimeSensitivity = timeSensitivity };
+        QueryTypeDetector.ImpliesDateGating(intent).Should().BeTrue();
     }
 
-    [Theory]
-    [InlineData("latest AI news")]
-    [InlineData("this week in .NET")]
-    [InlineData("trending stories")]
-    [InlineData("best of this month")]
-    public void ImpliesDateGating_NonTodayQueries_ReturnsFalse(string query)
+    [Fact]
+    public void ImpliesDateGating_RequiresFresh_ReturnsTrue()
     {
-        QueryTypeDetector.ImpliesDateGating(query).Should().BeFalse();
+        var intent = new SentinelIntent { RequiresFresh = true };
+        QueryTypeDetector.ImpliesDateGating(intent).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ImpliesDateGating_WithDateRange_ReturnsTrue()
+    {
+        var intent = new SentinelIntent { DateRange = new DateRangeIntent { Start = "2024-01-20" } };
+        QueryTypeDetector.ImpliesDateGating(intent).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ImpliesDateGating_NullIntent_ReturnsFalse()
+    {
+        QueryTypeDetector.ImpliesDateGating(null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ImpliesDateGating_NoTemporalSignals_ReturnsFalse()
+    {
+        var intent = new SentinelIntent
+        {
+            Intent = "research",
+            TimeSensitivity = "evergreen"
+        };
+        QueryTypeDetector.ImpliesDateGating(intent).Should().BeFalse();
     }
 
     // --- Topic drift ---

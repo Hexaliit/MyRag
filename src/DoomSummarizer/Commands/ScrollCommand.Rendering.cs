@@ -107,15 +107,16 @@ public sealed partial class ScrollCommand
         text = text.Replace("~~~", "").Replace("```", "");
         text = WhitespaceCollapsePattern().Replace(text, " ").Trim();
 
-        // Try to find first complete sentence
-        var dotIdx = text.IndexOf(". ", 20, StringComparison.Ordinal);
+        // Try to find first complete sentence (avoid IndexOf with startIndex > length)
+        var startIdx = Math.Min(20, text.Length);
+        var dotIdx = startIdx > 0 ? text.IndexOf(". ", startIdx, StringComparison.Ordinal) : -1;
         if (dotIdx > 0 && dotIdx < maxChars)
             return text[..(dotIdx + 1)];
 
         // Fall back to truncation
         if (text.Length <= maxChars) return text;
-        var spaceIdx = text.LastIndexOf(' ', maxChars);
-        return spaceIdx > 40 ? text[..spaceIdx] + "..." : text[..maxChars] + "...";
+        var spaceIdx = text.LastIndexOf(' ', Math.Min(maxChars, text.Length - 1));
+        return spaceIdx > 40 ? text[..spaceIdx] + "..." : text[..Math.Min(maxChars, text.Length)] + "...";
     }
 
     /// <summary>

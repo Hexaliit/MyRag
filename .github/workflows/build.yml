@@ -33,11 +33,17 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore dependencies
-        run: dotnet restore LucidRAG.sln
+      - name: Build LucidRAG
+        run: dotnet build src/LucidRAG/LucidRAG.csproj --configuration Release
 
-      - name: Build
-        run: dotnet build LucidRAG.sln --configuration Release --no-restore
+      - name: Build LucidRAG.Tests
+        run: dotnet build src/LucidRAG.Tests/LucidRAG.Tests.csproj --configuration Release
+
+      - name: Build DoomSummarizer
+        run: dotnet build src/DoomSummarizer/DoomSummarizer.csproj --configuration Release
+
+      - name: Build DoomSummarizer.Tests
+        run: dotnet build src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj --configuration Release
 
       - name: Run LucidRAG tests
         env:

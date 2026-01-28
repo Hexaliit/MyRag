@@ -1205,29 +1205,49 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         AnsiConsole.MarkupLine($"[grey]Source filter: {preFilterCount} → {uniqueItems.Count} items[/]");
                 }
 
-                // Stage 2.2: Dual KB enrichment (web queries only) — FTS5 + Embeddings
-                // Uses both keyword matching (FTS5) AND semantic similarity for better recall
+                // Stage 2.2: KB enrichment (web queries only) — Lucene + Embeddings
+                // Uses sentinel-generated Lucene query + semantic similarity for better recall
                 if (!isLocalMode && uniqueItems.Count > 0)
                 {
                     var enrichQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
                     if (!string.IsNullOrWhiteSpace(enrichQuery))
                     {
                         var candidateIds = new HashSet<string>();
-                        var ftsCount = 0;
+                        var luceneCount = 0;
                         var embedCount = 0;
 
-                        // Layer 1: FTS5 keyword pre-filter (catches exact keyword matches)
+                        // Layer 1: Lucene search (sentinel-generated query for salience)
                         try
                         {
-                            var ftsResults = await storage.FtsPreFilterAsync(enrichQuery, limit: 10);
-                            foreach (var id in ftsResults) candidateIds.Add(id);
-                            ftsCount = ftsResults.Count;
+                            var luceneIndexPath = Path.Combine(storage.DataPath, "lucene", "enrichment");
+                            using var lucene = new LuceneSearchService(luceneIndexPath);
+                            lucene.Open();
+
+                            // Ensure KB items are indexed (incremental)
+                            var recentItems = await storage.GetRecentItemsAsync(days: 90);
+                            var itemsToIndex = recentItems
+                                .Where(s => !lucene.ContainsDocument(s.Id))
+                                .Select(s => s.ToContentItem())
+                                .ToList();
+                            if (itemsToIndex.Count > 0)
+                            {
+                                lucene.IndexItems(itemsToIndex);
+                                lucene.Commit();
+                            }
+
+                            // Generate Lucene query from natural language (via sentinel)
+                            var luceneQuery = await LuceneQueryGenerator.GenerateQueryAsync(enrichQuery, ollama, cancellationToken);
+                            if (settings.DebugPipeline)
+                                AnsiConsole.MarkupLine($"[grey]KB Lucene query: {Markup.Escape(luceneQuery)}[/]");
+
+                            var luceneResults = lucene.Search(luceneQuery, limit: 15);
+                            foreach (var r in luceneResults) candidateIds.Add(r.Id);
+                            luceneCount = luceneResults.Count;
                         }
                         catch (Exception ex)
                         {
-                            // FTS5 syntax errors are expected for some queries - fall through to embeddings
                             if (settings.DebugPipeline)
-                                AnsiConsole.MarkupLine($"[grey]FTS5 skipped: {ex.Message}[/]");
+                                AnsiConsole.MarkupLine($"[grey]Lucene KB search skipped: {ex.Message}[/]");
                         }
 
                         // Layer 2: Embedding search for semantic coverage (catches related content)
@@ -1262,7 +1282,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 uniqueItems.AddRange(newFromKb);
                                 fetchTask.Description = $"[cyan]KB enrichment: +{newFromKb.Count} items[/]";
                                 if (settings.DebugPipeline)
-                                    AnsiConsole.MarkupLine($"[grey]KB enrichment: FTS5={ftsCount}, Embed={embedCount}, Merged={newFromKb.Count}[/]");
+                                    AnsiConsole.MarkupLine($"[grey]KB enrichment: Lucene={luceneCount}, Embed={embedCount}, Merged={newFromKb.Count}[/]");
                             }
                         }
                     }
@@ -1775,7 +1795,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     foreach (var item in alreadyAnalyzed)
                     {
-                        analyzedItems.Add((item.Title, item.Summary!, item.DetectedTopic ?? "general",
+                        analyzedItems.Add((item.Title, item.Summary ?? item.Title, item.DetectedTopic ?? "general",
                             item.SentimentScore, item.Url ?? "", item.RelevanceScore));
                     }
 
@@ -1845,7 +1865,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         // Build analyzedItems after parallel completion (preserves order)
                         foreach (var item in needsAnalysis)
                         {
-                            analyzedItems.Add((item.Title, item.Summary!, item.DetectedTopic ?? "general",
+                            analyzedItems.Add((item.Title, item.Summary ?? item.Title, item.DetectedTopic ?? "general",
                                 item.SentimentScore, item.Url ?? "", item.RelevanceScore));
                         }
                     }
