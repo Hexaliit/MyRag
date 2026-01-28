@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoomSummarizer.Models;
-using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
@@ -60,7 +59,7 @@ public class RedditCommentsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch Reddit comments: {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch Reddit comments: {ex.Message}");
         }
 
         return discussion;
@@ -106,7 +105,7 @@ public class RedditCommentsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Failed to search r/{subreddit}: {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: Failed to search r/{subreddit}: {ex.Message}");
         }
 
         return discussions;

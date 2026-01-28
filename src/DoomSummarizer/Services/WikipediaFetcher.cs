@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoomSummarizer.Models;
-using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
@@ -111,7 +110,7 @@ public class WikipediaFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Wikipedia API failed: {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: Wikipedia API failed: {ex.Message}");
         }
 
         return items.Take(limit).ToList();

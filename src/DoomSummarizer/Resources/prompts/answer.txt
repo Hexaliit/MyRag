@@ -22,11 +22,6 @@ RULES:
 FORMAT:
 [2-4 paragraphs of clean readable prose answering the question. Lead with the most important finding.
  Do NOT place any URLs, markdown links, or citation markers in the text body.
+ Do NOT include a sources/references section — sources are handled separately.
  Write naturally as you would for a knowledgeable reader.
  Keep it concise — less content is fine if the evidence is thin.]
-
-### Sources
-[Numbered list of sources you actually drew from. Format each as:]
-1. [Source Title](URL)
-2. [Source Title](URL)
-[Only include sources you used. Order by relevance to the answer. Omit unused evidence.]

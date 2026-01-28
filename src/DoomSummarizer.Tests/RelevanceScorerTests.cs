@@ -104,9 +104,17 @@ public class RelevanceScorerTests
             MakeItem("3", "BBC article", source: "bbc", score: 0)
         };
 
-        var highAuth = RelevanceScorer.NormalizeAuthority(items[0], items);
-        var lowAuth = RelevanceScorer.NormalizeAuthority(items[1], items);
-        var bbcAuth = RelevanceScorer.NormalizeAuthority(items[2], items);
+        // Build maxScoreBySource dictionary (same as RelevanceScorer does internally)
+        var maxScoreBySource = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items.Where(i => i.Score > 0))
+        {
+            if (!maxScoreBySource.TryGetValue(item.Source, out var current) || item.Score > current)
+                maxScoreBySource[item.Source] = item.Score;
+        }
+
+        var highAuth = RelevanceScorer.NormalizeAuthority(items[0], maxScoreBySource);
+        var lowAuth = RelevanceScorer.NormalizeAuthority(items[1], maxScoreBySource);
+        var bbcAuth = RelevanceScorer.NormalizeAuthority(items[2], maxScoreBySource);
 
         highAuth.Should().Be(1.0);
         lowAuth.Should().BeLessThan(highAuth);
@@ -122,8 +130,10 @@ public class RelevanceScorerTests
             MakeItem("2", "Google News", source: "gnews", score: 0)
         };
 
-        RelevanceScorer.NormalizeAuthority(items[0], items).Should().Be(0.3);
-        RelevanceScorer.NormalizeAuthority(items[1], items).Should().Be(0.4);
+        var maxScoreBySource = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+        RelevanceScorer.NormalizeAuthority(items[0], maxScoreBySource).Should().Be(0.3);
+        RelevanceScorer.NormalizeAuthority(items[1], maxScoreBySource).Should().Be(0.4);
     }
 
     #endregion

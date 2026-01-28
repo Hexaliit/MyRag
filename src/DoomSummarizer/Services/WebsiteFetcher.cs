@@ -3,7 +3,6 @@ using AngleSharp.Dom;
 using DoomSummarizer.Models;
 using Microsoft.Playwright;
 using SmartReader;
-using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
@@ -105,7 +104,7 @@ public class WebsiteFetcher : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch {site.Url}: {Markup.Escape(ex.Message)}[/]");
+                System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch {site.Url}: {ex.Message}");
             }
         }
 

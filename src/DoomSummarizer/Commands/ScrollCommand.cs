@@ -2052,6 +2052,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 var relevantClusters = disambiguation.Clusters
                                     .Where(c =>
                                     {
+                                        if (c.Items.Count == 0) return false;
                                         var topItem = c.Items.OrderByDescending(i => i.RelevanceScore).First();
                                         if (topItem.Embedding == null) return true; // can't filter without embedding
                                         var sim = EmbeddingService.CosineSimilarity(topItem.Embedding, queryEmbedding);

@@ -2,7 +2,6 @@ using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoomSummarizer.Models;
-using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
@@ -37,7 +36,7 @@ public class StackOverflowFetcher
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch SO hot questions: {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch SO hot questions: {ex.Message}");
         }
 
         return items;
@@ -67,7 +66,7 @@ public class StackOverflowFetcher
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch SO tag '{tag}': {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch SO tag '{tag}': {ex.Message}");
         }
 
         return items;
@@ -97,7 +96,7 @@ public class StackOverflowFetcher
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Failed to search SO for '{query}': {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: Failed to search SO for '{query}': {ex.Message}");
         }
 
         return items;

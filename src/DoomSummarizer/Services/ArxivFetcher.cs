@@ -1,6 +1,5 @@
 using System.Xml.Linq;
 using DoomSummarizer.Models;
-using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
@@ -99,7 +98,7 @@ public class ArxivFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: arXiv search failed: {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: arXiv search failed: {ex.Message}");
         }
 
         return items;
@@ -162,7 +161,7 @@ public class ArxivFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: arXiv category fetch failed: {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: arXiv category fetch failed: {ex.Message}");
         }
 
         return items;

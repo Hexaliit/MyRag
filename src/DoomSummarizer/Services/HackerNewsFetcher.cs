@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DoomSummarizer.Models;
-using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
@@ -74,7 +73,7 @@ public class HackerNewsFetcher(HttpClient httpClient)
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch HN {section}: {Markup.Escape(ex.Message)}[/]");
+                System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch HN {section}: {ex.Message}");
             }
 
             if (items.Count >= limit) break;

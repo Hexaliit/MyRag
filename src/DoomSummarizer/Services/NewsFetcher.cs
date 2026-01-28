@@ -1,6 +1,5 @@
 using System.Xml.Linq;
 using DoomSummarizer.Models;
-using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
@@ -94,7 +93,7 @@ public class NewsFetcher(HttpClient httpClient)
         // Fallback to hardcoded KnownFeeds
         if (!KnownFeeds.TryGetValue(sourceName, out var feeds))
         {
-            AnsiConsole.MarkupLine($"[yellow]Unknown news source: {sourceName}. Known: {string.Join(", ", KnownFeeds.Keys)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Unknown news source: {sourceName}. Known: {string.Join(", ", KnownFeeds.Keys)}");
             return [];
         }
 
@@ -123,7 +122,7 @@ public class NewsFetcher(HttpClient httpClient)
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to fetch {feedUrl}: {Markup.Escape(ex.Message)}[/]");
+                System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch {feedUrl}: {ex.Message}");
             }
         }
 
@@ -171,7 +170,7 @@ public class NewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: API search failed for {sourceName}: {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: API search failed for {sourceName}: {ex.Message}");
         }
 
         return items;
@@ -266,7 +265,7 @@ public class NewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: RSS parse error for {feedUrl}: {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: RSS parse error for {feedUrl}: {ex.Message}");
         }
 
         return items;

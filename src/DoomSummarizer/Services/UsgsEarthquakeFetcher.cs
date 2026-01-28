@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoomSummarizer.Models;
-using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
@@ -113,7 +112,7 @@ public class UsgsEarthquakeFetcher(HttpClient httpClient)
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Warning: USGS earthquake feed failed: {Markup.Escape(ex.Message)}[/]");
+                System.Diagnostics.Debug.WriteLine($"Warning: USGS earthquake feed failed: {ex.Message}");
             }
         }
 

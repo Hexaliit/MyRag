@@ -20,9 +20,5 @@ INSTRUCTIONS:
 
 FORMAT:
 [Direct answer in 2-4 paragraphs of clean readable prose. Do NOT place URLs or markdown links in the text body.
+ Do NOT include a sources/references section — sources are handled separately.
  Write naturally for a knowledgeable reader. Less content is fine if evidence is thin.]
-
-### Sources
-1. [Source Title](URL)
-2. [Source Title](URL)
-[Only sources you drew from. Order by relevance.]

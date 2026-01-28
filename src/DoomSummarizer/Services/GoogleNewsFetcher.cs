@@ -1,7 +1,6 @@
 using System.Web;
 using System.Xml.Linq;
 using DoomSummarizer.Models;
-using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
@@ -69,7 +68,9 @@ public class GoogleNewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Google News search failed: {Markup.Escape(ex.Message)}[/]");
+            // Don't use AnsiConsole here — this runs from background tasks during Progress rendering
+            // and AnsiConsole is not thread-safe, causing IndexOutOfRange crashes
+            System.Diagnostics.Debug.WriteLine($"Google News search failed: {ex.Message}");
         }
 
         // Resolve Google News redirect URLs to actual article URLs
@@ -125,7 +126,8 @@ public class GoogleNewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Google News topic '{topic}' feed failed, falling back to search: {Markup.Escape(ex.Message)}[/]");
+            // Don't use AnsiConsole here — this runs from background tasks during Progress rendering
+            System.Diagnostics.Debug.WriteLine($"Google News topic '{topic}' feed failed, falling back to search: {ex.Message}");
             // Fall back to keyword search — topic feeds can be unreliable
             // (SearchAsync already resolves redirect URLs)
             return await SearchAsync(topic.ToLowerInvariant().Replace("_", " "), maxResults, daysBack: 7);
@@ -451,8 +453,9 @@ public class GoogleNewsFetcher(HttpClient httpClient)
 
         await Task.WhenAll(tasks);
 
+        // Don't use AnsiConsole here — this runs from background tasks during Progress rendering
         if (resolved > 0 || failed > 0)
-            AnsiConsole.MarkupLine($"[grey]Google News URL resolution: {resolved} resolved, {failed} failed (batchexecute)[/]");
+            System.Diagnostics.Debug.WriteLine($"Google News URL resolution: {resolved} resolved, {failed} failed (batchexecute)");
     }
 
     /// <summary>

@@ -1,6 +1,5 @@
 using System.Xml.Linq;
 using DoomSummarizer.Models;
-using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
@@ -82,7 +81,7 @@ public class FactCheckFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]Warning: Fact-check feed '{siteName}' failed: {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"Warning: Fact-check feed '{siteName}' failed: {ex.Message}");
         }
 
         return items;
