@@ -43,6 +43,37 @@ public partial class ScrollCommand
     }
 
     /// <summary>
+    /// Compute max cosine similarity between an item embedding and multiple query embeddings.
+    /// For composite queries, items are scored against the BEST matching subquery.
+    /// Falls back to single-query similarity when no subquery embeddings provided.
+    /// </summary>
+    internal static float ComputeMaxQuerySimilarity(
+        float[]? itemEmbedding,
+        float[]? primaryQueryEmbedding,
+        List<float[]>? subqueryEmbeddings)
+    {
+        if (itemEmbedding == null) return 0f;
+
+        // If we have subquery embeddings, use max similarity across all of them
+        if (subqueryEmbeddings?.Count > 0)
+        {
+            var maxSim = 0f;
+            foreach (var sqEmbed in subqueryEmbeddings)
+            {
+                var sim = EmbeddingService.CosineSimilarity(itemEmbedding, sqEmbed);
+                if (sim > maxSim) maxSim = sim;
+            }
+            return maxSim;
+        }
+
+        // Otherwise use the primary query embedding
+        if (primaryQueryEmbedding != null)
+            return EmbeddingService.CosineSimilarity(itemEmbedding, primaryQueryEmbedding);
+
+        return 0f;
+    }
+
+    /// <summary>
     /// Get representative text for a vibe to use as an embedding target
     /// for cosine-similarity-based sentiment scoring.
     /// </summary>

@@ -137,6 +137,28 @@ public record SentinelIntent
     /// </summary>
     [JsonPropertyName("graph_scope")]
     public string? GraphScope { get; init; }
+
+    // ─── Query Decomposition (Composite Questions) ───
+
+    /// <summary>
+    /// For composite questions (multiple sub-questions joined by "and", "also", etc.),
+    /// this contains the decomposed subqueries that should be answered separately.
+    /// Example: "What happens in Wuthering Heights and when was the latest movie made?"
+    /// → ["What happens in Wuthering Heights?", "When was the latest Wuthering Heights movie made?"]
+    /// </summary>
+    [JsonPropertyName("subqueries")]
+    public List<string>? Subqueries { get; init; }
+
+    /// <summary>
+    /// True if the query contains multiple distinct sub-questions that need separate answers.
+    /// </summary>
+    [JsonPropertyName("is_composite")]
+    public bool IsComposite { get; init; }
+
+    /// <summary>
+    /// True if decomposed subqueries were provided.
+    /// </summary>
+    public bool HasSubqueries => Subqueries is { Count: > 1 };
 }
 
 /// <summary>

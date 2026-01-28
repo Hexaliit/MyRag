@@ -1,8 +1,17 @@
+using ConsoleImage.Core;
 using DoomSummarizer.Commands;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Spectre.Console;
 using Spectre.Console.Cli;
+
+// Easter egg: doomsummarizer --ee or --easter-egg
+if (args.Length > 0 && args[0] is "--ee" or "--easter-egg")
+{
+    await PlayEasterEggAsync(CancellationToken.None);
+    return 0;
+}
 
 // MCP server mode: doomsummarizer --mcp
 if (args.Length > 0 && args[0] is "--mcp" or "-mcp")
@@ -114,3 +123,76 @@ app.Configure(config =>
 });
 
 return await app.RunAsync(args);
+
+// Easter egg animation
+static async Task PlayEasterEggAsync(CancellationToken ct)
+{
+    ConsoleHelper.EnableAnsiSupport();
+    AnsiConsole.Clear();
+    AnsiConsole.WriteLine();
+
+    var title = new FigletText("DoomSummarizer").Color(Color.Cyan1);
+    AnsiConsole.Write(title);
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[dim]AI-powered doom scrolling so you don't have to.[/]");
+    AnsiConsole.WriteLine();
+
+    // Play animation (TODO: add .cidz support when format is finalized)
+    await PlayFallbackAnimationAsync(ct);
+
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[green]Ready to doom scroll![/]");
+}
+
+static async Task PlayFallbackAnimationAsync(CancellationToken ct)
+{
+    var frames = new[]
+    {
+        @"
+   ████████████████████████
+   ██                    ██
+   ██  ████        ████  ██
+   ██  ████        ████  ██
+   ██                    ██
+   ██       ████████     ██
+   ██    ██  ████  ██    ██
+   ██                    ██
+   ████████████████████████",
+        @"
+   ████████████████████████
+   ██                    ██
+   ██  ▓▓▓▓        ▓▓▓▓  ██
+   ██  ▓▓▓▓        ▓▓▓▓  ██
+   ██                    ██
+   ██       ████████     ██
+   ██    ██  ████  ██    ██
+   ██                    ██
+   ████████████████████████",
+        @"
+   ████████████████████████
+   ██                    ██
+   ██  ░░░░        ░░░░  ██
+   ██  ░░░░        ░░░░  ██
+   ██                    ██
+   ██       ████████     ██
+   ██    ██  ████  ██    ██
+   ██                    ██
+   ████████████████████████"
+    };
+
+    var colors = new[] { Color.Red, Color.Orange1, Color.Yellow };
+    AnsiConsole.MarkupLine("[dim]Press Ctrl+C to exit[/]");
+    AnsiConsole.WriteLine();
+
+    for (var loops = 0; loops < 6 && !ct.IsCancellationRequested; loops++)
+    {
+        for (var i = 0; i < frames.Length * 2 && !ct.IsCancellationRequested; i++)
+        {
+            var color = colors[i % colors.Length];
+            var frame = frames[i % frames.Length];
+            AnsiConsole.Cursor.SetPosition(0, 8);
+            AnsiConsole.Write(new Text(frame, new Style(color)));
+            try { await Task.Delay(150, ct); } catch (OperationCanceledException) { break; }
+        }
+    }
+}

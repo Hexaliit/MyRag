@@ -109,15 +109,28 @@ public partial class PromptInterpreter
 
                 if (intent != null && (intent.Categories?.Count ?? 0) > 0)
                 {
+                    // Debug: show composite query detection
+                    if (intent.IsComposite || intent.HasSubqueries)
+                    {
+                        Spectre.Console.AnsiConsole.MarkupLine(
+                            $"[cyan]Composite query detected: {intent.Subqueries?.Count ?? 0} subqueries[/]");
+                        foreach (var sq in intent.Subqueries ?? [])
+                            Spectre.Console.AnsiConsole.MarkupLine($"[grey]  • {Spectre.Console.Markup.Escape(sq)}[/]");
+                    }
+
                     var router = GetRouter();
                     var result = SentinelSourceMapper.ToInterpretedPrompt(intent, router, prompt, nerContext);
                     return result;
                 }
 
-                // Log why SentinelIntent failed
+                // Log why SentinelIntent failed - show raw JSON for debugging
                 if (intent != null)
+                {
                     Spectre.Console.AnsiConsole.MarkupLine(
                         $"[yellow]Sentinel: parsed but empty categories. intent={Spectre.Console.Markup.Escape(intent.Intent ?? "null")}, queries={Spectre.Console.Markup.Escape(string.Join(", ", intent.SearchQueries ?? []))}[/]");
+                    Spectre.Console.AnsiConsole.MarkupLine(
+                        $"[grey]Raw JSON: {Spectre.Console.Markup.Escape(json[..Math.Min(json.Length, 500)])}[/]");
+                }
                 else
                     Spectre.Console.AnsiConsole.MarkupLine(
                         $"[yellow]Sentinel: deserialized null. Raw: {Spectre.Console.Markup.Escape(json[..Math.Min(json.Length, 300)])}[/]");
@@ -161,40 +174,40 @@ public partial class PromptInterpreter
 
     /// <summary>
     /// Build the structured sentinel system prompt.
-    /// Kept concise for small local models — Ollama JSON mode ensures valid output.
+    /// Simplified for small local models — Ollama JSON mode ensures valid output.
     /// </summary>
     private static string BuildStructuredSentinelPrompt(QueryNerContext? nerContext)
     {
         var today = DateTime.Now.ToString("MMMM d, yyyy");
-        var todayIso = DateTime.Now.ToString("yyyy-MM-dd");
-        return $"""
-            You are a search query optimizer. Given a user's request, output JSON with three goals:
-            1. Correct any spelling errors and expand abbreviations in the query
-            2. Extract filter keywords for database/index search
-            3. Craft optimized search engine queries
+        return $$"""
+            Output JSON classifying the search query. Today is {{today}}.
 
-            JSON fields (REQUIRED):
-            - "corrected_query": the query with spelling fixed and abbreviations expanded (SNL → Saturday Night Live, htmx → HTMX, aspnet → ASP.NET). Always include this.
-            - "filter_keywords": 3-6 MUST-MATCH terms for filtering documents. These are the salient nouns, verbs, and technical terms. NO stop words. Example: "history of LLMs" → ["llm", "language model", "history", "ai"]
-            - "lucene_query": Lucene search syntax with boosts. Use title:term^3 for key terms, "phrase"~2 for multi-word, term~ for fuzzy. Example: title:LLM^3 "language model"~2 history~
-            - "search_queries": 2-3 optimized search engine queries. Quote entity names. Add time context if relevant. Today is {today}.
-            - "intent": "news" | "roundup" | "research" | "howto" | "qa" | "trend" | "comparison"
-            - "categories": topic weights 0.0-1.0. ONLY use: technology, ai, security, programming, science, health, pharma, business, finance, politics, world, entertainment, humor, sports, environment, climate, space, disaster, factcheck.
-            - "tone": "neutral" | "doom" | "hopeful" | "snarky" | "funny" | "upbeat" | "friendly" | "toon"
-            - "time_sensitivity": "breaking" | "today" | "week" | "any"
+            REQUIRED fields:
+            {
+              "categories": {"topic": 0.8},  // Use: technology, ai, programming, science, health, business, finance, politics, world, entertainment, sports
+              "intent": "qa",  // news|roundup|research|howto|qa|trend|comparison
+              "search_queries": ["optimized search query"],  // 2-3 search queries
+              "filter_keywords": ["keyword1", "keyword2"],  // 3-5 key terms
+              "tone": "neutral"  // neutral|doom|hopeful|snarky|funny
+            }
 
-            TEMPORAL EXTRACTION:
-            - "requires_fresh": true for "recent", "latest", "new", "current", "breaking"
-            - "date_range": original (phrase), unit (day/week/month), count. Example: "last week" → original="last week", unit="week", count=1
-            - "is_continuation": true for "since last time", "update on", "what's new with"
+            COMPOSITE queries (multiple questions joined by "and"/"also"):
+            {
+              "is_composite": true,
+              "subqueries": ["First standalone question?", "Second standalone question?"]
+            }
+            Resolve pronouns in each subquery: "it" → the actual subject.
 
-            OTHER FIELDS:
-            - "entities": named entities (people, orgs, products)
-            - "explicit_sources": only if user named a source (hn, bbc, reddit)
-            - "graph_scope": "local" (specific) | "global" (sensemaking) | "connective" (relationships)
-            - "limit": number (default 20)
-
-            Only assign categories matching the topic. Default to "local" graph_scope.
+            Example: "What happens in Wuthering Heights and when was the latest movie made?"
+            {
+              "categories": {"entertainment": 0.9},
+              "intent": "qa",
+              "search_queries": ["Wuthering Heights plot summary", "Wuthering Heights movie 2024"],
+              "filter_keywords": ["Wuthering Heights", "movie", "plot"],
+              "is_composite": true,
+              "subqueries": ["What is the plot of Wuthering Heights?", "When was the latest Wuthering Heights movie made?"],
+              "tone": "neutral"
+            }
             """;
     }
 

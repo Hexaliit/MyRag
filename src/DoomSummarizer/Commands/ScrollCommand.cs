@@ -1,4 +1,7 @@
 using System.ComponentModel;
+using System.Reflection;
+using ConsoleImage.Core;
+using ConsoleImage.Player;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using DoomSummarizer.Services.LongFormGeneration;
@@ -127,10 +130,21 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [Description("Locale for date/number parsing (e.g., en-us, en-gb, de-de, fr-fr)")]
         [DefaultValue("en-us")]
         public string Locale { get; init; } = "en-us";
+
+        [CommandOption("--ee|--easter-egg")]
+        [Description("Show the DoomSummarizer animation")]
+        public bool EasterEgg { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
+        // Handle --easter-egg: play the DoomSummarizer animation
+        if (settings.EasterEgg)
+        {
+            await PlayEasterEggAnimationAsync(cancellationToken);
+            return 0;
+        }
+
         // Handle --list-templates
         if (settings.ListTemplates)
         {
@@ -365,6 +379,22 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
             var interpreter = new PromptInterpreter(ollama, embedding);
             interpreted = await interpreter.InterpretAsync(settings.Prompt, nerContext);
+
+            // Composite query handling: add subqueries as additional search queries
+            // This ensures each part of a composite question gets searched separately
+            if (interpreted.SentinelIntent?.HasSubqueries == true)
+            {
+                foreach (var subquery in interpreted.SentinelIntent.Subqueries!)
+                {
+                    // Don't add duplicates or near-duplicates
+                    if (!interpreted.SearchQueries.Any(sq =>
+                        sq.Contains(subquery, StringComparison.OrdinalIgnoreCase) ||
+                        subquery.Contains(sq, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        interpreted.SearchQueries.Add(subquery);
+                    }
+                }
+            }
 
             // Use interpreted vibe unless explicitly overridden
             if (settings.Vibe == "neutral" && interpreted.Vibe != "neutral")
@@ -1485,6 +1515,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // without needing synonym dictionaries — embeddings capture semantic similarity dynamically
                 float[]? queryEmbedding = null;
                 float[]? vibeEmbedding = null;
+                List<float[]>? subqueryEmbeddings = null; // For composite queries: embeddings for each subquery
                 if (!string.IsNullOrWhiteSpace(queryText))
                 {
                     // ONNX InferenceSession.Run() is thread-safe — parallelize embedding computation
@@ -1501,6 +1532,18 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     }
 
                     queryEmbedding = embedding.Embed(queryText);
+
+                    // Composite query handling: embed each subquery for multi-query retrieval
+                    // Items are scored against the BEST matching subquery (max similarity)
+                    if (interpreted?.SentinelIntent?.HasSubqueries == true)
+                    {
+                        subqueryEmbeddings = interpreted.SentinelIntent.Subqueries!
+                            .Select(sq => embedding.Embed(sq))
+                            .ToList();
+                        if (settings.DebugPipeline)
+                            AnsiConsole.MarkupLine($"[grey]Multi-query: {subqueryEmbeddings.Count} subquery embeddings[/]");
+                    }
+
                     var vibeText = GetVibeRepresentativeText(vibe);
                     vibeEmbedding = vibe != "neutral" ? embedding.Embed(vibeText) : null;
 
@@ -1552,8 +1595,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             bm25: (double)RelevanceScorer.BM25FScore(i, qt, idf, avgDocLen),
                             freshness: RelevanceScorer.ComputeFreshness(i),
                             authority: authLookup.GetValueOrDefault(i.Id, 0.3),
-                            qSim: i.Embedding != null && queryEmbedding != null
-                                ? (double)EmbeddingService.CosineSimilarity(i.Embedding, queryEmbedding) : 0.0
+                            // Multi-query: use max similarity across subqueries for composite queries
+                            qSim: (double)ComputeMaxQuerySimilarity(i.Embedding, queryEmbedding, subqueryEmbeddings)
                         )).ToList();
                     }
 
@@ -1648,8 +1691,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             var bm25 = RelevanceScorer.BM25FScore(item, qt, idf2, avgDocLen2);
                             var fresh = RelevanceScorer.ComputeFreshness(item);
                             var auth = authLookup2.GetValueOrDefault(item.Id, 0.3);
-                            var qSim = item.Embedding != null && refinedQueryEmbedding != null
-                                ? EmbeddingService.CosineSimilarity(item.Embedding, refinedQueryEmbedding) : 0f;
+                            // Multi-query: use max similarity across subqueries for composite queries
+                            var qSim = ComputeMaxQuerySimilarity(item.Embedding, refinedQueryEmbedding, subqueryEmbeddings);
                             var vSim = vibeEmbedding != null && item.Embedding != null
                                 ? EmbeddingService.CosineSimilarity(item.Embedding, vibeEmbedding) : 0f;
 
@@ -1850,8 +1893,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     var topItems = uniqueItems.Take(5).Where(i => i.Embedding != null).ToList();
                     if (topItems.Count > 0)
                     {
+                        // Multi-query: use max similarity across subqueries for composite queries
                         var avgRelevance = topItems
-                            .Select(i => (double)EmbeddingService.CosineSimilarity(queryEmbedding, i.Embedding!))
+                            .Select(i => (double)ComputeMaxQuerySimilarity(i.Embedding, queryEmbedding, subqueryEmbeddings))
                             .Average();
 
                         if (avgRelevance < 0.25)
@@ -2327,6 +2371,22 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     summaryTask.Value = 10;
                     var userQuery = interpreted?.RawPrompt ?? settings.Prompt;
 
+                    // Composite query handling: enhance userQuery to explicitly address each subquery
+                    // This ensures the summarizer answers each part of the composite question
+                    if (interpreted?.SentinelIntent?.HasSubqueries == true)
+                    {
+                        var subqs = interpreted.SentinelIntent.Subqueries!;
+                        var subqList = string.Join("\n", subqs.Select((sq, i) => $"  {i + 1}. {sq}"));
+                        userQuery = $"""
+                            {userQuery}
+
+                            IMPORTANT: This is a composite question. Please answer EACH of these sub-questions:
+                            {subqList}
+
+                            Structure your response to clearly address each question.
+                            """;
+                    }
+
                     // Detect query type for source quality weighting and template auto-selection.
                     // Use sentinel intent when available — the LLM is better at distinguishing
                     // QA from roundup (e.g., "What's the SNL host this week?" is QA, not roundup).
@@ -2486,7 +2546,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                         if (c.Items.Count == 0) return false;
                                         var topItem = c.Items.OrderByDescending(i => i.RelevanceScore).First();
                                         if (topItem.Embedding == null) return true; // can't filter without embedding
-                                        var sim = EmbeddingService.CosineSimilarity(topItem.Embedding, queryEmbedding);
+                                        // Multi-query: use max similarity across subqueries for composite queries
+                                        var sim = ComputeMaxQuerySimilarity(topItem.Embedding, queryEmbedding, subqueryEmbeddings);
                                         return sim >= 0.35f; // minimum topical relevance to query
                                     })
                                     .ToList();
@@ -2976,4 +3037,174 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         return 0;
     }
 
+    /// <summary>
+    /// Play the DoomSummarizer easter egg animation with the title.
+    /// </summary>
+    private static async Task PlayEasterEggAnimationAsync(CancellationToken ct)
+    {
+        // Enable Windows ANSI support for proper color rendering
+        ConsoleHelper.EnableAnsiSupport();
+
+        AnsiConsole.Clear();
+        AnsiConsole.WriteLine();
+
+        var title = new FigletText("DoomSummarizer")
+            .Color(Color.Cyan1);
+
+        AnsiConsole.Write(title);
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[dim]AI-powered doom scrolling so you don't have to.[/]");
+        AnsiConsole.WriteLine();
+
+        // Try to load and play the embedded .cidz animation
+        var doc = await LoadEmbeddedAnimationAsync(ct);
+
+        if (doc != null)
+        {
+            AnsiConsole.MarkupLine("[dim]Press Ctrl+C to exit[/]");
+            AnsiConsole.WriteLine();
+
+            try
+            {
+                using var player = new ConsolePlayer(doc, loopCount: 3);
+                await player.PlayAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine($"[dim]Animation error: {ex.Message}[/]");
+                await PlayInlineAnimationAsync(ct);
+            }
+        }
+        else
+        {
+            // Fall back to inline ASCII animation
+            await PlayInlineAnimationAsync(ct);
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[green]Ready to doom scroll![/]");
+    }
+
+    /// <summary>
+    /// Load the embedded spin.cidz animation from assembly resources.
+    /// </summary>
+    private static async Task<PlayerDocument?> LoadEmbeddedAnimationAsync(CancellationToken ct)
+    {
+        try
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+
+            // Try different resource name patterns
+            var resourceNames = new[] { "DoomSummarizer.spin.cidz", "DoomSummarizer.img.spin.cidz", "spin.cidz" };
+            Stream? stream = null;
+            string? foundName = null;
+
+            foreach (var name in resourceNames)
+            {
+                stream = assembly.GetManifestResourceStream(name);
+                if (stream != null)
+                {
+                    foundName = name;
+                    break;
+                }
+            }
+
+            if (stream == null)
+            {
+                AnsiConsole.MarkupLine("[dim]No embedded animation found[/]");
+                return null;
+            }
+
+            AnsiConsole.MarkupLine($"[dim]Loading animation from {foundName} ({stream.Length} bytes)[/]");
+
+            await using (stream)
+            {
+                var doc = await PlayerDocument.FromCompressedStreamAsync(stream, ct);
+                AnsiConsole.MarkupLine($"[dim]Loaded {doc.FrameCount} frames[/]");
+                return doc;
+            }
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[dim]Animation load error: {ex.Message}[/]");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Fallback inline ASCII animation when .cidz file is not available.
+    /// </summary>
+    private static async Task PlayInlineAnimationAsync(CancellationToken ct)
+    {
+        var frames = new[]
+        {
+            @"
+   ████████████████████████
+   ██                    ██
+   ██  ████        ████  ██
+   ██  ████        ████  ██
+   ██                    ██
+   ██       ████████     ██
+   ██    ██  ████  ██    ██
+   ██                    ██
+   ████████████████████████
+            ",
+            @"
+   ████████████████████████
+   ██                    ██
+   ██  ▓▓▓▓        ▓▓▓▓  ██
+   ██  ▓▓▓▓        ▓▓▓▓  ██
+   ██                    ██
+   ██       ████████     ██
+   ██    ██  ████  ██    ██
+   ██                    ██
+   ████████████████████████
+            ",
+            @"
+   ████████████████████████
+   ██                    ██
+   ██  ░░░░        ░░░░  ██
+   ██  ░░░░        ░░░░  ██
+   ██                    ██
+   ██       ████████     ██
+   ██    ██  ████  ██    ██
+   ██                    ██
+   ████████████████████████
+            "
+        };
+
+        var colors = new[] { Color.Red, Color.Orange1, Color.Yellow };
+
+        AnsiConsole.MarkupLine("[dim]Press Ctrl+C to exit[/]");
+        AnsiConsole.WriteLine();
+
+        var loops = 0;
+        var maxLoops = 6;
+        var frameIndex = 0;
+
+        while (!ct.IsCancellationRequested && loops < maxLoops)
+        {
+            var color = colors[frameIndex % colors.Length];
+            var frame = frames[frameIndex % frames.Length];
+
+            AnsiConsole.Cursor.SetPosition(0, 8);
+            AnsiConsole.Write(new Text(frame, new Style(color)));
+
+            frameIndex++;
+            if (frameIndex >= frames.Length * 2)
+            {
+                frameIndex = 0;
+                loops++;
+            }
+
+            try
+            {
+                await Task.Delay(150, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
 }

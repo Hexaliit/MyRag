@@ -1273,4 +1273,5 @@ public record NewsletterQuickHit
 [JsonSerializable(typeof(SentinelIntent))]
 [JsonSerializable(typeof(DateRangeIntent))]
 [JsonSerializable(typeof(Dictionary<string, double>))]
+[JsonSerializable(typeof(List<string>))]  // For SentinelIntent's list properties
 public partial class OllamaJsonContext : JsonSerializerContext;

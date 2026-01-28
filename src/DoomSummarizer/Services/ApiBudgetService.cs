@@ -15,6 +15,7 @@ public class ApiBudgetService : IAsyncDisposable
     private readonly ApiBudgetConfig _globalConfig;
     private readonly ApiKeyService _keys;
     private readonly SqliteConnection _db;
+    private readonly SemaphoreSlim _dbLock = new(1, 1);  // Thread-safety for SQLite connection
     private bool _initialized;
 
     public ApiBudgetService(ApiBudgetConfig globalConfig, ApiKeyService keys, string dbPath)
@@ -125,34 +126,42 @@ public class ApiBudgetService : IAsyncDisposable
         var today = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         var cost = (svcEntry?.CostPerRequest ?? 0.005) * count;
 
-        // Upsert daily
-        using var cmd1 = _db.CreateCommand();
-        cmd1.CommandText = """
-            INSERT INTO api_usage (service, date, request_count, estimated_cost_usd)
-            VALUES (@service, @date, @count, @cost)
-            ON CONFLICT(service, date) DO UPDATE SET
-                request_count = request_count + @count,
-                estimated_cost_usd = estimated_cost_usd + @cost
-            """;
-        cmd1.Parameters.AddWithValue("@service", service);
-        cmd1.Parameters.AddWithValue("@date", today);
-        cmd1.Parameters.AddWithValue("@count", count);
-        cmd1.Parameters.AddWithValue("@cost", cost);
-        await cmd1.ExecuteNonQueryAsync();
+        await _dbLock.WaitAsync();
+        try
+        {
+            // Upsert daily
+            using var cmd1 = _db.CreateCommand();
+            cmd1.CommandText = """
+                INSERT INTO api_usage (service, date, request_count, estimated_cost_usd)
+                VALUES (@service, @date, @count, @cost)
+                ON CONFLICT(service, date) DO UPDATE SET
+                    request_count = request_count + @count,
+                    estimated_cost_usd = estimated_cost_usd + @cost
+                """;
+            cmd1.Parameters.AddWithValue("@service", service);
+            cmd1.Parameters.AddWithValue("@date", today);
+            cmd1.Parameters.AddWithValue("@count", count);
+            cmd1.Parameters.AddWithValue("@cost", cost);
+            await cmd1.ExecuteNonQueryAsync();
 
-        // Upsert total
-        using var cmd2 = _db.CreateCommand();
-        cmd2.CommandText = """
-            INSERT INTO api_usage_total (service, total_requests, total_cost_usd)
-            VALUES (@service, @count, @cost)
-            ON CONFLICT(service) DO UPDATE SET
-                total_requests = total_requests + @count,
-                total_cost_usd = total_cost_usd + @cost
-            """;
-        cmd2.Parameters.AddWithValue("@service", service);
-        cmd2.Parameters.AddWithValue("@count", count);
-        cmd2.Parameters.AddWithValue("@cost", cost);
-        await cmd2.ExecuteNonQueryAsync();
+            // Upsert total
+            using var cmd2 = _db.CreateCommand();
+            cmd2.CommandText = """
+                INSERT INTO api_usage_total (service, total_requests, total_cost_usd)
+                VALUES (@service, @count, @cost)
+                ON CONFLICT(service) DO UPDATE SET
+                    total_requests = total_requests + @count,
+                    total_cost_usd = total_cost_usd + @cost
+                """;
+            cmd2.Parameters.AddWithValue("@service", service);
+            cmd2.Parameters.AddWithValue("@count", count);
+            cmd2.Parameters.AddWithValue("@cost", cost);
+            await cmd2.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
     }
 
     /// <summary>
@@ -163,25 +172,6 @@ public class ApiBudgetService : IAsyncDisposable
         await InitializeAsync();
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
-
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = """
-            SELECT u.service, u.request_count, u.estimated_cost_usd,
-                   COALESCE(t.total_requests, 0), COALESCE(t.total_cost_usd, 0)
-            FROM api_usage u
-            LEFT JOIN api_usage_total t ON u.service = t.service
-            WHERE u.date = @date
-            ORDER BY u.service
-            """;
-        cmd.Parameters.AddWithValue("@date", today);
-
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (!reader.HasRows)
-        {
-            AnsiConsole.MarkupLine("[dim]No API usage today[/]");
-            return;
-        }
-
         var table = new Table().Border(TableBorder.Rounded);
         table.AddColumn("Service");
         table.AddColumn(new TableColumn("Today").RightAligned());
@@ -189,18 +179,47 @@ public class ApiBudgetService : IAsyncDisposable
         table.AddColumn(new TableColumn("All Time").RightAligned());
         table.AddColumn(new TableColumn("Total Cost").RightAligned());
 
-        while (await reader.ReadAsync())
+        var hasRows = false;
+        await _dbLock.WaitAsync();
+        try
         {
-            var svc = reader.GetString(0);
-            var svcEntry = _keys.GetService(svc);
-            var limit = svcEntry?.MaxRequestsPerDay ?? _globalConfig.GlobalMaxRequestsPerDay;
-            table.AddRow(
-                svc,
-                $"{reader.GetInt32(1)}/{limit}",
-                $"${reader.GetDouble(2):F3}",
-                reader.GetInt64(3).ToString(),
-                $"${reader.GetDouble(4):F3}"
-            );
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = """
+                SELECT u.service, u.request_count, u.estimated_cost_usd,
+                       COALESCE(t.total_requests, 0), COALESCE(t.total_cost_usd, 0)
+                FROM api_usage u
+                LEFT JOIN api_usage_total t ON u.service = t.service
+                WHERE u.date = @date
+                ORDER BY u.service
+                """;
+            cmd.Parameters.AddWithValue("@date", today);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            hasRows = reader.HasRows;
+
+            while (await reader.ReadAsync())
+            {
+                var svc = reader.GetString(0);
+                var svcEntry = _keys.GetService(svc);
+                var limit = svcEntry?.MaxRequestsPerDay ?? _globalConfig.GlobalMaxRequestsPerDay;
+                table.AddRow(
+                    svc,
+                    $"{reader.GetInt32(1)}/{limit}",
+                    $"${reader.GetDouble(2):F3}",
+                    reader.GetInt64(3).ToString(),
+                    $"${reader.GetDouble(4):F3}"
+                );
+            }
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+
+        if (!hasRows)
+        {
+            AnsiConsole.MarkupLine("[dim]No API usage today[/]");
+            return;
         }
 
         AnsiConsole.Write(table);
@@ -212,53 +231,94 @@ public class ApiBudgetService : IAsyncDisposable
 
     private async Task<int> GetDailyCountAsync(string service, string date)
     {
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT COALESCE(request_count, 0) FROM api_usage WHERE service = @s AND date = @d";
-        cmd.Parameters.AddWithValue("@s", service);
-        cmd.Parameters.AddWithValue("@d", date);
-        var result = await cmd.ExecuteScalarAsync();
-        return result is long v ? (int)v : 0;
+        await _dbLock.WaitAsync();
+        try
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = "SELECT COALESCE(request_count, 0) FROM api_usage WHERE service = @s AND date = @d";
+            cmd.Parameters.AddWithValue("@s", service);
+            cmd.Parameters.AddWithValue("@d", date);
+            var result = await cmd.ExecuteScalarAsync();
+            return result is long v ? (int)v : 0;
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
     }
 
     private async Task<int> GetGlobalDailyCountAsync(string date)
     {
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT COALESCE(SUM(request_count), 0) FROM api_usage WHERE date = @d";
-        cmd.Parameters.AddWithValue("@d", date);
-        var result = await cmd.ExecuteScalarAsync();
-        return result is long v ? (int)v : 0;
+        await _dbLock.WaitAsync();
+        try
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = "SELECT COALESCE(SUM(request_count), 0) FROM api_usage WHERE date = @d";
+            cmd.Parameters.AddWithValue("@d", date);
+            var result = await cmd.ExecuteScalarAsync();
+            return result is long v ? (int)v : 0;
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
     }
 
     private async Task<long> GetTotalCountAsync(string service)
     {
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT COALESCE(total_requests, 0) FROM api_usage_total WHERE service = @s";
-        cmd.Parameters.AddWithValue("@s", service);
-        var result = await cmd.ExecuteScalarAsync();
-        return result is long v ? v : 0;
+        await _dbLock.WaitAsync();
+        try
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = "SELECT COALESCE(total_requests, 0) FROM api_usage_total WHERE service = @s";
+            cmd.Parameters.AddWithValue("@s", service);
+            var result = await cmd.ExecuteScalarAsync();
+            return result is long v ? v : 0;
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
     }
 
     private async Task<double> GetServiceDailyCostAsync(string service, string date)
     {
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT COALESCE(estimated_cost_usd, 0) FROM api_usage WHERE service = @s AND date = @d";
-        cmd.Parameters.AddWithValue("@s", service);
-        cmd.Parameters.AddWithValue("@d", date);
-        var result = await cmd.ExecuteScalarAsync();
-        return result is double v ? v : 0;
+        await _dbLock.WaitAsync();
+        try
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = "SELECT COALESCE(estimated_cost_usd, 0) FROM api_usage WHERE service = @s AND date = @d";
+            cmd.Parameters.AddWithValue("@s", service);
+            cmd.Parameters.AddWithValue("@d", date);
+            var result = await cmd.ExecuteScalarAsync();
+            return result is double v ? v : 0;
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
     }
 
     private async Task<double> GetGlobalDailyCostAsync(string date)
     {
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT COALESCE(SUM(estimated_cost_usd), 0) FROM api_usage WHERE date = @d";
-        cmd.Parameters.AddWithValue("@d", date);
-        var result = await cmd.ExecuteScalarAsync();
-        return result is double v ? v : 0;
+        await _dbLock.WaitAsync();
+        try
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = "SELECT COALESCE(SUM(estimated_cost_usd), 0) FROM api_usage WHERE date = @d";
+            cmd.Parameters.AddWithValue("@d", date);
+            var result = await cmd.ExecuteScalarAsync();
+            return result is double v ? v : 0;
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
+        _dbLock.Dispose();
         await _db.DisposeAsync();
         GC.SuppressFinalize(this);
     }
