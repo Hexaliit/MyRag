@@ -45,6 +45,10 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
         [CommandOption("--no-llm|--nollm")]
         [Description("Skip LLM — show extracted content and signals only")]
         public bool NoLlm { get; init; }
+
+        [CommandOption("-n|--name")]
+        [Description("Store as named collection (e.g., --name docs). Query later with scroll --name docs")]
+        public string? Name { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
@@ -106,10 +110,15 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
 
                     var title = ExtractTitle(html) ?? new Uri(settings.Url).Host;
 
+                    // Use named collection if specified, otherwise default to "page"
+                    var source = !string.IsNullOrWhiteSpace(settings.Name)
+                        ? $"page:{settings.Name}"
+                        : "page";
+
                     item = new ContentItem
                     {
                         Id = $"page-{Guid.NewGuid():N}",
-                        Source = "page",
+                        Source = source,
                         Title = title,
                         Url = settings.Url,
                         Content = content,

@@ -416,11 +416,25 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 {
                     var localQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
 
-                    // Derive source filter: --name takes priority, then --source crawl:xxx
-                    var sourceFilter = !string.IsNullOrWhiteSpace(settings.Name)
-                        ? $"crawl:{settings.Name}"
-                        : settings.Sources?.FirstOrDefault(s =>
-                            s.StartsWith("crawl:", StringComparison.OrdinalIgnoreCase));
+                    // Derive source filter: --name takes priority, then --source crawl:xxx or page:xxx
+                    // --name matches any collection: crawl:{name}, page:{name}, or just {name}
+                    string? sourceFilter = null;
+                    if (!string.IsNullOrWhiteSpace(settings.Name))
+                    {
+                        // Check what collections exist with this name
+                        var collections = await storage.GetCollectionsAsync();
+                        var matchingCollection = collections.FirstOrDefault(c =>
+                            c.Source.Equals(settings.Name, StringComparison.OrdinalIgnoreCase) ||
+                            c.Source.Equals($"crawl:{settings.Name}", StringComparison.OrdinalIgnoreCase) ||
+                            c.Source.Equals($"page:{settings.Name}", StringComparison.OrdinalIgnoreCase));
+                        sourceFilter = matchingCollection?.Source ?? $"crawl:{settings.Name}";
+                    }
+                    else
+                    {
+                        sourceFilter = settings.Sources?.FirstOrDefault(s =>
+                            s.StartsWith("crawl:", StringComparison.OrdinalIgnoreCase) ||
+                            s.StartsWith("page:", StringComparison.OrdinalIgnoreCase));
+                    }
 
                     var collectionLabel = sourceFilter ?? "all";
                     var collectionName = settings.Name ?? "default";
