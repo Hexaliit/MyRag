@@ -278,7 +278,7 @@ Resolves aggregator URLs to canonical article URLs:
 
 Results are cached to avoid repeated lookups.
 
-## v0.6.9: Advanced Search & Retrieval
+## v0.6.1: Advanced Search & Retrieval
 
 ### Composite Query Decomposition
 
