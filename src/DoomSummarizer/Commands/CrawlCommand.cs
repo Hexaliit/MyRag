@@ -306,7 +306,18 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                         ? item.Content[..300] + "..."
                         : item.Content ?? item.Title;
 
+                    // Compute document-level keyword profile for FTS5 indexing + BM25F
+                    var profile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
+                    item.Keywords = profile.KeywordsText;
+
                     await storage.SaveItemAsync(item);
+
+                    // Index into FTS5 for keyword pre-filtering
+                    var contentPreview = (item.Content ?? "").Length > 2000
+                        ? item.Content![..2000]
+                        : item.Content ?? "";
+                    await storage.IndexDocumentFtsAsync(item.Id, item.Title, profile.KeywordsText, contentPreview);
+                    await storage.UpdateKeywordCorpusAsync(profile.TopKeywords.Select(k => k.Keyword));
 
                     // Update URL cache: content hash + any ETags/Last-Modified from the response
                     if (!string.IsNullOrEmpty(item.Url) && !string.IsNullOrEmpty(item.Content))

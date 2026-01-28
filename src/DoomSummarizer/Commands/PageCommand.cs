@@ -390,8 +390,16 @@ public sealed class PageCommand : AsyncCommand<PageCommand.Settings>
                 .Padding(1, 1));
         }
 
-        // Save to storage for future reference
+        // Compute keyword profile and save to storage + FTS5
+        var kwProfile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
+        item.Keywords = kwProfile.KeywordsText;
         await storage.SaveItemAsync(item);
+
+        var contentPreview = (item.Content ?? "").Length > 2000
+            ? item.Content![..2000]
+            : item.Content ?? "";
+        await storage.IndexDocumentFtsAsync(item.Id, item.Title, kwProfile.KeywordsText, contentPreview);
+        await storage.UpdateKeywordCorpusAsync(kwProfile.TopKeywords.Select(k => k.Keyword));
 
         return 0;
     }

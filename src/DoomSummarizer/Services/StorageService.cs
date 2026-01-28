@@ -145,8 +145,36 @@ public class StorageService : IAsyncDisposable
                 FOREIGN KEY (source_entity_id) REFERENCES entities(id),
                 FOREIGN KEY (target_entity_id) REFERENCES entities(id)
             );
+
+            -- FTS5 virtual table for fast keyword pre-filtering
+            CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
+                item_id UNINDEXED,
+                title,
+                keywords_text,
+                content_preview,
+                tokenize = 'porter ascii'
+            );
+
+            -- Global keyword corpus for proper IDF computation
+            CREATE TABLE IF NOT EXISTS keyword_corpus (
+                keyword TEXT PRIMARY KEY,
+                document_count INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL
+            );
             """;
         await cmd.ExecuteNonQueryAsync();
+
+        // Add keywords column to items table (safe migration for existing DBs)
+        try
+        {
+            await using var alterCmd = _connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE items ADD COLUMN keywords TEXT";
+            await alterCmd.ExecuteNonQueryAsync();
+        }
+        catch (SqliteException)
+        {
+            // Column already exists — that's fine
+        }
     }
 
     public async Task<bool> ExistsAsync(string id)
@@ -179,9 +207,9 @@ public class StorageService : IAsyncDisposable
         await using var cmd = _connection!.CreateCommand();
         cmd.CommandText = """
             INSERT OR REPLACE INTO items
-            (id, source, title, url, summary, content, sentiment_score, detected_topic, tags, score, created_at, fetched_at, embedding)
+            (id, source, title, url, summary, content, sentiment_score, detected_topic, tags, score, created_at, fetched_at, embedding, keywords)
             VALUES
-            (@id, @source, @title, @url, @summary, @content, @sentiment, @topic, @tags, @score, @created, @fetched, @embedding)
+            (@id, @source, @title, @url, @summary, @content, @sentiment, @topic, @tags, @score, @created, @fetched, @embedding, @keywords)
             """;
 
         cmd.Parameters.AddWithValue("@id", item.Id);
@@ -197,6 +225,7 @@ public class StorageService : IAsyncDisposable
         cmd.Parameters.AddWithValue("@created", item.CreatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@fetched", item.FetchedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@embedding", item.Embedding != null ? EmbeddingService.ToBytes(item.Embedding) : DBNull.Value);
+        cmd.Parameters.AddWithValue("@keywords", (object?)item.Keywords ?? DBNull.Value);
 
         await cmd.ExecuteNonQueryAsync();
     }
@@ -908,6 +937,262 @@ public class StorageService : IAsyncDisposable
     private static string NormalizeCacheUrl(string url) =>
         url.Split('?')[0].Split('#')[0].TrimEnd('/').ToLowerInvariant();
 
+    // --- FTS5 Pre-Filter & Keyword Corpus Methods ---
+
+    /// <summary>
+    /// Index a document into the FTS5 virtual table for fast keyword pre-filtering.
+    /// Called during ingestion after keyword extraction.
+    /// </summary>
+    public async Task IndexDocumentFtsAsync(string itemId, string title, string keywordsText, string contentPreview)
+    {
+        // Delete any existing entry first (FTS5 doesn't support UPSERT)
+        await using var delCmd = _connection!.CreateCommand();
+        delCmd.CommandText = "DELETE FROM items_fts WHERE item_id = @id";
+        delCmd.Parameters.AddWithValue("@id", itemId);
+        await delCmd.ExecuteNonQueryAsync();
+
+        await using var cmd = _connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO items_fts (item_id, title, keywords_text, content_preview)
+            VALUES (@id, @title, @keywords, @preview)
+            """;
+        cmd.Parameters.AddWithValue("@id", itemId);
+        cmd.Parameters.AddWithValue("@title", title);
+        cmd.Parameters.AddWithValue("@keywords", keywordsText);
+        cmd.Parameters.AddWithValue("@preview", contentPreview);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Pre-filter documents using FTS5 keyword match (Layer 1).
+    /// Returns item IDs that match the query text, optionally filtered by source.
+    /// </summary>
+    public async Task<List<string>> FtsPreFilterAsync(string query, string? source = null, int limit = 50)
+    {
+        var ftsQuery = BuildFtsQuery(query);
+        if (string.IsNullOrWhiteSpace(ftsQuery)) return [];
+
+        var ids = new List<string>();
+        await using var cmd = _connection!.CreateCommand();
+
+        if (source != null)
+        {
+            cmd.CommandText = """
+                SELECT f.item_id
+                FROM items_fts f
+                JOIN items i ON f.item_id = i.id
+                WHERE items_fts MATCH @query AND i.source = @source
+                ORDER BY rank
+                LIMIT @limit
+                """;
+            cmd.Parameters.AddWithValue("@source", source);
+        }
+        else
+        {
+            cmd.CommandText = """
+                SELECT item_id
+                FROM items_fts
+                WHERE items_fts MATCH @query
+                ORDER BY rank
+                LIMIT @limit
+                """;
+        }
+
+        cmd.Parameters.AddWithValue("@query", ftsQuery);
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            ids.Add(reader.GetString(0));
+        }
+
+        return ids;
+    }
+
+    /// <summary>
+    /// Build an FTS5 query from user input, tokenizing and escaping for safety.
+    /// Uses OR for broad matching so partial keyword overlap still finds candidates.
+    /// </summary>
+    private static string BuildFtsQuery(string userQuery)
+    {
+        var tokens = RelevanceScorer.Tokenize(userQuery);
+        if (tokens.Count == 0) return "";
+
+        // Escape each token for FTS5 (wrap in quotes to handle special chars)
+        // Use OR for broad matching — FTS5 default is AND which is too restrictive
+        return string.Join(" OR ", tokens.Select(t => $"\"{EscapeFtsToken(t)}\""));
+    }
+
+    /// <summary>
+    /// Escape a token for FTS5 query syntax: double any internal quotes.
+    /// </summary>
+    private static string EscapeFtsToken(string token)
+    {
+        return token.Replace("\"", "\"\"");
+    }
+
+    /// <summary>
+    /// Update global keyword corpus IDF counters.
+    /// UPSERT: increment document_count for each keyword.
+    /// </summary>
+    public async Task UpdateKeywordCorpusAsync(IEnumerable<string> keywords)
+    {
+        var keywordList = keywords.ToList();
+        if (keywordList.Count == 0) return;
+
+        var now = DateTimeOffset.UtcNow.ToString("O");
+
+        await using var transaction = await _connection!.BeginTransactionAsync();
+        try
+        {
+            foreach (var keyword in keywordList)
+            {
+                await using var cmd = _connection.CreateCommand();
+                cmd.Transaction = (SqliteTransaction)transaction;
+                cmd.CommandText = """
+                    INSERT INTO keyword_corpus (keyword, document_count, updated_at)
+                    VALUES (@kw, 1, @now)
+                    ON CONFLICT(keyword) DO UPDATE SET
+                        document_count = document_count + 1,
+                        updated_at = @now
+                    """;
+                cmd.Parameters.AddWithValue("@kw", keyword.ToLowerInvariant());
+                cmd.Parameters.AddWithValue("@now", now);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Load the global keyword corpus for IDF computation.
+    /// Returns keyword → document_count mapping.
+    /// </summary>
+    public async Task<Dictionary<string, int>> GetKeywordCorpusAsync()
+    {
+        var corpus = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT keyword, document_count FROM keyword_corpus";
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            corpus[reader.GetString(0)] = reader.GetInt32(1);
+        }
+
+        return corpus;
+    }
+
+    /// <summary>
+    /// Get the total number of distinct documents in the keyword corpus.
+    /// </summary>
+    public async Task<int> GetKeywordCorpusSizeAsync()
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(DISTINCT id) FROM items";
+        var result = await cmd.ExecuteScalarAsync();
+        return result is long l ? (int)l : 0;
+    }
+
+    /// <summary>
+    /// Find documents that share entities with the given item IDs.
+    /// Returns item IDs of related documents, ordered by shared entity count.
+    /// </summary>
+    public async Task<List<string>> FindRelatedByEntitiesAsync(
+        List<string> itemIds, List<string>? excludeIds = null, int limit = 3)
+    {
+        if (itemIds.Count == 0) return [];
+        excludeIds ??= itemIds;
+
+        var ids = new List<string>();
+        await using var cmd = _connection!.CreateCommand();
+
+        // Build parameter placeholders for source item IDs
+        var srcPlaceholders = new List<string>();
+        for (var i = 0; i < itemIds.Count; i++)
+        {
+            srcPlaceholders.Add($"@src{i}");
+            cmd.Parameters.AddWithValue($"@src{i}", itemIds[i]);
+        }
+
+        // Build parameter placeholders for excluded item IDs
+        var exclPlaceholders = new List<string>();
+        for (var i = 0; i < excludeIds.Count; i++)
+        {
+            exclPlaceholders.Add($"@excl{i}");
+            cmd.Parameters.AddWithValue($"@excl{i}", excludeIds[i]);
+        }
+
+        cmd.CommandText = $"""
+            SELECT em2.item_id, COUNT(DISTINCT em2.entity_id) as shared_count,
+                   SUM(em2.confidence) as total_confidence
+            FROM entity_mentions em1
+            JOIN entity_mentions em2 ON em1.entity_id = em2.entity_id
+            WHERE em1.item_id IN ({string.Join(", ", srcPlaceholders)})
+              AND em2.item_id NOT IN ({string.Join(", ", exclPlaceholders)})
+            GROUP BY em2.item_id
+            HAVING shared_count >= 2
+            ORDER BY shared_count DESC, total_confidence DESC
+            LIMIT @limit
+            """;
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            ids.Add(reader.GetString(0));
+        }
+
+        return ids;
+    }
+
+    /// <summary>
+    /// Load ContentItems by their IDs (for FTS5 pre-filter results).
+    /// </summary>
+    public async Task<List<ContentItem>> LoadItemsByIdsAsync(List<string> ids)
+    {
+        var storedItems = await GetItemsByIdsAsync(ids);
+        return storedItems
+            .Select(s => s.ToContentItem())
+            .ToList();
+    }
+
+    /// <summary>
+    /// Get all items from the database (for backfilling FTS5 index).
+    /// </summary>
+    public async Task<List<StoredItem>> GetAllItemsAsync()
+    {
+        var items = new List<StoredItem>();
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT * FROM items ORDER BY fetched_at DESC";
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            items.Add(ReadStoredItem(reader));
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    /// Check if the FTS5 index has any entries (used to trigger backfill).
+    /// </summary>
+    public async Task<bool> IsFtsIndexEmptyAsync()
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM items_fts";
+        var result = await cmd.ExecuteScalarAsync();
+        return result is long l ? l == 0 : true;
+    }
+
     /// <summary>
     /// Delete all stored data — items, entities, queries, caches.
     /// Used by --clear-storage to reset to a clean state.
@@ -925,6 +1210,8 @@ public class StorageService : IAsyncDisposable
             DELETE FROM query_log;
             DELETE FROM url_cache;
             DELETE FROM feature_cache;
+            DELETE FROM items_fts;
+            DELETE FROM keyword_corpus;
             """;
         await cmd.ExecuteNonQueryAsync();
 
@@ -972,6 +1259,12 @@ public class StorageService : IAsyncDisposable
 
             -- Clean up old feature cache entries
             DELETE FROM feature_cache WHERE last_used < @cutoff;
+
+            -- Clean up orphaned FTS entries (items deleted above)
+            DELETE FROM items_fts WHERE item_id NOT IN (SELECT id FROM items);
+
+            -- Clean up keyword corpus for terms with zero documents
+            DELETE FROM keyword_corpus WHERE document_count <= 0;
             """;
         cmd.Parameters.AddWithValue("@cutoff", cutoff);
         await cmd.ExecuteNonQueryAsync();
@@ -979,6 +1272,18 @@ public class StorageService : IAsyncDisposable
 
     private static StoredItem ReadStoredItem(SqliteDataReader reader)
     {
+        // Read keywords column safely (may not exist in older DBs before migration)
+        string? keywords = null;
+        try
+        {
+            var keywordsOrd = reader.GetOrdinal("keywords");
+            keywords = reader.IsDBNull(keywordsOrd) ? null : reader.GetString(keywordsOrd);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            // Column doesn't exist yet — that's fine
+        }
+
         return new StoredItem
         {
             RowId = reader.GetInt64(reader.GetOrdinal("row_id")),
@@ -994,7 +1299,8 @@ public class StorageService : IAsyncDisposable
             Score = reader.IsDBNull(reader.GetOrdinal("score")) ? 0 : reader.GetInt32(reader.GetOrdinal("score")),
             CreatedAt = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("created_at"))),
             FetchedAt = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("fetched_at"))),
-            Embedding = reader.IsDBNull(reader.GetOrdinal("embedding")) ? null : (byte[])reader["embedding"]
+            Embedding = reader.IsDBNull(reader.GetOrdinal("embedding")) ? null : (byte[])reader["embedding"],
+            Keywords = keywords
         };
     }
 

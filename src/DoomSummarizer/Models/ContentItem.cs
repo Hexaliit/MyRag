@@ -28,6 +28,9 @@ public record ContentItem
     public float SentimentScore { get; set; } // -1 to 1
     public List<string> Tags { get; set; } = [];
 
+    // Document-level keyword profile (set by DocumentProfileService)
+    public string? Keywords { get; set; }
+
     // Relevance scoring (set by RelevanceScorer)
     public double RelevanceScore { get; set; } // Combined RRF score (0-1 range)
 
@@ -68,6 +71,7 @@ public record StoredItem
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset FetchedAt { get; init; }
     public byte[]? Embedding { get; init; }
+    public string? Keywords { get; init; }
 
     /// <summary>
     /// Convert a stored item back to a ContentItem for ranking/display.
@@ -85,8 +89,23 @@ public record StoredItem
         Score = Score,
         CreatedAt = CreatedAt,
         FetchedAt = FetchedAt,
-        Embedding = Embedding != null ? EmbeddingService.FromBytes(Embedding) : null
+        Embedding = Embedding != null ? EmbeddingService.FromBytes(Embedding) : null,
+        Keywords = Keywords,
+        Tags = DeserializeTags(Tags)
     };
+
+    private static List<string> DeserializeTags(string? tagsJson)
+    {
+        if (string.IsNullOrWhiteSpace(tagsJson)) return [];
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(tagsJson) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
 }
 
 public record TrendAnalysis

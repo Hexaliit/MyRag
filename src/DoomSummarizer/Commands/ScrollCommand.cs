@@ -182,6 +182,12 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             return 0;
         }
 
+        // Auto-backfill FTS5 index if empty (one-time migration for existing KB items)
+        if (await storage.IsFtsIndexEmptyAsync())
+        {
+            await BackfillFtsIndexAsync(storage, settings.Quiet);
+        }
+
         // Initialize DuckDB vector store for HNSW-backed knowledge graph (only when --graph is requested)
         DuckDbVectorStore? vectorStore = null;
         if (settings.Graph)
@@ -361,28 +367,40 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     if (!string.IsNullOrWhiteSpace(localQuery))
                     {
-                        // Semantic search: filter at BOTH vector and RDBMS levels
-                        var queryEmbed = embedding.Embed(localQuery);
-                        fetchTask.Value = 30;
+                        fetchTask.Value = 20;
 
-                        // FindSimilarAsync filters by source in SQL, then ranks by cosine similarity
-                        // Lower threshold for named collections — user explicitly chose this KB
-                        var simThreshold = sourceFilter != null ? 0.05 : 0.15;
-                        var similarStored = await storage.FindSimilarAsync(
-                            queryEmbed, limit: settings.Limit * 2, threshold: simThreshold, source: sourceFilter);
+                        // Layer 1: FTS5 pre-filter (deterministic SQL keyword match)
+                        var candidateIds = await storage.FtsPreFilterAsync(
+                            localQuery, source: sourceFilter, limit: settings.Limit * 3);
+                        fetchTask.Value = 40;
+
+                        if (candidateIds.Count > 0)
+                        {
+                            // Load full items for FTS5 candidates
+                            localItems = await storage.LoadItemsByIdsAsync(candidateIds);
+                            if (!settings.Quiet)
+                                AnsiConsole.MarkupLine($"[grey]FTS5 pre-filter: {candidateIds.Count} candidates from keyword match[/]");
+                        }
+                        else
+                        {
+                            // FTS5 found nothing — fall back to embedding search with raised threshold
+                            var queryEmbed = embedding.Embed(localQuery);
+                            var similarStored = await storage.FindSimilarAsync(
+                                queryEmbed, limit: settings.Limit * 2, threshold: 0.25, source: sourceFilter);
+                            localItems = similarStored
+                                .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
+                                .Select(s => s.ToContentItem())
+                                .ToList();
+
+                            if (!settings.Quiet)
+                                AnsiConsole.MarkupLine($"[grey]FTS5 empty — embedding fallback: {localItems.Count} items (threshold 0.25)[/]");
+                        }
                         fetchTask.Value = 70;
 
-                        localItems = similarStored
-                            .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
-                            .Select(s =>
-                            {
-                                var item = s.ToContentItem();
-                                if (item.Embedding != null)
-                                    item.RelevanceScore = EmbeddingService.CosineSimilarity(queryEmbed, item.Embedding);
-                                return item;
-                            })
-                            .OrderByDescending(i => i.RelevanceScore)
-                            .Take(settings.Limit)
+                        // Filter out items without any content
+                        localItems = localItems
+                            .Where(i => !string.IsNullOrEmpty(i.Summary) || !string.IsNullOrEmpty(i.Title))
+                            .Take(settings.Limit * 2)
                             .ToList();
                     }
                     else
@@ -1059,6 +1077,29 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         AnsiConsole.MarkupLine($"[grey]Source filter: {preFilterCount} → {uniqueItems.Count} items[/]");
                 }
 
+                // Stage 2.2: FTS5 KB enrichment (web queries only)
+                // Check if stored KB items match the query — merge them into web results
+                if (!isLocalMode && uniqueItems.Count > 0)
+                {
+                    var enrichQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
+                    if (!string.IsNullOrWhiteSpace(enrichQuery))
+                    {
+                        var storedCandidateIds = await storage.FtsPreFilterAsync(enrichQuery, limit: 10);
+                        if (storedCandidateIds.Count > 0)
+                        {
+                            var storedItems = await storage.LoadItemsByIdsAsync(storedCandidateIds);
+                            var existingIds = new HashSet<string>(uniqueItems.Select(i => i.Id));
+                            var newFromKb = storedItems.Where(s => !existingIds.Contains(s.Id)).ToList();
+                            if (newFromKb.Count > 0)
+                            {
+                                uniqueItems.AddRange(newFromKb);
+                                if (!settings.Quiet)
+                                    AnsiConsole.MarkupLine($"[grey]FTS5 KB enrichment: +{newFromKb.Count} stored items merged[/]");
+                            }
+                        }
+                    }
+                }
+
                 // Stage 2.5: Embedding computation + two-phase relevance scoring with RRF
                 // Use query-type-adaptive weights: roundups boost freshness, explainers boost authority
                 var scorer = RelevanceScorer.ForQueryType(earlyQueryType);
@@ -1075,6 +1116,16 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     bm25Query = $"{queryText} {extraTerms}";
                     if (!settings.Quiet)
                         AnsiConsole.MarkupLine($"[grey]BM25 expanded: +{interpreted.SearchQueries.Count} sentinel terms[/]");
+                }
+
+                // Compute keyword profiles for items that don't have them yet (web-fetched items)
+                foreach (var item in uniqueItems)
+                {
+                    if (string.IsNullOrEmpty(item.Keywords))
+                    {
+                        var profile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
+                        item.Keywords = profile.KeywordsText;
+                    }
                 }
 
                 // Compute embeddings for ALL items BEFORE scoring
@@ -1103,6 +1154,29 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     scorer = scorer.WithQualityAnchors(highQualityAnchor, lowQualityAnchor);
                 }
 
+                // Load global keyword corpus for proper IDF computation
+                // (IDF from full corpus is more reliable than batch-only IDF)
+                Dictionary<string, int>? globalCorpus = null;
+                int? globalCorpusSize = null;
+                try
+                {
+                    globalCorpus = await storage.GetKeywordCorpusAsync();
+                    if (globalCorpus.Count > 0)
+                    {
+                        globalCorpusSize = await storage.GetKeywordCorpusSizeAsync();
+                        if (!settings.Quiet)
+                            AnsiConsole.MarkupLine($"[grey]Global IDF: {globalCorpus.Count} terms, {globalCorpusSize} docs[/]");
+                    }
+                    else
+                    {
+                        globalCorpus = null; // Fall back to batch IDF
+                    }
+                }
+                catch
+                {
+                    // Keyword corpus not yet populated — fall back to batch IDF
+                }
+
                 // Phase 1: Fast discard using BM25 + freshness + authority + semantic similarity
                 if (!string.IsNullOrWhiteSpace(queryText) && uniqueItems.Count > 5)
                 {
@@ -1113,18 +1187,21 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     if (settings.DebugPipeline)
                     {
                         var qt = RelevanceScorer.Tokenize(bm25Query);
-                        var (idf, avgDocLen) = RelevanceScorer.BuildCorpusStats(uniqueItems);
+                        var (idf, avgDocLen) = RelevanceScorer.BuildCorpusStats(uniqueItems, globalCorpus, globalCorpusSize);
+                        var authLookup = RelevanceScorer.ComputeAuthorityScores(uniqueItems)
+                            .ToDictionary(x => x.item.Id, x => x.score);
                         phase1Debug = uniqueItems.Select(i => (
                             item: i,
-                            bm25: RelevanceScorer.BM25Score(RelevanceScorer.ItemText(i), qt, idf, avgDocLen),
+                            bm25: (double)RelevanceScorer.BM25FScore(i, qt, idf, avgDocLen),
                             freshness: RelevanceScorer.ComputeFreshness(i),
-                            authority: RelevanceScorer.NormalizeAuthority(i, uniqueItems),
+                            authority: authLookup.GetValueOrDefault(i.Id, 0.3),
                             qSim: i.Embedding != null && queryEmbedding != null
                                 ? (double)EmbeddingService.CosineSimilarity(i.Embedding, queryEmbedding) : 0.0
                         )).ToList();
                     }
 
-                    uniqueItems = scorer.ScoreFast(uniqueItems, bm25Query, discardRatio: 0.25, queryEmbedding: queryEmbedding);
+                    uniqueItems = scorer.ScoreFast(uniqueItems, bm25Query, discardRatio: 0.25, queryEmbedding: queryEmbedding,
+                        globalCorpus: globalCorpus, globalCorpusSize: globalCorpusSize);
 
                     if (settings.DebugPipeline && phase1Debug != null)
                     {
@@ -1132,11 +1209,11 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         var keptIds = new HashSet<string>(uniqueItems.Select(i => i.Id));
                         AnsiConsole.WriteLine();
                         var table = new Table()
-                            .Title("[bold yellow]Phase 1: Scoring (BM25 + Freshness + Authority + Semantic)[/]")
+                            .Title("[bold yellow]Phase 1: Scoring (BM25F + Freshness + Authority + Semantic)[/]")
                             .Border(TableBorder.Rounded)
                             .AddColumn("[cyan]Status[/]")
                             .AddColumn("[cyan]Source[/]")
-                            .AddColumn("[cyan]BM25[/]")
+                            .AddColumn("[cyan]BM25F[/]")
                             .AddColumn("[cyan]Fresh[/]")
                             .AddColumn("[cyan]Auth[/]")
                             .AddColumn("[cyan]QSim[/]")
@@ -1169,7 +1246,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // This captures the "semantic neighborhood" of relevant results, helping with
                 // vocabulary mismatch (e.g. query "drug pricing" finds "pharmaceutical costs").
                 float[]? refinedQueryEmbedding = queryEmbedding;
-                if (queryEmbedding != null && uniqueItems.Count >= 3)
+                if (queryEmbedding != null && uniqueItems.Count >= 5)
                 {
                     refinedQueryEmbedding = RelevanceScorer.ComputePRFCentroid(uniqueItems, queryEmbedding);
                     if (!settings.Quiet && refinedQueryEmbedding != queryEmbedding)
@@ -1179,13 +1256,16 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // Phase 2: Full RRF with vibe alignment added (embeddings already computed)
                 if (!string.IsNullOrWhiteSpace(queryText) && refinedQueryEmbedding != null)
                 {
-                    uniqueItems = scorer.ScoreFull(uniqueItems, bm25Query, refinedQueryEmbedding, vibeEmbedding);
+                    uniqueItems = scorer.ScoreFull(uniqueItems, bm25Query, refinedQueryEmbedding, vibeEmbedding,
+                        globalCorpus: globalCorpus, globalCorpusSize: globalCorpusSize);
 
                     if (settings.DebugPipeline)
                     {
                         // Recompute individual Phase 2 signals for debug display
                         var qt = RelevanceScorer.Tokenize(bm25Query);
-                        var (idf2, avgDocLen2) = RelevanceScorer.BuildCorpusStats(uniqueItems);
+                        var (idf2, avgDocLen2) = RelevanceScorer.BuildCorpusStats(uniqueItems, globalCorpus, globalCorpusSize);
+                        var authLookup2 = RelevanceScorer.ComputeAuthorityScores(uniqueItems)
+                            .ToDictionary(x => x.item.Id, x => x.score);
 
                         AnsiConsole.WriteLine();
                         var table = new Table()
@@ -1193,7 +1273,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             .Border(TableBorder.Rounded)
                             .AddColumn("[cyan]#[/]")
                             .AddColumn("[cyan]Source[/]")
-                            .AddColumn("[cyan]BM25[/]")
+                            .AddColumn("[cyan]BM25F[/]")
                             .AddColumn("[cyan]Fresh[/]")
                             .AddColumn("[cyan]Auth[/]")
                             .AddColumn("[cyan]QSim[/]")
@@ -1204,9 +1284,9 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         var rank = 1;
                         foreach (var item in uniqueItems.Take(25))
                         {
-                            var bm25 = RelevanceScorer.BM25Score(RelevanceScorer.ItemText(item), qt, idf2, avgDocLen2);
+                            var bm25 = RelevanceScorer.BM25FScore(item, qt, idf2, avgDocLen2);
                             var fresh = RelevanceScorer.ComputeFreshness(item);
-                            var auth = RelevanceScorer.NormalizeAuthority(item, uniqueItems);
+                            var auth = authLookup2.GetValueOrDefault(item.Id, 0.3);
                             var qSim = item.Embedding != null && refinedQueryEmbedding != null
                                 ? EmbeddingService.CosineSimilarity(item.Embedding, refinedQueryEmbedding) : 0f;
                             var vSim = vibeEmbedding != null && item.Embedding != null
@@ -1421,7 +1501,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                                 // Merge and re-score
                                 uniqueItems.AddRange(newItems);
-                                uniqueItems = scorer.ScoreFull(uniqueItems, bm25Query, queryEmbedding, vibeEmbedding);
+                                uniqueItems = scorer.ScoreFull(uniqueItems, bm25Query, queryEmbedding, vibeEmbedding,
+                                    globalCorpus: globalCorpus, globalCorpusSize: globalCorpusSize);
 
                                 if (!settings.Quiet)
                                     AnsiConsole.MarkupLine(
@@ -1523,9 +1604,23 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         }
                     }
 
-                    // Save to storage
+                    // Save to storage + index into FTS5 for keyword pre-filtering
                     foreach (var item in itemsToAnalyze)
+                    {
+                        // Compute keyword profile if not already set by ArticleProcessor
+                        var kwProfile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
+                        if (string.IsNullOrEmpty(item.Keywords))
+                            item.Keywords = kwProfile.KeywordsText;
+
                         await storage.SaveItemAsync(item);
+
+                        // Index into FTS5 for future keyword pre-filtering
+                        var contentPreview = (item.Content ?? "").Length > 2000
+                            ? item.Content![..2000]
+                            : item.Content ?? "";
+                        await storage.IndexDocumentFtsAsync(item.Id, item.Title, kwProfile.KeywordsText, contentPreview);
+                        await storage.UpdateKeywordCorpusAsync(kwProfile.TopKeywords.Select(k => k.Keyword));
+                    }
 
                     analyzeTask.Description = $"[green]Analyzed {analyzedItems.Count} items (deterministic)[/]";
                 }
@@ -1666,6 +1761,43 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 }
                             }
                         }
+                    }
+                }
+
+                // Layer 3: Graph enrichment — discover related documents via shared entities
+                // Uses entity_mentions to find docs sharing 2+ entities with top results
+                if (settings.Entities && uniqueItems.Count >= 3)
+                {
+                    var topItemIds = uniqueItems
+                        .OrderByDescending(i => i.RelevanceScore)
+                        .Take(5)
+                        .Select(i => i.Id)
+                        .ToList();
+
+                    var existingIds = new HashSet<string>(uniqueItems.Select(i => i.Id));
+                    var relatedIds = await storage.FindRelatedByEntitiesAsync(
+                        topItemIds, excludeIds: existingIds.ToList(), limit: 3);
+
+                    if (relatedIds.Count > 0)
+                    {
+                        var relatedItems = await storage.LoadItemsByIdsAsync(relatedIds);
+                        // Assign slightly lower relevance so they appear after scored items
+                        var lowestScore = uniqueItems.Count > 0
+                            ? uniqueItems.Min(i => i.RelevanceScore)
+                            : 0.1;
+                        foreach (var item in relatedItems)
+                        {
+                            if (!existingIds.Contains(item.Id))
+                            {
+                                var enriched = item with { Source = item.Source + " (via entities)" };
+                                enriched.RelevanceScore = lowestScore * 0.9;
+                                uniqueItems.Add(enriched);
+                                existingIds.Add(item.Id);
+                            }
+                        }
+
+                        if (!settings.Quiet && relatedItems.Count > 0)
+                            AnsiConsole.MarkupLine($"[grey]Graph enrichment: +{relatedItems.Count} entity-related items[/]");
                     }
                 }
 
@@ -3550,4 +3682,33 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
     private static string NormalizeUrlForAuthority(string url) =>
         url.Split('?')[0].TrimEnd('/').ToLowerInvariant();
+
+    /// <summary>
+    /// Backfill the FTS5 index and keyword corpus for existing KB items
+    /// that were stored before FTS5 was introduced. Runs automatically
+    /// on first query when the FTS5 table is empty.
+    /// </summary>
+    private static async Task BackfillFtsIndexAsync(StorageService storage, bool quiet)
+    {
+        var allItems = await storage.GetAllItemsAsync();
+        if (allItems.Count == 0) return;
+
+        if (!quiet)
+            AnsiConsole.MarkupLine($"[grey]Backfilling FTS5 index for {allItems.Count} existing items...[/]");
+
+        var count = 0;
+        foreach (var stored in allItems)
+        {
+            var profile = DocumentProfileService.ExtractProfile(stored.Title, stored.Content ?? "");
+            var contentPreview = (stored.Content ?? "").Length > 2000
+                ? stored.Content![..2000]
+                : stored.Content ?? "";
+            await storage.IndexDocumentFtsAsync(stored.Id, stored.Title, profile.KeywordsText, contentPreview);
+            await storage.UpdateKeywordCorpusAsync(profile.TopKeywords.Select(k => k.Keyword));
+            count++;
+        }
+
+        if (!quiet)
+            AnsiConsole.MarkupLine($"[green]FTS5 backfill complete: {count} items indexed[/]");
+    }
 }

@@ -1,6 +1,28 @@
 using DoomSummarizer.Commands;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 
+// MCP server mode: doomsummarizer --mcp
+if (args.Length > 0 && args[0] is "--mcp" or "-mcp")
+{
+    var builder = Host.CreateApplicationBuilder(args.Skip(1).ToArray());
+
+    builder.Logging.ClearProviders();
+    builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
+
+    builder.Services
+        .AddMcpServer()
+        .WithStdioServerTransport()
+        .WithToolsFromAssembly();
+
+    var mcpApp = builder.Build();
+    await mcpApp.RunAsync();
+    return 0;
+}
+
+// Standard CLI mode
 var app = new CommandApp();
 
 app.Configure(config =>

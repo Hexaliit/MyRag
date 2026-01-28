@@ -74,7 +74,7 @@ namespace DoomSummarizer.Services;
 ///
 /// POST-RRF GATES
 /// ==============
-/// After RRF fusion, a hard gate removes items with cosine similarity &lt; 0.10.
+/// After RRF fusion, a hard gate removes items with cosine similarity &lt; 0.20.
 /// This prevents authority/freshness from inflating scores for topically irrelevant items.
 /// Items without embeddings are exempt (can't be gated).
 ///
@@ -196,8 +196,12 @@ public class RelevanceScorer
     /// <param name="query">User's search query.</param>
     /// <param name="discardRatio">Fraction of items to discard (0.0-1.0). 0 = keep all.</param>
     /// <param name="queryEmbedding">Pre-computed query embedding for semantic matching (null = text-only).</param>
+    /// <param name="globalCorpus">Optional global keyword corpus for proper IDF (keyword → document_count).</param>
+    /// <param name="globalCorpusSize">Total document count for global IDF computation.</param>
     /// <returns>Scored items in descending relevance order, with bottom tier discarded.</returns>
-    public List<ContentItem> ScoreFast(List<ContentItem> items, string query, double discardRatio = 0.25, float[]? queryEmbedding = null)
+    public List<ContentItem> ScoreFast(List<ContentItem> items, string query, double discardRatio = 0.25,
+        float[]? queryEmbedding = null,
+        Dictionary<string, int>? globalCorpus = null, int? globalCorpusSize = null)
     {
         if (items.Count == 0) return items;
 
@@ -205,19 +209,20 @@ public class RelevanceScorer
         if (queryTokens.Count == 0 && queryEmbedding == null)
         {
             // No meaningful query tokens or embedding — score by freshness + authority only
+            var authScores = ComputeAuthorityScores(items).ToDictionary(x => x.item.Id, x => x.score);
             foreach (var item in items)
-                item.RelevanceScore = ComputeFreshness(item) * 0.7 + NormalizeAuthority(item, items) * 0.3;
+                item.RelevanceScore = ComputeFreshness(item) * 0.7 + authScores.GetValueOrDefault(item.Id, 0.3) * 0.3;
             return items.OrderByDescending(i => i.RelevanceScore).ToList();
         }
 
-        // Build BM25 corpus stats from this batch
-        var (idf, avgDocLen) = BuildCorpusStats(items);
+        // Build BM25 corpus stats — use global corpus if available for proper IDF
+        var (idf, avgDocLen) = BuildCorpusStats(items, globalCorpus, globalCorpusSize);
 
         // Score each signal independently, then rank
-        // Use BM25F (field-weighted) to boost title matches over content matches
+        // Use BM25F (field-weighted) to boost title + keywords matches over content matches
         var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen))).ToList();
         var freshnessScores = items.Select(i => (item: i, score: ComputeFreshness(i))).ToList();
-        var authorityScores = items.Select(i => (item: i, score: NormalizeAuthority(i, items))).ToList();
+        var authorityScores = ComputeAuthorityScores(items);
 
         var signals = new List<(List<(ContentItem item, double score)> scores, double weight)>
         {
@@ -265,7 +270,7 @@ public class RelevanceScorer
             var simLookup = querySimScores.ToDictionary(x => x.item.Id, x => x.score);
             var bm25Lookup = bm25Scores.ToDictionary(x => x.item.Id, x => x.score);
             sorted = sorted
-                .Where(i => simLookup.GetValueOrDefault(i.Id, 0) >= 0.10 ||
+                .Where(i => simLookup.GetValueOrDefault(i.Id, 0) >= 0.20 ||
                             bm25Lookup.GetValueOrDefault(i.Id, 0) > 0 ||
                             i.Embedding == null)
                 .ToList();
@@ -289,22 +294,26 @@ public class RelevanceScorer
     /// <param name="query">User's search query.</param>
     /// <param name="queryEmbedding">Pre-computed query embedding.</param>
     /// <param name="vibeEmbedding">Pre-computed vibe embedding (null = skip vibe signal).</param>
+    /// <param name="globalCorpus">Optional global keyword corpus for proper IDF.</param>
+    /// <param name="globalCorpusSize">Total document count for global IDF computation.</param>
     /// <returns>Items re-ranked with full RRF scores.</returns>
     public List<ContentItem> ScoreFull(
         List<ContentItem> items,
         string query,
         float[] queryEmbedding,
-        float[]? vibeEmbedding = null)
+        float[]? vibeEmbedding = null,
+        Dictionary<string, int>? globalCorpus = null,
+        int? globalCorpusSize = null)
     {
         if (items.Count == 0) return items;
 
         var queryTokens = Tokenize(query);
-        var (idf, avgDocLen) = BuildCorpusStats(items);
+        var (idf, avgDocLen) = BuildCorpusStats(items, globalCorpus, globalCorpusSize);
 
         // Phase 1 signals (recomputed for refined batch) — BM25F for field weighting
         var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen))).ToList();
         var freshnessScores = items.Select(i => (item: i, score: ComputeFreshness(i))).ToList();
-        var authorityScores = items.Select(i => (item: i, score: NormalizeAuthority(i, items))).ToList();
+        var authorityScores = ComputeAuthorityScores(items);
 
         // Phase 2 signals (embedding-based)
         var querySim = items.Select(i => (item: i, score: i.Embedding != null
@@ -344,10 +353,10 @@ public class RelevanceScorer
         // Hard gate: remove items with near-zero query embedding similarity.
         // RRF can inflate scores via authority/freshness even when an item has
         // zero topical relevance (e.g., "Grok AI" appearing in "transistor" results).
-        // Minimum cosine similarity of 0.10 ensures basic topical alignment.
+        // Minimum cosine similarity of 0.20 ensures basic topical alignment.
         var querySimLookup = querySim.ToDictionary(x => x.item.Id, x => x.score);
         var gated = rrfScores
-            .Where(x => querySimLookup.GetValueOrDefault(x.item.Id, 0) >= 0.10
+            .Where(x => querySimLookup.GetValueOrDefault(x.item.Id, 0) >= 0.20
                         || x.item.Embedding == null) // keep items without embeddings (can't gate)
             .OrderByDescending(x => x.score)
             .Select(x => x.item)
@@ -425,9 +434,10 @@ public class RelevanceScorer
     }
 
     /// <summary>
-    /// BM25F: field-weighted variant that scores title and content separately.
-    /// Title matches get a 2.0× boost — a query term in the title is much stronger
-    /// evidence of relevance than the same term buried in the body.
+    /// BM25F: field-weighted variant that scores title, keywords, and content separately.
+    /// Title matches get 2.0× boost, keywords get 2.5× boost, content is 1.0× baseline.
+    /// Keywords field captures document-level topic profile (structurally weighted terms),
+    /// providing a stronger relevance signal than body text alone.
     /// </summary>
     internal static double BM25FScore(
         ContentItem item,
@@ -437,14 +447,18 @@ public class RelevanceScorer
     {
         const double k1 = 1.5, b = 0.75;
         const double titleBoost = 2.0;
+        const double keywordsBoost = 2.5;
 
         var titleTokens = Tokenize(item.Title);
+        var keywordTokens = Tokenize(item.Keywords ?? "");
         var contentTokens = Tokenize(item.Content ?? "");
-        var allTokens = titleTokens.Concat(contentTokens).ToList();
+        var allTokens = titleTokens.Concat(keywordTokens).Concat(contentTokens).ToList();
         if (allTokens.Count == 0 || avgDocLen < 0.001) return 0;
 
-        // Build field-weighted TF: title occurrences count as titleBoost× content occurrences
+        // Build field-weighted TF: title 2×, keywords 2.5×, content 1×
         var titleTf = titleTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+        var keywordTf = keywordTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
         var contentTf = contentTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
@@ -453,8 +467,9 @@ public class RelevanceScorer
         foreach (var term in queryTokens.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             var titleFreq = titleTf.GetValueOrDefault(term, 0);
+            var keywordFreq = keywordTf.GetValueOrDefault(term, 0);
             var contentFreq = contentTf.GetValueOrDefault(term, 0);
-            var weightedFreq = titleFreq * titleBoost + contentFreq;
+            var weightedFreq = titleFreq * titleBoost + keywordFreq * keywordsBoost + contentFreq;
             if (weightedFreq < 0.001) continue;
 
             var termIdf = idf.GetValueOrDefault(term, 0);
@@ -475,10 +490,29 @@ public class RelevanceScorer
     }
 
     /// <summary>
-    /// Normalize source authority (platform score) to 0-1 range relative to batch.
+    /// Compute authority scores for all items in a batch. Precomputes max scores per source
+    /// to avoid O(N²) repeated LINQ queries.
+    /// Returns list of (item, authorityScore) pairs.
+    /// </summary>
+    internal static List<(ContentItem item, double score)> ComputeAuthorityScores(List<ContentItem> items)
+    {
+        // Precompute max score per source (O(N) instead of O(N²))
+        var maxScoreBySource = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+        {
+            if (item.Score <= 0) continue;
+            if (!maxScoreBySource.TryGetValue(item.Source, out var current) || item.Score > current)
+                maxScoreBySource[item.Source] = item.Score;
+        }
+
+        return items.Select(item => (item, NormalizeAuthority(item, maxScoreBySource))).ToList();
+    }
+
+    /// <summary>
+    /// Normalize source authority (platform score) to 0-1 range using precomputed max scores.
     /// Items without native scores (RSS) get a baseline of 0.3.
     /// </summary>
-    internal static double NormalizeAuthority(ContentItem item, List<ContentItem> batch)
+    internal static double NormalizeAuthority(ContentItem item, Dictionary<string, double> maxScoreBySource)
     {
         // Sources without native scoring get a decent baseline
         if (item.Score == 0)
@@ -491,39 +525,62 @@ public class RelevanceScorer
             };
         }
 
-        // Normalize within batch for items with native scores
-        var maxScore = batch.Where(i => i.Source == item.Source && i.Score > 0)
-            .Select(i => (double)i.Score)
-            .DefaultIfEmpty(1)
-            .Max();
-
+        var maxScore = maxScoreBySource.GetValueOrDefault(item.Source, 1.0);
         return maxScore > 0 ? Math.Min(1.0, item.Score / maxScore) : 0.3;
     }
 
     /// <summary>
-    /// Build IDF statistics from the current batch (corpus = batch).
+    /// Build IDF statistics from the current batch, or from a global keyword corpus.
+    /// When a global corpus is provided, IDF values are computed against the full corpus size
+    /// rather than just the current batch, making term weights reliable across queries.
+    /// Average document length is always computed from the current batch (items being scored).
     /// </summary>
-    internal static (Dictionary<string, double> idf, double avgDocLen) BuildCorpusStats(List<ContentItem> items)
+    internal static (Dictionary<string, double> idf, double avgDocLen) BuildCorpusStats(
+        List<ContentItem> items,
+        Dictionary<string, int>? globalCorpus = null,
+        int? globalCorpusSize = null)
     {
-        var docFreq = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        // Always compute avgDocLen from the current batch
         long totalLen = 0;
-        var corpusSize = items.Count;
+        var batchDocFreq = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in items)
         {
             var tokens = Tokenize(ItemText(item));
             totalLen += tokens.Count;
             foreach (var t in tokens.Distinct(StringComparer.OrdinalIgnoreCase))
-                docFreq[t] = docFreq.GetValueOrDefault(t) + 1;
+                batchDocFreq[t] = batchDocFreq.GetValueOrDefault(t) + 1;
         }
 
-        var avgDocLen = corpusSize > 0 ? (double)totalLen / corpusSize : 1.0;
-        var idf = docFreq.ToDictionary(
+        var avgDocLen = items.Count > 0 ? (double)totalLen / items.Count : 1.0;
+
+        // Use global corpus for IDF if available, otherwise fall back to batch
+        if (globalCorpus != null && globalCorpusSize is > 0)
+        {
+            var n = globalCorpusSize.Value;
+            // Merge: for terms in the batch that aren't in the global corpus, use batch stats
+            var allTerms = new HashSet<string>(batchDocFreq.Keys, StringComparer.OrdinalIgnoreCase);
+            foreach (var key in globalCorpus.Keys)
+                allTerms.Add(key);
+
+            var idf = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            foreach (var term in allTerms)
+            {
+                var df = globalCorpus.GetValueOrDefault(term, batchDocFreq.GetValueOrDefault(term, 1));
+                idf[term] = Math.Max(0.01, Math.Log((n - df + 0.5) / (df + 0.5) + 1));
+            }
+
+            return (idf, avgDocLen);
+        }
+
+        // Fallback: batch-level IDF
+        var corpusSize = items.Count;
+        var batchIdf = batchDocFreq.ToDictionary(
             kv => kv.Key,
             kv => Math.Max(0.01, Math.Log((corpusSize - kv.Value + 0.5) / (kv.Value + 0.5) + 1)),
             StringComparer.OrdinalIgnoreCase);
 
-        return (idf, avgDocLen);
+        return (batchIdf, avgDocLen);
     }
 
     #endregion
@@ -668,10 +725,10 @@ public class RelevanceScorer
     #region Text Processing
 
     /// <summary>
-    /// Extract searchable text from a ContentItem (title + content).
+    /// Extract searchable text from a ContentItem (title + keywords + content).
     /// </summary>
     internal static string ItemText(ContentItem item) =>
-        $"{item.Title} {item.Content ?? ""}".Trim();
+        $"{item.Title} {item.Keywords ?? ""} {item.Content ?? ""}".Trim();
 
     /// <summary>
     /// Tokenize text into lowercase words, filtering stop words.

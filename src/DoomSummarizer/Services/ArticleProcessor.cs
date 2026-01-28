@@ -59,6 +59,10 @@ public class ArticleProcessor : IDisposable
         var content = BuildArticleContent(item);
         var contentLength = content.Length;
 
+        // Compute document-level keyword profile (structural weighting, no LLM)
+        var profile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
+        item.Keywords = profile.KeywordsText;
+
         // Select processing strategy based on content length
         var strategy = contentLength switch
         {
