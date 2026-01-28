@@ -50,8 +50,9 @@ public class OllamaService
             return Router.MaxEvidenceCharsPerItem(sentinel, itemCount);
 
         // Local Ollama fallback: use configured context size
+        // Reserve 400 tokens for compact prompt template overhead (reduced from 800)
         var ctx = sentinel ? _config.SentinelContextSize : _config.ContextSize;
-        var availableTokens = ctx - 800;
+        var availableTokens = ctx - 400;
         var perItem = Math.Max(100, availableTokens / Math.Max(1, itemCount));
         return (int)(perItem * 3.5);
     }
@@ -324,51 +325,57 @@ public class OllamaService
                 topItems = topItems.Take(10).ToList();
             }
 
-            var maxCharsPerItem = GetMaxEvidenceCharsPerItem(sentinel: false, topItems.Count);
+            // Smart evidence budgeting: redistribute unused chars from short items to long ones
+            var totalBudget = GetMaxEvidenceCharsPerItem(sentinel: false, topItems.Count) * topItems.Count;
 
-            for (var ei = 0; ei < topItems.Count; ei++)
+            // Pass 1: measure actual content lengths and resolve ContentItems
+            var itemContents = new List<(
+                (string title, string summary, string topic, float sentiment, string url, double relevance) item,
+                string? rawContent, int rawLen)>();
+
+            foreach (var item in topItems)
             {
-                var item = topItems[ei];
-                var isUnresolvedGoogleNews = item.url.Contains("news.google.com/rss/articles/",
-                    StringComparison.OrdinalIgnoreCase);
-
-                evidence.AppendLine($"\n[E{ei + 1}] ### {item.title}");
-                // Unresolved Google News redirect URLs can't be cited — omit URL but keep content
-                if (!isUnresolvedGoogleNews)
-                    evidence.AppendLine($"URL: {item.url}");
-                else
-                    evidence.AppendLine("URL: (aggregated via Google News — no direct link available)");
-
-                // Look up full ContentItem for content snippet and fetch timestamp
                 var contentItem = contentItems?.FirstOrDefault(c =>
                     c.Url == item.url || c.Title == item.title);
+                var raw = contentItem?.Content;
+                var len = raw?.Length ?? item.summary?.Length ?? 0;
+                itemContents.Add((item, raw, len));
+            }
 
-                // Include fetch timestamp so the LLM can assess evidence freshness
-                var fetchedStr = contentItem != null
-                    ? contentItem.FetchedAt.ToString("yyyy-MM-dd HH:mm UTC")
-                    : "";
-                evidence.AppendLine(string.IsNullOrEmpty(fetchedStr)
-                    ? $"Topic: {item.topic} | Relevance: {item.relevance:F2}"
-                    : $"Topic: {item.topic} | Relevance: {item.relevance:F2} | Fetched: {fetchedStr}");
+            // Pass 2: compute per-item budgets — short items donate surplus to long ones
+            var shortTotal = itemContents.Where(ic => ic.rawLen <= totalBudget / topItems.Count)
+                .Sum(ic => ic.rawLen);
+            var longCount = itemContents.Count(ic => ic.rawLen > totalBudget / topItems.Count);
+            var remainingBudget = totalBudget - shortTotal;
+            var longBudget = longCount > 0 ? remainingBudget / longCount : totalBudget / topItems.Count;
 
-                // Include actual content — use TextRank centrality when embedder
-                // is available for smarter sentence selection, otherwise truncate.
-                var contentSnippet = contentItem?.Content;
-                if (!string.IsNullOrEmpty(contentSnippet))
+            // Pass 3: build evidence with smart budgets
+            for (var ei = 0; ei < itemContents.Count; ei++)
+            {
+                var (item, rawContent, rawLen) = itemContents[ei];
+                var isShort = rawLen <= totalBudget / topItems.Count;
+                var itemBudget = isShort ? rawLen : longBudget;
+
+                // Compact pipe-delimited format: [E#] Title | topic | relevance
+                evidence.AppendLine($"\n[E{ei + 1}] {item.title} | {item.topic} | {item.relevance:F2}");
+
+                if (!string.IsNullOrEmpty(rawContent))
                 {
-                    if (contentSnippet.Length > maxCharsPerItem)
+                    if (rawContent.Length > itemBudget)
                     {
-                        // TextRank: select most informative sentences (graph centrality)
-                        // Falls back to simple truncation if embedder is unavailable
-                        contentSnippet = embedder != null
-                            ? TextRankExtractor.ExtractKeySentences(contentSnippet, embedder, maxChars: maxCharsPerItem)
-                            : contentSnippet[..maxCharsPerItem] + "...";
+                        var snippet = embedder != null
+                            ? TextRankExtractor.ExtractKeySentences(rawContent, embedder, maxChars: itemBudget)
+                            : rawContent[..itemBudget] + "...";
+                        evidence.AppendLine(snippet);
                     }
-                    evidence.AppendLine($"CONTENT: {contentSnippet}");
+                    else
+                    {
+                        evidence.AppendLine(rawContent);
+                    }
                 }
                 else
                 {
-                    evidence.AppendLine($"SUMMARY: {item.summary}");
+                    evidence.AppendLine(item.summary);
                 }
             }
 
@@ -404,7 +411,7 @@ public class OllamaService
                 itemsList.AppendLine($"\n## {group.Key.ToUpperInvariant()}");
                 foreach (var item in group.OrderByDescending(i => i.relevance).Take(5))
                 {
-                    itemsList.AppendLine($"- [{item.title}]({item.url}): {item.summary} (relevance: {item.relevance:F2}, sentiment: {item.sentiment:F1})");
+                    itemsList.AppendLine($"- {item.title}: {item.summary}");
                 }
             }
 
@@ -975,8 +982,8 @@ public class OllamaService
 
             foreach (var (article, analysis) in group.OrderByDescending(x => x.analysis.Confidence).Take(5))
             {
-                var confMarker = analysis.Confidence > 0.8 ? "[HIGH-CONF]" : "";
-                itemsList.AppendLine($"- {confMarker} [{article.Item.Title}]({article.Item.Url ?? "#"}): {analysis.Summary} (sentiment: {analysis.Sentiment:F1})");
+                var confMarker = analysis.Confidence > 0.8 ? "[HIGH-CONF] " : "";
+                itemsList.AppendLine($"- {confMarker}{article.Item.Title}: {analysis.Summary}");
 
                 // Key points as sub-items
                 foreach (var point in analysis.KeyPoints.Take(2))

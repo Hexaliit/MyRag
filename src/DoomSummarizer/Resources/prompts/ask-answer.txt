@@ -1,24 +1,11 @@
-Answer the following question using ONLY the evidence provided below.
+Answer the question using ONLY evidence below.
 
 {{CONVERSATION_CONTEXT}}
-QUESTION: {{QUESTION}}
-DATE: {{TODAY}}
+QUESTION: {{QUESTION}} | DATE: {{TODAY}}
 
-EVIDENCE (each item is labeled [E1], [E2], etc.):
+EVIDENCE:
 {{EVIDENCE}}
 
-INSTRUCTIONS:
-1. Read each piece of evidence carefully
-2. Find facts, quotes, or data that answer the QUESTION
-3. If this is a follow-up to prior conversation, use that context
-4. SYNTHESIZE across multiple evidence items — combine related facts from different sources
-5. Include contextual evidence: background, statistics, or related data that helps the answer
-6. NEVER open with disclaimers, apologies, or "the evidence does not contain" — start with what you FOUND
-7. Write in clean, readable prose — NO inline URLs or citation markers in the text body
-8. Prefer recent evidence over stale data. If evidence is old, note the date
-9. You have been given this evidence because it IS relevant — extract useful information
+RULES: Answer directly — lead with the key fact | Use conversation context for follow-ups | Only use evidence above | Synthesize across items | Include context and data | Prefer recent evidence | No URLs or links | No sources section
 
-FORMAT:
-[Direct answer in 2-4 paragraphs of clean readable prose. Do NOT place URLs or markdown links in the text body.
- Do NOT include a sources/references section — sources are handled separately.
- Write naturally for a knowledgeable reader. Less content is fine if evidence is thin.]
+FORMAT: 2-4 paragraphs of clean prose. Less is fine if evidence is thin.

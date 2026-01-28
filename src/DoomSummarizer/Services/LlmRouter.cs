@@ -213,8 +213,9 @@ public class LlmRouter
     /// </summary>
     public int MaxEvidenceCharsPerItem(bool sentinel, int itemCount)
     {
+        // Reserve 400 tokens for compact prompt template overhead (reduced from 800)
         var ctx = GetContextSize(sentinel ? "sentinel" : "main");
-        var availableTokens = ctx - 800;
+        var availableTokens = ctx - 400;
         var perItem = Math.Max(100, availableTokens / Math.Max(1, itemCount));
         return (int)(perItem * 3.5);
     }

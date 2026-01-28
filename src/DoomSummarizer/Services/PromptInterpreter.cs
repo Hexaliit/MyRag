@@ -173,7 +173,7 @@ public class PromptInterpreter
             JSON fields:
             - "intent": "news" | "roundup" | "research" | "howto" | "qa"
             - "categories": topic weights 0.0-1.0. ONLY use these exact categories: technology, ai, security, programming, science, health, pharma, business, finance, politics, world, entertainment, humor, sports, environment, climate, space, disaster, factcheck. Do NOT invent categories. Do NOT use "news" as a category.
-            - "tone": "neutral" | "doom" | "hopeful" | "snarky" | "funny" | "upbeat" | "friendly"
+            - "tone": "neutral" | "doom" | "hopeful" | "snarky" | "funny" | "upbeat" | "friendly" | "toon"
             - "time_sensitivity": "breaking" | "today" | "week" | "any"
             - "search_queries": 2-3 optimized search engine queries. Fix spelling. Expand abbreviations (SNL → Saturday Night Live). Quote entity names. Add time/date context when relevant. Today is {today}. Do NOT include search engine names in the query text.
             - "entities": named entities found in the query
@@ -203,8 +203,16 @@ public class PromptInterpreter
             result.Vibe = "doom";
         else if (lower.Contains("hopeful") || lower.Contains("positive") || lower.Contains("optimist"))
             result.Vibe = "hopeful";
-        else if (lower.Contains("snark") || lower.Contains("witty") || lower.Contains("funny"))
+        else if (lower.Contains("snark") || lower.Contains("witty"))
             result.Vibe = "snarky";
+        else if (lower.Contains("funny") || lower.Contains("humor") || lower.Contains("comedy"))
+            result.Vibe = "funny";
+        else if (lower.Contains("upbeat") || lower.Contains("excited") || lower.Contains("enthusiast"))
+            result.Vibe = "upbeat";
+        else if (lower.Contains("friendly") || lower.Contains("casual") || lower.Contains("chill"))
+            result.Vibe = "friendly";
+        else if (lower.Contains("toon") || lower.Contains("cartoon") || lower.Contains("comic"))
+            result.Vibe = "toon";
 
         // Detect image queries: "show me an image for...", "image of...", "picture of..."
         var imagePatterns = new[]

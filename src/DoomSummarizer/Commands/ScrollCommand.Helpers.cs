@@ -15,7 +15,7 @@ public partial class ScrollCommand
     /// so search results better match the desired sentiment.
     /// </summary>
     internal static readonly HashSet<string> PredefinedVibes =
-        new(["doom", "hopeful", "snarky", "neutral"], StringComparer.OrdinalIgnoreCase);
+        new(["doom", "hopeful", "snarky", "funny", "upbeat", "friendly", "toon", "neutral"], StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Returns true if the vibe is custom arbitrary text rather than a predefined vibe.
@@ -30,8 +30,12 @@ public partial class ScrollCommand
             "doom" => "concerning problems risks issues in",
             "hopeful" => "positive breakthrough innovative upbeat news about",
             "snarky" => "controversial debate criticism of",
+            "funny" => "amusing funny quirky weird news about",
+            "upbeat" => "exciting breakthrough innovative new developments in",
+            "friendly" => "interesting accessible developments in",
+            "toon" => "dramatic wild surprising outrageous news about",
             "neutral" => "",
-            _ => $"{vibe} articles stories about" // Custom vibe used directly as qualifier
+            _ => $"{vibe} articles stories about"
         };
 
         return string.IsNullOrEmpty(qualifier) ? query : $"{qualifier} {query}";
@@ -48,8 +52,12 @@ public partial class ScrollCommand
             "doom" => "security vulnerability breach layoffs downturn recession failure risk crisis warning concerning problem threat",
             "hopeful" => "innovation breakthrough positive growth opportunity success launch improvement exciting new achievement progress",
             "snarky" => "hype overrated controversy debate criticism reality check failure ironic absurd",
+            "funny" => "amusing hilarious quirky bizarre unexpected weird funny comedy absurd entertaining",
+            "upbeat" => "exciting amazing breakthrough launch success win achievement celebration progress incredible",
+            "friendly" => "helpful accessible useful interesting development community collaboration knowledge",
+            "toon" => "dramatic explosive wild surprising outrageous spectacular unbelievable crisis triumph adventure",
             "neutral" => "technology software engineering development news",
-            _ => vibe // Custom vibe text used directly as embedding target
+            _ => vibe
         };
     }
 

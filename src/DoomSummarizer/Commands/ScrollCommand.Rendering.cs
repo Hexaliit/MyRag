@@ -1,14 +1,115 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using DoomSummarizer.Models;
 using Spectre.Console;
 
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Spectre Console markup rendering utilities: word wrap, markdown conversion, visible length.
+/// Spectre Console markup rendering utilities: word wrap, markdown conversion, visible length,
+/// and deterministic sources section.
 /// </summary>
 public sealed partial class ScrollCommand
 {
+    /// <summary>
+    /// Render a compact "Sources Used" panel showing the top documents
+    /// with their most salient excerpt. Deterministic — no LLM involved.
+    /// </summary>
+    private static void RenderSourcesUsed(
+        List<(string title, string summary, string topic, float sentiment, string url, double relevance)> analyzedItems,
+        List<ContentItem> uniqueItems,
+        int maxWidth,
+        int topN = 5)
+    {
+        if (analyzedItems.Count == 0) return;
+
+        var sourceParts = new List<string>();
+        var shown = 0;
+
+        foreach (var item in analyzedItems.OrderByDescending(a => a.relevance))
+        {
+            if (shown >= topN) break;
+
+            // Find matching ContentItem for excerpt
+            var contentItem = uniqueItems.FirstOrDefault(u =>
+                string.Equals(u.Title, item.title, StringComparison.Ordinal) ||
+                string.Equals(u.Url, item.url, StringComparison.Ordinal));
+
+            // Extract most salient excerpt: prefer content, fall back to summary
+            var excerptSource = contentItem?.Content ?? item.summary;
+            var excerpt = ExtractLeadExcerpt(excerptSource, maxChars: 120);
+
+            // Domain from URL
+            var domain = GetDomainFromUrl(item.url);
+            var sourceLabel = !string.IsNullOrEmpty(domain) ? domain : (contentItem?.Source ?? "web");
+
+            sourceParts.Add($"[cyan]{Markup.Escape(Truncate(item.title, 70))}[/]");
+            sourceParts.Add($"  [dim]{Markup.Escape(sourceLabel)}[/] [grey]|[/] [dim]{item.relevance:F2}[/]");
+            if (!string.IsNullOrEmpty(excerpt))
+                sourceParts.Add($"  [grey]{Markup.Escape(excerpt)}[/]");
+            sourceParts.Add("");
+            shown++;
+        }
+
+        if (sourceParts.Count == 0) return;
+
+        // Remove trailing blank line
+        if (sourceParts.Count > 0 && string.IsNullOrEmpty(sourceParts[^1]))
+            sourceParts.RemoveAt(sourceParts.Count - 1);
+
+        var content = string.Join("\n", sourceParts);
+        var wrapped = WordWrapMarkup(content, maxWidth);
+        AnsiConsole.Write(new Panel(wrapped)
+            .Header("[bold dim]Sources Used[/]")
+            .Border(BoxBorder.Rounded)
+            .Padding(1, 0));
+    }
+
+    /// <summary>
+    /// Extract the lead sentence or first N characters as an excerpt.
+    /// </summary>
+    private static string ExtractLeadExcerpt(string text, int maxChars)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+
+        // Strip markdown noise
+        text = text.Replace("##", "").Replace("**", "").Replace("*", "").Trim();
+
+        // Try to find first complete sentence
+        var dotIdx = text.IndexOf(". ", 20, StringComparison.Ordinal);
+        if (dotIdx > 0 && dotIdx < maxChars)
+            return text[..(dotIdx + 1)];
+
+        // Fall back to truncation
+        if (text.Length <= maxChars) return text;
+        var spaceIdx = text.LastIndexOf(' ', maxChars);
+        return spaceIdx > 40 ? text[..spaceIdx] + "..." : text[..maxChars] + "...";
+    }
+
+    /// <summary>
+    /// Extract domain name from a URL for display.
+    /// </summary>
+    private static string GetDomainFromUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return "";
+        try
+        {
+            var uri = new Uri(url);
+            var host = uri.Host;
+            // Strip www. prefix
+            if (host.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+                host = host[4..];
+            return host;
+        }
+        catch { return ""; }
+    }
+
+    private static string Truncate(string text, int maxLen)
+    {
+        if (text.Length <= maxLen) return text;
+        return text[..(maxLen - 3)] + "...";
+    }
+
     /// <summary>
     /// Word-wrap Spectre markup text to a max visible width.
     /// Uses token-based approach: markup tags are atomic (never split).

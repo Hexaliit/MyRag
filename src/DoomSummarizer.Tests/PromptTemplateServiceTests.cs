@@ -101,8 +101,8 @@ public class PromptTemplateServiceTests
             ["USER_QUERY"] = ".NET news"
         });
 
-        Assert.Contains("QUERY TOPIC: .NET news", result);
-        Assert.Contains("Only include items that are relevant", result);
+        Assert.Contains("TOPIC: .NET news", result);
+        Assert.Contains("only include relevant items", result);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class PromptTemplateServiceTests
             ["USER_QUERY"] = ""
         });
 
-        Assert.DoesNotContain("QUERY TOPIC:", result);
+        Assert.DoesNotContain("TOPIC:", result);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class PromptTemplateServiceTests
             ["ITEMS"] = "## TECH\n- item1"
         });
 
-        Assert.DoesNotContain("QUERY TOPIC:", result);
+        Assert.DoesNotContain("TOPIC:", result);
     }
 
     [Fact]

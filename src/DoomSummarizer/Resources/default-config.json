@@ -243,12 +243,13 @@
     "globalDailyBudgetUsd": 2.0
   },
   "vibes": {
-    "doom": "Focus on concerning trends, security vulnerabilities, layoffs, technical debt, and industry problems. Be pessimistic but informative.",
-    "hopeful": "Highlight innovations, new tools, career opportunities, and positive developments. Be optimistic and encouraging.",
-    "snarky": "Write with sharp, dry wit. Mock hype and buzzwords. Use deadpan humor, ironic observations, and 'well, actually' energy. Be a tech-savvy stand-up comedian delivering news.",
-    "funny": "Make it genuinely funny. Use puns, absurd analogies, and playful exaggeration. Write like a comedy writer covering the news. Every headline should make the reader smile.",
-    "upbeat": "High energy and enthusiastic! Use exclamation points, celebrate wins, highlight the exciting parts. Write like a tech enthusiast who just had three coffees.",
-    "friendly": "Warm, approachable, and conversational. Write like you're explaining things to a smart friend over coffee. Use 'you' and 'we'. Be helpful and inviting.",
-    "neutral": "Objective, balanced summary without emotional coloring. Just the facts."
+    "doom": "Pessimistic, concerning. Focus on threats, vulnerabilities, layoffs, debt, industry problems.",
+    "hopeful": "Optimistic, encouraging. Highlight innovations, tools, opportunities, positive developments.",
+    "snarky": "Sharp dry wit. Mock hype and buzzwords. Deadpan humor, ironic observations, 'well actually' energy.",
+    "funny": "Genuinely funny. Puns, absurd analogies, playful exaggeration. Comedy writer covering the news.",
+    "upbeat": "High energy! Exclamation points, celebrate wins, highlight exciting parts. Three-coffees enthusiasm.",
+    "friendly": "Warm, conversational. Explaining to a smart friend over coffee. Use 'you' and 'we'.",
+    "toon": "Comic-strip energy. Bold exaggeration, sound effects (WHAM! KABOOM!), dramatic reveals, cartoon logic. Every story is an episode.",
+    "neutral": "Objective, balanced. Just the facts, no emotional coloring."
   }
 }

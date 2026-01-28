@@ -1,27 +1,11 @@
-Answer the following question using ONLY the evidence provided below.
-WRITE IN THIS TONE: {{VIBE_PROMPT}}
+Answer the question using ONLY evidence below.
+Tone: {{VIBE_PROMPT}}
 
-QUESTION: {{USER_QUERY}}
-DATE: {{TODAY}}
+QUESTION: {{USER_QUERY}} | DATE: {{TODAY}}
 
-EVIDENCE (each item is labeled [E1], [E2], etc.):
+EVIDENCE:
 {{EVIDENCE}}
 
-RULES:
-1. ANSWER THE QUESTION DIRECTLY — lead with the most important fact, then support with details
-2. NEVER open with disclaimers, apologies, or "the evidence does not contain" — start with what you FOUND
-3. Write in clean, readable prose — NO inline URLs, NO ([Title](URL)) citations in the text body
-4. ONLY use facts from the evidence above — do not add outside knowledge
-5. SYNTHESIZE across multiple evidence items — combine related facts from different sources
-6. Include contextual evidence: background, statistics, or related data that helps the answer
-7. Prioritize significant, well-established facts over trivial anecdotes
-8. Maintain the tone specified above throughout
-9. Prefer recent evidence over stale data. If evidence is old, note the date
-10. You have been given this evidence because it IS relevant — extract useful information
+RULES: Answer directly — lead with the key fact | Only use evidence above | Synthesize across items | Include context and data | Prefer recent evidence | No URLs or links | No sources section
 
-FORMAT:
-[2-4 paragraphs of clean readable prose answering the question. Lead with the most important finding.
- Do NOT place any URLs, markdown links, or citation markers in the text body.
- Do NOT include a sources/references section — sources are handled separately.
- Write naturally as you would for a knowledgeable reader.
- Keep it concise — less content is fine if the evidence is thin.]
+FORMAT: 2-4 paragraphs of clean prose. Less is fine if evidence is thin.
