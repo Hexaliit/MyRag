@@ -5,7 +5,9 @@ namespace DoomSummarizer.Tests;
 
 /// <summary>
 /// Tests for entity disambiguation: feature extraction, clustering, labeling, and feature cache.
+/// Requires ONNX embedding model.
 /// </summary>
+[Trait("Category", "RequiresModel")]
 public class EntityDisambiguationServiceTests : IAsyncLifetime
 {
     private StorageService _storage = null!;

@@ -193,8 +193,10 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
     }
 
     // --- Entity Profile Integration Tests ---
+    // These tests require the ONNX embedding model
 
     [Fact]
+    [Trait("Category", "RequiresModel")]
     public async Task IngestEntities_WithEntityProfileService_ComputesProfiles()
     {
         // Create service with EntityProfileService
@@ -219,6 +221,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    [Trait("Category", "RequiresModel")]
     public async Task FindRelatedByEntityProfile_FindsSimilarDocuments()
     {
         // Create service with EntityProfileService
@@ -271,6 +274,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    [Trait("Category", "RequiresModel")]
     public async Task HasEntityProfiles_ReturnsTrueAfterIngestion()
     {
         using var embeddingService = new EmbeddingService();
