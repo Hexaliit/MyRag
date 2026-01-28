@@ -641,13 +641,58 @@ public partial class RelevanceScorer
 
     /// <summary>
     /// Freshness score: exponential decay from publish/fetch time. Range 0-1.
+    /// Falls back to heuristic year detection when CreatedAt is missing/unreliable.
     /// </summary>
     internal static double ComputeFreshness(ContentItem item)
     {
         var timestamp = item.CreatedAt != default ? item.CreatedAt : item.FetchedAt;
+
+        // If CreatedAt was just set to "now" (within 1 min of fetch), it's unreliable
+        // Try to detect year from title/content
+        var fetchedJustNow = item.CreatedAt != default &&
+                             Math.Abs((item.CreatedAt - item.FetchedAt).TotalMinutes) < 1;
+        if (fetchedJustNow || item.CreatedAt == default)
+        {
+            var extractedYear = ExtractYearFromText(item.Title, item.Content);
+            if (extractedYear != null)
+            {
+                // Create a date midway through the detected year
+                timestamp = new DateTimeOffset(extractedYear.Value, 6, 15, 0, 0, 0, TimeSpan.Zero);
+            }
+        }
+
         var ageHours = Math.Max(0, (DateTimeOffset.UtcNow - timestamp).TotalHours);
         return Math.Exp(-ageHours * Math.Log(2) / FreshnessHalfLifeHours);
     }
+
+    /// <summary>
+    /// Extract a year from article title or content using patterns like "in 2020", "2018 review".
+    /// Returns null if no clear year found or if the year is current/future.
+    /// </summary>
+    private static int? ExtractYearFromText(string? title, string? content)
+    {
+        var currentYear = DateTime.UtcNow.Year;
+        var text = $"{title} {content}";
+        if (string.IsNullOrWhiteSpace(text)) return null;
+
+        // Pattern: standalone year (2010-2025) not part of larger number
+        var yearPattern = YearInTextPattern();
+        var matches = yearPattern.Matches(text);
+
+        foreach (Match m in matches)
+        {
+            if (int.TryParse(m.Groups[1].Value, out var year))
+            {
+                // Only consider past years (not current/future)
+                if (year >= 2010 && year < currentYear)
+                    return year;
+            }
+        }
+        return null;
+    }
+
+    [GeneratedRegex(@"\b(20[12][0-9])\b")]
+    private static partial Regex YearInTextPattern();
 
     /// <summary>
     /// Compute authority scores for all items in a batch. Precomputes max scores per source

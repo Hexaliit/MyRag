@@ -178,16 +178,21 @@ public partial class PromptInterpreter
             - "tone": "neutral" | "doom" | "hopeful" | "snarky" | "funny" | "upbeat" | "friendly" | "toon"
             - "time_sensitivity": "breaking" | "today" | "week" | "any"
 
-            TEMPORAL EXTRACTION (parse dates from query):
-            - "date_range": object with fields: start (YYYY-MM-DD), end (YYYY-MM-DD), original (the phrase), unit (day/week/month/year), count (number)
-              Examples: "last week" → start={todayIso} minus 7 days, end={todayIso}, original="last week", unit="week", count=1
-              "past 3 days" → unit="day", count=3, original="past 3 days"
-              "since Monday" → start=date of last Monday, original="since Monday"
-              Omit date_range entirely if no temporal constraint in query.
-            - "requires_fresh": true if query needs fresh data (skip cache). True for: "latest", "breaking", "right now", "just happened", "current".
-            - "is_continuation": true if referencing previous query. True for: "since last time", "more like this", "update on", "any changes", "what's new with".
-            - "is_temporal_comparison": true if asking about change over time. True for: "how has X changed", "sentiment shift", "evolution of", "trend in", "compared to last week".
-            - "continuation_topic": if is_continuation, what topic to continue (entity or keyword from query).
+            TEMPORAL EXTRACTION - Keep it simple, we compute dates in code:
+            - "time_sensitivity": "breaking" (past hour) | "today" (24-48h) | "week" (7 days) | "any"
+            - "requires_fresh": true if user wants RECENT content. Set true for: "recent", "latest", "new", "current", "today", "this week", "just happened", "breaking".
+            - "date_range": ONLY include unit and count - we compute actual dates in code.
+              Just set: original (the temporal phrase), unit (day/week/month), count (number).
+              DO NOT compute start/end dates - just extract the semantic info.
+              Examples:
+                "last week" → original="last week", unit="week", count=1
+                "recent" → original="recent", unit="week", count=2
+                "past 3 days" → original="past 3 days", unit="day", count=3
+                "this month" → original="this month", unit="month", count=1
+              Omit if no temporal constraint.
+            - "is_continuation": true for "since last time", "update on", "what's new with".
+
+            IMPORTANT: If query has "recent", "latest", "new" → requires_fresh=true AND time_sensitivity="week".
 
             - "search_queries": 2-3 optimized search engine queries. Fix spelling. Expand abbreviations (SNL → Saturday Night Live). Quote entity names. Add time/date context when relevant. Today is {today}. Do NOT include search engine names in the query text.
             - "entities": named entities found in the query

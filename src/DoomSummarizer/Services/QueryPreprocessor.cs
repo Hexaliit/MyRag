@@ -21,9 +21,15 @@ public class QueryPreprocessor
         string query,
         EmbeddingService embedding,
         StorageService storage,
+        string locale = "en-us",
         CancellationToken ct = default)
     {
         var context = new QueryNerContext { RawQuery = query };
+
+        // Step 0: Extract structured signals (dates, numbers, URLs, etc.)
+        // Fast deterministic extraction with locale-aware parsing
+        var signals = TextRecognizerService.ExtractAll(query, locale);
+        context = context with { RecognizerSignals = signals };
 
         // Step 1: NER entity extraction (deterministic, ONNX, ~50ms)
         try
@@ -194,6 +200,19 @@ public record QueryNerContext
     /// </summary>
     public IEnumerable<string> AllEntityNames =>
         PersonNames.Concat(Organizations).Concat(Locations).Concat(MiscEntities);
+
+    // --- Recognizer Signals (Microsoft.Recognizers.Text) ---
+
+    /// <summary>
+    /// Structured signals extracted via Microsoft.Recognizers.Text.
+    /// Stores position, value, type for filtering and confirmation.
+    /// </summary>
+    public RecognizedSignals? RecognizerSignals { get; init; }
+
+    /// <summary>
+    /// True if recognizer found any date/time expressions (confirms temporal intent).
+    /// </summary>
+    public bool HasTemporalSignals => RecognizerSignals?.HasTemporalSignals == true;
 }
 
 /// <summary>

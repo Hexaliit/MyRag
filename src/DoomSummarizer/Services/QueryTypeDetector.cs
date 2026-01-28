@@ -54,12 +54,49 @@ public static partial class QueryTypeDetector
     }
 
     /// <summary>
-    /// Whether the roundup query implies "today" (last 24-48h) date-gating.
+    /// Whether recency filtering should be applied.
+    /// Uses sentinel LLM extraction only - no hardcoded regex patterns.
     /// </summary>
-    public static bool ImpliesDateGating(string? query)
+    public static bool ImpliesDateGating(SentinelIntent? sentinelIntent)
     {
-        if (string.IsNullOrWhiteSpace(query)) return false;
-        return DateGatingPattern().IsMatch(query.ToLowerInvariant());
+        if (sentinelIntent == null) return false;
+        return sentinelIntent.RequiresFresh
+            || sentinelIntent.TimeSensitivity is "today" or "breaking" or "week"
+            || sentinelIntent.DateRange != null;
+    }
+
+    /// <summary>
+    /// Get the maximum age for freshness filtering based on sentinel LLM extraction.
+    /// NO regex fallbacks - trust the LLM to parse natural language.
+    /// </summary>
+    public static TimeSpan GetMaxAge(SentinelIntent? sentinelIntent, string? query = null)
+    {
+        // Sentinel date range is authoritative - LLM parsed the natural language
+        if (sentinelIntent?.DateRange != null)
+        {
+            var unit = sentinelIntent.DateRange.Unit?.ToLowerInvariant();
+            var count = sentinelIntent.DateRange.Count ?? 1;
+            return unit switch
+            {
+                "hour" => TimeSpan.FromHours(count),
+                "day" => TimeSpan.FromDays(count),
+                "week" => TimeSpan.FromDays(count * 7),
+                "month" => TimeSpan.FromDays(count * 30),
+                "year" => TimeSpan.FromDays(count * 365),
+                _ => TimeSpan.FromDays(14) // "recent" without unit → 2 weeks
+            };
+        }
+
+        // TimeSensitivity: LLM's interpretation of urgency
+        var timeSens = sentinelIntent?.TimeSensitivity?.ToLowerInvariant();
+        return timeSens switch
+        {
+            "breaking" => TimeSpan.FromHours(24),
+            "today" => TimeSpan.FromHours(48),
+            "week" => TimeSpan.FromDays(7),
+            _ when sentinelIntent?.RequiresFresh == true => TimeSpan.FromDays(14), // "recent/latest" → 2 weeks
+            _ => TimeSpan.FromDays(30) // No temporal constraint → generous window
+        };
     }
 
     /// <summary>
@@ -182,7 +219,7 @@ public static partial class QueryTypeDetector
     /// <summary>
     /// Matches queries that imply "recent / today" date constraint.
     /// </summary>
-    [GeneratedRegex(@"\b(today|this\s+morning|right\s+now|past\s+hour|last\s+\d+\s+hours?|this\s+afternoon|just\s+happened|breaking)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(today|this\s+morning|right\s+now|past\s+hour|last\s+\d+\s+(hours?|days?|weeks?)|this\s+afternoon|just\s+happened|breaking|recent|latest|new|current|this\s+week|past\s+few\s+days)\b", RegexOptions.IgnoreCase)]
     private static partial Regex DateGatingPattern();
 
     /// <summary>

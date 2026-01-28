@@ -118,6 +118,11 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [Description("Enable parallel section generation for long-form articles (faster, less cross-section coherence)")]
         [DefaultValue(true)]
         public bool Parallel { get; init; } = true;
+
+        [CommandOption("--locale")]
+        [Description("Locale for date/number parsing (e.g., en-us, en-gb, de-de, fr-fr)")]
+        [DefaultValue("en-us")]
+        public string Locale { get; init; } = "en-us";
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
@@ -272,13 +277,25 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         if (!string.IsNullOrEmpty(settings.Prompt))
         {
             nerContext = await QueryPreprocessor.PreprocessAsync(
-                settings.Prompt, embedding, storage, cancellationToken);
+                settings.Prompt, embedding, storage, settings.Locale, cancellationToken);
 
             if (nerContext.HasEntities)
             {
                 var entityStr = string.Join(", ", nerContext.Entities
                     .Select(e => $"{e.Text} ({e.Type})"));
                 WriteStatus($"[grey]NER: {Markup.Escape(entityStr)}[/]");
+
+                // Show recognizer signals (dates, numbers, etc.)
+                if (nerContext.RecognizerSignals?.HasAnySignals == true)
+                {
+                    var signals = nerContext.RecognizerSignals;
+                    var signalParts = new List<string>();
+                    if (signals.DateTimes.Count > 0)
+                        signalParts.Add($"dates:[{string.Join(", ", signals.DateTimes.Select(d => d.Text))}]");
+                    if (signals.Numbers.Count > 0)
+                        signalParts.Add($"nums:[{string.Join(", ", signals.Numbers.Select(n => n.Text))}]");
+                    WriteStatus($"[grey]Recognizers: {Markup.Escape(string.Join(" ", signalParts))}[/]");
+                }
             }
         }
 
@@ -302,7 +319,23 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             var sourcesStr = string.Join(", ", interpreted.Sources
                 .Concat(interpreted.Websites)
                 .Concat(interpreted.SearchQueries.Select(q => $"search:{q}")));
-            WriteStatus($"[grey]Detected: sources=[[{Markup.Escape(sourcesStr)}]], vibe={vibe}[/]");
+
+            // Show temporal extraction from sentinel (LLM-driven, not regex!)
+            var temporalInfo = "";
+            if (interpreted.SentinelIntent != null)
+            {
+                var si = interpreted.SentinelIntent;
+                var temporalParts = new List<string>();
+                if (si.RequiresFresh) temporalParts.Add("requires_fresh");
+                if (!string.IsNullOrEmpty(si.TimeSensitivity) && si.TimeSensitivity != "any")
+                    temporalParts.Add($"time={si.TimeSensitivity}");
+                if (si.DateRange != null)
+                    temporalParts.Add($"range={si.DateRange.Original ?? si.DateRange.Unit}");
+                if (temporalParts.Count > 0)
+                    temporalInfo = $", temporal=[{string.Join(", ", temporalParts)}]";
+            }
+
+            WriteStatus($"[grey]Detected: sources=[[{Markup.Escape(sourcesStr)}]], vibe={vibe}{Markup.Escape(temporalInfo)}[/]");
         }
 
         // Get vibe prompt - supports predefined vibes or arbitrary text
@@ -1037,38 +1070,45 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     items = filtered;
                 }
 
-                // Roundup intent: date-gate and penalize topic drift
+                // Temporal filtering: use sentinel LLM extraction (not regex patterns!)
+                var sentinelIntent = interpreted?.SentinelIntent;
+                var needsRecencyFilter = sentinelIntent?.RequiresFresh == true
+                    || sentinelIntent?.TimeSensitivity is "today" or "breaking" or "week"
+                    || sentinelIntent?.DateRange != null;
+
+                // For roundup intent, also penalize topic drift
                 if (earlyQueryType == QueryType.Roundup)
                 {
-                    var preRoundupCount = items.Count;
-
-                    // Penalize "on this day" / historical drift content
                     foreach (var item in items)
                     {
                         if (QueryTypeDetector.IsTopicDrift(item))
                             item.RelevanceScore *= 0.3; // Heavy penalty
                     }
+                }
 
-                    // Date-gate: if user said "today", strongly prefer last 48h
-                    if (QueryTypeDetector.ImpliesDateGating(interpreted?.RawPrompt ?? settings.Prompt))
+                // Date-gate using sentinel's temporal extraction
+                if (needsRecencyFilter)
+                {
+                    // Get max age from sentinel intent (LLM-driven, not hardcoded)
+                    var maxAge = QueryTypeDetector.GetMaxAge(sentinelIntent, interpreted?.RawPrompt ?? settings.Prompt);
+
+                    foreach (var item in items)
                     {
-                        var maxAge = TimeSpan.FromHours(48);
-                        foreach (var item in items)
-                        {
-                            var mult = QueryTypeDetector.GetFreshnessMultiplier(item, maxAge);
-                            item.RelevanceScore *= mult;
-                        }
+                        var mult = QueryTypeDetector.GetFreshnessMultiplier(item, maxAge);
+                        item.RelevanceScore *= mult;
+                    }
 
-                        // Re-sort by relevance after freshness adjustment
-                        items = items.OrderByDescending(i => i.RelevanceScore).ToList();
+                    // Re-sort by relevance after freshness adjustment
+                    items = items.OrderByDescending(i => i.RelevanceScore).ToList();
 
-                        {
-                            var freshCount = items.Count(i =>
-                                (DateTimeOffset.UtcNow - i.CreatedAt) <= maxAge);
-                            fetchTask.Description = $"[cyan]Date-gate: {freshCount}/{items.Count} fresh[/]";
-                            if (settings.DebugPipeline)
-                                AnsiConsole.MarkupLine($"[grey]Roundup date-gate: {freshCount}/{items.Count} items within 48h[/]");
-                        }
+                    var freshCount = items.Count(i => (DateTimeOffset.UtcNow - i.CreatedAt) <= maxAge);
+                    var ageDesc = maxAge.TotalHours <= 48 ? $"{maxAge.TotalHours}h" : $"{maxAge.TotalDays}d";
+                    fetchTask.Description = $"[cyan]Date-gate ({ageDesc}): {freshCount}/{items.Count} fresh[/]";
+                    if (settings.DebugPipeline)
+                    {
+                        var reason = sentinelIntent?.RequiresFresh == true ? "requires_fresh"
+                            : sentinelIntent?.TimeSensitivity ?? "date_range";
+                        AnsiConsole.MarkupLine($"[grey]Temporal filter ({reason}): {freshCount}/{items.Count} items within {ageDesc}[/]");
                     }
                 }
 
