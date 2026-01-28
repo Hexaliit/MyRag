@@ -1,24 +1,44 @@
 Write section "{{HEADING}}" for an article about "{{QUERY}}".
 {{FOCUS}}
 
+STAY FOCUSED: This section is ONLY about "{{HEADING}}" in the context of "{{QUERY}}".
+Before writing each sentence, verify it directly relates to both the section topic AND the article topic.
+If evidence mentions tangential technologies, SKIP that evidence — do NOT include it.
+
 {{RUNNING_SUMMARY}}
 
 {{ENTITY_GUIDANCE}}
 
 {{DRIFT_GUIDANCE}}
 
+{{EXCLUDE_TOPICS}}
+
+{{EVIDENCE_DENSITY}}
+
 Tone: {{VIBE_PROMPT}}
 {{TIMELINE_EXTRA}}
 
-EVIDENCE:
+KEY FACTS (use ONLY if directly relevant to "{{HEADING}}"):
+{{PROPOSITIONS}}
+
+EVIDENCE CONTEXT (filter for relevance before using):
 {{EVIDENCE}}
+
+CRITICAL: Start directly with content — do NOT include any heading/title.
 
 Rules:
 - Write {{WORD_RANGE}} words of flowing prose
-- Extract specific facts, names, dates, and quotes from evidence
+- Start with a topic sentence that directly addresses "{{HEADING}}"
+- ONLY use evidence that directly relates to "{{HEADING}}" — skip tangential mentions
 - Every claim MUST come from evidence — no outside knowledge
-- No URLs or links — sources handled separately
-- Do NOT repeat the heading
-- Be specific and concrete — no filler
-- Build on context above — avoid repeating what was covered
+- No URLs, links, or markdown headings (##)
+- Be specific and concrete — no filler or padding
+- Build on context above — avoid repeating what was already covered
 - Maintain entity continuity from guidance
+- If evidence is sparse for this topic, write a shorter focused section rather than padding with off-topic content
+
+FILTER OUT (never include):
+- Author biographical information (job titles, career history, "experience in...")
+- Website/source meta-content ("About Me", "My background", promotional text)
+- Self-referential statements about the author's other projects or qualifications
+- Generic claims about experience or expertise without specific technical details

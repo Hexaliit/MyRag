@@ -1,4 +1,5 @@
 using DoomSummarizer.Services;
+using DoomSummarizer.Services.LongFormGeneration;
 
 namespace DoomSummarizer.Models.LongFormGeneration;
 
@@ -15,6 +16,12 @@ public class PlannedSection
     public string? Notes { get; init; }
 
     /// <summary>
+    /// Quality-adjusted target word count. Defaults to TargetWords but can be
+    /// reduced based on evidence quality to prevent hallucination.
+    /// </summary>
+    public int AdjustedTargetWords { get; set; }
+
+    /// <summary>
     /// Embedding of the theme keywords — used for cosine similarity
     /// matching against evidence segments during assignment.
     /// </summary>
@@ -22,6 +29,24 @@ public class PlannedSection
 
     /// <summary>Evidence segments assigned to this section (populated in Phase 3).</summary>
     public List<EvidenceSegment> AssignedEvidence { get; set; } = [];
+
+    /// <summary>
+    /// Propositions (atomic facts) extracted from assigned evidence.
+    /// Used for precise evidence matching and cross-section deduplication.
+    /// </summary>
+    public List<Proposition> Propositions { get; set; } = [];
+
+    /// <summary>
+    /// Topics/concepts to exclude from this section (populated from previous sections).
+    /// Used in negative prompts to prevent repetition: "Do not discuss: X, Y, Z"
+    /// </summary>
+    public List<string> ExcludeTopics { get; set; } = [];
+
+    /// <summary>
+    /// Key concepts covered in this section (extracted after generation).
+    /// Propagated to subsequent sections' ExcludeTopics to avoid repetition.
+    /// </summary>
+    public List<string> CoveredConcepts { get; set; } = [];
 
     /// <summary>Generated text content (populated in Phase 4).</summary>
     public string? GeneratedContent { get; set; }
@@ -32,6 +57,11 @@ public class PlannedSection
         .Where(u => !string.IsNullOrEmpty(u))
         .Distinct()
         .ToList();
+
+    /// <summary>
+    /// Get the effective target words — uses AdjustedTargetWords if set, otherwise TargetWords.
+    /// </summary>
+    public int EffectiveTargetWords => AdjustedTargetWords > 0 ? AdjustedTargetWords : TargetWords;
 }
 
 /// <summary>

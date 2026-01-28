@@ -166,20 +166,33 @@ public partial class PromptInterpreter
     private static string BuildStructuredSentinelPrompt(QueryNerContext? nerContext)
     {
         var today = DateTime.Now.ToString("MMMM d, yyyy");
+        var todayIso = DateTime.Now.ToString("yyyy-MM-dd");
         return $"""
             You are a search query optimizer. Given a user's request, output JSON with two main goals:
             1. Craft the best possible search engine queries (for Google News and DuckDuckGo)
             2. Categorize the topic with weights so we know what kind of news sources to check
 
             JSON fields:
-            - "intent": "news" | "roundup" | "research" | "howto" | "qa"
+            - "intent": "news" | "roundup" | "research" | "howto" | "qa" | "trend" | "comparison"
             - "categories": topic weights 0.0-1.0. ONLY use these exact categories: technology, ai, security, programming, science, health, pharma, business, finance, politics, world, entertainment, humor, sports, environment, climate, space, disaster, factcheck. Do NOT invent categories. Do NOT use "news" as a category.
             - "tone": "neutral" | "doom" | "hopeful" | "snarky" | "funny" | "upbeat" | "friendly" | "toon"
             - "time_sensitivity": "breaking" | "today" | "week" | "any"
+
+            TEMPORAL EXTRACTION (parse dates from query):
+            - "date_range": object with fields: start (YYYY-MM-DD), end (YYYY-MM-DD), original (the phrase), unit (day/week/month/year), count (number)
+              Examples: "last week" → start={todayIso} minus 7 days, end={todayIso}, original="last week", unit="week", count=1
+              "past 3 days" → unit="day", count=3, original="past 3 days"
+              "since Monday" → start=date of last Monday, original="since Monday"
+              Omit date_range entirely if no temporal constraint in query.
+            - "requires_fresh": true if query needs fresh data (skip cache). True for: "latest", "breaking", "right now", "just happened", "current".
+            - "is_continuation": true if referencing previous query. True for: "since last time", "more like this", "update on", "any changes", "what's new with".
+            - "is_temporal_comparison": true if asking about change over time. True for: "how has X changed", "sentiment shift", "evolution of", "trend in", "compared to last week".
+            - "continuation_topic": if is_continuation, what topic to continue (entity or keyword from query).
+
             - "search_queries": 2-3 optimized search engine queries. Fix spelling. Expand abbreviations (SNL → Saturday Night Live). Quote entity names. Add time/date context when relevant. Today is {today}. Do NOT include search engine names in the query text.
             - "entities": named entities found in the query
             - "explicit_sources": only if user named a specific source (hn, bbc, reddit, etc.)
-            - "graph_scope": "local" | "global" | "connective". Use "local" for specific questions ("What is X?", "How do I?"). Use "global" for sensemaking ("What are the main themes?", "Summarize all topics"). Use "connective" for relationship queries ("How does X relate to Y?", "What connects A and B?"). Default "local".
+            - "graph_scope": "local" | "global" | "connective". Use "local" for specific questions. Use "global" for sensemaking. Use "connective" for relationship queries. Default "local".
             - "limit": number (default 20)
 
             Only assign categories that match the actual topic. Do NOT default to technology.

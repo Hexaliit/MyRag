@@ -14,6 +14,12 @@ public class EvidenceSegment
     public double ArticleRelevance { get; init; }
     public DateTimeOffset FetchedAt { get; init; }
 
+    /// <summary>
+    /// Content type weight: 1.0 for tech docs, 0.2 for bio/about content.
+    /// Used to downweight personal/promotional content in technical articles.
+    /// </summary>
+    public float ContentTypeWeight { get; init; } = 1.0f;
+
     /// <summary>Whether this segment has been assigned to a section.</summary>
     public bool IsAssigned { get; set; }
 

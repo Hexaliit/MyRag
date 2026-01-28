@@ -6,4 +6,6 @@ Topic: {{QUERY}} | Date: {{TODAY}} | Tone: {{VIBE_PROMPT}}
 EVIDENCE:
 {{EVIDENCE}}
 
-Rules: Hook with a striking fact from evidence | Set up the article | No bullets or lists | No invented facts | No URLs
+CRITICAL: Output ONLY the introduction text. No meta-commentary, no "Here's the introduction:", no preamble.
+
+Rules: Hook with a striking fact from evidence | Set up the article | No bullets or lists | No invented facts | No URLs | Start directly with the first sentence of the introduction | No author biography or credentials | No "About Me" content

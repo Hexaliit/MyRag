@@ -90,6 +90,10 @@ Complete documentation for the LucidRAG project and ImageSummarizer OCR tool.
 
 ## Component Documentation
 
+### DoomSummarizer (Console-First Research Assistant)
+- **Component docs**: `src/DoomSummarizer/README.md`
+- **Functional spec (cache vs live + gap-filling)**: `src/DoomSummarizer/docs/FunctionalSpec.AdaptiveRetrieval.md`
+
 ### DocSummarizer.Core
 - **[src/Mostlylucid.DocSummarizer.Core/README.md](src/Mostlylucid.DocSummarizer.Core/README.md)**
   - Document processing

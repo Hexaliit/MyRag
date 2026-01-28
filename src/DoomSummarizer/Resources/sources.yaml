@@ -7,26 +7,36 @@ sources:
     type: google_news_rss
     description: Google News RSS search (no API key)
     search: true
+    scope: [general, world, business, technology, science, health, entertainment, sports]
+    region: global
 
   duckduckgo:
     type: duckduckgo
     description: DuckDuckGo HTML search (no API key)
     search: true
+    scope: [general]
+    region: global
 
   google_search:
     type: google_search
     description: Google Custom Search API (requires API key + CX)
     search: true
+    scope: [general]
+    region: global
 
   google_places:
     type: google_places
     description: Google Places Text Search (requires API key)
     search: true
+    scope: [local, business]
+    region: global
 
   # -- Major news RSS feeds --
   bbc:
     type: rss
     description: BBC News
+    scope: [world, politics, business, technology, science, health, entertainment, sports]
+    region: UK
     feeds:
       default:
         - https://feeds.bbci.co.uk/news/rss.xml
@@ -118,14 +128,20 @@ sources:
   hn:
     type: hackernews
     description: Hacker News
+    scope: [technology, programming, ai, startups]
+    region: global
 
   reddit:
     type: reddit
     description: Reddit
+    scope: [general, technology, entertainment, politics]
+    region: global
 
   ars:
     type: rss
     description: Ars Technica
+    scope: [technology, science, gaming, policy]
+    region: US
     feeds:
       default:
         - https://feeds.arstechnica.com/arstechnica/index
@@ -135,6 +151,8 @@ sources:
   verge:
     type: rss
     description: The Verge
+    scope: [technology, entertainment, science]
+    region: US
     feeds:
       default:
         - https://www.theverge.com/rss/index.xml
@@ -142,6 +160,8 @@ sources:
   lobsters:
     type: rss
     description: Lobsters
+    scope: [programming, technology]
+    region: global
     feeds:
       default:
         - https://lobste.rs/rss
@@ -149,6 +169,8 @@ sources:
   devto:
     type: rss
     description: Dev.to
+    scope: [programming, technology]
+    region: global
     feeds:
       default:
         - https://dev.to/feed
@@ -156,6 +178,8 @@ sources:
   techcrunch:
     type: rss
     description: TechCrunch
+    scope: [technology, startups, business]
+    region: US
     feeds:
       default:
         - https://techcrunch.com/feed/
@@ -163,6 +187,8 @@ sources:
   wired:
     type: rss
     description: Wired
+    scope: [technology, science, culture]
+    region: US
     feeds:
       default:
         - https://www.wired.com/feed/rss
@@ -170,6 +196,8 @@ sources:
   theregister:
     type: rss
     description: The Register
+    scope: [technology, security, enterprise]
+    region: UK
     feeds:
       default:
         - https://www.theregister.com/headlines.atom

@@ -37,11 +37,48 @@ public partial class StorageService
 
     /// <summary>
     /// Pre-filter documents using FTS5 keyword match (Layer 1).
+    /// Uses IDF-aware query construction: distinctive (high-IDF) tokens are required
+    /// via AND, common tokens are optional (OR) but boost rank.
+    /// Falls back to pure OR if too few results.
     /// Returns item IDs that match the query text, optionally filtered by source.
     /// </summary>
     public async Task<List<string>> FtsPreFilterAsync(string query, string? source = null, int limit = 50)
     {
-        var ftsQuery = BuildFtsQuery(query);
+        var tokens = RelevanceScorer.Tokenize(query);
+        if (tokens.Count == 0) return [];
+
+        // Load keyword corpus for IDF-aware query construction
+        Dictionary<string, int>? corpus = null;
+        int? corpusSize = null;
+        try
+        {
+            corpus = await GetKeywordCorpusAsync();
+            if (corpus.Count > 0)
+                corpusSize = await GetKeywordCorpusSizeAsync();
+            else
+                corpus = null;
+        }
+        catch { /* corpus not yet populated */ }
+
+        // Build IDF-aware query: require distinctive terms, OR common ones
+        var smartQuery = BuildIdfAwareFtsQuery(tokens, corpus, corpusSize);
+        var ids = await ExecuteFtsQueryAsync(smartQuery, source, limit);
+
+        // Graceful fallback: if smart query too restrictive (<3 results), try pure OR
+        if (ids.Count < 3 && tokens.Count > 1)
+        {
+            var orQuery = BuildFtsQuery(tokens, useAnd: false);
+            ids = await ExecuteFtsQueryAsync(orQuery, source, limit);
+        }
+
+        return ids;
+    }
+
+    /// <summary>
+    /// Execute an FTS5 query and return matching item IDs.
+    /// </summary>
+    private async Task<List<string>> ExecuteFtsQueryAsync(string ftsQuery, string? source, int limit)
+    {
         if (string.IsNullOrWhiteSpace(ftsQuery)) return [];
 
         var ids = new List<string>();
@@ -83,25 +120,119 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Build an FTS5 query from user input, tokenizing and escaping for safety.
-    /// Uses OR for broad matching so partial keyword overlap still finds candidates.
+    /// Build an IDF-aware FTS5 query: distinctive (high-IDF) tokens are required
+    /// via AND, common (low-IDF) tokens are grouped with OR as optional boosters.
+    /// Example: query "How does HTMX work with ASP.NET?"
+    ///   tokens: ["htmx", "work", "asp", "net"]
+    ///   IDF: htmx=high, work=low, asp=medium, net=low
+    ///   → FTS5: "htmx" "asp" ("work" OR "net")
+    /// This ensures the distinctive terms are required while common terms don't
+    /// exclude documents that match the important keywords.
     /// </summary>
-    private static string BuildFtsQuery(string userQuery)
+    private static string BuildIdfAwareFtsQuery(
+        List<string> tokens,
+        Dictionary<string, int>? corpus,
+        int? corpusSize)
     {
-        var tokens = RelevanceScorer.Tokenize(userQuery);
         if (tokens.Count == 0) return "";
+        if (tokens.Count == 1) return $"\"{EscapeFtsToken(tokens[0])}\"";
 
-        // Escape each token for FTS5 (wrap in quotes to handle special chars)
-        // Use OR for broad matching — FTS5 default is AND which is too restrictive
-        return string.Join(" OR ", tokens.Select(t => $"\"{EscapeFtsToken(t)}\""));
+        // Without corpus, fall back to AND for all terms
+        if (corpus == null || corpusSize is null or <= 0)
+            return BuildFtsQuery(tokens, useAnd: true);
+
+        var n = corpusSize.Value;
+
+        // Compute IDF per token
+        var tokenIdfs = tokens
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(t =>
+            {
+                var df = corpus.GetValueOrDefault(t, 0);
+                var idf = df > 0
+                    ? Math.Max(0.01, Math.Log((n - df + 0.5) / (df + 0.5) + 1))
+                    : 3.0; // Unknown tokens are likely distinctive (not in corpus = rare)
+                return (token: t, idf);
+            })
+            .OrderByDescending(x => x.idf)
+            .ToList();
+
+        // Split at median IDF: above = distinctive (required), at/below = common (optional)
+        var medianIdf = tokenIdfs.Count > 0
+            ? tokenIdfs[tokenIdfs.Count / 2].idf
+            : 1.0;
+
+        var distinctive = tokenIdfs.Where(x => x.idf > medianIdf).Select(x => x.token).ToList();
+        var common = tokenIdfs.Where(x => x.idf <= medianIdf).Select(x => x.token).ToList();
+
+        // Edge case: all tokens have same IDF → all required
+        if (distinctive.Count == 0)
+            return BuildFtsQuery(tokens, useAnd: true);
+
+        // Edge case: no common tokens → all required
+        if (common.Count == 0)
+            return BuildFtsQuery(tokens, useAnd: true);
+
+        // Build: distinctive1 distinctive2 (common1 OR common2)
+        var requiredPart = string.Join(" ", distinctive.Select(t => $"\"{EscapeFtsToken(t)}\""));
+
+        // Validate required part isn't empty (edge case protection)
+        if (string.IsNullOrWhiteSpace(requiredPart))
+            return BuildFtsQuery(tokens, useAnd: true);
+
+        // If we have common tokens, add them as optional boosters
+        if (common.Count > 0)
+        {
+            var optionalPart = string.Join(" OR ", common.Select(t => $"\"{EscapeFtsToken(t)}\""));
+            return $"{requiredPart} ({optionalPart})";
+        }
+
+        return requiredPart;
     }
 
     /// <summary>
-    /// Escape a token for FTS5 query syntax: double any internal quotes.
+    /// Build an FTS5 query from tokenized input.
+    /// AND mode: all terms must appear (implicit FTS5 default with space separator).
+    /// OR mode: any term can match (broad fallback when AND is too restrictive).
+    /// </summary>
+    private static string BuildFtsQuery(List<string> tokens, bool useAnd)
+    {
+        // Filter out empty/invalid tokens
+        var validTokens = tokens
+            .Where(t => !string.IsNullOrWhiteSpace(t) && t.Length >= 2)
+            .Select(EscapeFtsToken)
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .ToList();
+
+        if (validTokens.Count == 0) return "";
+
+        var escaped = validTokens.Select(t => $"\"{t}\"");
+        return useAnd
+            ? string.Join(" ", escaped)       // FTS5 implicit AND
+            : string.Join(" OR ", escaped);   // Explicit OR for fallback
+    }
+
+    /// <summary>
+    /// Escape a token for FTS5 query syntax: double any internal quotes,
+    /// remove special FTS5 characters that could cause syntax errors.
     /// </summary>
     private static string EscapeFtsToken(string token)
     {
-        return token.Replace("\"", "\"\"");
+        if (string.IsNullOrWhiteSpace(token)) return "";
+
+        // Remove FTS5 special characters that could cause syntax errors
+        var cleaned = token
+            .Replace("\"", "")      // Remove quotes entirely (we wrap in quotes)
+            .Replace("*", "")       // Wildcard
+            .Replace("(", "")       // Grouping
+            .Replace(")", "")
+            .Replace(":", "")       // Column prefix
+            .Replace("^", "")       // Boost
+            .Replace("-", " ")      // Negation → space
+            .Replace("+", " ")      // Required → space
+            .Trim();
+
+        return cleaned;
     }
 
     /// <summary>

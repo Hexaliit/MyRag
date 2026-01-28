@@ -66,6 +66,9 @@ public sealed partial class ScrollCommand
 
             var refSuffix = refCount > 1 ? $" ({refCount} refs)" : "";
             sourceParts.Add($"[cyan]{Markup.Escape(Truncate(item.title, 70))}[/]");
+            // Show full URL if available, otherwise just domain
+            if (!string.IsNullOrEmpty(item.url))
+                sourceParts.Add($"  [link={Markup.Escape(item.url)}][dim underline]{Markup.Escape(item.url)}[/][/]");
             sourceParts.Add($"  [dim]{Markup.Escape(sourceLabel)}[/] [grey]|[/] [dim]{item.relevance:F2}{refSuffix}[/]");
             if (!string.IsNullOrEmpty(excerpt))
                 sourceParts.Add($"  [grey]{Markup.Escape(excerpt)}[/]");

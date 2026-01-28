@@ -31,6 +31,19 @@ public class SourceDefinition
 
     [YamlMember(Alias = "feeds")]
     public Dictionary<string, List<string>>? Feeds { get; set; }
+
+    /// <summary>
+    /// Topics/categories this source covers (e.g., ["technology", "science", "business"]).
+    /// Used for smarter source routing and display.
+    /// </summary>
+    [YamlMember(Alias = "scope")]
+    public List<string>? Scope { get; set; }
+
+    /// <summary>
+    /// Geographic region this source covers (e.g., "UK", "US", "global").
+    /// </summary>
+    [YamlMember(Alias = "region")]
+    public string? Region { get; set; }
 }
 
 public class RoutingRule

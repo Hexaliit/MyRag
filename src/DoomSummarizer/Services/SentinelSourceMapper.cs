@@ -11,7 +11,7 @@ namespace DoomSummarizer.Services;
 public record SentinelIntent
 {
     /// <summary>
-    /// Query intent type: news, research, howto, roundup, opinion, qa, deep_dive.
+    /// Query intent type: news, research, howto, roundup, opinion, qa, deep_dive, trend, comparison.
     /// </summary>
     [JsonPropertyName("intent")]
     public string Intent { get; init; } = "news";
@@ -36,6 +36,46 @@ public record SentinelIntent
     /// </summary>
     [JsonPropertyName("time_sensitivity")]
     public string TimeSensitivity { get; init; } = "any";
+
+    // ─── Temporal Extraction (NEW) ───
+
+    /// <summary>
+    /// Parsed date range for the query. Extracted from natural language like
+    /// "last week", "since Monday", "past 3 days", "January 2024".
+    /// </summary>
+    [JsonPropertyName("date_range")]
+    public DateRangeIntent? DateRange { get; init; }
+
+    /// <summary>
+    /// Whether this query requires fresh data (skip cache).
+    /// True for: "latest", "breaking", "right now", "just happened".
+    /// </summary>
+    [JsonPropertyName("requires_fresh")]
+    public bool RequiresFresh { get; init; }
+
+    /// <summary>
+    /// Whether this is a continuation query referencing previous results.
+    /// True for: "since last time", "more like this", "update on", "any changes".
+    /// </summary>
+    [JsonPropertyName("is_continuation")]
+    public bool IsContinuation { get; init; }
+
+    /// <summary>
+    /// Whether this query asks about change/drift over time.
+    /// True for: "how has X changed", "sentiment shift", "evolution of", "trend in".
+    /// Enables temporal comparison mode.
+    /// </summary>
+    [JsonPropertyName("is_temporal_comparison")]
+    public bool IsTemporalComparison { get; init; }
+
+    /// <summary>
+    /// Reference topic for continuation queries (what to continue from).
+    /// E.g., for "any updates on the trial?", this would be "trial" or the entity name.
+    /// </summary>
+    [JsonPropertyName("continuation_topic")]
+    public string? ContinuationTopic { get; init; }
+
+    // ─── Existing Fields ───
 
     /// <summary>
     /// Specific search terms to use for search-based sources (gnews, duckduckgo).
@@ -69,6 +109,58 @@ public record SentinelIntent
     /// </summary>
     [JsonPropertyName("graph_scope")]
     public string? GraphScope { get; init; }
+}
+
+/// <summary>
+/// Parsed date range from natural language temporal expressions.
+/// </summary>
+public record DateRangeIntent
+{
+    /// <summary>
+    /// Start of the date range (null = no lower bound).
+    /// ISO 8601 format: "2024-01-15" or "2024-01-15T10:00:00Z".
+    /// </summary>
+    [JsonPropertyName("start")]
+    public string? Start { get; init; }
+
+    /// <summary>
+    /// End of the date range (null = now).
+    /// ISO 8601 format: "2024-01-22" or "2024-01-22T23:59:59Z".
+    /// </summary>
+    [JsonPropertyName("end")]
+    public string? End { get; init; }
+
+    /// <summary>
+    /// Original natural language expression that was parsed.
+    /// E.g., "last week", "since Monday", "past 3 days".
+    /// </summary>
+    [JsonPropertyName("original")]
+    public string? Original { get; init; }
+
+    /// <summary>
+    /// Relative time unit if applicable: hour, day, week, month, year.
+    /// </summary>
+    [JsonPropertyName("unit")]
+    public string? Unit { get; init; }
+
+    /// <summary>
+    /// Number of units (e.g., 3 for "past 3 days").
+    /// </summary>
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    /// <summary>
+    /// Parse the Start string to DateTimeOffset (returns null if unparseable).
+    /// </summary>
+    public DateTimeOffset? ParsedStart => TryParse(Start);
+
+    /// <summary>
+    /// Parse the End string to DateTimeOffset (returns null if unparseable).
+    /// </summary>
+    public DateTimeOffset? ParsedEnd => TryParse(End);
+
+    private static DateTimeOffset? TryParse(string? s) =>
+        DateTimeOffset.TryParse(s, out var dt) ? dt : null;
 }
 
 /// <summary>

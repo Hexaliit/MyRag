@@ -20,6 +20,11 @@ public partial class StorageService : IAsyncDisposable
     private readonly string _dbPath;
     private SqliteConnection? _connection;
 
+    /// <summary>
+    /// Directory containing the database file. Used for co-locating Lucene indexes.
+    /// </summary>
+    public string DataPath => Path.GetDirectoryName(_dbPath) ?? ".";
+
     public StorageService(string dbPath)
     {
         _dbPath = dbPath;

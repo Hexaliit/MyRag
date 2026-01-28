@@ -1,4 +1,5 @@
 using DoomSummarizer.Services;
+using DoomSummarizer.Services.LongFormGeneration;
 
 namespace DoomSummarizer.Tests;
 
@@ -100,6 +101,58 @@ public class DocumentProfileServiceTests
         profile.TopKeywords.Should().HaveCountLessThanOrEqualTo(20);
         // Should cap at 10 bigrams
         profile.TopBigrams.Should().HaveCountLessThanOrEqualTo(10);
+    }
+
+    #endregion
+
+    #region ContentTypeClassification
+
+    [Theory]
+    [InlineData("About Me", "My experience building systems...", "https://example.com/aboutme")]
+    [InlineData("About the Author", "I've worked as a developer...", "https://example.com/about")]
+    [InlineData("My Background", "Years of experience in tech...", "https://blog.com/bio")]
+    public void ClassifyContentWeight_BioContent_ReturnsLowWeight(string title, string content, string url)
+    {
+        var weight = EvidencePreparationService.ClassifyContentWeight(title, content, url);
+        weight.Should().BeLessThan(0.5f, "bio content should be heavily downweighted");
+    }
+
+    [Theory]
+    [InlineData("HTMX Pagination Guide", "Using hx-get to fetch pages...", "https://example.com/blog/htmx-pagination")]
+    [InlineData("ASP.NET Core Tutorial", "Configure services in Startup.cs...", "https://example.com/aspnet")]
+    [InlineData("Building APIs", "REST endpoints with controllers...", "https://blog.com/api-guide")]
+    public void ClassifyContentWeight_TechnicalContent_ReturnsFullWeight(string title, string content, string url)
+    {
+        var weight = EvidencePreparationService.ClassifyContentWeight(title, content, url);
+        weight.Should().BeGreaterThanOrEqualTo(0.9f, "technical content should get full weight");
+    }
+
+    [Fact]
+    public void ClassifyContentWeight_BioUrl_ReturnsLowWeight_EvenWithTechTitle()
+    {
+        var weight = EvidencePreparationService.ClassifyContentWeight(
+            "Technical Projects",
+            "My projects include building APIs...",
+            "https://example.com/about/me");
+
+        weight.Should().BeLessThan(0.5f, "URL with /about should trigger bio detection");
+    }
+
+    [Fact]
+    public void ClassifyContentWeight_MultipleBioIndicators_ReturnsLowWeight()
+    {
+        var bioContent = """
+            As Head of Engineering, I have worked on many projects.
+            My experience includes leading teams and scaling systems.
+            I've built platforms for millions of users.
+            """;
+
+        var weight = EvidencePreparationService.ClassifyContentWeight(
+            "Projects",
+            bioContent,
+            "https://example.com/projects");
+
+        weight.Should().BeLessThanOrEqualTo(0.3f, "multiple bio indicators should trigger heavy downweight");
     }
 
     #endregion

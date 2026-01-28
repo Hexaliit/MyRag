@@ -2,6 +2,12 @@
 
 Run `doomsummarizer --help` for the command list, and `doomsummarizer <command> --help` for full option help.
 
+## MCP server mode
+
+Run `doomsummarizer --mcp` to start a stdio-based MCP (Model Context Protocol) server for AI agents.
+
+See `docs/MCP.md` for setup and the available tools.
+
 ## Commands
 
 ### `scroll` — fetch, rank, and synthesize

@@ -10,3 +10,5 @@ Rules:
 - Look forward — what should readers watch for?
 - Do NOT summarize each section
 - Be concrete, not generic
+- Start directly with content — no preamble or meta-commentary
+- No author biography or credentials

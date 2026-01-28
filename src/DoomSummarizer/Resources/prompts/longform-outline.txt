@@ -1,4 +1,8 @@
-Create an article outline from these evidence items about: "{{QUERY}}"
+Create an article outline about: "{{QUERY}}"
+
+IMPORTANT: The article MUST focus tightly on "{{QUERY}}".
+Do NOT include sections about tangential topics mentioned in the evidence.
+Every section heading must directly relate to "{{QUERY}}".
 
 EVIDENCE:
 {{EVIDENCE}}
@@ -10,24 +14,26 @@ Total evidence segments available: {{SEGMENT_COUNT}}
 
 Respond with JSON only:
 {% raw %}{
-  "title": "compelling article title",
-  "theme_description": "overall theme and scope of the article",
+  "title": "compelling article title that includes key terms from query",
+  "theme_description": "overall theme tightly focused on {{QUERY}}",
   "sections": [
     {
-      "heading": "section heading",
-      "theme_keywords": "specific terms, concepts, and topics this section covers",
+      "heading": "specific section heading directly about {{QUERY}}",
+      "theme_keywords": "concrete terms from evidence that match this section AND relate to {{QUERY}}",
       "target_words": 300
     }
   ],
-  "conclusion_angle": "forward-looking angle for conclusion",
+  "conclusion_angle": "forward-looking angle specific to {{QUERY}}",
   "key_entities": ["Entity1", "Entity2"]
 }{% endraw %}
 
 Rules:
 - 4-8 sections maximum
-- Each section has theme_keywords that describe its scope (used for evidence matching)
-- theme_keywords should be specific and distinct between sections — no overlap
-- theme_description should capture the overall article theme
-- key_entities lists the most important entities across all evidence
-- Do NOT include key_items indices — evidence is assigned automatically
-- Every section should cover a different aspect of the topic
+- Section headings must DIRECTLY relate to "{{QUERY}}" — no generic headings
+- AVOID generic headings like "Key Developments", "Future Directions", "Context and Background"
+- PREFER specific headings like "HTMX Tag Helpers in ASP.NET Core", "Client-Side Updates Without JavaScript"
+- theme_keywords should be concrete terms from the evidence, not abstract concepts
+- theme_keywords must be distinct between sections — zero overlap
+- If evidence about a topic is sparse, SKIP that section rather than padding with tangential content
+- Do NOT include sections about topics only mentioned in passing
+- key_entities lists ONLY entities that are central to "{{QUERY}}"

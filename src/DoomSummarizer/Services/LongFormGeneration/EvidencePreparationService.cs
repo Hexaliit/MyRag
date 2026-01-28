@@ -16,6 +16,68 @@ public static class EvidencePreparationService
         @"\b([A-Z][a-z]+(?:\s+(?:[A-Z][a-z]+|of|the|and|for|in|on|at|to|de|von|van))*(?:\s+[A-Z][a-z]+)+)\b",
         RegexOptions.Compiled);
 
+    // Content type weights: tech docs = 1.0, tool docs = 0.9, bio/about = 0.2
+    private const float TechDocWeight = 1.0f;
+    private const float ToolDocWeight = 0.9f;
+    private const float BioContentWeight = 0.2f;
+    private const float MetaContentWeight = 0.3f;
+
+    // Patterns that indicate biographical/about content
+    private static readonly string[] BioIndicators =
+    [
+        "about me", "my background", "my experience", "i have worked",
+        "years of experience", "head of engineering", "cto", "chief technology",
+        "leading teams", "scaling systems", "career", "my work",
+        "i've built", "i've led", "my projects", "my role"
+    ];
+
+    // Patterns that indicate meta/promotional content
+    private static readonly string[] MetaIndicators =
+    [
+        "follow me", "subscribe", "newsletter", "contact me",
+        "hire me", "consulting", "available for"
+    ];
+
+    /// <summary>
+    /// Classify content type and return a weight multiplier.
+    /// Technical implementation docs get full weight, bio content gets 0.2x.
+    /// </summary>
+    public static float ClassifyContentWeight(string title, string content, string url)
+    {
+        var lowerTitle = title.ToLowerInvariant();
+        var lowerUrl = url.ToLowerInvariant();
+        var lowerContent = content.ToLowerInvariant();
+
+        // Check URL patterns first (fastest)
+        if (lowerUrl.Contains("/about") || lowerUrl.Contains("aboutme"))
+            return BioContentWeight;
+
+        // Check title patterns
+        if (lowerTitle.Contains("about me") || lowerTitle.Contains("about the author"))
+            return BioContentWeight;
+
+        // Check content for bio indicators (sample first 1000 chars for speed)
+        var contentSample = lowerContent.Length > 1000 ? lowerContent[..1000] : lowerContent;
+        var bioScore = BioIndicators.Count(indicator => contentSample.Contains(indicator));
+        if (bioScore >= 3)
+            return BioContentWeight;
+        if (bioScore >= 1)
+            return MetaContentWeight;
+
+        // Check for meta/promotional content
+        var metaScore = MetaIndicators.Count(indicator => contentSample.Contains(indicator));
+        if (metaScore >= 2)
+            return MetaContentWeight;
+
+        // Check for tool/software documentation
+        if (lowerUrl.Contains("/software") || lowerUrl.Contains("/tools") ||
+            lowerTitle.Contains("documentation") || lowerTitle.Contains("getting started"))
+            return ToolDocWeight;
+
+        // Default: full weight for technical content
+        return TechDocWeight;
+    }
+
     /// <summary>
     /// Build the evidence corpus from processed articles.
     /// </summary>
@@ -53,6 +115,10 @@ public static class EvidencePreparationService
             else if (relevanceByTitle.TryGetValue(title, out var rTitle))
                 relevance = rTitle;
 
+            // Classify content type and apply weight
+            var contentWeight = ClassifyContentWeight(title, item.Content ?? "", url);
+            relevance *= contentWeight; // Bio content gets heavily downweighted
+
             // Register article
             if (!string.IsNullOrEmpty(url))
             {
@@ -82,7 +148,8 @@ public static class EvidencePreparationService
                     ArticleTitle = title,
                     ArticleUrl = url,
                     ArticleRelevance = relevance,
-                    FetchedAt = item.FetchedAt
+                    FetchedAt = item.FetchedAt,
+                    ContentTypeWeight = contentWeight
                 });
             }
         }

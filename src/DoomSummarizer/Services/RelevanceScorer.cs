@@ -33,8 +33,8 @@ namespace DoomSummarizer.Services;
 /// ================
 ///
 /// 1. BM25F (text relevance) — weight default: 1.0
-///    Field-weighted BM25 scoring. Title matches get 2× boost over content matches.
-///    Uses IDF computed from the current batch (not a global corpus).
+///    Field-weighted BM25 scoring. Title 2×, Keywords 2.5×, Content 1×.
+///    Uses global IDF corpus when available, falls back to batch-level IDF.
 ///    Measures: How well do the query's keywords match the item's text?
 ///
 /// 2. Freshness (recency) — weight default: 0.5
@@ -87,9 +87,8 @@ namespace DoomSummarizer.Services;
 ///   Comparison: freshness↓(0.3) bm25(0.8) authority(0.4) querySim↑(1.0) quality(0.3) — precise matching
 ///   General:    default weights (quality: 0.2) — balanced for mixed-intent queries
 /// </summary>
-public class RelevanceScorer
+public partial class RelevanceScorer
 {
-    private static readonly Regex TokenRx = new(@"\b\w+\b", RegexOptions.Compiled);
 
     private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -184,6 +183,22 @@ public class RelevanceScorer
             querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.3),
 
         _ => new RelevanceScorer() // General: default weights (quality: 0.2)
+    };
+
+    /// <summary>
+    /// Create a scorer tuned for knowledge base queries where Authority and Freshness
+    /// provide zero discrimination (all items have Score=0 and similar crawl dates).
+    /// Zeroes out noise signals and boosts BM25F + QuerySimilarity for precision.
+    /// </summary>
+    public static RelevanceScorer ForKnowledgeBase(QueryType queryType) => queryType switch
+    {
+        QueryType.Roundup => new RelevanceScorer(
+            bm25Weight: 1.0, freshnessWeight: 0.2, authorityWeight: 0.0,
+            querySimWeight: 0.8, vibeWeight: 0.2, qualityWeight: 0.15),
+
+        _ => new RelevanceScorer(
+            bm25Weight: 1.5, freshnessWeight: 0.0, authorityWeight: 0.0,
+            querySimWeight: 1.2, vibeWeight: 0.2, qualityWeight: 0.3)
     };
 
     /// <summary>
@@ -444,6 +459,10 @@ public class RelevanceScorer
     /// Title matches get 2.0× boost, keywords get 2.5× boost, content is 1.0× baseline.
     /// Keywords field captures document-level topic profile (structurally weighted terms),
     /// providing a stronger relevance signal than body text alone.
+    ///
+    /// Enhanced with:
+    /// - Fuzzy matching: partial credit for Levenshtein distance ≤ 2
+    /// - Phrase proximity: bonus for consecutive query terms in document
     /// </summary>
     internal static double BM25FScore(
         ContentItem item,
@@ -455,6 +474,8 @@ public class RelevanceScorer
         const double k1 = 1.5, b = 0.75;
         const double titleBoost = 2.0;
         const double keywordsBoost = 2.5;
+        const double fuzzyDiscount = 0.6;  // Fuzzy matches worth 60% of exact
+        const double phraseBonus = 0.3;    // 30% bonus for phrase matches
 
         List<string> titleTokens, keywordTokens, contentTokens, allTokens;
         if (tokenCache != null && tokenCache.TryGetValue(item.Id, out var pt))
@@ -482,6 +503,9 @@ public class RelevanceScorer
         var contentTf = contentTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
+        // Build set of all document tokens for fuzzy lookup
+        var allTokenSet = new HashSet<string>(allTokens, StringComparer.OrdinalIgnoreCase);
+
         double score = 0;
         foreach (var term in queryTokens.Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -489,13 +513,130 @@ public class RelevanceScorer
             var keywordFreq = keywordTf.GetValueOrDefault(term, 0);
             var contentFreq = contentTf.GetValueOrDefault(term, 0);
             var weightedFreq = titleFreq * titleBoost + keywordFreq * keywordsBoost + contentFreq;
+
+            // Fuzzy matching: if no exact match, look for close matches
+            var matchMultiplier = 1.0;
+            if (weightedFreq < 0.001 && term.Length >= 4)
+            {
+                var fuzzyMatch = FindFuzzyMatch(term, allTokenSet, maxDistance: 2);
+                if (fuzzyMatch != null)
+                {
+                    // Found a fuzzy match — use its frequency with discount
+                    titleFreq = titleTf.GetValueOrDefault(fuzzyMatch, 0);
+                    keywordFreq = keywordTf.GetValueOrDefault(fuzzyMatch, 0);
+                    contentFreq = contentTf.GetValueOrDefault(fuzzyMatch, 0);
+                    weightedFreq = titleFreq * titleBoost + keywordFreq * keywordsBoost + contentFreq;
+                    matchMultiplier = fuzzyDiscount;
+                }
+            }
+
             if (weightedFreq < 0.001) continue;
 
             var termIdf = idf.GetValueOrDefault(term, 0);
-            score += termIdf * weightedFreq * (k1 + 1) / (weightedFreq + k1 * (1 - b + b * allTokens.Count / avgDocLen));
+            score += matchMultiplier * termIdf * weightedFreq * (k1 + 1) /
+                     (weightedFreq + k1 * (1 - b + b * allTokens.Count / avgDocLen));
+        }
+
+        // Phrase proximity bonus: check if query tokens appear consecutively
+        if (queryTokens.Count >= 2 && score > 0)
+        {
+            var phraseMatches = CountPhraseMatches(queryTokens, allTokens);
+            if (phraseMatches > 0)
+                score *= 1 + phraseBonus * Math.Min(phraseMatches, 3);
         }
 
         return score;
+    }
+
+    /// <summary>
+    /// Find a fuzzy match for a query term in the document token set.
+    /// Returns the best matching token if Levenshtein distance ≤ maxDistance, else null.
+    /// </summary>
+    private static string? FindFuzzyMatch(string queryTerm, HashSet<string> docTokens, int maxDistance)
+    {
+        string? bestMatch = null;
+        var bestDistance = maxDistance + 1;
+
+        foreach (var docToken in docTokens)
+        {
+            // Quick length check — Levenshtein distance is at least |len1 - len2|
+            if (Math.Abs(queryTerm.Length - docToken.Length) > maxDistance)
+                continue;
+
+            var distance = LevenshteinDistance(queryTerm, docToken);
+            if (distance <= maxDistance && distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestMatch = docToken;
+                if (distance == 1) break; // Good enough, stop early
+            }
+        }
+
+        return bestMatch;
+    }
+
+    /// <summary>
+    /// Compute Levenshtein edit distance between two strings.
+    /// Optimized with early termination when distance exceeds threshold.
+    /// </summary>
+    private static int LevenshteinDistance(string s1, string s2)
+    {
+        if (string.Equals(s1, s2, StringComparison.OrdinalIgnoreCase)) return 0;
+
+        var len1 = s1.Length;
+        var len2 = s2.Length;
+
+        if (len1 == 0) return len2;
+        if (len2 == 0) return len1;
+
+        // Use single-row optimization
+        var row = new int[len2 + 1];
+        for (var j = 0; j <= len2; j++) row[j] = j;
+
+        for (var i = 1; i <= len1; i++)
+        {
+            var prev = row[0];
+            row[0] = i;
+
+            for (var j = 1; j <= len2; j++)
+            {
+                var curr = row[j];
+                var cost = char.ToLowerInvariant(s1[i - 1]) == char.ToLowerInvariant(s2[j - 1]) ? 0 : 1;
+                row[j] = Math.Min(Math.Min(row[j] + 1, row[j - 1] + 1), prev + cost);
+                prev = curr;
+            }
+        }
+
+        return row[len2];
+    }
+
+    /// <summary>
+    /// Count how many times consecutive query tokens appear consecutively in the document.
+    /// Returns the number of phrase matches (bigrams that appear in order).
+    /// </summary>
+    private static int CountPhraseMatches(List<string> queryTokens, List<string> docTokens)
+    {
+        if (queryTokens.Count < 2 || docTokens.Count < 2) return 0;
+
+        var matches = 0;
+        for (var qi = 0; qi < queryTokens.Count - 1; qi++)
+        {
+            var q1 = queryTokens[qi];
+            var q2 = queryTokens[qi + 1];
+
+            // Check if this bigram appears in the document
+            for (var di = 0; di < docTokens.Count - 1; di++)
+            {
+                if (string.Equals(docTokens[di], q1, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(docTokens[di + 1], q2, StringComparison.OrdinalIgnoreCase))
+                {
+                    matches++;
+                    break; // Found this bigram, move to next query bigram
+                }
+            }
+        }
+
+        return matches;
     }
 
     /// <summary>
@@ -732,6 +873,91 @@ public class RelevanceScorer
 
     #endregion
 
+    #region Outlier Detection
+
+    /// <summary>
+    /// Detect off-topic outliers using query-term coverage.
+    /// For each item, check what fraction of the distinctive query tokens
+    /// (high IDF — rare, topic-defining words) appear in its title or keywords.
+    /// Items missing distinctive terms are likely off-topic even if embedding
+    /// similarity is moderate (common in same-domain KB collections).
+    ///
+    /// Returns penalty multipliers: 1.0 = no penalty, &lt;1.0 = penalized.
+    /// Should be skipped for Roundup queries (diverse topics expected).
+    /// </summary>
+    public static Dictionary<string, double> ComputeQueryTermCoverage(
+        List<ContentItem> items,
+        List<string> queryTokens,
+        Dictionary<string, double> idf,
+        double idfThreshold = 1.0)
+    {
+        // Find distinctive query tokens (above-threshold IDF = rare/topic-defining)
+        var distinctiveTokens = queryTokens
+            .Where(t => idf.GetValueOrDefault(t, 0) >= idfThreshold)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // If no distinctive tokens found, lower threshold and try again
+        if (distinctiveTokens.Count == 0)
+        {
+            var avgIdf = queryTokens.Count > 0
+                ? queryTokens.Average(t => idf.GetValueOrDefault(t, 0))
+                : 0;
+            distinctiveTokens = queryTokens
+                .Where(t => idf.GetValueOrDefault(t, 0) >= avgIdf)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        if (distinctiveTokens.Count == 0)
+            return new Dictionary<string, double>();
+
+        var penalties = new Dictionary<string, double>();
+
+        foreach (var item in items)
+        {
+            // Check title + keywords for distinctive query terms
+            var itemText = $"{item.Title} {item.Keywords ?? ""}".ToLowerInvariant();
+            var covered = distinctiveTokens.Count(t =>
+                itemText.Contains(t, StringComparison.OrdinalIgnoreCase));
+            var coverage = (double)covered / distinctiveTokens.Count;
+
+            if (coverage >= 0.5)
+                continue; // Item covers enough distinctive terms — no penalty
+
+            // Penalty scales with how many distinctive terms are missing
+            // coverage 0.0 → penalty 0.3, coverage 0.25 → penalty 0.55, coverage 0.5 → no penalty
+            penalties[item.Id] = Math.Max(0.3, coverage * 1.0 + 0.3);
+        }
+
+        return penalties;
+    }
+
+    /// <summary>
+    /// Apply query-term coverage penalties to item relevance scores.
+    /// Returns the number of items penalized.
+    /// </summary>
+    public static int ApplyOutlierPenalties(
+        List<ContentItem> items,
+        Dictionary<string, double> penalties)
+    {
+        if (penalties.Count == 0) return 0;
+
+        var penalized = 0;
+        foreach (var item in items)
+        {
+            if (penalties.TryGetValue(item.Id, out var penalty))
+            {
+                item.RelevanceScore *= penalty;
+                penalized++;
+            }
+        }
+
+        return penalized;
+    }
+
+    #endregion
+
     #region Text Processing
 
     /// <summary>
@@ -745,7 +971,7 @@ public class RelevanceScorer
     /// </summary>
     internal static List<string> Tokenize(string text)
     {
-        return TokenRx.Matches(text.ToLowerInvariant())
+        return TokenPattern().Matches(text.ToLowerInvariant())
             .Select(m => m.Value)
             .Where(t => t.Length > 1 && !StopWords.Contains(t))
             .ToList();
@@ -783,4 +1009,7 @@ public class RelevanceScorer
     }
 
     #endregion
+
+    [GeneratedRegex(@"\b\w+\b")]
+    private static partial Regex TokenPattern();
 }

@@ -153,6 +153,44 @@ public class SourceRouter
     }
 
     /// <summary>
+    /// Filter sources to only those whose scope matches the detected topic.
+    /// Returns sources that explicitly include the topic in their scope,
+    /// plus search sources (which work for any topic).
+    /// </summary>
+    public List<string> FilterSourcesByScope(List<string> sources, string topic)
+    {
+        if (topic == "default" || topic == "general")
+            return sources; // No filtering for general queries
+
+        var filtered = new List<string>();
+        foreach (var sourceName in sources)
+        {
+            var source = GetSource(sourceName);
+            if (source == null)
+            {
+                filtered.Add(sourceName); // Unknown source — include it
+                continue;
+            }
+
+            // Always include search sources (they can search anything)
+            if (source.Search)
+            {
+                filtered.Add(sourceName);
+                continue;
+            }
+
+            // Include if scope is null (legacy, assume general) or matches topic
+            if (source.Scope == null || source.Scope.Count == 0 ||
+                source.Scope.Any(s => s.Equals(topic, StringComparison.OrdinalIgnoreCase)))
+            {
+                filtered.Add(sourceName);
+            }
+        }
+
+        return filtered;
+    }
+
+    /// <summary>
     /// Route by a specific topic name.
     /// </summary>
     public RoutingResult RouteByTopic(string topic, string? query = null)

@@ -1,5 +1,7 @@
 # DoomSummarizer
 
+> **⚠️ PREVIEW / ALPHA** — This project is in active development. APIs, commands, and features may change without notice until v1.0. Use at your own risk and expect rough edges.
+
 [![GitHub release](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Release&logo=github)](https://github.com/scottgal/lucidrag/releases)
 [![GitHub Downloads](https://img.shields.io/github/downloads/scottgal/lucidrag/total?label=Downloads&logo=github)](https://github.com/scottgal/lucidrag/releases)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
@@ -502,6 +504,7 @@ Override any LLM prompt by placing a file in `~/.doomsummarizer/prompts/`. Uses 
 - `docs/Config.md` — Config file, env vars, API keys, budgets
 - `docs/Automation.md` — JSON/file output and scheduling
 - `docs/Architecture.md` — Pipeline and storage architecture
+- `docs/FunctionalSpec.AdaptiveRetrieval.md` — Cache-vs-live retrieval, gap-filling subqueries (DeepRAG-inspired)
 - `docs/MCP.md` — MCP server setup, tools reference, agent workflows
 - `docs/Troubleshooting.md` — Common issues
 
@@ -547,7 +550,7 @@ This launches a stdio-based MCP server. The server uses the same SQLite database
 
 | Tool | Description |
 |------|-------------|
-| **search_kb** | Full RRF pipeline search (FTS5 pre-filter → BM25F + embeddings → PRF refinement) |
+| **search_kb** | Full relevance pipeline search (FTS5 pre-filter → BM25F + embeddings → PRF refinement → RRF) |
 | **keyword_search** | Fast FTS5 keyword-only search (no embeddings) |
 | **semantic_search** | Pure embedding cosine similarity search |
 | **get_item_content** | Retrieve full content, entities, and keyword profile for an item by ID |

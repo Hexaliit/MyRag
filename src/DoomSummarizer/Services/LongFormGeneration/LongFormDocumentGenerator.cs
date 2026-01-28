@@ -34,6 +34,7 @@ public class LongFormDocumentGenerator
     /// Generate a long-form document from analyzed items.
     /// Returns BlogArticleResult for compatibility with existing rendering pipeline.
     /// </summary>
+    /// <param name="parallel">Enable parallel section generation (faster but less cross-section coherence)</param>
     public async Task<BlogArticleResult> GenerateAsync(
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> analyzedItems,
         List<ContentItem> contentItems,
@@ -42,7 +43,8 @@ public class LongFormDocumentGenerator
         string vibePrompt,
         QueryType queryType,
         TemplateDefinition? templateDef = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool parallel = true)
     {
         var today = DateTime.Now.ToString("MMMM d, yyyy");
 
@@ -79,7 +81,10 @@ public class LongFormDocumentGenerator
             ?? 5700;
         // Reserve ~1500 tokens for prompt overhead, convert rest to evidence budget
         var evidenceTokenBudget = Math.Max(2000, contextBudget - 1500);
-        EvidenceAssigner.AssignEvidence(plan, corpus, evidenceTokenBudget);
+
+        // Embed query for cohesion checking (evidence must relate to query, not just section)
+        var queryEmbedding = _articleProcessor.Embed(query);
+        EvidenceAssigner.AssignEvidence(plan, corpus, evidenceTokenBudget, queryEmbedding);
 
         foreach (var section in plan.Sections)
         {
@@ -100,10 +105,11 @@ public class LongFormDocumentGenerator
         var introduction = await GenerateIntroductionAsync(
             plan, corpus, query, vibePrompt, today, templateDef, ct);
 
-        // Generate body sections sequentially (N LLM calls)
+        // Generate body sections (parallel or sequential based on setting)
         await SectionGenerator.GenerateAllSectionsAsync(
             plan, corpus, runningSummary, entityTracker,
-            query, vibe, vibePrompt, _ollama, _articleProcessor.Embed, templateDef, ct);
+            query, vibe, vibePrompt, _ollama, _articleProcessor.Embed, templateDef, ct,
+            parallel: parallel);
 
         // Generate conclusion (LLM call)
         var lastSection = plan.Sections.LastOrDefault();
@@ -154,9 +160,11 @@ public class LongFormDocumentGenerator
         CancellationToken ct)
     {
         // Build intro evidence from top-salience segments across the corpus
+        // Filter out bio/about content that shouldn't appear in technical intros
         var introEvidence = new System.Text.StringBuilder();
         var topSegments = corpus.Segments
-            .OrderByDescending(s => s.Segment.SalienceScore)
+            .Where(s => s.ContentTypeWeight >= 0.5f) // Exclude bio content (weight 0.2)
+            .OrderByDescending(s => s.Segment.SalienceScore * s.ContentTypeWeight)
             .Take(5);
         foreach (var seg in topSegments)
         {

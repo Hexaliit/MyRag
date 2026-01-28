@@ -121,20 +121,64 @@ public static class DocumentPlanner
         };
     }
 
+    // Minimum similarity between section heading and query to keep the section
+    private const float SectionRelevanceThreshold = 0.25f;
+
     private static DocumentPlan ConvertToPlan(
         SentinelOutline outline, string query, QueryType queryType, Func<string, float[]> embedder)
     {
-        var sections = outline.Sections.Select(s => new PlannedSection
+        // Embed the query for relevance checking
+        var queryEmbedding = embedder(query);
+
+        var sections = outline.Sections
+            .Select(s =>
+            {
+                // Combine section heading with query to anchor theme embedding (ComoRAG-inspired)
+                var anchoredKeywords = !string.IsNullOrWhiteSpace(s.ThemeKeywords)
+                    ? $"{s.ThemeKeywords} {query}"
+                    : $"{s.Heading} {query}";
+
+                return new PlannedSection
+                {
+                    Heading = s.Heading,
+                    ThemeKeywords = !string.IsNullOrWhiteSpace(s.ThemeKeywords)
+                        ? s.ThemeKeywords
+                        : s.Heading,
+                    TargetWords = s.TargetWords > 0 ? s.TargetWords : 300,
+                    // Anchor theme embedding to query for better relevance matching
+                    ThemeEmbedding = embedder(anchoredKeywords)
+                };
+            })
+            .Where(s =>
+            {
+                // ComoRAG-style relevance gate: filter out sections that don't relate to query
+                if (s.ThemeEmbedding == null) return true;
+                var similarity = EmbeddingService.CosineSimilarity(s.ThemeEmbedding, queryEmbedding);
+                return similarity >= SectionRelevanceThreshold;
+            })
+            .ToList();
+
+        // Ensure we have at least 3 sections after filtering
+        if (sections.Count < 3)
         {
-            Heading = s.Heading,
-            ThemeKeywords = !string.IsNullOrWhiteSpace(s.ThemeKeywords)
-                ? s.ThemeKeywords
-                : s.Heading,
-            TargetWords = s.TargetWords > 0 ? s.TargetWords : 300,
-            ThemeEmbedding = embedder(!string.IsNullOrWhiteSpace(s.ThemeKeywords)
-                ? s.ThemeKeywords
-                : s.Heading)
-        }).ToList();
+            // Fallback: keep top 3 by relevance
+            sections = outline.Sections
+                .Select(s => new
+                {
+                    Section = new PlannedSection
+                    {
+                        Heading = s.Heading,
+                        ThemeKeywords = !string.IsNullOrWhiteSpace(s.ThemeKeywords) ? s.ThemeKeywords : s.Heading,
+                        TargetWords = s.TargetWords > 0 ? s.TargetWords : 300,
+                        ThemeEmbedding = embedder($"{s.Heading} {query}")
+                    },
+                    Relevance = EmbeddingService.CosineSimilarity(embedder(s.Heading), queryEmbedding)
+                })
+                .OrderByDescending(x => x.Relevance)
+                .Take(4)
+                .Select(x => x.Section)
+                .ToList();
+        }
 
         var themeDesc = !string.IsNullOrWhiteSpace(outline.ThemeDescription)
             ? outline.ThemeDescription

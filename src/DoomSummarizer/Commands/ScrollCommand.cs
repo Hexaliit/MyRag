@@ -105,6 +105,19 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [CommandOption("--clear-storage")]
         [Description("Delete all cached data (segments, queries, entities) and exit")]
         public bool ClearStorage { get; init; }
+
+        [CommandOption("--model")]
+        [Description("Override LLM model for generation (e.g., qwen3:8b, llama3.2:8b)")]
+        public string? Model { get; init; }
+
+        [CommandOption("--sentinel-model")]
+        [Description("Override sentinel LLM model for planning/analysis (default: smaller/faster model)")]
+        public string? SentinelModel { get; init; }
+
+        [CommandOption("--parallel")]
+        [Description("Enable parallel section generation for long-form articles (faster, less cross-section coherence)")]
+        [DefaultValue(true)]
+        public bool Parallel { get; init; } = true;
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
@@ -365,6 +378,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     maxValue: 100);
 
                 // --local / --name mode: skip ALL fetching, query stored knowledge base only
+                // Uses Lucene for advanced full-text search (fuzzy, phrase, boosting)
                 if (isLocalMode)
                 {
                     var localQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
@@ -376,39 +390,73 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             s.StartsWith("crawl:", StringComparison.OrdinalIgnoreCase));
 
                     var collectionLabel = sourceFilter ?? "all";
-                    List<ContentItem> localItems;
+                    var collectionName = settings.Name ?? "default";
+                    List<ContentItem> localItems = [];
 
                     if (!string.IsNullOrWhiteSpace(localQuery))
                     {
-                        fetchTask.Value = 20;
+                        fetchTask.Value = 10;
 
-                        // Layer 1: FTS5 pre-filter (deterministic SQL keyword match)
-                        var candidateIds = await storage.FtsPreFilterAsync(
-                            localQuery, source: sourceFilter, limit: settings.Limit * 3);
+                        // Initialize Lucene index for this collection
+                        var luceneIndexPath = Path.Combine(storage.DataPath, "lucene", collectionName);
+                        using var lucene = new LuceneSearchService(luceneIndexPath);
+                        lucene.Open();
+
+                        // Ensure items are indexed in Lucene (incremental update)
+                        var allStoredItems = await storage.GetRecentItemsAsync(days: 365, source: sourceFilter);
+                        var itemsToIndex = allStoredItems
+                            .Where(s => !lucene.ContainsDocument(s.Id))
+                            .Select(s => s.ToContentItem())
+                            .ToList();
+
+                        if (itemsToIndex.Count > 0)
+                        {
+                            lucene.IndexItems(itemsToIndex);
+                            lucene.Commit();
+                            fetchTask.Description = $"[cyan]Lucene: indexed {itemsToIndex.Count} new items[/]";
+                        }
+                        fetchTask.Value = 25;
+
+                        // Generate optimized Lucene query using fast sentinel LLM
+                        var luceneQuery = await LuceneQueryGenerator.GenerateQueryAsync(localQuery, ollama, cancellationToken);
+                        if (settings.DebugPipeline)
+                            AnsiConsole.MarkupLine($"[grey]Lucene query: {Markup.Escape(luceneQuery)}[/]");
                         fetchTask.Value = 40;
 
-                        if (candidateIds.Count > 0)
+                        // Search Lucene (fuzzy, phrase, boosted)
+                        var luceneResults = lucene.Search(luceneQuery, sourceFilter, limit: settings.Limit * 3);
+                        var luceneIds = luceneResults.Select(r => r.Id).ToHashSet();
+                        fetchTask.Value = 50;
+
+                        // Parallel: embedding search for semantic coverage
+                        var queryEmbed = embedding.Embed(localQuery);
+                        var embeddingResults = await storage.FindSimilarAsync(
+                            queryEmbed, limit: settings.Limit * 2, threshold: 0.20, source: sourceFilter);
+                        var embeddingIds = embeddingResults.Select(r => r.Id).ToHashSet();
+                        fetchTask.Value = 60;
+
+                        // Fuse results: union of Lucene + embedding results
+                        var allCandidateIds = luceneIds.Union(embeddingIds).ToList();
+
+                        if (allCandidateIds.Count > 0)
                         {
-                            // Load full items for FTS5 candidates
-                            localItems = await storage.LoadItemsByIdsAsync(candidateIds);
-                            fetchTask.Description = $"[cyan]FTS5: {candidateIds.Count} keyword candidates[/]";
+                            localItems = await storage.LoadItemsByIdsAsync(allCandidateIds);
+
+                            // Apply Lucene scores as boost (items found by Lucene get priority)
+                            var luceneScoreLookup = luceneResults.ToDictionary(r => r.Id, r => r.Score);
+                            foreach (var item in localItems)
+                            {
+                                if (luceneScoreLookup.TryGetValue(item.Id, out var luceneScore))
+                                    item.RelevanceScore = luceneScore / 10.0; // Normalize Lucene score
+                            }
+
+                            fetchTask.Description = $"[cyan]Lucene: {luceneResults.Count} | Embed: {embeddingResults.Count} | Fused: {allCandidateIds.Count}[/]";
                             if (settings.DebugPipeline)
-                                AnsiConsole.MarkupLine($"[grey]FTS5 pre-filter: {candidateIds.Count} candidates from keyword match[/]");
+                                AnsiConsole.MarkupLine($"[grey]Lucene: {luceneResults.Count} hits, Embedding: {embeddingResults.Count} hits, Fused: {allCandidateIds.Count} unique[/]");
                         }
                         else
                         {
-                            // FTS5 found nothing — fall back to embedding search with raised threshold
-                            var queryEmbed = embedding.Embed(localQuery);
-                            var similarStored = await storage.FindSimilarAsync(
-                                queryEmbed, limit: settings.Limit * 2, threshold: 0.25, source: sourceFilter);
-                            localItems = similarStored
-                                .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
-                                .Select(s => s.ToContentItem())
-                                .ToList();
-
-                            fetchTask.Description = $"[cyan]Embedding fallback: {localItems.Count} items[/]";
-                            if (settings.DebugPipeline)
-                                AnsiConsole.MarkupLine($"[grey]FTS5 empty — embedding fallback: {localItems.Count} items (threshold 0.25)[/]");
+                            fetchTask.Description = "[yellow]No results from Lucene or embeddings[/]";
                         }
                         fetchTask.Value = 70;
 
@@ -503,10 +551,12 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     sources.AddRange(interpreted.SearchQueries.Select(q => $"search:{q}"));
                 }
 
-                // If nothing specified, use defaults
+                // If nothing specified, use general search sources (not tech-specific)
+                // Google News search + DuckDuckGo cover most topics
                 if (sources.Count == 0)
                 {
-                    sources.AddRange(["hn", "reddit"]);
+                    var query = interpreted?.RawPrompt ?? settings.Prompt;
+                    sources.AddRange([$"gnews:{query}", $"search:{query}"]);
                 }
 
                 // Dedupe sources
@@ -810,6 +860,17 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     items.AddRange(result);
                 }
 
+                // Fix broken URLs from aggregators (Google News, Bing News)
+                // These return redirect URLs that often return 400/404
+                var urlFixer = new UrlFixerService(httpClient);
+                var urlsNeedingFix = items.Count(i => UrlFixerService.NeedsFix(i.Url));
+                if (urlsNeedingFix > 0)
+                {
+                    if (settings.DebugPipeline)
+                        AnsiConsole.MarkupLine($"[grey]URL fixer: resolving {urlsNeedingFix} aggregator URLs...[/]");
+                    await urlFixer.FixUrlsAsync(items, cancellationToken);
+                }
+
                 fetchTask.Value = 80;
 
                 // Source diversity fallback: if initial fetch returned too few items,
@@ -1104,17 +1165,49 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         AnsiConsole.MarkupLine($"[grey]Source filter: {preFilterCount} → {uniqueItems.Count} items[/]");
                 }
 
-                // Stage 2.2: FTS5 KB enrichment (web queries only)
-                // Check if stored KB items match the query — merge them into web results
+                // Stage 2.2: Dual KB enrichment (web queries only) — FTS5 + Embeddings
+                // Uses both keyword matching (FTS5) AND semantic similarity for better recall
                 if (!isLocalMode && uniqueItems.Count > 0)
                 {
                     var enrichQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
                     if (!string.IsNullOrWhiteSpace(enrichQuery))
                     {
-                        var storedCandidateIds = await storage.FtsPreFilterAsync(enrichQuery, limit: 10);
-                        if (storedCandidateIds.Count > 0)
+                        var candidateIds = new HashSet<string>();
+                        var ftsCount = 0;
+                        var embedCount = 0;
+
+                        // Layer 1: FTS5 keyword pre-filter (catches exact keyword matches)
+                        try
                         {
-                            var storedItems = await storage.LoadItemsByIdsAsync(storedCandidateIds);
+                            var ftsResults = await storage.FtsPreFilterAsync(enrichQuery, limit: 10);
+                            foreach (var id in ftsResults) candidateIds.Add(id);
+                            ftsCount = ftsResults.Count;
+                        }
+                        catch (Exception ex)
+                        {
+                            // FTS5 syntax errors are expected for some queries - fall through to embeddings
+                            if (settings.DebugPipeline)
+                                AnsiConsole.MarkupLine($"[grey]FTS5 skipped: {ex.Message}[/]");
+                        }
+
+                        // Layer 2: Embedding search for semantic coverage (catches related content)
+                        try
+                        {
+                            var queryEmbed = embedding.Embed(enrichQuery);
+                            var embeddingResults = await storage.FindSimilarAsync(queryEmbed, limit: 10, threshold: 0.25);
+                            foreach (var r in embeddingResults) candidateIds.Add(r.Id);
+                            embedCount = embeddingResults.Count;
+                        }
+                        catch (Exception ex)
+                        {
+                            if (settings.DebugPipeline)
+                                AnsiConsole.MarkupLine($"[grey]Embedding search skipped: {ex.Message}[/]");
+                        }
+
+                        // Merge into results
+                        if (candidateIds.Count > 0)
+                        {
+                            var storedItems = await storage.LoadItemsByIdsAsync(candidateIds.ToList());
                             var existingIds = new HashSet<string>(uniqueItems.Select(i => i.Id));
                             var existingUrls2 = new HashSet<string>(
                                 uniqueItems.Where(i => !string.IsNullOrEmpty(i.Url))
@@ -1129,15 +1222,19 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 uniqueItems.AddRange(newFromKb);
                                 fetchTask.Description = $"[cyan]KB enrichment: +{newFromKb.Count} items[/]";
                                 if (settings.DebugPipeline)
-                                    AnsiConsole.MarkupLine($"[grey]FTS5 KB enrichment: +{newFromKb.Count} stored items merged[/]");
+                                    AnsiConsole.MarkupLine($"[grey]KB enrichment: FTS5={ftsCount}, Embed={embedCount}, Merged={newFromKb.Count}[/]");
                             }
                         }
                     }
                 }
 
                 // Stage 2.5: Embedding computation + two-phase relevance scoring with RRF
-                // Use query-type-adaptive weights: roundups boost freshness, explainers boost authority
-                var scorer = RelevanceScorer.ForQueryType(earlyQueryType);
+                // KB queries: zero out Authority/Freshness (all items get identical scores on both,
+                // injecting random noise that dilutes BM25F and QuerySimilarity discrimination).
+                // Web queries: use query-type-adaptive weights (freshness matters for roundups, etc.)
+                var scorer = isLocalMode
+                    ? RelevanceScorer.ForKnowledgeBase(earlyQueryType)
+                    : RelevanceScorer.ForQueryType(earlyQueryType);
                 var queryText = interpreted?.RawPrompt ?? settings.Prompt ?? "";
 
                 // Augment BM25 query with sentinel-expanded search terms.
@@ -1357,6 +1454,36 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         var topScore = uniqueItems.FirstOrDefault()?.RelevanceScore ?? 0;
                         var botScore = uniqueItems.LastOrDefault()?.RelevanceScore ?? 0;
                         AnsiConsole.MarkupLine($"[grey]RRF ranked {uniqueItems.Count} items (top={topScore:F3}, bot={botScore:F3})[/]");
+                    }
+                }
+
+                // Stage 2.5α: Query-term coverage outlier detection
+                // Items missing distinctive query terms (high IDF) get penalized.
+                // Prevents "RAG for Implementers" from ranking alongside HTMX articles
+                // when the query is "How does HTMX work with ASP.NET?".
+                // Skipped for Roundup queries where diverse topics are expected.
+                if (earlyQueryType != QueryType.Roundup && globalCorpus != null && !string.IsNullOrWhiteSpace(bm25Query))
+                {
+                    var qt = RelevanceScorer.Tokenize(bm25Query);
+                    var (idfForCoverage, _) = RelevanceScorer.BuildCorpusStats(uniqueItems, globalCorpus, globalCorpusSize);
+                    var penalties = RelevanceScorer.ComputeQueryTermCoverage(uniqueItems, qt, idfForCoverage);
+                    var penalizedCount = RelevanceScorer.ApplyOutlierPenalties(uniqueItems, penalties);
+
+                    if (penalizedCount > 0)
+                    {
+                        // Re-sort after penalty
+                        uniqueItems = uniqueItems.OrderByDescending(i => i.RelevanceScore).ToList();
+                        fetchTask.Description = $"[cyan]Outlier filter: {penalizedCount} penalized[/]";
+                        if (settings.DebugPipeline)
+                        {
+                            AnsiConsole.MarkupLine($"[grey]Outlier detection: {penalizedCount} items penalized for missing distinctive query terms[/]");
+                            foreach (var (id, penalty) in penalties)
+                            {
+                                var title = uniqueItems.FirstOrDefault(i => i.Id == id)?.Title ?? id;
+                                if (title.Length > 50) title = title[..47] + "...";
+                                AnsiConsole.MarkupLine($"[grey]  ⤷ {Markup.Escape(title)}: ×{penalty:F2}[/]");
+                            }
+                        }
                     }
                 }
 
@@ -2003,7 +2130,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 analyzedItems, uniqueItems,
                                 userQuery ?? "topic overview",
                                 vibe, vibePrompt, articleQueryType,
-                                templateDef, cancellationToken);
+                                templateDef, cancellationToken,
+                                parallel: settings.Parallel);
                         }
 
                         // Build template data
