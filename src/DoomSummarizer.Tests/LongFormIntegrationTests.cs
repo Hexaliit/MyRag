@@ -12,6 +12,7 @@ namespace DoomSummarizer.Tests;
 /// real ONNX embeddings and article content from mostlylucid.net.
 /// Uses OnnxEmbeddingService (via ArticleProcessor) which auto-downloads models.
 /// </summary>
+[Trait("Category", "Network")]
 public class LongFormIntegrationTests : IAsyncLifetime, IDisposable
 {
     private readonly ArticleProcessor _articleProcessor;
