@@ -7,7 +7,7 @@
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/scottgal/lucidrag/releases)
 
-A distillation of [**LucidRAG**](https://github.com/scottgal/lucidrag) principles — hybrid search, entity extraction, knowledge graph construction, evidence-grounded synthesis — into a console-first, local-first research assistant and personal knowledge base.
+A distillation of [***lucid*RAG**](https://github.com/scottgal/lucidrag) principles — hybrid search, entity extraction, knowledge graph construction, evidence-grounded synthesis — into a console-first, local-first research assistant and personal knowledge base.
 
 - **Scroll** — Fetch + rank news/search results into a digest, article, or newsletter
 - **Ask** — Interactive Q&A over your stored knowledge base
@@ -98,6 +98,7 @@ doomsummarizer scroll "React vs Svelte" -t pros-cons -o comparison.md
 | `--raw` | | Show raw fetched content |
 | `--images` | | Inline thumbnails |
 | `--local` | | Query stored KB only — no fetching |
+| `--locale CODE` | | Locale for date/number parsing (default: en-us) |
 | `--email` | | Send digest via email |
 | `--email-to ADDR` | | Override email recipient(s) |
 
@@ -199,6 +200,83 @@ doomsummarizer config --show         # Display current config
 doomsummarizer config --init         # Create config file
 doomsummarizer sources               # List all sources + API status
 ```
+
+## Query Intelligence
+
+DoomSummarizer uses multiple extraction layers to understand queries and filter results:
+
+### Sentinel LLM Analysis
+
+The sentinel LLM analyzes your query to extract:
+
+- **Temporal intent**: Detects "recent", "last week", "breaking" to filter by date
+- **Topic categories**: Classifies query into topics (technology, politics, health, etc.)
+- **Search queries**: Generates optimized search terms, fixes spelling, expands abbreviations
+- **Time sensitivity**: `breaking` (past hour), `today` (24-48h), `week` (7 days), `any`
+
+```bash
+# Temporal detection example
+doomsummarizer scroll "recent court cases in Australia"
+# Sentinel detects: requires_fresh=true, time_sensitivity="week", date_range="recent"
+# Results filtered to last 2 weeks, old articles from 2020/2016 penalized
+```
+
+### Microsoft Recognizers Text
+
+Deterministic extraction using [Microsoft.Recognizers.Text](https://github.com/microsoft/Recognizers-Text) to CONFIRM sentinel output:
+
+- **DateTimes**: "last week", "March 15", "past 3 days" → resolved time ranges
+- **Numbers**: "$500 million", "50%", "third" → normalized values
+- **Sequences**: URLs, phone numbers, emails, IP addresses
+
+```bash
+# With locale support (date format varies by region)
+doomsummarizer scroll "news about £500 million deal" --locale en-gb
+# Recognizers output: dates:[last week], nums:[500 million]
+```
+
+Supported locales: `en-us`, `en-gb`, `es-es`, `fr-fr`, `de-de`, `pt-br`, `zh-cn`, `ja-jp`
+
+### Named Entity Recognition (NER)
+
+ONNX-based BERT model extracts entities:
+
+- **PER**: Person names (politicians, executives, etc.)
+- **ORG**: Organizations (companies, agencies)
+- **LOC**: Locations (countries, cities)
+- **MISC**: Miscellaneous (events, products)
+
+```bash
+# Entities guide source selection and cached content lookup
+doomsummarizer scroll "OpenAI Sam Altman regulation" --entities
+# NER detects: OpenAI (ORG), Sam Altman (PER)
+# Cached items about these entities injected into results
+```
+
+### Freshness Detection
+
+Multi-layer freshness scoring:
+
+1. **Sentinel temporal extraction**: Detects recency keywords
+2. **Article publication date**: Parsed from RSS/API responses
+3. **Year heuristic**: Detects years in titles ("Cases from 2020" → penalized for recency queries)
+4. **Exponential decay**: 48-hour half-life (7 days old = 0.06 score)
+
+```bash
+# Debug mode shows freshness scores
+doomsummarizer scroll "recent tech news" --debug-pipeline
+# Phase 1 table shows Fresh column: 0.99 (today) → 0.00 (years old)
+```
+
+### URL Fixer Service
+
+Resolves aggregator URLs to canonical article URLs:
+
+- **Google News**: Base64 decoding of `/rss/articles/CBMi...` URLs
+- **Google Redirects**: Extracts target from `google.com/url?q=...`
+- **Bing News**: Decodes `bing.com/news/apiclick?url=...`
+
+Results are cached to avoid repeated lookups.
 
 ## Long-Form Article Generation
 
