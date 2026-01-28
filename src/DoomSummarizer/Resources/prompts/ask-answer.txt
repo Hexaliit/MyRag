@@ -11,19 +11,18 @@ INSTRUCTIONS:
 1. Read each piece of evidence carefully
 2. Find facts, quotes, or data that answer the QUESTION
 3. If this is a follow-up to prior conversation, use that context
-4. SYNTHESIZE across multiple evidence items — combine related facts from different sources to build a complete answer
-5. Include contextual evidence: background, statistics, or related data that helps answer the question
+4. SYNTHESIZE across multiple evidence items — combine related facts from different sources
+5. Include contextual evidence: background, statistics, or related data that helps the answer
 6. NEVER open with disclaimers, apologies, or "the evidence does not contain" — start with what you FOUND
-7. Use ONLY URLs from the evidence — never invent URLs
-8. Every factual claim MUST cite the evidence item it came from: ([Title](URL)) or quote the evidence text directly
-9. Each evidence item has a "Fetched" timestamp — prefer recent evidence over stale data. If evidence is old, note the date
-10. You have been given this evidence because it IS relevant — extract and present useful information
+7. Write in clean, readable prose — NO inline URLs or citation markers in the text body
+8. Prefer recent evidence over stale data. If evidence is old, note the date
+9. You have been given this evidence because it IS relevant — extract useful information
 
 FORMAT:
-[Direct answer in 2-4 sentences. Every claim must cite its source: ([Title](URL))]
+[Direct answer in 2-4 paragraphs of clean readable prose. Do NOT place URLs or markdown links in the text body.
+ Write naturally for a knowledgeable reader. Less content is fine if evidence is thin.]
 
-Key points:
-- [Fact from evidence] ([Source Title](URL))
-- [Another fact] ([Source Title](URL))
-
-Sources: [list URLs you cited]
+### Sources
+1. [Source Title](URL)
+2. [Source Title](URL)
+[Only sources you drew from. Order by relevance.]

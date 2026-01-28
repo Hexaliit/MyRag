@@ -667,40 +667,62 @@ public static class DoomScrollerTools
 
     [McpServerTool(Name = "get_entity_network")]
     [Description(
-        "Get the local network around one or more entities: " +
-        "all relationships between them and their neighbors, plus the articles they co-occur in. " +
-        "Useful for understanding how entities connect across your knowledge base.")]
+        "Get the local network around one or more entities using multi-hop BFS traversal: " +
+        "discovers relationships at each depth level, plus articles entities co-occur in. " +
+        "depth=1 returns direct neighbors; depth=2 returns neighbors-of-neighbors, etc. " +
+        "Capped at 100 entities to prevent explosion.")]
     public static async Task<string> GetEntityNetworkAsync(
         [Description("Comma-separated entity IDs to explore")]
         string entityIds,
-        [Description("Max neighbor depth (1 = direct connections only, default: 1)")]
+        [Description("How many hops to traverse (1=direct neighbors, 2=neighbors-of-neighbors, max 3)")]
         int depth = 1)
     {
         try
         {
             await EnsureServicesAsync();
 
-            var ids = entityIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-            if (ids.Count == 0)
+            var seedIds = entityIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (seedIds.Count == 0)
                 return Json(new { success = false, error = "No entity IDs provided" });
 
-            var allRelationships = new List<GraphRelationship>();
-            var allEntityIds = new HashSet<string>(ids);
-            var articlesPerEntity = new Dictionary<string, List<(string itemId, string title, string? url, double confidence)>>();
+            depth = Math.Clamp(depth, 1, 3); // Cap at 3 hops to prevent graph explosion
+            const int maxEntities = 100;
 
-            // Get direct relationships and articles for seed entities
-            foreach (var id in ids)
+            // BFS: track which hop each entity was discovered at
+            var entityHop = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var id in seedIds)
+                entityHop[id] = 0;
+
+            var allRelationships = new List<GraphRelationship>();
+            var frontier = new HashSet<string>(seedIds, StringComparer.OrdinalIgnoreCase);
+
+            // Multi-hop BFS traversal
+            for (var hop = 1; hop <= depth && frontier.Count > 0 && entityHop.Count < maxEntities; hop++)
             {
-                var rels = await _storage!.GetRelationshipsAsync(id);
-                allRelationships.AddRange(rels);
-                foreach (var r in rels)
+                var nextFrontier = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var id in frontier)
                 {
-                    allEntityIds.Add(r.SourceId);
-                    allEntityIds.Add(r.TargetId);
+                    if (entityHop.Count >= maxEntities) break;
+
+                    var rels = await _storage!.GetRelationshipsAsync(id);
+                    allRelationships.AddRange(rels);
+
+                    foreach (var r in rels)
+                    {
+                        // Discover new entities at this hop level
+                        foreach (var neighborId in new[] { r.SourceId, r.TargetId })
+                        {
+                            if (!entityHop.ContainsKey(neighborId))
+                            {
+                                entityHop[neighborId] = hop;
+                                nextFrontier.Add(neighborId);
+                            }
+                        }
+                    }
                 }
 
-                var articles = await _storage.GetArticlesForEntityAsync(id);
-                articlesPerEntity[id] = articles;
+                frontier = nextFrontier;
             }
 
             // Deduplicate relationships
@@ -709,12 +731,25 @@ public static class DoomScrollerTools
                 .Select(g => g.First())
                 .ToList();
 
+            // Get articles for seed entities (limit article lookups to seeds to keep response size reasonable)
+            var articlesPerEntity = new Dictionary<string, List<(string itemId, string title, string? url, double confidence)>>();
+            foreach (var id in seedIds)
+            {
+                var articles = await _storage!.GetArticlesForEntityAsync(id);
+                articlesPerEntity[id] = articles;
+            }
+
             // Find articles where multiple seed entities co-occur
             var coOccurrences = new List<object>();
             if (articlesPerEntity.Count >= 2)
             {
-                var articleSets = articlesPerEntity.Values.Select(a => a.Select(x => x.itemId).ToHashSet()).ToList();
-                var intersection = articleSets.Aggregate((a, b) => { a.IntersectWith(b); return a; });
+                var articleSets = articlesPerEntity.Values
+                    .Select(a => a.Select(x => x.itemId).ToHashSet())
+                    .ToList();
+                var intersection = new HashSet<string>(articleSets[0]);
+                for (var i = 1; i < articleSets.Count; i++)
+                    intersection.IntersectWith(articleSets[i]);
+
                 if (intersection.Count > 0)
                 {
                     var sharedItems = await _storage!.GetItemsByIdsAsync(intersection.ToList());
@@ -728,8 +763,12 @@ public static class DoomScrollerTools
             return Json(new
             {
                 success = true,
-                seed_entities = ids.Count,
-                total_entities_in_network = allEntityIds.Count,
+                seed_entities = seedIds.Count,
+                depth_traversed = depth,
+                total_entities_in_network = entityHop.Count,
+                entities_by_hop = Enumerable.Range(0, depth + 1)
+                    .Select(h => new { hop = h, count = entityHop.Values.Count(v => v == h) })
+                    .Where(x => x.count > 0),
                 relationships = uniqueRels.Select(r => new
                 {
                     source = r.SourceName, source_id = r.SourceId,
@@ -738,7 +777,7 @@ public static class DoomScrollerTools
                 }),
                 relationship_count = uniqueRels.Count,
                 co_occurring_articles = coOccurrences,
-                articles_per_entity = articlesPerEntity.ToDictionary(
+                articles_per_seed = articlesPerEntity.ToDictionary(
                     kv => kv.Key,
                     kv => kv.Value.Select(a => new { item_id = a.itemId, title = a.title }).ToList())
             });

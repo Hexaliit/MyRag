@@ -7,7 +7,7 @@ using Spectre.Console.Cli;
 
 namespace DoomSummarizer.Commands;
 
-public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
+public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
@@ -97,6 +97,10 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [CommandOption("--email-to")]
         [Description("Override email recipient(s), comma-separated")]
         public string? EmailTo { get; init; }
+
+        [CommandOption("--briefing")]
+        [Description("Show evidence briefing panel with themes, entities, and coverage metrics")]
+        public bool Briefing { get; init; }
 
         [CommandOption("--clear-storage")]
         [Description("Delete all cached data (segments, queries, entities) and exit")]
@@ -235,6 +239,20 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         httpClient.DefaultRequestHeaders.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
 
+        // Status helper: overwrites the previous status line to keep output compact.
+        // Only the latest status is visible at any time.
+        var hasStatusLine = false;
+        void WriteStatus(string markup)
+        {
+            if (settings.Quiet) return;
+            if (hasStatusLine)
+                Console.Write("\x1b[1A\x1b[2K"); // Move up one line, clear it
+            AnsiConsole.MarkupLine(markup);
+            hasStatusLine = true;
+        }
+
+        WriteStatus($"[grey]LLM: {Markup.Escape(llmRouter.StatusDescription)}[/]");
+
         // NER preprocessing: extract entities from query BEFORE the LLM sentinel
         // This gives us structured search filters, cached segment lookups, and URL dedup
         QueryNerContext? nerContext = null;
@@ -243,13 +261,11 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             nerContext = await QueryPreprocessor.PreprocessAsync(
                 settings.Prompt, embedding, storage, cancellationToken);
 
-            if (!settings.Quiet && nerContext.HasEntities)
+            if (nerContext.HasEntities)
             {
                 var entityStr = string.Join(", ", nerContext.Entities
                     .Select(e => $"{e.Text} ({e.Type})"));
-                AnsiConsole.MarkupLine($"[grey]NER: {Markup.Escape(entityStr)}[/]");
-                if (nerContext.HasCachedData)
-                    AnsiConsole.MarkupLine($"[grey]Cache: {nerContext.CachedItems.Count} matching segments, {nerContext.KnownUrls.Count} known URLs[/]");
+                WriteStatus($"[grey]NER: {Markup.Escape(entityStr)}[/]");
             }
         }
 
@@ -261,8 +277,7 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
         if (!string.IsNullOrEmpty(settings.Prompt) && !isNamedKbQuery)
         {
-            if (!settings.Quiet)
-                AnsiConsole.MarkupLine($"[grey]Interpreting: {Markup.Escape(settings.Prompt)}[/]");
+            WriteStatus($"[grey]Interpreting: {Markup.Escape(settings.Prompt)}[/]");
 
             var interpreter = new PromptInterpreter(ollama, embedding);
             interpreted = await interpreter.InterpretAsync(settings.Prompt, nerContext);
@@ -271,21 +286,10 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             if (settings.Vibe == "neutral" && interpreted.Vibe != "neutral")
                 vibe = interpreted.Vibe;
 
-            if (!settings.Quiet)
-            {
-                var sourcesStr = string.Join(", ", interpreted.Sources
-                    .Concat(interpreted.Websites)
-                    .Concat(interpreted.SearchQueries.Select(q => $"search:{q}")));
-                AnsiConsole.MarkupLine($"[grey]Detected: sources=[[{Markup.Escape(sourcesStr)}]], vibe={vibe}[/]");
-
-                // Show sentinel intent details for debugging routing decisions
-                if (interpreted.SentinelIntent is { } si)
-                {
-                    var cats = string.Join(", ", si.Categories.Select(c => $"{c.Key}={c.Value:F1}"));
-                    var queries = string.Join(", ", si.SearchQueries);
-                    AnsiConsole.MarkupLine($"[grey]Sentinel: intent={Markup.Escape(si.Intent)}, cats={Markup.Escape(cats)}, queries={Markup.Escape(queries)}[/]");
-                }
-            }
+            var sourcesStr = string.Join(", ", interpreted.Sources
+                .Concat(interpreted.Websites)
+                .Concat(interpreted.SearchQueries.Select(q => $"search:{q}")));
+            WriteStatus($"[grey]Detected: sources=[[{Markup.Escape(sourcesStr)}]], vibe={vibe}[/]");
         }
 
         // Get vibe prompt - supports predefined vibes or arbitrary text
@@ -305,10 +309,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         }
 
         var ollamaAvailable = !settings.NoLlm && await ollama.IsAvailableAsync();
-        if (!ollamaAvailable && !settings.Quiet)
-        {
-            AnsiConsole.MarkupLine("[yellow]Warning: Ollama not available. Summaries will be limited.[/]");
-        }
+        if (!ollamaAvailable)
+            WriteStatus("[yellow]Warning: Ollama not available. Summaries will be limited.[/]");
 
         // Query feedback: check for similar recent query to reuse cached segments
         var queryText = interpreted?.RawPrompt ?? settings.Prompt ?? "";
@@ -323,15 +325,14 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             if (cachedQuery != null)
             {
                 useCachedSegments = true;
-                if (!settings.Quiet)
-                {
-                    var ageMin = (int)(DateTimeOffset.UtcNow - cachedQuery.IssuedAt).TotalMinutes;
-                    AnsiConsole.MarkupLine($"[grey]Reusing {cachedQuery.ItemIds.Count} segments from similar query ({cachedQuery.Similarity:F2} match, {ageMin}m ago): \"{Markup.Escape(cachedQuery.QueryText)}\"[/]");
-                    if (cachedQuery.Vibe != vibe)
-                        AnsiConsole.MarkupLine($"[grey]Different vibe ({cachedQuery.Vibe} → {vibe}): will regenerate synthesis[/]");
-                }
+                var ageMin = (int)(DateTimeOffset.UtcNow - cachedQuery.IssuedAt).TotalMinutes;
+                WriteStatus($"[grey]Reusing {cachedQuery.ItemIds.Count} segments ({cachedQuery.Similarity:F2} match, {ageMin}m ago)[/]");
             }
         }
+
+        // Clear the status line before Progress takes over rendering
+        if (hasStatusLine)
+            Console.Write("\x1b[1A\x1b[2K");
 
         var items = new List<ContentItem>();
         var uniqueItems = new List<ContentItem>();
@@ -378,7 +379,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         {
                             // Load full items for FTS5 candidates
                             localItems = await storage.LoadItemsByIdsAsync(candidateIds);
-                            if (!settings.Quiet)
+                            fetchTask.Description = $"[cyan]FTS5: {candidateIds.Count} keyword candidates[/]";
+                            if (settings.DebugPipeline)
                                 AnsiConsole.MarkupLine($"[grey]FTS5 pre-filter: {candidateIds.Count} candidates from keyword match[/]");
                         }
                         else
@@ -392,7 +394,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 .Select(s => s.ToContentItem())
                                 .ToList();
 
-                            if (!settings.Quiet)
+                            fetchTask.Description = $"[cyan]Embedding fallback: {localItems.Count} items[/]";
+                            if (settings.DebugPipeline)
                                 AnsiConsole.MarkupLine($"[grey]FTS5 empty — embedding fallback: {localItems.Count} items (threshold 0.25)[/]");
                         }
                         fetchTask.Value = 70;
@@ -423,7 +426,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     fetchTask.Value = 100;
                     fetchTask.Description = $"[green]Loaded {items.Count} items from KB '{Markup.Escape(collectionLabel)}'[/]";
 
-                    if (!settings.Quiet)
+                    fetchTask.Description = $"[cyan]KB: {items.Count} items matched[/]";
+                    if (settings.DebugPipeline)
                         AnsiConsole.MarkupLine($"[grey]KB query ({Markup.Escape(collectionLabel)}): {items.Count} items matched[/]");
                 }
 
@@ -881,7 +885,9 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             items.AddRange(fb);
                             fallbackCount += fb.Count;
                         }
-                        if (!settings.Quiet && fallbackCount > 0)
+                        if (fallbackCount > 0)
+                            fetchTask.Description = $"[cyan]Fallback: +{fallbackCount} items[/]";
+                        if (settings.DebugPipeline && fallbackCount > 0)
                             AnsiConsole.MarkupLine($"[grey]Diversity fallback: added {fallbackCount} items from backup sources[/]");
                     }
                 }
@@ -936,18 +942,23 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         // If still too few, skip topic filter entirely (rely on downstream relevance)
                         if (filtered.Count < 5)
                         {
-                            if (!settings.Quiet)
+                            fetchTask.Description = $"[cyan]Topic filter: skipped (too few)[/]";
+                            if (settings.DebugPipeline)
                                 AnsiConsole.MarkupLine($"[grey]Topic filter: {preFilterCount} → {filtered.Count} (too aggressive, skipping)[/]");
                             filtered = items;
                         }
-                        else if (!settings.Quiet)
+                        else
                         {
-                            AnsiConsole.MarkupLine($"[grey]Topic filter: {preFilterCount} → {filtered.Count} items (relaxed)[/]");
+                            fetchTask.Description = $"[cyan]Topic filter: {filtered.Count} items[/]";
+                            if (settings.DebugPipeline)
+                                AnsiConsole.MarkupLine($"[grey]Topic filter: {preFilterCount} → {filtered.Count} items (relaxed)[/]");
                         }
                     }
-                    else if (!settings.Quiet && filtered.Count < preFilterCount)
+                    else if (filtered.Count < preFilterCount)
                     {
-                        AnsiConsole.MarkupLine($"[grey]Topic filter: {preFilterCount} → {filtered.Count} items[/]");
+                        fetchTask.Description = $"[cyan]Topic filter: {filtered.Count} items[/]";
+                        if (settings.DebugPipeline)
+                            AnsiConsole.MarkupLine($"[grey]Topic filter: {preFilterCount} → {filtered.Count} items[/]");
                     }
 
                     items = filtered;
@@ -978,11 +989,12 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         // Re-sort by relevance after freshness adjustment
                         items = items.OrderByDescending(i => i.RelevanceScore).ToList();
 
-                        if (!settings.Quiet)
                         {
                             var freshCount = items.Count(i =>
                                 (DateTimeOffset.UtcNow - i.CreatedAt) <= maxAge);
-                            AnsiConsole.MarkupLine($"[grey]Roundup date-gate: {freshCount}/{items.Count} items within 48h[/]");
+                            fetchTask.Description = $"[cyan]Date-gate: {freshCount}/{items.Count} fresh[/]";
+                            if (settings.DebugPipeline)
+                                AnsiConsole.MarkupLine($"[grey]Roundup date-gate: {freshCount}/{items.Count} items within 48h[/]");
                         }
                     }
                 }
@@ -1032,7 +1044,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     if (nerCachedItems.Count > 0)
                     {
                         items.AddRange(nerCachedItems);
-                        if (!settings.Quiet)
+                        fetchTask.Description = $"[cyan]NER cache: +{nerCachedItems.Count} items[/]";
+                        if (settings.DebugPipeline)
                             AnsiConsole.MarkupLine($"[grey]NER cache: injected {nerCachedItems.Count} entity-matched items[/]");
                     }
                 }
@@ -1073,7 +1086,9 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     var preFilterCount = uniqueItems.Count;
                     uniqueItems = ApplySourceDomainFilter(uniqueItems, config.SourceFilter);
 
-                    if (!settings.Quiet && uniqueItems.Count < preFilterCount)
+                    if (uniqueItems.Count < preFilterCount)
+                        fetchTask.Description = $"[cyan]Source filter: {uniqueItems.Count} items[/]";
+                    if (settings.DebugPipeline && uniqueItems.Count < preFilterCount)
                         AnsiConsole.MarkupLine($"[grey]Source filter: {preFilterCount} → {uniqueItems.Count} items[/]");
                 }
 
@@ -1093,7 +1108,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             if (newFromKb.Count > 0)
                             {
                                 uniqueItems.AddRange(newFromKb);
-                                if (!settings.Quiet)
+                                fetchTask.Description = $"[cyan]KB enrichment: +{newFromKb.Count} items[/]";
+                                if (settings.DebugPipeline)
                                     AnsiConsole.MarkupLine($"[grey]FTS5 KB enrichment: +{newFromKb.Count} stored items merged[/]");
                             }
                         }
@@ -1114,7 +1130,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 {
                     var extraTerms = string.Join(" ", interpreted.SearchQueries);
                     bm25Query = $"{queryText} {extraTerms}";
-                    if (!settings.Quiet)
+                    fetchTask.Description = $"[cyan]BM25: +{interpreted.SearchQueries.Count} terms[/]";
+                    if (settings.DebugPipeline)
                         AnsiConsole.MarkupLine($"[grey]BM25 expanded: +{interpreted.SearchQueries.Count} sentinel terms[/]");
                 }
 
@@ -1164,7 +1181,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     if (globalCorpus.Count > 0)
                     {
                         globalCorpusSize = await storage.GetKeywordCorpusSizeAsync();
-                        if (!settings.Quiet)
+                        fetchTask.Description = $"[cyan]IDF: {globalCorpus.Count} terms[/]";
+                        if (settings.DebugPipeline)
                             AnsiConsole.MarkupLine($"[grey]Global IDF: {globalCorpus.Count} terms, {globalCorpusSize} docs[/]");
                     }
                     else
@@ -1238,7 +1256,9 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         AnsiConsole.MarkupLine($"[grey]Query type: {earlyQueryType} | BM25 tokens: {string.Join(", ", RelevanceScorer.Tokenize(bm25Query))}[/]");
                     }
 
-                    if (!settings.Quiet && uniqueItems.Count < preScoreCount)
+                    if (uniqueItems.Count < preScoreCount)
+                        fetchTask.Description = $"[cyan]Relevance: {uniqueItems.Count} items[/]";
+                    if (settings.DebugPipeline && uniqueItems.Count < preScoreCount)
                         AnsiConsole.MarkupLine($"[grey]Fast relevance filter: {preScoreCount} → {uniqueItems.Count} items (discarded low-salience)[/]");
                 }
 
@@ -1249,7 +1269,9 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 if (queryEmbedding != null && uniqueItems.Count >= 5)
                 {
                     refinedQueryEmbedding = RelevanceScorer.ComputePRFCentroid(uniqueItems, queryEmbedding);
-                    if (!settings.Quiet && refinedQueryEmbedding != queryEmbedding)
+                    if (refinedQueryEmbedding != queryEmbedding)
+                        fetchTask.Description = $"[cyan]PRF: refined from top-{Math.Min(5, uniqueItems.Count)}[/]";
+                    if (settings.DebugPipeline && refinedQueryEmbedding != queryEmbedding)
                         AnsiConsole.MarkupLine($"[grey]PRF: refined query embedding from top-{Math.Min(5, uniqueItems.Count)} results[/]");
                 }
 
@@ -1306,7 +1328,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         AnsiConsole.Write(table);
                     }
 
-                    if (!settings.Quiet)
+                    fetchTask.Description = $"[cyan]RRF ranked: {uniqueItems.Count} items[/]";
+                    if (settings.DebugPipeline)
                     {
                         var topScore = uniqueItems.FirstOrDefault()?.RelevanceScore ?? 0;
                         var botScore = uniqueItems.LastOrDefault()?.RelevanceScore ?? 0;
@@ -1318,7 +1341,9 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 if (config.SourceFilter.Weights.Count > 0)
                 {
                     var weightedCount = ApplySourceWeights(uniqueItems, config.SourceFilter);
-                    if (!settings.Quiet && weightedCount > 0)
+                    if (weightedCount > 0)
+                        fetchTask.Description = $"[cyan]Src weights: {weightedCount} adjusted[/]";
+                    if (settings.DebugPipeline && weightedCount > 0)
                         AnsiConsole.MarkupLine($"[grey]Source weights: {weightedCount} items adjusted[/]");
 
                     // Re-sort after weight adjustment
@@ -1354,7 +1379,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             uniqueItems.Clear();
                             uniqueItems.AddRange(lfuSorted);
 
-                            if (!settings.Quiet)
+                            fetchTask.Description = $"[cyan]LFU: {lfuAdjusted} items decayed[/]";
+                            if (settings.DebugPipeline)
                                 AnsiConsole.MarkupLine($"[grey]LFU diversity: {lfuAdjusted} frequently-seen items decayed[/]");
                         }
                     }
@@ -1434,10 +1460,12 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     uniqueItems.Clear();
                     uniqueItems.AddRange(boostedItems);
 
-                    if (!settings.Quiet && inLinkCounts.Values.Any(c => c > 0))
+                    if (inLinkCounts.Values.Any(c => c > 0))
                     {
                         var boostedCount = inLinkCounts.Count(kv => kv.Value > 0);
-                        AnsiConsole.MarkupLine($"[grey]In-corpus PageRank: {boostedCount} items boosted by cross-references[/]");
+                        fetchTask.Description = $"[cyan]PageRank: {boostedCount} boosted[/]";
+                        if (settings.DebugPipeline)
+                            AnsiConsole.MarkupLine($"[grey]In-corpus PageRank: {boostedCount} items boosted by cross-references[/]");
                     }
                 }
 
@@ -1504,7 +1532,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 uniqueItems = scorer.ScoreFull(uniqueItems, bm25Query, queryEmbedding, vibeEmbedding,
                                     globalCorpus: globalCorpus, globalCorpusSize: globalCorpusSize);
 
-                                if (!settings.Quiet)
+                                fetchTask.Description = $"[cyan]Re-search: +{newItems.Count} items[/]";
+                                if (settings.DebugPipeline)
                                     AnsiConsole.MarkupLine(
                                         $"[grey]Re-search: {newItems.Count} new items merged, {uniqueItems.Count} total[/]");
                             }
@@ -1535,7 +1564,9 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         .Where(i => string.IsNullOrEmpty(i.Summary) || i.Summary == i.Title)
                         .ToList();
 
-                    if (alreadyAnalyzed.Count > 0 && !settings.Quiet)
+                    if (alreadyAnalyzed.Count > 0)
+                        fetchTask.Description = $"[cyan]Cached: {alreadyAnalyzed.Count} items[/]";
+                    if (alreadyAnalyzed.Count > 0 && settings.DebugPipeline)
                         AnsiConsole.MarkupLine($"[grey]Using cached analyses for {alreadyAnalyzed.Count} previously processed items[/]");
 
                     foreach (var item in alreadyAnalyzed)
@@ -1796,7 +1827,9 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             }
                         }
 
-                        if (!settings.Quiet && relatedItems.Count > 0)
+                        if (relatedItems.Count > 0)
+                            fetchTask.Description = $"[cyan]Graph: +{relatedItems.Count} related[/]";
+                        if (settings.DebugPipeline && relatedItems.Count > 0)
                             AnsiConsole.MarkupLine($"[grey]Graph enrichment: +{relatedItems.Count} entity-related items[/]");
                     }
                 }
@@ -1894,7 +1927,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 .OrderByDescending(a => a.relevance)
                                 .ToList();
 
-                            if (!settings.Quiet)
+                            summaryTask.Description = $"[cyan]Quality: {qualityAdjusted} adjusted[/]";
+                            if (settings.DebugPipeline)
                                 AnsiConsole.MarkupLine(
                                     $"[grey]Source quality ({detectedQueryType}): {qualityAdjusted} items adjusted[/]");
                         }
@@ -2244,8 +2278,8 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         .Border(BoxBorder.Rounded)
                         .Padding(1, 1));
 
-                    // Display evidence briefing with named themes
-                    if (analyzedItems.Count > 0)
+                    // Display evidence briefing with named themes (opt-in via --briefing)
+                    if (settings.Briefing && analyzedItems.Count > 0)
                     {
                         // Load entity data for enriched theme briefing
                         Dictionary<string, List<(string name, string type, double confidence)>>? itemEntities = null;
@@ -2507,1208 +2541,4 @@ public sealed class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         return 0;
     }
 
-    /// <summary>
-    /// Prepend vibe-appropriate qualifiers to a search query
-    /// so search results better match the desired sentiment.
-    /// </summary>
-    internal static readonly HashSet<string> PredefinedVibes =
-        new(["doom", "hopeful", "snarky", "neutral"], StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Returns true if the vibe is custom arbitrary text rather than a predefined vibe.
-    /// </summary>
-    internal static bool IsCustomVibe(string vibe) =>
-        !PredefinedVibes.Contains(vibe);
-
-    internal static string QualifySearchQuery(string query, string vibe)
-    {
-        var qualifier = vibe.ToLowerInvariant() switch
-        {
-            "doom" => "concerning problems risks issues in",
-            "hopeful" => "positive breakthrough innovative upbeat news about",
-            "snarky" => "controversial debate criticism of",
-            "neutral" => "",
-            _ => $"{vibe} articles stories about" // Custom vibe used directly as qualifier
-        };
-
-        return string.IsNullOrEmpty(qualifier) ? query : $"{qualifier} {query}";
-    }
-
-    /// <summary>
-    /// Get representative text for a vibe to use as an embedding target
-    /// for cosine-similarity-based sentiment scoring.
-    /// </summary>
-    internal static string GetVibeRepresentativeText(string vibe)
-    {
-        return vibe.ToLowerInvariant() switch
-        {
-            "doom" => "security vulnerability breach layoffs downturn recession failure risk crisis warning concerning problem threat",
-            "hopeful" => "innovation breakthrough positive growth opportunity success launch improvement exciting new achievement progress",
-            "snarky" => "hype overrated controversy debate criticism reality check failure ironic absurd",
-            "neutral" => "technology software engineering development news",
-            _ => vibe // Custom vibe text used directly as embedding target
-        };
-    }
-
-    /// <summary>
-    /// Infer a basic topic from the source name when embeddings aren't available.
-    /// </summary>
-    internal static string InferTopicFromSource(string source)
-    {
-        return source.ToLowerInvariant() switch
-        {
-            "hn" => "technology",
-            "reddit" => "technology",
-            "bbc" or "guardian" or "cnn" or "reuters" => "world",
-            "gnews" => "general",
-            "so" => "technology",
-            "ars" or "verge" => "technology",
-            _ => "general"
-        };
-    }
-
-    /// <summary>
-    /// Word-wrap Spectre markup text to a max visible width.
-    /// Uses token-based approach: markup tags are atomic (never split).
-    /// </summary>
-    private static string WordWrapMarkup(string text, int maxWidth)
-    {
-        if (maxWidth <= 0 || string.IsNullOrEmpty(text)) return text;
-
-        var result = new System.Text.StringBuilder();
-        foreach (var rawLine in text.Split('\n'))
-        {
-            var line = rawLine.TrimEnd('\r');
-            var visibleLen = VisibleLength(line);
-
-            if (visibleLen <= maxWidth)
-            {
-                result.AppendLine(line);
-                continue;
-            }
-
-            // Tokenize line into segments: markup tags (atomic) and visible text words
-            var tokens = TokenizeMarkupLine(line);
-            var currentLine = new System.Text.StringBuilder();
-            var currentVisible = 0;
-
-            foreach (var (token, isTag) in tokens)
-            {
-                if (isTag)
-                {
-                    // Markup tags don't contribute to visible width — always add them
-                    currentLine.Append(token);
-                    continue;
-                }
-
-                // Visible text — check if adding it exceeds width
-                var tokenVisible = token.Length;
-
-                if (currentVisible + tokenVisible > maxWidth && currentVisible > 0)
-                {
-                    // Emit current line and start new one
-                    result.AppendLine(currentLine.ToString().TrimEnd());
-                    currentLine.Clear();
-                    currentVisible = 0;
-
-                    // Skip leading space on continuation
-                    var trimmedToken = token.TrimStart();
-                    currentLine.Append(trimmedToken);
-                    currentVisible = trimmedToken.Length;
-                }
-                else
-                {
-                    currentLine.Append(token);
-                    currentVisible += tokenVisible;
-                }
-            }
-
-            if (currentLine.Length > 0)
-                result.AppendLine(currentLine.ToString().TrimEnd());
-        }
-
-        return result.ToString().TrimEnd();
-    }
-
-    /// <summary>
-    /// Split a Spectre markup line into tokens: (text, isTag) pairs.
-    /// Tags like [bold cyan] are single atomic tokens. Text between tags
-    /// is split at word boundaries so wrapping can occur.
-    /// </summary>
-    private static List<(string token, bool isTag)> TokenizeMarkupLine(string line)
-    {
-        var tokens = new List<(string token, bool isTag)>();
-        var i = 0;
-
-        while (i < line.Length)
-        {
-            // Escaped bracket [[
-            if (line[i] == '[' && i + 1 < line.Length && line[i + 1] == '[')
-            {
-                tokens.Add(("[[", false));
-                i += 2;
-                continue;
-            }
-
-            // Markup tag [...]
-            if (line[i] == '[' && i + 1 < line.Length && line[i + 1] != '[')
-            {
-                var closeIdx = line.IndexOf(']', i + 1);
-                if (closeIdx >= 0)
-                {
-                    tokens.Add((line[i..(closeIdx + 1)], true));
-                    i = closeIdx + 1;
-                    continue;
-                }
-            }
-
-            // Visible text — collect up to next tag or space (for word-boundary wrapping)
-            var start = i;
-            while (i < line.Length && line[i] != '[')
-            {
-                i++;
-            }
-
-            if (i > start)
-            {
-                // Split this text segment at spaces for word-wrap boundaries
-                var segment = line[start..i];
-                var wordStart = 0;
-                for (var j = 0; j < segment.Length; j++)
-                {
-                    if (segment[j] == ' ' && j > wordStart)
-                    {
-                        tokens.Add((segment[wordStart..j], false));
-                        tokens.Add((" ", false));
-                        wordStart = j + 1;
-                    }
-                }
-                if (wordStart < segment.Length)
-                    tokens.Add((segment[wordStart..], false));
-            }
-        }
-
-        return tokens;
-    }
-
-    /// <summary>
-    /// Count visible characters in a Spectre markup string (excluding [tags]).
-    /// </summary>
-    private static int VisibleLength(string markup)
-    {
-        var count = 0;
-        var i = 0;
-        while (i < markup.Length)
-        {
-            if (markup[i] == '[' && i + 1 < markup.Length)
-            {
-                if (markup[i + 1] == '[')
-                {
-                    count++;
-                    i += 2;
-                    continue;
-                }
-
-                var closeIdx = markup.IndexOf(']', i + 1);
-                if (closeIdx >= 0)
-                {
-                    i = closeIdx + 1;
-                    continue;
-                }
-            }
-            count++;
-            i++;
-        }
-        return count;
-    }
-
-    /// <summary>
-    /// Convert markdown to Spectre.Console markup for rich console rendering.
-    /// Handles headings, bold, italic, links, bullets, and horizontal rules.
-    /// </summary>
-    internal static string MarkdownToSpectre(string markdown)
-    {
-        if (string.IsNullOrEmpty(markdown))
-            return "";
-
-        var lines = markdown.Split('\n');
-        var result = new System.Text.StringBuilder();
-
-        foreach (var rawLine in lines)
-        {
-            var line = rawLine.TrimEnd('\r');
-
-            // Horizontal rule
-            if (line.Trim() is "---" or "***" or "___")
-            {
-                result.AppendLine("[dim]────────────────────────────────────────[/]");
-                continue;
-            }
-
-            // Headings
-            if (line.StartsWith("### "))
-            {
-                var text = Markup.Escape(line[4..].Trim());
-                result.AppendLine($"[bold cyan]{text}[/]");
-                continue;
-            }
-            if (line.StartsWith("## "))
-            {
-                var text = Markup.Escape(line[3..].Trim());
-                result.AppendLine($"[bold underline yellow]{text}[/]");
-                continue;
-            }
-            if (line.StartsWith("# "))
-            {
-                var text = Markup.Escape(line[2..].Trim());
-                result.AppendLine($"[bold underline green]{text}[/]");
-                continue;
-            }
-
-            // Bullet points
-            if (line.TrimStart().StartsWith("- ") || line.TrimStart().StartsWith("* "))
-            {
-                var indent = line.Length - line.TrimStart().Length;
-                var bulletText = line.TrimStart()[2..];
-                var indentStr = new string(' ', indent);
-                result.AppendLine($"{indentStr}[cyan]•[/] {FormatInlineMarkdown(bulletText)}");
-                continue;
-            }
-
-            // Regular line — process inline markdown
-            result.AppendLine(FormatInlineMarkdown(line));
-        }
-
-        return result.ToString().TrimEnd();
-    }
-
-    /// <summary>
-    /// Process inline markdown: **bold**, *italic*, [links](url), `code`.
-    /// Uses placeholder tokens so markdown patterns are processed on raw text
-    /// (with their content escaped), then remaining literal text is escaped afterward.
-    /// </summary>
-    private static string FormatInlineMarkdown(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-            return "";
-
-        var replacements = new List<string>();
-        string Store(string spectreMarkup)
-        {
-            var idx = replacements.Count;
-            replacements.Add(spectreMarkup);
-            return $"\x01{idx}\x02";
-        }
-
-        // Process patterns on raw text (order matters: code > links > bold > italic)
-        // Each captured group's content is Markup.Escaped individually.
-
-        // Inline code: `code` → [grey on grey15]code[/]
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text, @"`([^`]+)`",
-            m => Store($"[grey on grey15]{Markup.Escape(m.Groups[1].Value)}[/]"));
-
-        // Links: [text](url) → [cyan underline]text[/] [dim](url)[/]
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text, @"\[([^\]]+)\]\(([^)]+)\)",
-            m => Store($"[cyan underline]{Markup.Escape(m.Groups[1].Value)}[/] [dim]({Markup.Escape(m.Groups[2].Value)})[/]"));
-
-        // Bold: **text** → [bold]text[/]
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text, @"\*\*(.+?)\*\*",
-            m => Store($"[bold]{Markup.Escape(m.Groups[1].Value)}[/]"));
-
-        // Italic: *text* → [italic]text[/] (single asterisks not consumed by bold)
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text, @"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)",
-            m => Store($"[italic]{Markup.Escape(m.Groups[1].Value)}[/]"));
-
-        // Escape remaining literal text (Markup.Escape only affects [ and ],
-        // so \x01/\x02 placeholder chars pass through untouched)
-        text = Markup.Escape(text);
-
-        // Restore placeholders with their Spectre markup
-        for (var i = 0; i < replacements.Count; i++)
-            text = text.Replace($"\x01{i}\x02", replacements[i]);
-
-        return text;
-    }
-
-    private static string GetSourceFromUrl(string url)
-    {
-        if (string.IsNullOrEmpty(url)) return "?";
-        try
-        {
-            var host = new Uri(url).Host.Replace("www.", "");
-            return host.Split('.')[0];
-        }
-        catch { return "?"; }
-    }
-
-    /// <summary>
-    /// Filter items by allowed/blocked domain lists.
-    /// AllowedDomains = allowlist (if non-empty, only these pass).
-    /// BlockedDomains = blocklist (removed after allow check).
-    /// </summary>
-    internal static List<ContentItem> ApplySourceDomainFilter(
-        List<ContentItem> items, SourceFilterConfig filter)
-    {
-        var result = new List<ContentItem>(items.Count);
-
-        foreach (var item in items)
-        {
-            var host = GetHostFromUrl(item.Url);
-            if (string.IsNullOrEmpty(host))
-            {
-                result.Add(item); // Keep items without URLs (e.g., local content)
-                continue;
-            }
-
-            // Allowlist: if configured, item must match
-            if (filter.AllowedDomains.Count > 0)
-            {
-                if (!filter.AllowedDomains.Any(d =>
-                    host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
-                    continue;
-            }
-
-            // Blocklist: remove matching items
-            if (filter.BlockedDomains.Any(d =>
-                host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
-                continue;
-
-            result.Add(item);
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Apply source reliability weights as RRF score multipliers.
-    /// Matches by source name first, then by URL domain.
-    /// Returns count of items that had weights applied.
-    /// </summary>
-    internal static int ApplySourceWeights(
-        List<ContentItem> items, SourceFilterConfig filter)
-    {
-        var count = 0;
-
-        foreach (var item in items)
-        {
-            var weight = 1.0;
-
-            // Match by source name first (hn, reddit, bbc, gnews, search, etc.)
-            if (filter.Weights.TryGetValue(item.Source, out var sourceWeight))
-            {
-                weight = sourceWeight;
-            }
-            else
-            {
-                // Fall back to domain matching
-                var host = GetHostFromUrl(item.Url);
-                if (!string.IsNullOrEmpty(host))
-                {
-                    foreach (var (pattern, w) in filter.Weights)
-                    {
-                        if (host.Contains(pattern, StringComparison.OrdinalIgnoreCase))
-                        {
-                            weight = w;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (Math.Abs(weight - 1.0) > 0.001)
-            {
-                item.RelevanceScore = Math.Min(1.0, item.RelevanceScore * weight);
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    private static string? GetHostFromUrl(string? url)
-    {
-        if (string.IsNullOrEmpty(url)) return null;
-        try { return new Uri(url).Host.ToLowerInvariant(); }
-        catch { return null; }
-    }
-
-    /// <summary>
-    /// Strip markdown formatting for clean LLM consumption.
-    /// Removes headers, link syntax, emphasis, code fences — keeps plain text facts.
-    /// </summary>
-    internal static string StripMarkdownForLlm(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return "";
-
-        // Remove markdown headers (## Header)
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^#{1,6}\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-        // Remove markdown images ![alt](url) — complete or truncated
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"!\[([^\]]*)\]\([^)]*\)?", "$1");
-        // Remove truncated image at end: ![text](url-without-close...
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"!\[([^\]]*)\]\([^)]*$", "$1");
-        // Remove bare ![ at start if no matching ]
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^!\[", "");
-        // Convert [text](url) links to just "text" — complete or truncated
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\[([^\]]+)\]\([^)]*\)?", "$1");
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\[([^\]]+)\]\([^)]*$", "$1");
-        // Remove emphasis markers (*text*, **text**, _text_, __text__)
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"(\*{1,2}|_{1,2})(.+?)\1", "$2");
-        // Remove escaped special chars (\( \) \[ \] etc.)
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\\([()[\]])", "$1");
-        // Remove code fences and inline code
-        text = text.Replace("```", "").Replace("~~~", "");
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"`([^`]+)`", "$1");
-        // Remove list markers
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*[-*+]\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*\d+\.\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-        // Collapse whitespace
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
-
-        return text;
-    }
-
-    /// <summary>
-    /// Display story connections based on shared named entities.
-    /// Shows which articles are linked by people, organizations, locations.
-    /// </summary>
-    private static void DisplayStoryConnections(
-        List<(ContentItem item, List<NerEntity> entities)> articleEntityMap)
-    {
-        // Build entity → articles index (normalize entity text)
-        var entityToArticles = new Dictionary<string, List<(ContentItem item, NerEntity entity)>>(
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (item, entities) in articleEntityMap)
-        {
-            foreach (var entity in entities.Where(e => e.Confidence >= 0.6))
-            {
-                var key = entity.Text.Trim();
-                if (key.Length < 2) continue;
-                if (!entityToArticles.ContainsKey(key))
-                    entityToArticles[key] = [];
-                // Avoid duplicate articles per entity
-                if (entityToArticles[key].All(a => a.item.Id != item.Id))
-                    entityToArticles[key].Add((item, entity));
-            }
-        }
-
-        // Find entities that connect 2+ articles (these are the interesting ones)
-        var connections = entityToArticles
-            .Where(kv => kv.Value.Count >= 2)
-            .OrderByDescending(kv => kv.Value.Count)
-            .ThenByDescending(kv => kv.Value.Max(a => a.entity.Confidence))
-            .Take(10)
-            .ToList();
-
-        if (connections.Count == 0) return;
-
-        AnsiConsole.WriteLine();
-        var tree = new Tree("[bold yellow]Story Connections[/]")
-            .Style(Style.Parse("dim"));
-
-        foreach (var (entityText, articles) in connections)
-        {
-            var typeColor = articles[0].entity.Type switch
-            {
-                "PER" => "green",
-                "ORG" => "blue",
-                "LOC" => "yellow",
-                _ => "grey"
-            };
-            var typeLabel = articles[0].entity.Type switch
-            {
-                "PER" => "person",
-                "ORG" => "org",
-                "LOC" => "place",
-                "MISC" => "topic",
-                _ => "entity"
-            };
-
-            var node = tree.AddNode(
-                $"[{typeColor} bold]{Markup.Escape(entityText)}[/] [dim]({typeLabel}, {articles.Count} stories)[/]");
-
-            foreach (var (item, _) in articles.Take(5))
-            {
-                var title = item.Title.Length > 60
-                    ? item.Title[..57] + "..."
-                    : item.Title;
-                var source = GetSourceFromUrl(item.Url ?? "");
-                node.AddNode($"[dim]{source}[/] {Markup.Escape(title)}");
-            }
-        }
-
-        AnsiConsole.Write(tree);
-    }
-
-    private static string GenerateFallbackSummary(
-        List<(string title, string summary, string topic, float sentiment, string url, double relevance)> items,
-        string vibe)
-    {
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"# Doom Scroll Digest ({vibe})");
-        sb.AppendLine();
-        sb.AppendLine($"*Generated {DateTimeOffset.Now:yyyy-MM-dd HH:mm} | {items.Count} items ranked by RRF (BM25 + embeddings + freshness)*");
-        sb.AppendLine();
-
-        // === TOP STORIES: Show the highest-confidence items first ===
-        var topItems = items
-            .OrderByDescending(i => i.relevance)
-            .Take(Math.Min(5, items.Count))
-            .ToList();
-
-        if (topItems.Count > 0)
-        {
-            sb.AppendLine("## Top Stories");
-            sb.AppendLine();
-
-            var maxRelevance = topItems.Max(i => i.relevance);
-
-            foreach (var item in topItems)
-            {
-                // Confidence bar: normalize to 0-100% relative to max score
-                var confidence = maxRelevance > 0 ? item.relevance / maxRelevance : 0;
-                var pct = (int)(confidence * 100);
-                var bar = new string('#', pct / 10) + new string('.', 10 - pct / 10);
-                var sentimentIcon = item.sentiment switch
-                {
-                    > 0.15f => "+",
-                    < -0.15f => "-",
-                    _ => "~"
-                };
-
-                sb.AppendLine($"  [{sentimentIcon}] [{bar}] {pct}% | {item.title}");
-
-                // Show content snippet for top stories — this is the "segment" the user wants
-                if (!string.IsNullOrEmpty(item.summary) && item.summary != item.title)
-                {
-                    var truncated = item.summary.Length > 300
-                        ? item.summary[..300] + "..."
-                        : item.summary;
-                    sb.AppendLine($"      {truncated}");
-                }
-
-                if (!string.IsNullOrEmpty(item.url))
-                {
-                    if (item.url.Contains("news.google.com/rss/articles/", StringComparison.OrdinalIgnoreCase))
-                        sb.AppendLine("      -> [via Google News — direct URL unavailable]");
-                    else
-                        sb.AppendLine($"      -> {item.url}");
-                }
-
-                sb.AppendLine();
-            }
-        }
-
-        // === TOPIC BREAKDOWN: Group remaining items by topic ===
-        var byTopic = items
-            .OrderByDescending(i => i.relevance)
-            .GroupBy(x => x.topic)
-            .OrderByDescending(g => g.Max(i => i.relevance));
-
-        sb.AppendLine("## By Topic");
-        sb.AppendLine();
-
-        foreach (var group in byTopic)
-        {
-            var topicTitle = group.Key.Length > 0
-                ? char.ToUpper(group.Key[0]) + group.Key[1..]
-                : "Uncategorized";
-            var avgSentiment = group.Average(g => g.sentiment);
-            var topRelevance = group.Max(g => g.relevance);
-            var sentimentIndicator = avgSentiment switch
-            {
-                > 0.1f => "+",
-                < -0.1f => "-",
-                _ => "~"
-            };
-            sb.AppendLine($"### {topicTitle} [{sentimentIndicator}] ({group.Count()} items, top relevance: {topRelevance:F2})");
-
-            foreach (var item in group.OrderByDescending(i => i.relevance).Take(5))
-            {
-                var pct = items.Max(i => i.relevance) > 0
-                    ? (int)(item.relevance / items.Max(i => i.relevance) * 100)
-                    : 0;
-                var sentimentIcon = item.sentiment switch
-                {
-                    > 0.15f => "[+]",
-                    < -0.15f => "[-]",
-                    _ => "[~]"
-                };
-
-                sb.AppendLine($"- {sentimentIcon} {pct}% {item.title}");
-            }
-            sb.AppendLine();
-        }
-
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// Build a structured theme briefing with named themes, evidence counts,
-    /// supporting snippets (tagged to evidence IDs), and key entities/terms.
-    /// </summary>
-    internal static ThemeBriefing ExtractThemeBriefing(
-        List<(string title, string summary, string topic, float sentiment, string url, double relevance)> analyzedItems,
-        List<ContentItem> contentItems,
-        Dictionary<string, List<(string name, string type, double confidence)>>? itemEntities = null)
-    {
-        var briefing = new ThemeBriefing();
-
-        // Map content items by URL for quick lookup
-        var contentByUrl = contentItems
-            .Where(c => !string.IsNullOrEmpty(c.Url))
-            .GroupBy(c => c.Url!, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
-        // Build URL → entity list lookup from item ID-keyed entity data
-        var entitiesByUrl = new Dictionary<string, List<(string name, string type, double confidence)>>(
-            StringComparer.OrdinalIgnoreCase);
-        if (itemEntities != null)
-        {
-            foreach (var ci in contentItems)
-            {
-                if (!string.IsNullOrEmpty(ci.Url) && itemEntities.TryGetValue(ci.Id, out var ents))
-                    entitiesByUrl.TryAdd(ci.Url, ents);
-            }
-        }
-
-        // Build evidence index (E1, E2...) from analyzed items
-        var evidenceIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < analyzedItems.Count; i++)
-        {
-            if (!string.IsNullOrEmpty(analyzedItems[i].url) && !evidenceIndex.ContainsKey(analyzedItems[i].url))
-                evidenceIndex[analyzedItems[i].url] = i + 1;
-        }
-
-        // Group analyzed items by topic
-        var topicGroups = analyzedItems
-            .GroupBy(i => i.topic, StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(g => g.Count())
-            .ToList();
-
-        // Stop words for term extraction
-        var stopWords = BuildStopWordSet();
-
-        // For each topic group, extract theme data
-        foreach (var group in topicGroups.Take(6))
-        {
-            var theme = new ThemeEntry
-            {
-                TopicLabel = group.Key,
-                SegmentCount = group.Count()
-            };
-
-            // Find evidence IDs for this group
-            var groupEvidenceIds = new List<int>();
-            foreach (var item in group)
-            {
-                if (!string.IsNullOrEmpty(item.url) && evidenceIndex.TryGetValue(item.url, out var eid))
-                    groupEvidenceIds.Add(eid);
-            }
-            theme.EvidenceIds = groupEvidenceIds.Distinct().OrderBy(x => x).ToList();
-
-            // Extract NER entities from the knowledge graph for this theme group
-            var groupGraphEntities = new Dictionary<string, (string name, string type, int count, double maxConf)>(
-                StringComparer.OrdinalIgnoreCase);
-            foreach (var item in group)
-            {
-                if (!string.IsNullOrEmpty(item.url) && entitiesByUrl.TryGetValue(item.url, out var ents))
-                {
-                    foreach (var (name, type, conf) in ents)
-                    {
-                        var key = name.ToLowerInvariant();
-                        if (groupGraphEntities.TryGetValue(key, out var existing))
-                        {
-                            groupGraphEntities[key] = (name, type, existing.count + 1, Math.Max(existing.maxConf, conf));
-                        }
-                        else
-                        {
-                            groupGraphEntities[key] = (name, type, 1, conf);
-                        }
-                    }
-                }
-            }
-
-            // Use NER entities as GraphEntities (ranked by cross-article count, then confidence)
-            // Deduplicate: remove entities that are substrings of higher-ranked entities
-            var rankedEntities = groupGraphEntities.Values
-                .OrderByDescending(e => e.count)
-                .ThenByDescending(e => e.maxConf)
-                .ToList();
-            var selectedEntities = new List<(string name, string type, int count, double maxConf)>();
-            foreach (var ent in rankedEntities)
-            {
-                // Skip if overlaps with an already-selected higher-ranked entity
-                var overlaps = selectedEntities.Any(s =>
-                    s.name.Contains(ent.name, StringComparison.OrdinalIgnoreCase)
-                    || ent.name.Contains(s.name, StringComparison.OrdinalIgnoreCase));
-                if (!overlaps)
-                    selectedEntities.Add(ent);
-                if (selectedEntities.Count >= 8) break;
-            }
-
-            theme.GraphEntities = selectedEntities
-                .Select(e => (e.name, e.type))
-                .ToList();
-
-            // Extract key terms: prefer NER entities, fall back to frequency tokens
-            if (theme.GraphEntities.Count >= 3)
-            {
-                // Use top NER entity names as key terms (already ranked)
-                theme.KeyTerms = theme.GraphEntities.Take(5)
-                    .Select(e => e.name)
-                    .ToList();
-            }
-            else
-            {
-                // Fall back to frequency-based token extraction
-                var groupTermCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                foreach (var item in group)
-                {
-                    ContentItem? ci = null;
-                    if (!string.IsNullOrEmpty(item.url))
-                        contentByUrl.TryGetValue(item.url, out ci);
-
-                    var rawText = $"{item.title} {item.summary} {ci?.Content ?? ""}";
-                    var text = CleanMarkdownForSnippet(rawText);
-                    var tokens = text
-                        .Split([' ', '\t', '\n', '\r', ',', '.', '!', '?', ':', ';', '(', ')', '[', ']', '"', '\'', '—', '–', '-', '/'],
-                            StringSplitOptions.RemoveEmptyEntries)
-                        .Select(t => t.Trim().ToLowerInvariant())
-                        .Where(t => t.Length >= 4 && t.Length <= 25
-                                    && !stopWords.Contains(t) && !int.TryParse(t, out _)
-                                    && !IsUrlFragment(t))
-                        .ToList();
-
-                    foreach (var token in tokens.Distinct())
-                    {
-                        groupTermCounts.TryGetValue(token, out var c);
-                        groupTermCounts[token] = c + 1;
-                    }
-                }
-
-                // Merge any available NER entities into the front of the list
-                var nerNames = new HashSet<string>(
-                    theme.GraphEntities.Select(e => e.name), StringComparer.OrdinalIgnoreCase);
-                var frequencyTerms = groupTermCounts
-                    .Where(kv => kv.Value >= Math.Min(2, group.Count()) && !nerNames.Contains(kv.Key))
-                    .OrderByDescending(kv => kv.Value)
-                    .Take(5 - theme.GraphEntities.Count)
-                    .Select(kv => kv.Key)
-                    .ToList();
-
-                theme.KeyTerms = theme.GraphEntities
-                    .Select(e => e.name)
-                    .Concat(frequencyTerms)
-                    .Take(5)
-                    .ToList();
-            }
-
-            // Extract 2 representative snippets from content
-            foreach (var item in group.OrderByDescending(i => i.relevance).Take(3))
-            {
-                ContentItem? ci = null;
-                if (!string.IsNullOrEmpty(item.url))
-                    contentByUrl.TryGetValue(item.url, out ci);
-
-                var content = ci?.Content ?? item.summary;
-                if (string.IsNullOrEmpty(content)) continue;
-
-                var snippet = ExtractBestSentence(content, theme.KeyTerms);
-                if (snippet != null && theme.Snippets.Count < 2)
-                {
-                    var eid = !string.IsNullOrEmpty(item.url) && evidenceIndex.TryGetValue(item.url, out var id)
-                        ? id : (int?)null;
-                    theme.Snippets.Add((snippet, eid));
-                }
-            }
-
-            // Build a thesis-style name from topic + key terms
-            theme.ThesisName = BuildThesisName(group.Key, theme.KeyTerms, group.Count());
-
-            briefing.Themes.Add(theme);
-        }
-
-        // Corpus coverage
-        var itemsInThemes = topicGroups.Sum(g => g.Count());
-        briefing.TotalEvidenceItems = analyzedItems.Count;
-        briefing.ItemsInThemes = itemsInThemes;
-        briefing.SourceCount = analyzedItems
-            .Select(i => i.url)
-            .Where(u => !string.IsNullOrEmpty(u))
-            .Select(u =>
-            {
-                try { return new Uri(u!).Host; }
-                catch { return u!; }
-            })
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-
-        // Count distinct graph entities across all themes
-        briefing.GraphEntityCount = briefing.Themes
-            .SelectMany(t => t.GraphEntities)
-            .Select(e => e.name)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-
-        // Missing themes: common topics NOT represented
-        var allKnownTopics = new[]
-        {
-            "technology", "science", "security", "health", "business",
-            "politics", "world", "climate", "space", "ai", "entertainment"
-        };
-        var presentTopics = new HashSet<string>(
-            topicGroups.Select(g => g.Key), StringComparer.OrdinalIgnoreCase);
-        briefing.MissingTopics = allKnownTopics
-            .Where(t => !presentTopics.Contains(t))
-            .Take(4)
-            .ToList();
-
-        return briefing;
-    }
-
-    /// <summary>
-    /// Extract the most relevant sentence from content that mentions key terms.
-    /// </summary>
-    private static string? ExtractBestSentence(string content, List<string> keyTerms)
-    {
-        // Clean markdown formatting before extracting sentences
-        var cleanContent = CleanMarkdownForSnippet(content);
-
-        // Split into sentences
-        var sentences = cleanContent.Split(['.', '!', '?'], StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => s.Trim())
-            .Select(s => s.TrimStart(')', '(', '>', '-', '*', ' '))
-            .Where(s => s.Length is >= 30 and <= 200)
-            // Filter out boilerplate / navigation patterns
-            .Where(s => !s.StartsWith("Series Navigation", StringComparison.OrdinalIgnoreCase))
-            .Where(s => !s.StartsWith("Part ", StringComparison.OrdinalIgnoreCase) || s.Length > 60)
-            .Where(s => !s.Contains("http://") && !s.Contains("https://"))
-            .Where(s => !s.StartsWith("Subscribe") && !s.StartsWith("Click"))
-            // Ensure sentence starts with a letter (not punctuation fragments)
-            .Where(s => s.Length > 0 && char.IsLetter(s[0]))
-            .ToList();
-
-        if (sentences.Count == 0) return null;
-
-        // Score sentences by key term overlap + prefer informative content
-        var best = sentences
-            .Select(s =>
-            {
-                var lower = s.ToLowerInvariant();
-                var hits = keyTerms.Count(t => lower.Contains(t, StringComparison.Ordinal));
-                // Penalize very short or formulaic sentences
-                var lengthBonus = s.Length > 60 ? 1 : 0;
-                return (sentence: s, score: hits + lengthBonus);
-            })
-            .OrderByDescending(x => x.score)
-            .ThenByDescending(x => x.sentence.Length)
-            .First();
-
-        return best.sentence;
-    }
-
-    /// <summary>
-    /// Strip markdown syntax from content for clean snippet extraction.
-    /// </summary>
-    private static string CleanMarkdownForSnippet(string content)
-    {
-        // Remove markdown headings (# ## ###)
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"^#{1,6}\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-        // Remove markdown links [text](url) → text
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"\[([^\]]+)\]\([^)]+\)", "$1");
-        // Remove bold/italic markers
-        content = content.Replace("**", "").Replace("__", "").Replace("*", "").Replace("_", " ");
-        // Remove code blocks
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"```[\s\S]*?```", " ");
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"`[^`]+`", " ");
-        // Remove bullet markers
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"^\s*[-*+]\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-        // Collapse whitespace
-        content = System.Text.RegularExpressions.Regex.Replace(content, @"\s+", " ");
-        return content.Trim();
-    }
-
-    /// <summary>
-    /// Build a thesis-style theme name from topic + key terms.
-    /// </summary>
-    private static string BuildThesisName(string topic, List<string> keyTerms, int count)
-    {
-        // Capitalize topic
-        var topicLabel = char.ToUpper(topic[0]) + topic[1..].Replace('_', ' ');
-
-        if (keyTerms.Count == 0)
-            return topicLabel;
-
-        // Deduplicate terms: remove terms that are substrings of other terms
-        var deduped = keyTerms
-            .Where(t => !keyTerms.Any(other =>
-                !string.Equals(other, t, StringComparison.OrdinalIgnoreCase)
-                && other.Contains(t, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-        if (deduped.Count == 0) deduped = keyTerms; // fallback if all are substrings
-
-        // Build descriptive terms (respect existing casing for NER entities)
-        var terms = deduped.Take(3)
-            .Select(t => t.Length > 1 && (char.IsUpper(t[0]) || t.All(c => char.IsUpper(c) || !char.IsLetter(c)))
-                ? t // Already properly cased (NER entity or acronym)
-                : char.ToUpper(t[0]) + t[1..])
-            .ToList();
-
-        // Use topic-specific framing for thesis-style names
-        var termPhrase = terms.Count switch
-        {
-            1 => terms[0],
-            2 => $"{terms[0]} & {terms[1]}",
-            _ => $"{terms[0]}, {terms[1]} & {terms[2]}"
-        };
-
-        return $"{topicLabel}: {termPhrase}";
-    }
-
-    private static HashSet<string> BuildStopWordSet() => new(StringComparer.OrdinalIgnoreCase)
-    {
-        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
-        "been", "being", "have", "has", "had", "do", "does", "did", "will",
-        "would", "could", "should", "may", "might", "shall", "can", "need",
-        "it", "its", "this", "that", "these", "those", "he", "she", "they",
-        "we", "you", "me", "my", "your", "his", "her", "our", "their",
-        "not", "no", "nor", "so", "if", "then", "than", "too", "very",
-        "just", "about", "also", "more", "most", "some", "any", "all",
-        "each", "every", "both", "few", "many", "much", "such", "own",
-        "same", "other", "new", "old", "first", "last", "long", "great",
-        "said", "says", "like", "well", "back", "even", "still",
-        "take", "come", "make", "know", "get", "got", "see", "look",
-        "think", "give", "use", "find", "tell", "ask", "work", "seem",
-        "news", "articles", "article", "latest", "generated", "content",
-        "page", "pages", "site", "website", "click", "link", "links",
-        "share", "comment", "comments", "posted", "updated", "subscribe",
-        "read", "related", "view", "here", "there", "only", "into",
-        "over", "after", "before", "between", "under", "since", "during",
-        "through", "against", "now", "where", "when", "what", "which",
-        "who", "how", "why", "because", "although", "though", "whether",
-        "already", "yet", "never", "always", "often", "ever", "really",
-        "using", "used", "been", "being", "having", "going", "made",
-        "based", "including", "another", "several", "less", "given",
-        // Blog/web boilerplate
-        "introduction", "conclusion", "summary", "overview", "section",
-        "series", "navigation", "part", "chapter", "previous", "next",
-        "blog", "post", "author", "date", "tags", "category",
-        // URL fragments
-        "http", "https", "www", "html", "com", "org", "net"
-    };
-
-    /// <summary>
-    /// Check if a token looks like a URL fragment and should be excluded from key terms.
-    /// </summary>
-    private static bool IsUrlFragment(string token) =>
-        token.Contains("//") || token.Contains("www.") || token.Contains(".com")
-        || token.Contains(".net") || token.Contains(".org") || token.Contains(".io")
-        || token.StartsWith("http") || token.Contains("/blog/")
-        || token.All(c => c == '/' || c == '.' || c == ':');
-
-    /// <summary>
-    /// Theme briefing data model.
-    /// </summary>
-    internal class ThemeBriefing
-    {
-        public List<ThemeEntry> Themes { get; set; } = [];
-        public int TotalEvidenceItems { get; set; }
-        public int ItemsInThemes { get; set; }
-        public int SourceCount { get; set; }
-        public int GraphEntityCount { get; set; }
-        public List<string> MissingTopics { get; set; } = [];
-
-        public int CoveragePercent =>
-            TotalEvidenceItems > 0 ? (int)(ItemsInThemes * 100.0 / TotalEvidenceItems) : 0;
-
-        public bool HasGraphEntities => GraphEntityCount > 0;
-    }
-
-    internal class ThemeEntry
-    {
-        public string TopicLabel { get; set; } = "";
-        public string ThesisName { get; set; } = "";
-        public int SegmentCount { get; set; }
-        public List<int> EvidenceIds { get; set; } = [];
-        public List<string> KeyTerms { get; set; } = [];
-        public List<(string name, string type)> GraphEntities { get; set; } = [];
-        public List<(string text, int? evidenceId)> Snippets { get; set; } = [];
-    }
-
-    /// <summary>
-    /// Extract key themes: topic distribution + cross-article terms from content.
-    /// Cheap computation (no ML) — pure term frequency analysis.
-    /// </summary>
-    internal static (
-        List<(string topic, int count)> topics,
-        List<(string term, int articles)> terms)
-        ExtractKeyThemes(
-            List<(string title, string summary, string topic, float sentiment, string url, double relevance)> analyzedItems,
-            List<ContentItem> contentItems)
-    {
-        // Topic distribution from analyzed items
-        var topics = analyzedItems
-            .GroupBy(i => i.topic, StringComparer.OrdinalIgnoreCase)
-            .Select(g => (topic: g.Key, count: g.Count()))
-            .OrderByDescending(t => t.count)
-            .Take(8)
-            .ToList();
-
-        // Cross-article term extraction from content
-        var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-            "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
-            "been", "being", "have", "has", "had", "do", "does", "did", "will",
-            "would", "could", "should", "may", "might", "shall", "can", "need",
-            "it", "its", "this", "that", "these", "those", "he", "she", "they",
-            "we", "you", "i", "me", "my", "your", "his", "her", "our", "their",
-            "not", "no", "nor", "so", "if", "then", "than", "too", "very",
-            "just", "about", "also", "more", "most", "some", "any", "all",
-            "each", "every", "both", "few", "many", "much", "such", "own",
-            "same", "other", "new", "old", "first", "last", "long", "great",
-            "little", "right", "big", "high", "small", "large", "next", "early",
-            "young", "important", "public", "bad", "good", "best", "said", "says",
-            "like", "well", "back", "even", "still", "way", "take", "come",
-            "make", "know", "get", "got", "go", "see", "look", "think", "give",
-            "use", "find", "tell", "ask", "work", "seem", "feel", "try", "leave",
-            "call", "keep", "let", "put", "show", "turn", "start", "run", "move",
-            "play", "live", "believe", "bring", "happen", "write", "provide",
-            "sit", "stand", "lose", "pay", "meet", "include", "continue",
-            "set", "learn", "change", "lead", "understand", "watch", "follow",
-            "stop", "create", "speak", "read", "add", "spend", "grow", "open",
-            "walk", "win", "offer", "remember", "love", "consider", "appear",
-            "buy", "wait", "serve", "die", "send", "expect", "build", "stay",
-            "fall", "cut", "reach", "kill", "remain", "suggest", "raise", "pass",
-            "sell", "require", "report", "decide", "pull", "develop", "report",
-            "one", "two", "three", "four", "five", "six", "seven", "eight",
-            "nine", "ten", "year", "years", "day", "days", "time", "week",
-            "month", "per", "people", "world", "part", "group", "number",
-            "fact", "however", "while", "after", "before", "between", "under",
-            "since", "during", "through", "against", "into", "over", "only",
-            "now", "where", "when", "what", "which", "who", "how", "why",
-            "here", "there", "because", "although", "though", "whether",
-            "already", "yet", "never", "always", "often", "ever", "really",
-            "according", "around", "without", "within", "across", "along",
-            "using", "used", "says", "also", "been", "being", "having",
-            "going", "made", "making", "getting", "doing", "done", "called",
-            "based", "including", "according", "among", "became", "become",
-            "another", "several", "less", "given", "among",
-            "news", "articles", "article", "latest", "generated", "content",
-            "page", "pages", "site", "website", "click", "link", "links",
-            "share", "comment", "comments", "posted", "updated", "subscribe",
-            "sign", "login", "search", "menu", "home", "about", "contact",
-            "section", "topics", "topic", "read", "related", "more", "view"
-        };
-
-        // Count terms that appear in 2+ articles (document frequency)
-        var termDocFreq = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-        var topItems = contentItems
-            .OrderByDescending(i => i.RelevanceScore)
-            .Take(25)
-            .ToList();
-
-        foreach (var item in topItems)
-        {
-            var text = $"{item.Title} {item.Content ?? ""}";
-            var tokens = text
-                .Split([' ', '\t', '\n', '\r', ',', '.', '!', '?', ':', ';', '(', ')', '[', ']', '{', '}', '"', '\'', '—', '–', '-', '/', '\\'],
-                    StringSplitOptions.RemoveEmptyEntries)
-                .Select(t => t.Trim().ToLowerInvariant())
-                .Where(t => t.Length >= 4 && t.Length <= 30
-                            && !stopWords.Contains(t) && !int.TryParse(t, out _)
-                            && !t.StartsWith("http") && !t.Contains("www.")
-                            && !t.Contains(".com") && !t.Contains(".org") && !t.Contains(".net"))
-                .Distinct()
-                .ToList();
-
-            foreach (var token in tokens)
-            {
-                if (!termDocFreq.ContainsKey(token))
-                    termDocFreq[token] = [];
-                termDocFreq[token].Add(item.Id);
-            }
-        }
-
-        // Terms appearing across 3+ articles are key themes
-        var terms = termDocFreq
-            .Where(kv => kv.Value.Count >= 3)
-            .OrderByDescending(kv => kv.Value.Count)
-            .ThenBy(kv => kv.Key)
-            .Take(12)
-            .Select(kv => (term: kv.Key, articles: kv.Value.Count))
-            .ToList();
-
-        return (topics, terms);
-    }
-
-    /// <summary>
-    /// Compute in-corpus link authority: count how many articles in the corpus
-    /// link to each other article's URL (a "silly PageRank").
-    /// </summary>
-    private static Dictionary<string, int> ComputeInCorpusLinkAuthority(List<ContentItem> items)
-    {
-        // Build set of all article URLs in corpus (normalized)
-        var corpusUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var item in items)
-        {
-            if (!string.IsNullOrEmpty(item.Url))
-                corpusUrls.Add(NormalizeUrlForAuthority(item.Url));
-        }
-
-        // Count incoming links from LinkedPages
-        var inLinkCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var item in items)
-        {
-            foreach (var linked in item.LinkedPages)
-            {
-                var normalizedLinked = NormalizeUrlForAuthority(linked.Url);
-                if (corpusUrls.Contains(normalizedLinked))
-                {
-                    inLinkCounts.TryGetValue(normalizedLinked, out var count);
-                    inLinkCounts[normalizedLinked] = count + 1;
-                }
-            }
-        }
-
-        return inLinkCounts;
-    }
-
-    private static string NormalizeUrlForAuthority(string url) =>
-        url.Split('?')[0].TrimEnd('/').ToLowerInvariant();
-
-    /// <summary>
-    /// Backfill the FTS5 index and keyword corpus for existing KB items
-    /// that were stored before FTS5 was introduced. Runs automatically
-    /// on first query when the FTS5 table is empty.
-    /// </summary>
-    private static async Task BackfillFtsIndexAsync(StorageService storage, bool quiet)
-    {
-        var allItems = await storage.GetAllItemsAsync();
-        if (allItems.Count == 0) return;
-
-        if (!quiet)
-            AnsiConsole.MarkupLine($"[grey]Backfilling FTS5 index for {allItems.Count} existing items...[/]");
-
-        var count = 0;
-        foreach (var stored in allItems)
-        {
-            var profile = DocumentProfileService.ExtractProfile(stored.Title, stored.Content ?? "");
-            var contentPreview = (stored.Content ?? "").Length > 2000
-                ? stored.Content![..2000]
-                : stored.Content ?? "";
-            await storage.IndexDocumentFtsAsync(stored.Id, stored.Title, profile.KeywordsText, contentPreview);
-            await storage.UpdateKeywordCorpusAsync(profile.TopKeywords.Select(k => k.Keyword));
-            count++;
-        }
-
-        if (!quiet)
-            AnsiConsole.MarkupLine($"[green]FTS5 backfill complete: {count} items indexed[/]");
-    }
 }

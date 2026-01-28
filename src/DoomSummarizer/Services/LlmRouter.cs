@@ -20,6 +20,23 @@ public class LlmRouter
 
     public bool HasCloudProvider => _providers.Any(p => !p.IsLocal);
 
+    /// <summary>
+    /// Human-readable description of the active LLM configuration (for status display).
+    /// </summary>
+    public string StatusDescription
+    {
+        get
+        {
+            var cloudFallback = _providers.FirstOrDefault(p => !p.IsLocal);
+            if (cloudFallback != null)
+            {
+                var model = cloudFallback.ServiceEntry?.SearchEngineId?.Split('|')[0] ?? "unknown";
+                return $"Ollama ({_ollamaConfig.Model}) + {cloudFallback.BudgetServiceName} ({model})";
+            }
+            return $"Ollama ({_ollamaConfig.Model})";
+        }
+    }
+
     private LlmRouter(ApiBudgetService? budget, CircuitBreakerService? circuit, OllamaConfig ollamaConfig)
     {
         _budget = budget;
@@ -56,18 +73,6 @@ public class LlmRouter
             var provider = new OpenAiLlmProvider(entry);
             if (await provider.IsAvailableAsync(ct))
                 router._providers.Add(new(provider, "openai", false, entry));
-        }
-
-        // Status line: show primary provider
-        var cloudFallback = router._providers.FirstOrDefault(p => !p.IsLocal);
-        if (cloudFallback != null)
-        {
-            var model = cloudFallback.ServiceEntry?.SearchEngineId?.Split('|')[0] ?? "unknown";
-            AnsiConsole.MarkupLine($"[grey]LLM: Ollama local ({ollamaConfig.Model}) — {cloudFallback.BudgetServiceName} ({model}) fallback[/]");
-        }
-        else
-        {
-            AnsiConsole.MarkupLine($"[grey]LLM: Ollama local ({ollamaConfig.Model})[/]");
         }
 
         return router;

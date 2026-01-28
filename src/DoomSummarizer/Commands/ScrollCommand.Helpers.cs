@@ -1,0 +1,269 @@
+using DoomSummarizer.Models;
+using DoomSummarizer.Services;
+using Spectre.Console;
+
+namespace DoomSummarizer.Commands;
+
+/// <summary>
+/// Helper utilities: vibe logic, URL handling, domain filtering, source weights,
+/// markdown stripping, in-corpus PageRank, FTS5 backfill.
+/// </summary>
+public partial class ScrollCommand
+{
+    /// <summary>
+    /// Prepend vibe-appropriate qualifiers to a search query
+    /// so search results better match the desired sentiment.
+    /// </summary>
+    internal static readonly HashSet<string> PredefinedVibes =
+        new(["doom", "hopeful", "snarky", "neutral"], StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Returns true if the vibe is custom arbitrary text rather than a predefined vibe.
+    /// </summary>
+    internal static bool IsCustomVibe(string vibe) =>
+        !PredefinedVibes.Contains(vibe);
+
+    internal static string QualifySearchQuery(string query, string vibe)
+    {
+        var qualifier = vibe.ToLowerInvariant() switch
+        {
+            "doom" => "concerning problems risks issues in",
+            "hopeful" => "positive breakthrough innovative upbeat news about",
+            "snarky" => "controversial debate criticism of",
+            "neutral" => "",
+            _ => $"{vibe} articles stories about" // Custom vibe used directly as qualifier
+        };
+
+        return string.IsNullOrEmpty(qualifier) ? query : $"{qualifier} {query}";
+    }
+
+    /// <summary>
+    /// Get representative text for a vibe to use as an embedding target
+    /// for cosine-similarity-based sentiment scoring.
+    /// </summary>
+    internal static string GetVibeRepresentativeText(string vibe)
+    {
+        return vibe.ToLowerInvariant() switch
+        {
+            "doom" => "security vulnerability breach layoffs downturn recession failure risk crisis warning concerning problem threat",
+            "hopeful" => "innovation breakthrough positive growth opportunity success launch improvement exciting new achievement progress",
+            "snarky" => "hype overrated controversy debate criticism reality check failure ironic absurd",
+            "neutral" => "technology software engineering development news",
+            _ => vibe // Custom vibe text used directly as embedding target
+        };
+    }
+
+    /// <summary>
+    /// Infer a basic topic from the source name when embeddings aren't available.
+    /// </summary>
+    internal static string InferTopicFromSource(string source)
+    {
+        return source.ToLowerInvariant() switch
+        {
+            "hn" => "technology",
+            "reddit" => "technology",
+            "bbc" or "guardian" or "cnn" or "reuters" => "world",
+            "gnews" => "general",
+            "so" => "technology",
+            "ars" or "verge" => "technology",
+            _ => "general"
+        };
+    }
+
+    private static string GetSourceFromUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return "?";
+        try
+        {
+            var host = new Uri(url).Host.Replace("www.", "");
+            return host.Split('.')[0];
+        }
+        catch { return "?"; }
+    }
+
+    /// <summary>
+    /// Filter items by allowed/blocked domain lists.
+    /// AllowedDomains = allowlist (if non-empty, only these pass).
+    /// BlockedDomains = blocklist (removed after allow check).
+    /// </summary>
+    internal static List<ContentItem> ApplySourceDomainFilter(
+        List<ContentItem> items, SourceFilterConfig filter)
+    {
+        var result = new List<ContentItem>(items.Count);
+
+        foreach (var item in items)
+        {
+            var host = GetHostFromUrl(item.Url);
+            if (string.IsNullOrEmpty(host))
+            {
+                result.Add(item); // Keep items without URLs (e.g., local content)
+                continue;
+            }
+
+            // Allowlist: if configured, item must match
+            if (filter.AllowedDomains.Count > 0)
+            {
+                if (!filter.AllowedDomains.Any(d =>
+                    host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+            }
+
+            // Blocklist: remove matching items
+            if (filter.BlockedDomains.Any(d =>
+                host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            result.Add(item);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Apply source reliability weights as RRF score multipliers.
+    /// Matches by source name first, then by URL domain.
+    /// Returns count of items that had weights applied.
+    /// </summary>
+    internal static int ApplySourceWeights(
+        List<ContentItem> items, SourceFilterConfig filter)
+    {
+        var count = 0;
+
+        foreach (var item in items)
+        {
+            var weight = 1.0;
+
+            // Match by source name first (hn, reddit, bbc, gnews, search, etc.)
+            if (filter.Weights.TryGetValue(item.Source, out var sourceWeight))
+            {
+                weight = sourceWeight;
+            }
+            else
+            {
+                // Fall back to domain matching
+                var host = GetHostFromUrl(item.Url);
+                if (!string.IsNullOrEmpty(host))
+                {
+                    foreach (var (pattern, w) in filter.Weights)
+                    {
+                        if (host.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                        {
+                            weight = w;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (Math.Abs(weight - 1.0) > 0.001)
+            {
+                item.RelevanceScore = Math.Min(1.0, item.RelevanceScore * weight);
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static string? GetHostFromUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return null;
+        try { return new Uri(url).Host.ToLowerInvariant(); }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Strip markdown formatting for clean LLM consumption.
+    /// Removes headers, link syntax, emphasis, code fences — keeps plain text facts.
+    /// </summary>
+    internal static string StripMarkdownForLlm(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+
+        // Remove markdown headers (## Header)
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^#{1,6}\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        // Remove markdown images ![alt](url) — complete or truncated
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"!\[([^\]]*)\]\([^)]*\)?", "$1");
+        // Remove truncated image at end: ![text](url-without-close...
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"!\[([^\]]*)\]\([^)]*$", "$1");
+        // Remove bare ![ at start if no matching ]
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^!\[", "");
+        // Convert [text](url) links to just "text" — complete or truncated
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\[([^\]]+)\]\([^)]*\)?", "$1");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\[([^\]]+)\]\([^)]*$", "$1");
+        // Remove emphasis markers (*text*, **text**, _text_, __text__)
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"(\*{1,2}|_{1,2})(.+?)\1", "$2");
+        // Remove escaped special chars (\( \) \[ \] etc.)
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\\([()[\]])", "$1");
+        // Remove code fences and inline code
+        text = text.Replace("```", "").Replace("~~~", "");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"`([^`]+)`", "$1");
+        // Remove list markers
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*[-*+]\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*\d+\.\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        // Collapse whitespace
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+
+        return text;
+    }
+
+    private static Dictionary<string, int> ComputeInCorpusLinkAuthority(List<ContentItem> items)
+    {
+        // Build set of all article URLs in corpus (normalized)
+        var corpusUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+        {
+            if (!string.IsNullOrEmpty(item.Url))
+                corpusUrls.Add(NormalizeUrlForAuthority(item.Url));
+        }
+
+        // Count incoming links from LinkedPages
+        var inLinkCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+        {
+            foreach (var linked in item.LinkedPages)
+            {
+                var normalizedLinked = NormalizeUrlForAuthority(linked.Url);
+                if (corpusUrls.Contains(normalizedLinked))
+                {
+                    inLinkCounts.TryGetValue(normalizedLinked, out var count);
+                    inLinkCounts[normalizedLinked] = count + 1;
+                }
+            }
+        }
+
+        return inLinkCounts;
+    }
+
+    private static string NormalizeUrlForAuthority(string url) =>
+        url.Split('?')[0].TrimEnd('/').ToLowerInvariant();
+
+    /// <summary>
+    /// Backfill the FTS5 index and keyword corpus for existing KB items
+    /// that were stored before FTS5 was introduced. Runs automatically
+    /// on first query when the FTS5 table is empty.
+    /// </summary>
+    private static async Task BackfillFtsIndexAsync(StorageService storage, bool quiet)
+    {
+        var allItems = await storage.GetAllItemsAsync();
+        if (allItems.Count == 0) return;
+
+        if (!quiet)
+            AnsiConsole.MarkupLine($"[grey]Backfilling FTS5 index for {allItems.Count} existing items...[/]");
+
+        var count = 0;
+        foreach (var stored in allItems)
+        {
+            var profile = DocumentProfileService.ExtractProfile(stored.Title, stored.Content ?? "");
+            var contentPreview = (stored.Content ?? "").Length > 2000
+                ? stored.Content![..2000]
+                : stored.Content ?? "";
+            await storage.IndexDocumentFtsAsync(stored.Id, stored.Title, profile.KeywordsText, contentPreview);
+            await storage.UpdateKeywordCorpusAsync(profile.TopKeywords.Select(k => k.Keyword));
+            count++;
+        }
+
+        if (!quiet)
+            AnsiConsole.MarkupLine($"[green]FTS5 backfill complete: {count} items indexed[/]");
+    }
+}

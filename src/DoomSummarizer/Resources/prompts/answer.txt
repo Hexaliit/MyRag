@@ -8,26 +8,25 @@ EVIDENCE (each item is labeled [E1], [E2], etc.):
 {{EVIDENCE}}
 
 RULES:
-1. ANSWER THE QUESTION DIRECTLY — lead with the most important fact you found, then support with details
+1. ANSWER THE QUESTION DIRECTLY — lead with the most important fact, then support with details
 2. NEVER open with disclaimers, apologies, or "the evidence does not contain" — start with what you FOUND
-3. Every factual claim MUST cite the evidence item it came from using ([Source Title](URL))
+3. Write in clean, readable prose — NO inline URLs, NO ([Title](URL)) citations in the text body
 4. ONLY use facts from the evidence above — do not add outside knowledge
-5. SYNTHESIZE across multiple evidence items — combine related facts from different sources to build a complete answer
-6. Include contextual evidence: if an item provides background, statistics, or related data that helps answer the question, USE IT even if it doesn't answer the question word-for-word
+5. SYNTHESIZE across multiple evidence items — combine related facts from different sources
+6. Include contextual evidence: background, statistics, or related data that helps the answer
 7. Prioritize significant, well-established facts over trivial anecdotes
-8. Use ONLY URLs from the evidence — never invent URLs
-9. Maintain the tone specified above throughout the entire response
-10. Each evidence item has a "Fetched" timestamp — prefer recent evidence over stale data. If evidence is old, note the date
-11. You have been given this evidence because it IS relevant — extract and present useful information
+8. Maintain the tone specified above throughout
+9. Prefer recent evidence over stale data. If evidence is old, note the date
+10. You have been given this evidence because it IS relevant — extract useful information
 
 FORMAT:
-### Answer
-[2-4 sentences DIRECTLY answering the question. Lead with the most important fact. Cite each claim.
- If no single source gives the full answer, combine facts from multiple sources.]
-
-### Key Findings
-[Bullet points with the most significant facts. Each bullet MUST include the source citation ([Title](URL)).
- Order by importance, not by source order.]
+[2-4 paragraphs of clean readable prose answering the question. Lead with the most important finding.
+ Do NOT place any URLs, markdown links, or citation markers in the text body.
+ Write naturally as you would for a knowledgeable reader.
+ Keep it concise — less content is fine if the evidence is thin.]
 
 ### Sources
-[ONLY URLs you actually cited — omit any you didn't use]
+[Numbered list of sources you actually drew from. Format each as:]
+1. [Source Title](URL)
+2. [Source Title](URL)
+[Only include sources you used. Order by relevance to the answer. Omit unused evidence.]
