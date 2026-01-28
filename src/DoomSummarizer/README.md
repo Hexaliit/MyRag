@@ -278,6 +278,77 @@ Resolves aggregator URLs to canonical article URLs:
 
 Results are cached to avoid repeated lookups.
 
+## v0.6.9: Advanced Search & Retrieval
+
+### Composite Query Decomposition
+
+DoomSummarizer now intelligently handles multi-part questions joined by "and", "also", or implicit conjunctions:
+
+```bash
+# Multi-question query
+doomsummarizer scroll "What's new in AI safety and what are the latest regulations?"
+
+# Sentinel decomposition:
+# - Subquery 1: "What's new in AI safety?"
+# - Subquery 2: "What are the latest AI regulations?"
+```
+
+**How it works:**
+1. **Sentinel Detection** — The sentinel LLM identifies composite queries and extracts subqueries
+2. **Multi-Query Embedding** — Each subquery gets its own embedding vector
+3. **Max Similarity Scoring** — Items are scored against the BEST matching subquery (not averaged)
+4. **Structured Responses** — LLM explicitly addresses each sub-question in the output
+
+Debug mode shows decomposition:
+```bash
+doomsummarizer scroll "AI safety and regulations" --debug
+# [cyan]Composite query detected: 2 subqueries[/]
+# [grey]  1. What's new in AI safety?[/]
+# [grey]  2. What are the latest AI regulations?[/]
+```
+
+### Lucene Hybrid Search
+
+The retrieval pipeline uses **Apache Lucene** for full-text search instead of simple BM25:
+
+| Feature | Benefit |
+|---------|---------|
+| **BM25F field weighting** | Title (2×), keywords (2.5×), content (1×) |
+| **Fuzzy matching** | Handles typos: `languge~` finds "language" |
+| **Phrase boosting** | `"machine learning"^3` for exact phrases |
+| **FTS5 pre-filter** | SQLite FTS5 narrows candidates before Lucene scoring |
+
+```bash
+# Fuzzy + boosted search
+doomsummarizer scroll "langauge models transformer" --debug
+# [grey]Lucene: 15 keyword matches (fuzzy: langauge~, boosted: transformer^2)[/]
+```
+
+### Entity Profile HNSW (Preview)
+
+For knowledge bases with `--entities`, documents get **entity profile embeddings** for semantic graph retrieval:
+
+```
+Document → NER entities → Entity embeddings → TF×IDF×confidence weighting → L2-normalized profile
+```
+
+Query-time: Find related documents via HNSW similarity on entity profiles (O(log N) retrieval).
+
+```bash
+# Build with entity profiles
+doomsummarizer crawl https://docs.example.com --entities
+
+# Entity-enhanced retrieval
+doomsummarizer scroll "OpenAI regulation" --debug
+# [green]Entity profile HNSW: +3 related (0.85, 0.72 similarity)[/]
+```
+
+### Reliability Improvements
+
+- **SQLite Thread Safety** — Semaphore-protected database operations prevent concurrent access issues
+- **Improved Error Handling** — Better circuit breaker state management for flaky APIs
+- **Budget Service Stability** — Fixed race conditions in usage tracking
+
 ## Long-Form Article Generation
 
 When using blog templates (`-t blog-article`, `-t blog-timeline`, or any YAML template), `scroll` activates a six-phase evidence-grounded pipeline instead of the standard digest synthesis.
@@ -408,30 +479,31 @@ Sources are auto-selected via semantic topic routing (e.g., "pharmaceutical news
 ## Processing Pipeline
 
 ```
-Query → PromptInterpreter → SourceRouter (YAML) → Parallel Fetchers
+Query → PromptInterpreter (+ composite query decomposition) → SourceRouter (YAML) → Parallel Fetchers
   → Cache Check (reuse segments for similar queries)
   → URL/Title Dedup → FTS5 KB Enrichment (keyword pre-filter)
   → Document Keyword Profiling (structural weighting: title 4x, headings 3x, intro 2x)
   → ONNX Embeddings (384-dim all-MiniLM-L6-v2)
-  → Phase 1 RRF (BM25F + Freshness + Authority + Quality) → Hard gate (cosine ≥ 0.20) → Discard bottom 25%
+  → Phase 1 RRF (Lucene BM25F + Freshness + Authority + Quality) → Hard gate (cosine ≥ 0.20) → Discard bottom 25%
   → PRF Centroid Refinement (top-5 embedding average, α=0.7)
-  → Phase 2 RRF (+ Query Similarity + Vibe Alignment + Quality) → Hard gate (cosine ≥ 0.20)
+  → Phase 2 RRF (+ Query Similarity [max across subqueries] + Vibe Alignment + Quality) → Hard gate (cosine ≥ 0.20)
   → Source Reliability Weights → LFU Diversity Decay → In-Corpus PageRank
   → One-Hop Link Following → TextRank Sentence Extraction
-  → Entity Graph Enrichment (co-occurrence discovery, ≥2 shared entities)
-  → LLM Synthesis (evidence-grounded) or Long-Form Pipeline (blog templates)
+  → Entity Graph Enrichment (HNSW profile similarity or co-occurrence discovery)
+  → LLM Synthesis (evidence-grounded, structured for composite queries) or Long-Form Pipeline (blog templates)
 ```
 
 ### Ranking Signals (RRF Fusion)
 
 | Signal | Weight | Phase | Description |
 |--------|--------|-------|-------------|
-| BM25F | 1.0 | 1 | Field-weighted TF-IDF: title (2x), keywords (2.5x), content (1x) |
+| Lucene BM25F | 1.0 | 1 | Apache Lucene with field weighting: title (2×), keywords (2.5×), content (1×), fuzzy matching |
 | Freshness | 0.5 | 1 | Exponential decay (48h half-life) |
 | Authority | 0.3 | 1 | Platform score (HN upvotes, etc.) |
-| Query Similarity | 0.8 | 2 | Embedding cosine similarity |
+| Query Similarity | 0.8 | 2 | Max embedding cosine similarity (across all subqueries for composite queries) |
 | Vibe Alignment | 0.4 | 2 | Embedding cosine to vibe |
 | Quality | 0.2 | 1+2 | Embedding-based clickbait vs substantive content scoring |
+| Entity Profile | 0.3 | 2 | HNSW similarity on entity profiles (when `--entities` enabled) |
 
 ### `--no-llm` Mode
 

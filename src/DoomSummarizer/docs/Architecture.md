@@ -4,7 +4,7 @@ This is a “local-first RAG-ish” console app:
 
 1. **Fetch** content from sources (RSS, HTML scraping, and optional API providers)
 2. **Normalize** content into `ContentItem` records
-3. **Rank** items using a multi-signal pipeline (BM25 + embeddings + freshness + authority + diversity)
+3. **Rank** items using a multi-signal pipeline (Lucene BM25F + embeddings + freshness + authority + diversity)
 4. **Enrich** items (optional link following, TextRank excerpts, entity extraction)
 5. **Store** items, embeddings, and metadata locally (SQLite; optional DuckDB vector store for graphs)
 6. **Synthesize** outputs using local or cloud LLMs (budgeted + fallback)
@@ -25,14 +25,26 @@ When an LLM call is needed, DoomSummarizer routes requests through `LlmRouter`:
 - Always falls back to local Ollama if available
 - If no LLM is available, DoomSummarizer still runs ranking/enrichment and can emit evidence-only outputs
 
+## Query preprocessing
+
+Before ranking, queries are analyzed and optionally decomposed:
+
+1. **Sentinel Analysis** — LLM classifies intent, extracts keywords, detects temporal requirements
+2. **NER Extraction** — ONNX-based entity recognition (PER, ORG, LOC, MISC)
+3. **Composite Detection** — Multi-part questions ("X and Y?") decomposed into subqueries
+4. **Temporal Parsing** — Microsoft.Recognizers.Text confirms date/time expressions
+
+For composite queries, each subquery gets its own embedding vector. Items are scored using **max similarity** across all subqueries (not averaged), ensuring articles matching ANY part of the question rank highly.
+
 ## Ranking pipeline (as implemented in `scroll`)
 
 At a glance:
 - Deduplicate items by URL/title
-- **Phase 1**: fast scoring + discard low-salience tail (BM25 + freshness + authority + similarity)
+- **Phase 1**: fast scoring + discard low-salience tail (Lucene BM25F + freshness + authority + similarity)
 - Compute embeddings for remaining items
-- **Phase 2**: full RRF with query similarity + vibe alignment
+- **Phase 2**: full RRF with query similarity + vibe alignment (max-sim for composite queries)
 - Apply source weights, LFU diversity decay, and in-corpus link authority boosts
+- Entity profile HNSW similarity (when `--entities` enabled)
 - Optionally follow one-hop links to enrich content
 - Extract key sentences via TextRank (no LLM required)
 

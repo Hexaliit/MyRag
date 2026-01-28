@@ -2,6 +2,11 @@ using DoomSummarizer.Services;
 
 namespace DoomSummarizer.Tests;
 
+/// <summary>
+/// Tests for EntityProfileService - weighted entity profile computation.
+/// Requires ONNX embedding model to be available.
+/// </summary>
+[Trait("Category", "RequiresModel")]
 public class EntityProfileServiceTests : IAsyncLifetime
 {
     private EmbeddingService _embedding = null!;

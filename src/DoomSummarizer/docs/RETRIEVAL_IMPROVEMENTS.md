@@ -21,6 +21,9 @@ Each signal provides evidence of salience; none is the final arbiter.
 - [x] **Performance optimizations** - AggressiveInlining on hot paths, removed redundant ToLowerInvariant()
 - [x] **Entity Profile HNSW** - Semantic entity similarity replacing naive shared-count (see below)
 - [x] **Semantic outlier detection** - Uses query embedding for outlier filtering (catches synonyms)
+- [x] **Composite query decomposition** - Multi-part questions decomposed into subqueries (see below)
+- [x] **Multi-query embedding** - Each subquery gets its own embedding, items scored against best match
+- [x] **SQLite thread safety** - Semaphore-protected database operations in ApiBudgetService
 
 ---
 
@@ -86,6 +89,92 @@ doomsummarizer scroll --backfill-entity-profiles
    - Embedding (semantic similarity)
    - Entity Profile HNSW (entity-to-entity semantic matching)
 4. **RRF**: Candidates are scored and ranked using existing 6-signal RRF
+
+---
+
+## Composite Query Decomposition (NEW in v0.6.9)
+
+### What
+Multi-part questions joined by "and", "also", or implicit conjunctions are decomposed into independent subqueries. Each subquery is handled separately in retrieval, then results are fused.
+
+### Why
+Previous behavior averaged embeddings across the entire query, which dilutes relevance:
+- Query: "What's new in AI safety and what are the latest regulations?"
+- Old: Single embedding captures "AI safety regulations" → misses pure safety OR pure regulation articles
+- New: Two subqueries, each gets its own embedding → matches articles about either topic
+
+### How It Works
+
+**1. Sentinel Detection**
+The sentinel LLM identifies composite queries and extracts subqueries:
+```json
+{
+  "is_composite": true,
+  "subqueries": [
+    "What's new in AI safety?",
+    "What are the latest AI regulations?"
+  ]
+}
+```
+
+**2. Multi-Query Embedding**
+Each subquery gets its own 384-dim embedding vector:
+```csharp
+if (interpreted?.SentinelIntent?.HasSubqueries == true)
+{
+    subqueryEmbeddings = interpreted.SentinelIntent.Subqueries!
+        .Select(sq => embedding.Embed(sq))
+        .ToList();
+}
+```
+
+**3. Max Similarity Scoring**
+Items are scored against ALL subqueries, using the BEST match:
+```csharp
+internal static float ComputeMaxQuerySimilarity(
+    float[]? itemEmbedding,
+    float[]? primaryQueryEmbedding,
+    List<float[]>? subqueryEmbeddings)
+{
+    if (subqueryEmbeddings?.Count > 0)
+    {
+        return subqueryEmbeddings
+            .Select(sq => CosineSimilarity(itemEmbedding, sq))
+            .Max();
+    }
+    return CosineSimilarity(itemEmbedding, primaryQueryEmbedding);
+}
+```
+
+**4. Structured Responses**
+The LLM prompt explicitly instructs structured responses:
+```
+IMPORTANT: This is a composite question. Please answer EACH of these sub-questions:
+  1. What's new in AI safety?
+  2. What are the latest AI regulations?
+
+Structure your response to clearly address each question.
+```
+
+### Files Changed
+- `Services/PromptInterpreter.cs` - Simplified sentinel prompt for composite detection
+- `Services/SentinelSourceMapper.cs` - Added `Subqueries`, `IsComposite`, `HasSubqueries` properties
+- `Services/OllamaService.cs` - Added `List<string>` to JSON serialization context
+- `Commands/ScrollCommand.cs` - Multi-query embedding generation, max similarity scoring
+- `Commands/ScrollCommand.Helpers.cs` - `ComputeMaxQuerySimilarity` helper
+
+### Debug Output
+With `--debug` flag:
+```
+[cyan]Composite query detected: 2 subqueries[/]
+[grey]  1. What's new in AI safety?[/]
+[grey]  2. What are the latest AI regulations?[/]
+
+Searching...
+├─ [grey]Lucene: 18 keyword matches[/]
+├─ [grey]Embedding: 12 semantic matches (max-sim across 2 subqueries)[/]
+├─ [grey]Fused: 22 unique candidates[/]
+```
 
 ---
 
