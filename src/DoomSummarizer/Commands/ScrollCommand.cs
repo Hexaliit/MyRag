@@ -3,6 +3,8 @@ using System.Reflection;
 using ConsoleImage.Core;
 using ConsoleImage.Player;
 using DoomSummarizer.Models;
+using DoomSummarizer.Plugins;
+using DoomSummarizer.Plugins.Runtime;
 using DoomSummarizer.Services;
 using DoomSummarizer.Services.LongFormGeneration;
 using Mostlylucid.DocSummarizer.Content;
@@ -775,284 +777,54 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                 var perSourceLimit = Math.Max(10, settings.Limit / Math.Max(1, sources.Count));
 
-                // Create parallel fetch tasks
+                // Initialize plugin registry (builtins + runtime plugins)
+                var pluginRegistry = new SourcePluginRegistry();
+                var outputRegistry = new OutputPluginRegistry();
+                BuiltinPlugins.RegisterAllSources(pluginRegistry);
+                BuiltinPlugins.RegisterAllOutputs(outputRegistry);
+
+                // Load runtime plugins from manifest (~/.doomsummarizer/plugins/)
+                var pluginManager = new PluginManager(httpClient);
+                pluginManager.LoadAndRegister(pluginRegistry, outputRegistry);
+
+                var pluginServices = new SourcePluginServices
+                {
+                    HttpClient = httpClient,
+                    ApiKeys = apiKeys,
+                    ApiBudget = apiBudget,
+                    CircuitBreaker = circuitBreaker
+                };
+                await pluginRegistry.InitializeAllAsync(pluginServices, cancellationToken);
+
+                // Create parallel fetch tasks via plugin registry
                 foreach (var source in sources)
                 {
-                    var src = source.ToLowerInvariant();
+                    var fetchCtx = SourceFetchContext.ParseWithCompositeKeys(
+                        source,
+                        pluginRegistry.AllKeys,
+                        query: interpreted?.RawPrompt ?? settings.Prompt,
+                        limit: perSourceLimit,
+                        vibe: vibe,
+                        config: config,
+                        rawPrompt: interpreted?.RawPrompt ?? settings.Prompt);
 
-                    if (src == "hn")
+                    var plugin = pluginRegistry.FindByKey(fetchCtx.SourceKey);
+                    if (plugin != null)
                     {
+                        var capturedCtx = fetchCtx;
                         fetchTasks.Add(Task.Run(async () =>
+                            await plugin.FetchAsync(capturedCtx, cancellationToken)));
+                    }
+                    else if (fetchCtx.SourceKey.StartsWith("http"))
+                    {
+                        // URL fallback — route to the web plugin
+                        var webPlugin = pluginRegistry.FindByKey("web");
+                        if (webPlugin != null)
                         {
-                            var fetcher = new HackerNewsFetcher(httpClient);
-                            return await fetcher.FetchAsync(config.Sources.HackerNews, perSourceLimit);
-                        }));
-                    }
-                    else if (src == "reddit" || src.StartsWith("reddit:"))
-                    {
-                        var subreddit = src.Contains(':') ? src.Split(':')[1] : null;
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var redditConfig = config.Sources.Reddit;
-                            if (subreddit != null)
-                            {
-                                redditConfig = redditConfig with { Subreddits = [subreddit] };
-                            }
-                            var fetcher = new RedditFetcher(httpClient);
-                            return await fetcher.FetchAsync(redditConfig, perSourceLimit);
-                        }));
-                    }
-                    else if (src.StartsWith("gnews_topic:"))
-                    {
-                        // Google News topic feed (HEALTH, SCIENCE, BUSINESS, etc.)
-                        var topic = source[12..];
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var gnews = new GoogleNewsFetcher(httpClient);
-                            return await gnews.FetchTopicAsync(topic, perSourceLimit);
-                        }));
-                    }
-                    else if (src.StartsWith("gnews:") || src == "gnews")
-                    {
-                        // Google News RSS search
-                        var query = src == "gnews" ? interpreted?.RawPrompt ?? "" : source[6..];
-                        var qualifiedQuery = QualifySearchQuery(query, vibe);
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var gnews = new GoogleNewsFetcher(httpClient);
-                            return await gnews.SearchAsync(qualifiedQuery, perSourceLimit, daysBack: 7);
-                        }));
-                    }
-                    else if (src.StartsWith("search:"))
-                    {
-                        var query = source[7..]; // Keep original case for search
-                        var qualifiedQuery = QualifySearchQuery(query, vibe);
-                        var searchLimit = perSourceLimit * 2;
-
-                        // Rotate across available search APIs (round-robin per session)
-                        var searchTask = BuildRotatedSearchTask(
-                            qualifiedQuery, searchLimit, httpClient, apiKeys, apiBudget, circuitBreaker);
-                        fetchTasks.Add(Task.Run(async () => await searchTask(cancellationToken)));
-                    }
-                    else if (src.StartsWith("gsearch:") || src == "gsearch")
-                    {
-                        var query = src == "gsearch"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[8..];
-                        var qualifiedQuery = QualifySearchQuery(query, vibe);
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new GoogleSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
-                    }
-                    else if (src.StartsWith("gplaces:") || src == "gplaces")
-                    {
-                        var query = src == "gplaces"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[8..];
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new GooglePlacesService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(query, perSourceLimit)));
-                    }
-                    else if (src.StartsWith("brave:") || src.StartsWith("brave_search:") || src is "brave" or "brave_search")
-                    {
-                        var query = src is "brave" or "brave_search"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[(source.IndexOf(':') + 1)..];
-                        var qualifiedQuery = QualifySearchQuery(query, vibe);
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
-                    }
-                    else if (src.StartsWith("bravenews:") || src.StartsWith("brave_news:") || src is "bravenews" or "brave_news")
-                    {
-                        var query = src is "bravenews" or "brave_news"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[(source.IndexOf(':') + 1)..];
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(query, perSourceLimit, newsOnly: true)));
-                    }
-                    else if (src.StartsWith("serper:") || src == "serper")
-                    {
-                        var query = src == "serper"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[7..];
-                        var qualifiedQuery = QualifySearchQuery(query, vibe);
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(qualifiedQuery, perSourceLimit * 2)));
-                    }
-                    else if (src.StartsWith("serpernews:") || src.StartsWith("serper_news:") || src is "serpernews" or "serper_news")
-                    {
-                        var query = src is "serpernews" or "serper_news"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[(source.IndexOf(':') + 1)..];
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(query, perSourceLimit, newsOnly: true)));
-                    }
-                    else if (src.StartsWith("tavily:") || src == "tavily")
-                    {
-                        var query = src == "tavily"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[7..];
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new TavilySearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(query, perSourceLimit)));
-                    }
-                    else if (src.StartsWith("newsapi:") || src.StartsWith("news_api:") || src is "newsapi" or "news_api")
-                    {
-                        var query = src is "newsapi" or "news_api"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[(source.IndexOf(':') + 1)..];
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new NewsApiService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(query, perSourceLimit)));
-                    }
-                    else if (src.StartsWith("newsdata:") || src.StartsWith("news_data:") || src is "newsdata" or "news_data")
-                    {
-                        var query = src is "newsdata" or "news_data"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[(source.IndexOf(':') + 1)..];
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new NewsDataService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(query, perSourceLimit)));
-                    }
-                    else if (src.StartsWith("currents:") || src == "currents")
-                    {
-                        var query = src == "currents"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[9..];
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new CurrentsApiService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(query, perSourceLimit)));
-                    }
-                    else if (src.StartsWith("jina:") || src == "jina")
-                    {
-                        var query = src == "jina"
-                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
-                            : source[5..];
-                        fetchTasks.Add(Task.Run(async () =>
-                            await new JinaSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                .SearchAsync(query, perSourceLimit)));
-                    }
-                    else if (src == "so" || src.StartsWith("so:"))
-                    {
-                        // StackOverflow: so, so:tag, so:search:query
-                        var parts = src.Split(':');
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var soFetcher = new StackOverflowFetcher();
-                            if (parts.Length == 1)
-                            {
-                                return await soFetcher.FetchHotAsync(perSourceLimit);
-                            }
-                            else if (parts.Length == 2)
-                            {
-                                return await soFetcher.FetchByTagAsync(parts[1], perSourceLimit);
-                            }
-                            else if (parts.Length >= 3 && parts[1] == "search")
-                            {
-                                var query = string.Join(":", parts[2..]);
-                                return await soFetcher.SearchAsync(query, perSourceLimit);
-                            }
-                            return await soFetcher.FetchHotAsync(perSourceLimit);
-                        }));
-                    }
-                    else if (src == "factcheck" || src.StartsWith("factcheck:"))
-                    {
-                        // Fact-checking: factcheck, factcheck:snopes, factcheck:politifact
-                        var site = src.Contains(':') ? src.Split(':')[1] : null;
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var fetcher = new FactCheckFetcher(httpClient);
-                            return await fetcher.FetchAsync(perSourceLimit, site);
-                        }));
-                    }
-                    else if (src == "spaceflight" || src == "space")
-                    {
-                        // Spaceflight News API: spaceflight, space
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var fetcher = new SpaceflightNewsFetcher(httpClient);
-                            return await fetcher.FetchAsync(perSourceLimit);
-                        }));
-                    }
-                    else if (src == "earthquake" || src == "quake" || src.StartsWith("earthquake:"))
-                    {
-                        // USGS Earthquakes: earthquake, earthquake:significant_month, earthquake:4.5_week
-                        var feed = src.Contains(':') ? src.Split(':')[1] : null;
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var fetcher = new UsgsEarthquakeFetcher(httpClient);
-                            return await fetcher.FetchAsync(perSourceLimit, feed);
-                        }));
-                    }
-                    else if (src == "wikipedia" || src == "wiki" || src.StartsWith("wiki:"))
-                    {
-                        // Wikipedia current events: wiki, wiki:news, wiki:history, wiki:featured
-                        var section = src.Contains(':') ? src.Split(':')[1] : null;
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var fetcher = new WikipediaFetcher(httpClient);
-                            return await fetcher.FetchAsync(perSourceLimit, section);
-                        }));
-                    }
-                    else if (src == "arxiv" || src.StartsWith("arxiv:"))
-                    {
-                        // arXiv papers: arxiv, arxiv:query, arxiv:cat:cs.AI
-                        var parts = src.Split(':');
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var fetcher = new ArxivFetcher(httpClient);
-                            if (parts.Length >= 3 && parts[1] == "cat")
-                            {
-                                // Category browse: arxiv:cat:cs.AI
-                                return await fetcher.FetchCategoryAsync(parts[2], perSourceLimit);
-                            }
-                            else if (parts.Length >= 2)
-                            {
-                                // Search: arxiv:query terms
-                                var query = string.Join(":", parts[1..]);
-                                return await fetcher.SearchAsync(query, perSourceLimit);
-                            }
-                            else
-                            {
-                                // Default: search with interpreted prompt
-                                var query = interpreted?.RawPrompt ?? settings.Prompt ?? "recent";
-                                return await fetcher.SearchAsync(query, perSourceLimit);
-                            }
-                        }));
-                    }
-                    else if (NewsFetcher.KnownSources.Contains(src.Split(':')[0]))
-                    {
-                        // News sources: bbc, guardian, ars, verge, etc.
-                        // Supports: bbc, bbc:category, bbc:query
-                        var parts = src.Split(':');
-                        var sourceName = parts[0];
-                        var query = parts.Length > 1 ? string.Join(":", parts[1..]) : null;
-
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var newsFetcher = new NewsFetcher(httpClient);
-                            return await newsFetcher.FetchSourceAsync(sourceName, perSourceLimit, query);
-                        }));
-                    }
-                    else if (src.StartsWith("http"))
-                    {
-                        var url = source; // Keep original case
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            var feedDiscovery = new FeedDiscovery(httpClient);
-                            var (feedItems, _) = await feedDiscovery.FetchWithDiscoveryAsync(url, perSourceLimit);
-
-                            if (feedItems.Count > 0)
-                                return feedItems;
-
-                            // Fall back to HTML scraping
-                            await using var webFetcher = new WebsiteFetcher(httpClient);
-                            return await webFetcher.FetchAsync([new WebsiteConfig { Url = url }]);
-                        }));
+                            var webCtx = fetchCtx with { RawSource = source };
+                            fetchTasks.Add(Task.Run(async () =>
+                                await webPlugin.FetchAsync(webCtx, cancellationToken)));
+                        }
                     }
                 }
 
@@ -1079,14 +851,13 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 fetchTask.Value = 80;
 
                 // Source diversity fallback: if initial fetch returned too few items,
-                // auto-add search fallbacks to fill the gap
+                // auto-add search fallbacks to fill the gap via plugin registry
                 var minDesired = Math.Max(15, settings.Limit / 2);
                 if (items.Count < minDesired && !string.IsNullOrEmpty(interpreted?.RawPrompt ?? settings.Prompt))
                 {
                     var fallbackQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
                     var fallbackSources = new List<Task<List<ContentItem>>>();
 
-                    // Use available search APIs as fallback (cascade through services)
                     var hasSearchSource = sources.Any(s =>
                         s.StartsWith("search:", StringComparison.OrdinalIgnoreCase) ||
                         s.StartsWith("gsearch", StringComparison.OrdinalIgnoreCase) ||
@@ -1096,13 +867,25 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     if (!hasSearchSource)
                     {
-                        // Rotate across available search APIs (diversity fallback)
-                        var fallbackSearch = BuildRotatedSearchTask(
-                            fallbackQuery, perSourceLimit * 2, httpClient, apiKeys, apiBudget, circuitBreaker);
-                        fallbackSources.Add(Task.Run(async () => await fallbackSearch(cancellationToken)));
+                        var searchPlugin = pluginRegistry.FindByKey("search");
+                        if (searchPlugin != null)
+                        {
+                            var searchCtx = new SourceFetchContext
+                            {
+                                RawSource = $"search:{fallbackQuery}",
+                                SourceKey = "search",
+                                SubParams = [fallbackQuery],
+                                Query = fallbackQuery,
+                                RawPrompt = fallbackQuery,
+                                Limit = perSourceLimit * 2,
+                                Vibe = vibe,
+                                Config = config
+                            };
+                            fallbackSources.Add(Task.Run(async () =>
+                                await searchPlugin.FetchAsync(searchCtx, cancellationToken)));
+                        }
                     }
 
-                    // Add news fallbacks if not already present
                     var hasNewsSource = sources.Any(s =>
                         s.StartsWith("gnews", StringComparison.OrdinalIgnoreCase) ||
                         s.StartsWith("newsapi", StringComparison.OrdinalIgnoreCase) ||
@@ -1113,27 +896,61 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     if (!hasNewsSource)
                     {
-                        // Use news APIs in parallel for diversity
-                        if (apiKeys.IsAvailable("newsapi"))
+                        var searchPlugin = pluginRegistry.FindByKey("search");
+                        if (searchPlugin != null)
                         {
-                            fallbackSources.Add(Task.Run(async () =>
-                                await new NewsApiService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                    .SearchAsync(fallbackQuery, perSourceLimit)));
-                        }
+                            if (apiKeys.IsAvailable("newsapi"))
+                            {
+                                var newsCtx = new SourceFetchContext
+                                {
+                                    RawSource = $"newsapi:{fallbackQuery}",
+                                    SourceKey = "newsapi",
+                                    SubParams = [fallbackQuery],
+                                    Query = fallbackQuery,
+                                    Limit = perSourceLimit,
+                                    Vibe = vibe,
+                                    Config = config
+                                };
+                                fallbackSources.Add(Task.Run(async () =>
+                                    await searchPlugin.FetchAsync(newsCtx, cancellationToken)));
+                            }
 
-                        if (apiKeys.IsAvailable("currents"))
-                        {
-                            fallbackSources.Add(Task.Run(async () =>
-                                await new CurrentsApiService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                    .SearchAsync(fallbackQuery, perSourceLimit)));
-                        }
+                            if (apiKeys.IsAvailable("currents"))
+                            {
+                                var currentsCtx = new SourceFetchContext
+                                {
+                                    RawSource = $"currents:{fallbackQuery}",
+                                    SourceKey = "currents",
+                                    SubParams = [fallbackQuery],
+                                    Query = fallbackQuery,
+                                    Limit = perSourceLimit,
+                                    Vibe = vibe,
+                                    Config = config
+                                };
+                                fallbackSources.Add(Task.Run(async () =>
+                                    await searchPlugin.FetchAsync(currentsCtx, cancellationToken)));
+                            }
 
-                        // GNews RSS as final news fallback if no API keys
-                        if (!apiKeys.IsAvailable("newsapi") && !apiKeys.IsAvailable("currents"))
-                        {
-                            fallbackSources.Add(Task.Run(async () =>
-                                await new GoogleNewsFetcher(httpClient)
-                                    .SearchAsync(fallbackQuery, perSourceLimit, daysBack: 7)));
+                            // GNews RSS as final news fallback if no API keys
+                            if (!apiKeys.IsAvailable("newsapi") && !apiKeys.IsAvailable("currents"))
+                            {
+                                var gnewsPlugin = pluginRegistry.FindByKey("gnews");
+                                if (gnewsPlugin != null)
+                                {
+                                    var gnewsCtx = new SourceFetchContext
+                                    {
+                                        RawSource = $"gnews:{fallbackQuery}",
+                                        SourceKey = "gnews",
+                                        SubParams = [fallbackQuery],
+                                        Query = fallbackQuery,
+                                        Limit = perSourceLimit,
+                                        Vibe = vibe,
+                                        Config = config
+                                    };
+                                    fallbackSources.Add(Task.Run(async () =>
+                                        await gnewsPlugin.FetchAsync(gnewsCtx, cancellationToken)));
+                                }
+                            }
                         }
                     }
 

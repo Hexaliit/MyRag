@@ -25,7 +25,7 @@
 
     <ItemGroup>
         <!-- StyloFlow.Retrieval.Core - Universal retrieval infrastructure -->
-        <ProjectReference Include="D:\Source\styloflow\src\StyloFlow.Retrieval.Core\StyloFlow.Retrieval.Core.csproj"/>
+        <PackageReference Include="Mostlylucid.StyloFlow.Retrieval.Core" Version="2.3.1" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>DoomSummarizer.Complete</RootNamespace>
+        <AssemblyName>doomsummarizer-complete</AssemblyName>
+        <Version>0.6.1</Version>
+
+        <!-- Single-file deployment -->
+        <PublishSingleFile>true</PublishSingleFile>
+        <PublishReadyToRun>true</PublishReadyToRun>
+        <SelfContained>true</SelfContained>
+        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+
+        <!-- Global tool packaging -->
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>doomsummarizer-complete</ToolCommandName>
+        <PackageId>Mostlylucid.DoomSummarizer.Complete</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <Company>Mostlylucid</Company>
+        <Description>DoomSummarizer fat CLI with all source and output plugins statically included. No runtime plugin loading needed.</Description>
+        <PackageTags>doomsummarizer;cli;complete;all-sources</PackageTags>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+        <!-- Allow unsafe for ONNX -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <!-- MinVer -->
+    <PropertyGroup>
+        <MinVerTagPrefix>doomsumcompletev</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <!-- Slim CLI project (shares CliApp, commands, resources, all CLI dependencies) -->
+    <ItemGroup>
+        <ProjectReference Include="..\DoomSummarizer\DoomSummarizer.csproj">
+            <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+        </ProjectReference>
+    </ItemGroup>
+
+    <!-- All source plugin packages (statically linked, no runtime loading needed) -->
+    <ItemGroup>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.HackerNews\Mostlylucid.DoomSummarizer.Source.HackerNews.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Reddit\Mostlylucid.DoomSummarizer.Source.Reddit.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Google\Mostlylucid.DoomSummarizer.Source.Google.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.News\Mostlylucid.DoomSummarizer.Source.News.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Web\Mostlylucid.DoomSummarizer.Source.Web.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Academic\Mostlylucid.DoomSummarizer.Source.Academic.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Science\Mostlylucid.DoomSummarizer.Source.Science.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Reference\Mostlylucid.DoomSummarizer.Source.Reference.csproj" />
+    </ItemGroup>
+
+</Project>

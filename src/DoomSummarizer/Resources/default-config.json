@@ -103,6 +103,58 @@
     "dbPath": "~/.doomsummarizer/doom.db",
     "retentionDays": 30
   },
+  "plugins": {
+    "enableRuntimePlugins": true,
+    "autoInstall": [],
+    "disabled": [],
+    "settings": {
+      "hn": {
+        "enabled": true,
+        "maxItems": null,
+        "options": {}
+      },
+      "reddit": {
+        "enabled": true,
+        "maxItems": null,
+        "options": {}
+      },
+      "gnews": {
+        "enabled": true,
+        "maxItems": null,
+        "options": {}
+      },
+      "news": {
+        "enabled": true,
+        "maxItems": null,
+        "options": {}
+      },
+      "search": {
+        "enabled": true,
+        "maxItems": null,
+        "options": {}
+      },
+      "arxiv": {
+        "enabled": true,
+        "maxItems": null,
+        "options": {}
+      },
+      "spaceflight": {
+        "enabled": true,
+        "maxItems": null,
+        "options": {}
+      },
+      "wiki": {
+        "enabled": true,
+        "maxItems": null,
+        "options": {}
+      },
+      "web": {
+        "enabled": true,
+        "maxItems": null,
+        "options": {}
+      }
+    }
+  },
   "keys": [
     {
       "name": "google_search",

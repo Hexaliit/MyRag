@@ -12,6 +12,7 @@ public record DoomConfig
     public StorageConfig Storage { get; init; } = new();
     public LinkFollowingConfig LinkFollowing { get; init; } = new();
     public EmailConfig Email { get; init; } = new();
+    public PluginsConfig Plugins { get; init; } = new();
     public Dictionary<string, string> Vibes { get; init; } = new();
     public List<ApiKeyEntry> Keys { get; init; } = [];
     public ApiBudgetConfig ApiBudget { get; init; } = new();
@@ -254,6 +255,43 @@ public record SmtpConfig
     public string? Password { get; init; }
 }
 
+/// <summary>
+/// Plugin management configuration. Controls which plugins are enabled,
+/// auto-install behavior, and per-plugin overrides.
+/// </summary>
+public record PluginsConfig
+{
+    /// <summary>Enable runtime plugin loading from ~/.doomsummarizer/plugins/.</summary>
+    public bool EnableRuntimePlugins { get; init; } = true;
+
+    /// <summary>Auto-install these plugins on first run (shorthand or full NuGet ID).</summary>
+    public List<string> AutoInstall { get; init; } = [];
+
+    /// <summary>Disabled plugin keys — these won't be loaded even if installed.</summary>
+    public List<string> Disabled { get; init; } = [];
+
+    /// <summary>
+    /// Per-plugin settings. Key = plugin primary key (e.g., "hn", "reddit", "search").
+    /// Values are passed to the plugin's InitializeAsync as configuration overrides.
+    /// </summary>
+    public Dictionary<string, PluginSettings> Settings { get; init; } = new();
+}
+
+/// <summary>
+/// Per-plugin configuration overrides. Stored in config under plugins.settings.[key].
+/// </summary>
+public record PluginSettings
+{
+    /// <summary>Whether this plugin is enabled. Overrides the global disabled list.</summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>Maximum items to fetch per invocation (overrides --limit for this source).</summary>
+    public int? MaxItems { get; init; }
+
+    /// <summary>Plugin-specific key-value options. Interpretation depends on the plugin.</summary>
+    public Dictionary<string, string> Options { get; init; } = new();
+}
+
 // ApiBudgetConfig is now defined in Mostlylucid.DocSummarizer.Resilience.
 // Re-exported via global using in Services/ApiBudgetService.cs.
 
@@ -278,6 +316,8 @@ public record SmtpConfig
 [JsonSerializable(typeof(ApiBudgetConfig))]
 [JsonSerializable(typeof(EmailConfig))]
 [JsonSerializable(typeof(SmtpConfig))]
+[JsonSerializable(typeof(PluginsConfig))]
+[JsonSerializable(typeof(PluginSettings))]
 [JsonSerializable(typeof(List<ApiKeyEntry>))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]

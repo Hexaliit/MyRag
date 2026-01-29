@@ -358,9 +358,406 @@ jobs:
           name: doomsummarizer-pkg
           path: ./artifacts/*
 
+  # ── Wait for DoomSummarizer.Core on NuGet ─────────────────────────────
+  wait-for-doomsummarizer:
+    needs: publish-doomsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet for Mostlylucid.DoomSummarizer.Core
+        run: |
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://api.nuget.org/v3-flatcontainer/mostlylucid.doomsummarizer.core/${{ inputs.version }}/mostlylucid.doomsummarizer.core.${{ inputs.version }}.nupkg")
+            echo "Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then exit 0; fi
+            sleep 30
+          done
+          echo "Package not found after 15 minutes, continuing anyway..."
+
+  # ── Tier 4: Source packages (parallel) ───────────────────────────────
+  publish-source-hackernews:
+    needs: wait-for-doomsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DoomSummarizer.Source.HackerNews/Mostlylucid.DoomSummarizer.Source.HackerNews.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Source.HackerNews/Mostlylucid.DoomSummarizer.Source.HackerNews.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-hackernews-pkg
+          path: ./artifacts/*
+
+  publish-source-reddit:
+    needs: wait-for-doomsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DoomSummarizer.Source.Reddit/Mostlylucid.DoomSummarizer.Source.Reddit.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Source.Reddit/Mostlylucid.DoomSummarizer.Source.Reddit.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-reddit-pkg
+          path: ./artifacts/*
+
+  publish-source-google:
+    needs: wait-for-doomsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DoomSummarizer.Source.Google/Mostlylucid.DoomSummarizer.Source.Google.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Source.Google/Mostlylucid.DoomSummarizer.Source.Google.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-google-pkg
+          path: ./artifacts/*
+
+  publish-source-news:
+    needs: wait-for-doomsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DoomSummarizer.Source.News/Mostlylucid.DoomSummarizer.Source.News.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Source.News/Mostlylucid.DoomSummarizer.Source.News.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-news-pkg
+          path: ./artifacts/*
+
+  publish-source-web:
+    needs: wait-for-doomsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DoomSummarizer.Source.Web/Mostlylucid.DoomSummarizer.Source.Web.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Source.Web/Mostlylucid.DoomSummarizer.Source.Web.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-web-pkg
+          path: ./artifacts/*
+
+  publish-source-academic:
+    needs: wait-for-doomsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DoomSummarizer.Source.Academic/Mostlylucid.DoomSummarizer.Source.Academic.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Source.Academic/Mostlylucid.DoomSummarizer.Source.Academic.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-academic-pkg
+          path: ./artifacts/*
+
+  publish-source-science:
+    needs: wait-for-doomsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DoomSummarizer.Source.Science/Mostlylucid.DoomSummarizer.Source.Science.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Source.Science/Mostlylucid.DoomSummarizer.Source.Science.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-science-pkg
+          path: ./artifacts/*
+
+  publish-source-reference:
+    needs: wait-for-doomsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DoomSummarizer.Source.Reference/Mostlylucid.DoomSummarizer.Source.Reference.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Source.Reference/Mostlylucid.DoomSummarizer.Source.Reference.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-reference-pkg
+          path: ./artifacts/*
+
+  # ── Tier 5: DoomSummarizer.Complete (fat CLI, depends on all sources) ──
+  publish-doomsummarizer-complete:
+    needs:
+      - publish-source-hackernews
+      - publish-source-reddit
+      - publish-source-google
+      - publish-source-news
+      - publish-source-web
+      - publish-source-academic
+      - publish-source-science
+      - publish-source-reference
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DoomSummarizer.Complete/Mostlylucid.DoomSummarizer.Complete.csproj \
+            -c Release \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Complete/Mostlylucid.DoomSummarizer.Complete.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doomsummarizer-complete-pkg
+          path: ./artifacts/*
+
   # ── Summary ────────────────────────────────────────────────────────────
   summary:
-    needs: publish-doomsummarizer
+    needs:
+      - publish-summarizer-core
+      - publish-docsummarizer
+      - publish-rdbms-sqlite
+      - publish-fts-lucene
+      - publish-fts-sqlite
+      - publish-doomsummarizer
+      - publish-source-hackernews
+      - publish-source-reddit
+      - publish-source-google
+      - publish-source-news
+      - publish-source-web
+      - publish-source-academic
+      - publish-source-science
+      - publish-source-reference
+      - publish-doomsummarizer-complete
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -377,4 +774,13 @@ jobs:
           | 2 | `Mostlylucid.DocSummarizer.FullText.Lucene` | ${{ needs.publish-fts-lucene.result }} |
           | 2 | `Mostlylucid.DocSummarizer.FullText.Sqlite` | ${{ needs.publish-fts-sqlite.result }} |
           | 3 | `Mostlylucid.DoomSummarizer.Core` | ${{ needs.publish-doomsummarizer.result }} |
+          | 4 | `Source.HackerNews` | ${{ needs.publish-source-hackernews.result }} |
+          | 4 | `Source.Reddit` | ${{ needs.publish-source-reddit.result }} |
+          | 4 | `Source.Google` | ${{ needs.publish-source-google.result }} |
+          | 4 | `Source.News` | ${{ needs.publish-source-news.result }} |
+          | 4 | `Source.Web` | ${{ needs.publish-source-web.result }} |
+          | 4 | `Source.Academic` | ${{ needs.publish-source-academic.result }} |
+          | 4 | `Source.Science` | ${{ needs.publish-source-science.result }} |
+          | 4 | `Source.Reference` | ${{ needs.publish-source-reference.result }} |
+          | 5 | `DoomSummarizer.Complete` | ${{ needs.publish-doomsummarizer-complete.result }} |
           EOF
