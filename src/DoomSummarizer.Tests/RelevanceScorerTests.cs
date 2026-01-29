@@ -118,7 +118,7 @@ public class RelevanceScorerTests
 
         highAuth.Should().Be(1.0);
         lowAuth.Should().BeLessThan(highAuth);
-        bbcAuth.Should().Be(0.5); // BBC baseline
+        bbcAuth.Should().Be(0.6); // BBC baseline (Tier 1: wire services / premium journalism)
     }
 
     [Fact]
@@ -132,8 +132,8 @@ public class RelevanceScorerTests
 
         var maxScoreBySource = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
 
-        RelevanceScorer.NormalizeAuthority(items[0], maxScoreBySource).Should().Be(0.3);
-        RelevanceScorer.NormalizeAuthority(items[1], maxScoreBySource).Should().Be(0.4);
+        RelevanceScorer.NormalizeAuthority(items[0], maxScoreBySource).Should().Be(0.3);  // default fallback
+        RelevanceScorer.NormalizeAuthority(items[1], maxScoreBySource).Should().Be(0.45); // Tier 2: curated feeds
     }
 
     #endregion

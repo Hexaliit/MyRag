@@ -13,6 +13,8 @@ public static class ConfigService
 
     private static readonly string ConfigPath = Path.Combine(ConfigDir, "config.json");
 
+    public static string? LoadedConfigPath { get; private set; }
+
     public static string GetConfigDir() => ConfigDir;
 
     public static async Task<DoomConfig> LoadAsync()
@@ -22,7 +24,12 @@ public static class ConfigService
         {
             var json = await File.ReadAllTextAsync(ConfigPath);
             var config = JsonSerializer.Deserialize(json, DoomConfigContext.Default.DoomConfig);
-            return config ?? await LoadDefaultAsync();
+            if (config != null)
+            {
+                LoadedConfigPath = ConfigPath;
+                return config;
+            }
+            AnsiConsole.MarkupLine($"[yellow]Warning: {Markup.Escape(ConfigPath)} failed to deserialize — using defaults[/]");
         }
 
         // Try local config
@@ -31,7 +38,12 @@ public static class ConfigService
         {
             var json = await File.ReadAllTextAsync(localConfig);
             var config = JsonSerializer.Deserialize(json, DoomConfigContext.Default.DoomConfig);
-            return config ?? await LoadDefaultAsync();
+            if (config != null)
+            {
+                LoadedConfigPath = localConfig;
+                return config;
+            }
+            AnsiConsole.MarkupLine($"[yellow]Warning: {Markup.Escape(localConfig)} failed to deserialize — using defaults[/]");
         }
 
         return await LoadDefaultAsync();
@@ -46,11 +58,13 @@ public static class ConfigService
         if (stream == null)
         {
             AnsiConsole.MarkupLine("[yellow]Warning: Could not load default config, using hardcoded defaults[/]");
+            LoadedConfigPath = "embedded default (hardcoded)";
             return new DoomConfig();
         }
 
         using var reader = new StreamReader(stream);
         var json = await reader.ReadToEndAsync();
+        LoadedConfigPath = "embedded default";
         return JsonSerializer.Deserialize(json, DoomConfigContext.Default.DoomConfig) ?? new DoomConfig();
     }
 

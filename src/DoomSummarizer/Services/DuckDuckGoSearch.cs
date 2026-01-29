@@ -6,15 +6,19 @@ using Spectre.Console;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// DuckDuckGo search integration - no API key needed
+/// DuckDuckGo search integration - no API key needed.
+/// Uses circuit breaker and rate limiter to avoid hammering DDG after CAPTCHA blocks.
 /// </summary>
 public class DuckDuckGoSearch
 {
+    private const string ServiceName = "duckduckgo";
     private readonly HttpClient _httpClient;
+    private readonly CircuitBreakerService? _circuit;
 
-    public DuckDuckGoSearch(HttpClient httpClient)
+    public DuckDuckGoSearch(HttpClient httpClient, CircuitBreakerService? circuit = null)
     {
         _httpClient = httpClient;
+        _circuit = circuit;
     }
 
     /// <summary>
@@ -25,6 +29,13 @@ public class DuckDuckGoSearch
     public async Task<List<ContentItem>> SearchAsync(string query, int maxResults = 10, Action<string>? progress = null)
     {
         var items = new List<ContentItem>();
+
+        // Pre-flight: skip if circuit is open
+        if (_circuit != null && !await _circuit.IsServiceAvailableAsync(ServiceName))
+        {
+            AnsiConsole.MarkupLine("[yellow]DuckDuckGo: circuit open — skipping[/]");
+            return items;
+        }
 
         progress?.Invoke($"Searching DuckDuckGo for: {query}");
 
@@ -41,13 +52,16 @@ public class DuckDuckGoSearch
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
 
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Add("User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
-                request.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-                request.Headers.Add("Accept-Language", "en-US,en;q=0.9");
+                var response = await ApiRateLimiter.ExecuteAsync(ServiceName, async ct =>
+                {
+                    var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    request.Headers.Add("User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+                    request.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+                    request.Headers.Add("Accept-Language", "en-US,en;q=0.9");
+                    return await _httpClient.SendAsync(request, ct);
+                }, cts.Token);
 
-                var response = await _httpClient.SendAsync(request, cts.Token);
                 response.EnsureSuccessStatusCode();
 
                 var html = await response.Content.ReadAsStringAsync(cts.Token);
@@ -57,6 +71,8 @@ public class DuckDuckGoSearch
                     || html.Contains("challenge/", StringComparison.OrdinalIgnoreCase))
                 {
                     AnsiConsole.MarkupLine($"[yellow]DuckDuckGo returned CAPTCHA for {new Uri(url).Host}[/]");
+                    if (_circuit != null)
+                        await _circuit.ReportFailureAsync(ServiceName, CircuitFailureType.RateLimit, "CAPTCHA block");
                     continue;
                 }
 
@@ -64,6 +80,8 @@ public class DuckDuckGoSearch
 
                 if (items.Count > 0)
                 {
+                    if (_circuit != null)
+                        await _circuit.ReportSuccessAsync(ServiceName);
                     progress?.Invoke($"Found {items.Count} search results");
                     return items;
                 }
@@ -71,10 +89,14 @@ public class DuckDuckGoSearch
             catch (OperationCanceledException)
             {
                 AnsiConsole.MarkupLine($"[yellow]DuckDuckGo timed out ({new Uri(url).Host})[/]");
+                if (_circuit != null)
+                    await _circuit.ReportFailureAsync(ServiceName, CircuitFailureType.ServerError, "Timeout");
             }
             catch (Exception ex)
             {
                 AnsiConsole.MarkupLine($"[yellow]DuckDuckGo failed ({new Uri(url).Host}): {Markup.Escape(ex.Message)}[/]");
+                if (_circuit != null)
+                    await _circuit.ReportFailureAsync(ServiceName, CircuitFailureType.ServerError, ex.Message);
             }
         }
 

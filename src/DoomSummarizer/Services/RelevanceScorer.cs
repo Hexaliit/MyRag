@@ -101,11 +101,13 @@ public partial class RelevanceScorer
     private const int RrfK = 60;
 
     /// <summary>
-    /// Freshness half-life in hours. At 48h, an item's freshness score is 0.5.
-    /// This decay is applied to CreatedAt (publication time) if available, otherwise FetchedAt.
-    /// The freshness score is one input to RRF fusion — it does NOT multiply the final score.
+    /// Default freshness half-life in hours. At 48h, an item's freshness score is 0.5.
+    /// Query-type-specific half-lives: Roundup=24h, Timeline=24h, Explainer=168h, General=48h.
     /// </summary>
-    private const double FreshnessHalfLifeHours = 48.0;
+    private const double DefaultFreshnessHalfLifeHours = 48.0;
+
+    /// <summary>Instance half-life — set via ForQueryType() to vary decay by query type.</summary>
+    private readonly double _freshnessHalfLifeHours;
 
     // Signal weights for RRF fusion — see class summary for what each weight controls
     private readonly double _bm25Weight;
@@ -125,7 +127,8 @@ public partial class RelevanceScorer
         double authorityWeight = 0.3,
         double querySimWeight = 0.8,
         double vibeWeight = 0.4,
-        double qualityWeight = 0.2)
+        double qualityWeight = 0.2,
+        double freshnessHalfLifeHours = DefaultFreshnessHalfLifeHours)
     {
         _bm25Weight = bm25Weight;
         _freshnessWeight = freshnessWeight;
@@ -133,6 +136,7 @@ public partial class RelevanceScorer
         _querySimWeight = querySimWeight;
         _vibeWeight = vibeWeight;
         _qualityWeight = qualityWeight;
+        _freshnessHalfLifeHours = freshnessHalfLifeHours;
     }
 
     /// <summary>
@@ -156,23 +160,31 @@ public partial class RelevanceScorer
     /// </summary>
     public static RelevanceScorer ForQueryType(QueryType queryType) => queryType switch
     {
+        // Roundup: aggressive freshness decay (24h half-life) — stale news is noise
         QueryType.Roundup => new RelevanceScorer(
             bm25Weight: 0.7, freshnessWeight: 0.8, authorityWeight: 0.2,
-            querySimWeight: 0.5, vibeWeight: 0.4, qualityWeight: 0.15),
+            querySimWeight: 0.5, vibeWeight: 0.4, qualityWeight: 0.15,
+            freshnessHalfLifeHours: 24.0),
 
+        // Timeline: aggressive freshness decay (24h) — recency is paramount
         QueryType.Timeline => new RelevanceScorer(
             bm25Weight: 0.5, freshnessWeight: 1.0, authorityWeight: 0.2,
-            querySimWeight: 0.6, vibeWeight: 0.3, qualityWeight: 0.1),
+            querySimWeight: 0.6, vibeWeight: 0.3, qualityWeight: 0.1,
+            freshnessHalfLifeHours: 24.0),
 
+        // Explainer: relaxed freshness (168h / 7 days) — older quality content is fine
         QueryType.Explainer => new RelevanceScorer(
             bm25Weight: 1.0, freshnessWeight: 0.3, authorityWeight: 0.5,
-            querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.4),
+            querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.4,
+            freshnessHalfLifeHours: 168.0),
 
+        // Comparison: relaxed freshness (168h) — precision over recency
         QueryType.Comparison => new RelevanceScorer(
             bm25Weight: 0.8, freshnessWeight: 0.3, authorityWeight: 0.4,
-            querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.3),
+            querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.3,
+            freshnessHalfLifeHours: 168.0),
 
-        _ => new RelevanceScorer() // General: default weights (quality: 0.2)
+        _ => new RelevanceScorer() // General: default weights + 48h half-life
     };
 
     /// <summary>
@@ -229,7 +241,7 @@ public partial class RelevanceScorer
         // Score each signal independently, then rank
         // Use BM25F (field-weighted) to boost title + keywords matches over content matches
         var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen, tokenCache))).ToList();
-        var freshnessScores = items.Select(i => (item: i, score: ComputeFreshness(i))).ToList();
+        var freshnessScores = items.Select(i => (item: i, score: ComputeFreshnessForQueryType(i))).ToList();
         var authorityScores = ComputeAuthorityScores(items);
 
         var signals = new List<(List<(ContentItem item, double score)> scores, double weight)>
@@ -323,7 +335,7 @@ public partial class RelevanceScorer
 
         // Phase 1 signals (recomputed for refined batch) — BM25F for field weighting
         var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen, tokenCache))).ToList();
-        var freshnessScores = items.Select(i => (item: i, score: ComputeFreshness(i))).ToList();
+        var freshnessScores = items.Select(i => (item: i, score: ComputeFreshnessForQueryType(i))).ToList();
         var authorityScores = ComputeAuthorityScores(items);
 
         // Phase 2 signals (embedding-based)
@@ -632,8 +644,13 @@ public partial class RelevanceScorer
     /// <summary>
     /// Freshness score: exponential decay from publish/fetch time. Range 0-1.
     /// Falls back to heuristic year detection when CreatedAt is missing/unreliable.
+    /// Uses the default 48h half-life; call the overload for query-type-specific decay.
     /// </summary>
-    internal static double ComputeFreshness(ContentItem item)
+    internal static double ComputeFreshness(ContentItem item) =>
+        ComputeFreshness(item, DefaultFreshnessHalfLifeHours);
+
+    /// <summary>Freshness score with configurable half-life for query-type-specific decay.</summary>
+    internal static double ComputeFreshness(ContentItem item, double halfLifeHours)
     {
         var timestamp = item.CreatedAt != default ? item.CreatedAt : item.FetchedAt;
 
@@ -652,8 +669,12 @@ public partial class RelevanceScorer
         }
 
         var ageHours = Math.Max(0, (DateTimeOffset.UtcNow - timestamp).TotalHours);
-        return Math.Exp(-ageHours * Math.Log(2) / FreshnessHalfLifeHours);
+        return Math.Exp(-ageHours * Math.Log(2) / halfLifeHours);
     }
+
+    /// <summary>Instance method: uses the scorer's query-type-specific half-life.</summary>
+    internal double ComputeFreshnessForQueryType(ContentItem item) =>
+        ComputeFreshness(item, _freshnessHalfLifeHours);
 
     /// <summary>
     /// Extract a year from article title or content using patterns like "in 2020", "2018 review".
@@ -709,15 +730,44 @@ public partial class RelevanceScorer
     /// </summary>
     internal static double NormalizeAuthority(ContentItem item, Dictionary<string, double> maxScoreBySource)
     {
-        // Sources without native scoring get a decent baseline
+        // Sources without native scoring: tiered authority baseline
         if (item.Score == 0)
         {
-            return item.Source switch
-            {
-                "bbc" or "guardian" or "reuters" or "cnn" => 0.5, // Established news
-                "gnews" => 0.4, // Google News (curated)
-                _ => 0.3 // Other RSS/web
-            };
+            // Check URL domain for more granular authority
+            var domain = "";
+            try { domain = !string.IsNullOrEmpty(item.Url) ? new Uri(item.Url).Host.ToLowerInvariant() : ""; }
+            catch { /* ignore malformed URLs */ }
+
+            // Tier 1: Wire services and premium journalism (0.6)
+            if (item.Source is "bbc" or "reuters" ||
+                domain.Contains("reuters.com") || domain.Contains("apnews.com") ||
+                domain.Contains("bbc.co.uk") || domain.Contains("bbc.com") ||
+                domain.Contains("nytimes.com") || domain.Contains("washingtonpost.com") ||
+                domain.Contains("theguardian.com") || domain.Contains("economist.com") ||
+                domain.Contains("ft.com") || domain.Contains("wsj.com") ||
+                domain.Contains("npr.org") || domain.Contains("pbs.org"))
+                return 0.6;
+
+            // Tier 2: Established news and curated feeds (0.45)
+            if (item.Source is "guardian" or "cnn" or "gnews" or "newsapi" or "newsdata" or "currents" ||
+                domain.Contains("cnn.com") || domain.Contains("politico.com") ||
+                domain.Contains("theatlantic.com") || domain.Contains("arstechnica.com") ||
+                domain.Contains("theverge.com") || domain.Contains("techcrunch.com") ||
+                domain.Contains("wired.com") || domain.Contains("nature.com") ||
+                domain.Contains("science.org") || domain.Contains("theregister.com"))
+                return 0.45;
+
+            // Tier 3: Search results and aggregated content (0.30)
+            if (item.Source is "brave_search" or "serper" or "tavily" or "google_search" or "duckduckgo" or "jina")
+                return 0.30;
+
+            // Tier 4: Community/social (0.25)
+            if (item.Source is "hn" or "reddit" or "lobsters" or "devto" ||
+                domain.Contains("reddit.com") || domain.Contains("medium.com") ||
+                domain.Contains("dev.to") || domain.Contains("hackernoon.com"))
+                return 0.25;
+
+            return 0.30; // Default fallback
         }
 
         var maxScore = maxScoreBySource.GetValueOrDefault(item.Source, 1.0);

@@ -26,6 +26,8 @@ public static class ApiRateLimiter
         ["jina"] = 500,
         ["anthropic"] = 100,
         ["openai"] = 100,
+        ["duckduckgo"] = 2000,
+        ["currents"] = 200,
     };
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Semaphores = new();

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using Spectre.Console;
 
@@ -65,7 +66,7 @@ public sealed partial class ScrollCommand
             var sourceLabel = !string.IsNullOrEmpty(domain) ? domain : (contentItem?.Source ?? "web");
 
             var refSuffix = refCount > 1 ? $" ({refCount} refs)" : "";
-            sourceParts.Add($"[cyan]{Markup.Escape(Truncate(item.title, 70))}[/]");
+            sourceParts.Add($"[cyan]{Markup.Escape(FormattingHelpers.Truncate(item.title, 70))}[/]");
             // Show full URL if available, otherwise just domain
             if (!string.IsNullOrEmpty(item.url))
                 sourceParts.Add($"  [link={Markup.Escape(item.url)}][dim underline]{Markup.Escape(item.url)}[/][/]");
@@ -135,12 +136,6 @@ public sealed partial class ScrollCommand
             return host;
         }
         catch { return ""; }
-    }
-
-    private static string Truncate(string text, int maxLen)
-    {
-        if (text.Length <= maxLen) return text;
-        return text[..(maxLen - 3)] + "...";
     }
 
     /// <summary>

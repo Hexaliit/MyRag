@@ -235,7 +235,11 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
                 embedTask.Description = $"[green]Embedded {newItems.Count} pages[/]";
 
+                var processor = new ItemProcessor(embedding, storage);
+
                 // Stage 3: NER entity extraction (optional)
+                // Entity persistence is deferred to after Stage 4 (item save) to avoid FK violations
+                var articleEntityMap = new List<(Models.ContentItem item, List<NerEntity> entities)>();
                 if (settings.Entities)
                 {
                     var nerTask = ctx.AddTask("[cyan]Extracting entities[/]", maxValue: newItems.Count);
@@ -255,27 +259,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                                     .Select(e => $"{e.Text} ({e.Type})"));
                                 item.Summary = (item.Summary ?? "") + $" [Entities: {entityText}]";
 
-                                // Persist entities to SQLite knowledge graph
-                                var deduped = entities
-                                    .GroupBy(e => e.Text.ToLowerInvariant())
-                                    .Select(g => g.OrderByDescending(e => e.Confidence).First())
-                                    .ToList();
-                                var entityIds = new List<string>();
-                                foreach (var entity in deduped)
-                                {
-                                    var entityId = KnowledgeGraphService.GenerateEntityId(entity.Text, entity.Type);
-                                    entityIds.Add(entityId);
-                                    await storage.UpsertEntityAsync(entityId, entity.Text, entity.Type, entity.Confidence);
-                                    await storage.UpsertEntityMentionAsync(entityId, item.Id, entity.Confidence, item.Title);
-                                }
-                                // Build co-occurrence edges
-                                for (var i = 0; i < entityIds.Count; i++)
-                                {
-                                    for (var j = i + 1; j < entityIds.Count; j++)
-                                    {
-                                        await storage.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
-                                    }
-                                }
+                                articleEntityMap.Add((item, entities));
                             }
                             nerTask.Increment(1);
                         }
@@ -287,37 +271,16 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                 var storeTask = ctx.AddTask("[cyan]Saving to knowledge base[/]", maxValue: newItems.Count);
 
                 // Add topic and sentiment from embeddings
-                var positiveAnchor = embedding.Embed(RelevanceScorer.PositiveAnchorText);
-                var negativeAnchor = embedding.Embed(RelevanceScorer.NegativeAnchorText);
-                var topicAnchors = RelevanceScorer.TopicAnchorTexts.ToDictionary(
-                    kv => kv.Key,
-                    kv => embedding.Embed(kv.Value));
-
                 foreach (var item in newItems)
                 {
-                    if (item.Embedding != null)
-                    {
-                        item.SentimentScore = RelevanceScorer.ComputeEmbeddingSentiment(
-                            item.Embedding, positiveAnchor, negativeAnchor);
-                        item.DetectedTopic = RelevanceScorer.InferTopic(item.Embedding, topicAnchors);
-                    }
+                    processor.ScoreSentimentAndTopic(item);
 
                     item.Summary ??= item.Content?.Length > 300
                         ? item.Content[..300] + "..."
                         : item.Content ?? item.Title;
 
-                    // Compute document-level keyword profile for FTS5 indexing + BM25F
-                    var profile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
-                    item.Keywords = profile.KeywordsText;
-
-                    await storage.SaveItemAsync(item);
-
-                    // Index into FTS5 for keyword pre-filtering
-                    var contentPreview = (item.Content ?? "").Length > 2000
-                        ? item.Content![..2000]
-                        : item.Content ?? "";
-                    await storage.IndexDocumentFtsAsync(item.Id, item.Title, profile.KeywordsText, contentPreview);
-                    await storage.UpdateKeywordCorpusAsync(profile.TopKeywords.Select(k => k.Keyword));
+                    // Compute keyword profile, save item, and index into FTS5
+                    await processor.IndexItemAsync(item);
 
                     // Update URL cache: content hash + any ETags/Last-Modified from the response
                     if (!string.IsNullOrEmpty(item.Url) && !string.IsNullOrEmpty(item.Content))
@@ -331,6 +294,15 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                 }
 
                 storeTask.Description = $"[green]Saved {newItems.Count} pages to KB '{kbName}'[/]";
+
+                // Stage 5: Persist entities (deferred from Stage 3 — items must exist in DB first)
+                if (articleEntityMap.Count > 0)
+                {
+                    foreach (var (item, entities) in articleEntityMap)
+                    {
+                        await processor.PersistEntitiesAsync(item, entities);
+                    }
+                }
             });
 
         // Summary

@@ -40,7 +40,8 @@
       "tavily": 1.0,
       "newsapi": 1.1,
       "newsdata": 1.0,
-      "jina": 0.9
+      "jina": 0.9,
+      "currents": 1.0
     }
   },
   "ollama": {
@@ -233,6 +234,32 @@
       "dailyBudgetUsd": 0,
       "costPerRequest": 0,
       "rateLimitMs": 500,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "duckduckgo",
+      "apiKey": "",
+      "enabled": true,
+      "maxRequestsPerDay": 50,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0,
+      "costPerRequest": 0,
+      "rateLimitMs": 2000,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 600
+    },
+    {
+      "name": "currents",
+      "apiKey": "",
+      "enabled": true,
+      "maxRequestsPerDay": 600,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0,
+      "costPerRequest": 0,
+      "rateLimitMs": 200,
       "maxRetries": 2,
       "circuitBreakerThreshold": 3,
       "circuitBreakerResetSeconds": 300

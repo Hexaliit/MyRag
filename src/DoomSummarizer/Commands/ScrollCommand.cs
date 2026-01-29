@@ -191,6 +191,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         }
 
         var config = await ConfigService.LoadAsync();
+        if (settings.DebugPipeline)
+            AnsiConsole.MarkupLine($"[grey]Config: {Markup.Escape(ConfigService.LoadedConfigPath ?? "embedded default")}[/]");
         var dbPath = ConfigService.GetDbPath(config);
 
         await using var storage = new StorageService(dbPath);
@@ -334,10 +336,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             hasStatusLine = true;
         }
 
-        var embeddingStatus = embedding.IsGpuAccelerated
-            ? $"[green]{Markup.Escape(embedding.ExecutionProvider)}[/]"
-            : $"[grey]{Markup.Escape(embedding.ExecutionProvider)}[/]";
-        WriteStatus($"[grey]LLM: {Markup.Escape(llmRouter.StatusDescription)} | Embed: {embeddingStatus}[/]");
+        if (!settings.Quiet)
+            RenderStartupPanel(config, ConfigService.LoadedConfigPath, llmRouter, embedding, apiKeys, circuitBreaker, settings.Prompt);
 
         // NER preprocessing: extract entities from query BEFORE the LLM sentinel
         // This gives us structured search filters, cached segment lookups, and URL dedup
@@ -450,13 +450,25 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
         if (!settings.Force && !settings.LocalOnly && string.IsNullOrWhiteSpace(settings.Name) && !string.IsNullOrWhiteSpace(queryText))
         {
-            earlyQueryEmbedding = embedding.Embed(queryText);
-            cachedQuery = await storage.FindSimilarQueryAsync(earlyQueryEmbedding, threshold: 0.97);
-            if (cachedQuery != null)
+            // Temporal intent bypass: if query needs fresh data, skip cache entirely
+            var requiresFresh = interpreted?.SentinelIntent?.RequiresFresh == true;
+            var isTimeSensitive = interpreted?.SentinelIntent?.TimeSensitivity is "breaking" or "today";
+
+            if (requiresFresh || isTimeSensitive)
             {
-                useCachedSegments = true;
-                var ageMin = (int)(DateTimeOffset.UtcNow - cachedQuery.IssuedAt).TotalMinutes;
-                WriteStatus($"[grey]Reusing {cachedQuery.ItemIds.Count} segments ({cachedQuery.Similarity:F2} match, {ageMin}m ago)[/]");
+                if (settings.DebugPipeline)
+                    WriteStatus($"[grey]Cache bypass: temporal intent detected (fresh={requiresFresh}, time={interpreted?.SentinelIntent?.TimeSensitivity})[/]");
+            }
+            else
+            {
+                earlyQueryEmbedding = embedding.Embed(queryText);
+                cachedQuery = await storage.FindSimilarQueryAsync(earlyQueryEmbedding, threshold: 0.97);
+                if (cachedQuery != null)
+                {
+                    useCachedSegments = true;
+                    var ageMin = (int)(DateTimeOffset.UtcNow - cachedQuery.IssuedAt).TotalMinutes;
+                    WriteStatus($"[grey]Reusing {cachedQuery.ItemIds.Count} segments ({cachedQuery.Similarity:F2} match, {ageMin}m ago)[/]");
+                }
             }
         }
 
@@ -683,8 +695,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         .Select(s => s.ToContentItem())
                         .ToList();
 
-                    // Relevance gate: verify cached segments actually relate to the query
-                    // This prevents reusing stale/irrelevant results from a previous identical query
+                    // Relevance gate: verify cached segments have sufficient salience for THIS query
+                    // Only reuse cache when local data is genuinely good — otherwise fetch fresh
                     if (earlyQueryEmbedding != null && cachedItems.Count > 0)
                     {
                         var withEmbeddings = cachedItems.Where(i => i.Embedding != null).ToList();
@@ -695,16 +707,29 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 .OrderByDescending(s => s)
                                 .ToList();
 
-                            // Use the best-of-top-5 as the relevance signal
                             var topRelevance = similarities.Take(5).Average();
+                            var bestSingle = similarities.First();
+                            var aboveThreshold = similarities.Count(s => s >= 0.30f);
 
-                            if (topRelevance < 0.25f)
+                            // Require: (1) top-5 average >= 0.40, AND (2) best single >= 0.50,
+                            // AND (3) at least 3 items above 0.30 — ensures genuine salience
+                            if (topRelevance < 0.40f || bestSingle < 0.50f || aboveThreshold < 3)
                             {
-                                // Cached segments are irrelevant — skip cache, fetch fresh
                                 useCachedSegments = false;
                                 if (!settings.Quiet)
-                                    AnsiConsole.MarkupLine($"[yellow]Cached segments are irrelevant (best relevance: {topRelevance:F2}) — fetching fresh results[/]");
+                                    AnsiConsole.MarkupLine($"[yellow]Cached segments lack salience for this query (avg={topRelevance:F2}, best={bestSingle:F2}, above-0.30={aboveThreshold}) — fetching fresh[/]");
                             }
+                            else if (settings.DebugPipeline)
+                            {
+                                AnsiConsole.MarkupLine($"[grey]Cache salience: avg={topRelevance:F2}, best={bestSingle:F2}, above-0.30={aboveThreshold} — reusing[/]");
+                            }
+                        }
+                        else
+                        {
+                            // No embeddings to evaluate — can't verify salience, fetch fresh
+                            useCachedSegments = false;
+                            if (!settings.Quiet)
+                                AnsiConsole.MarkupLine("[yellow]Cached segments have no embeddings — fetching fresh[/]");
                         }
                     }
 
@@ -801,25 +826,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         var qualifiedQuery = QualifySearchQuery(query, vibe);
                         var searchLimit = perSourceLimit * 2;
 
-                        // Use the best available search API (priority order)
-                        fetchTasks.Add(Task.Run(async () =>
-                        {
-                            if (apiKeys.HasGoogleSearch)
-                                return await new GoogleSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                    .SearchAsync(qualifiedQuery, searchLimit);
-                            if (apiKeys.IsAvailable("brave_search"))
-                                return await new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                    .SearchAsync(qualifiedQuery, searchLimit);
-                            if (apiKeys.IsAvailable("serper"))
-                                return await new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                    .SearchAsync(qualifiedQuery, searchLimit);
-                            if (apiKeys.IsAvailable("tavily"))
-                                return await new TavilySearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                    .SearchAsync(qualifiedQuery, searchLimit);
-                            // DDG as last resort
-                            return await new DuckDuckGoSearch(httpClient)
-                                .SearchAsync(qualifiedQuery, searchLimit);
-                        }));
+                        // Rotate across available search APIs (round-robin per session)
+                        var searchTask = BuildRotatedSearchTask(
+                            qualifiedQuery, searchLimit, httpClient, apiKeys, apiBudget, circuitBreaker);
+                        fetchTasks.Add(Task.Run(async () => await searchTask(cancellationToken)));
                     }
                     else if (src.StartsWith("gsearch:") || src == "gsearch")
                     {
@@ -903,6 +913,15 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             : source[(source.IndexOf(':') + 1)..];
                         fetchTasks.Add(Task.Run(async () =>
                             await new NewsDataService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                                .SearchAsync(query, perSourceLimit)));
+                    }
+                    else if (src.StartsWith("currents:") || src == "currents")
+                    {
+                        var query = src == "currents"
+                            ? interpreted?.RawPrompt ?? settings.Prompt ?? ""
+                            : source[9..];
+                        fetchTasks.Add(Task.Run(async () =>
+                            await new CurrentsApiService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                 .SearchAsync(query, perSourceLimit)));
                     }
                     else if (src.StartsWith("jina:") || src == "jina")
@@ -1074,37 +1093,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     if (!hasSearchSource)
                     {
-                        // Pick the best available search API
-                        if (apiKeys.IsAvailable("brave_search"))
-                        {
-                            fallbackSources.Add(Task.Run(async () =>
-                                await new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                    .SearchAsync(fallbackQuery, perSourceLimit * 2)));
-                        }
-                        else if (apiKeys.IsAvailable("serper"))
-                        {
-                            fallbackSources.Add(Task.Run(async () =>
-                                await new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                    .SearchAsync(fallbackQuery, perSourceLimit * 2)));
-                        }
-                        else if (apiKeys.IsAvailable("tavily"))
-                        {
-                            fallbackSources.Add(Task.Run(async () =>
-                                await new TavilySearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                    .SearchAsync(fallbackQuery, perSourceLimit)));
-                        }
-                        else if (apiKeys.HasGoogleSearch)
-                        {
-                            fallbackSources.Add(Task.Run(async () =>
-                                await new GoogleSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                                    .SearchAsync(fallbackQuery, perSourceLimit * 2)));
-                        }
-                        else
-                        {
-                            fallbackSources.Add(Task.Run(async () =>
-                                await new DuckDuckGoSearch(httpClient)
-                                    .SearchAsync(fallbackQuery, perSourceLimit * 2)));
-                        }
+                        // Rotate across available search APIs (diversity fallback)
+                        var fallbackSearch = BuildRotatedSearchTask(
+                            fallbackQuery, perSourceLimit * 2, httpClient, apiKeys, apiBudget, circuitBreaker);
+                        fallbackSources.Add(Task.Run(async () => await fallbackSearch(cancellationToken)));
                     }
 
                     // Add news fallbacks if not already present
@@ -1112,6 +1104,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         s.StartsWith("gnews", StringComparison.OrdinalIgnoreCase) ||
                         s.StartsWith("newsapi", StringComparison.OrdinalIgnoreCase) ||
                         s.StartsWith("newsdata", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("currents", StringComparison.OrdinalIgnoreCase) ||
                         s.StartsWith("bravenews", StringComparison.OrdinalIgnoreCase) ||
                         s.StartsWith("serpernews", StringComparison.OrdinalIgnoreCase));
 
@@ -1124,7 +1117,16 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 await new NewsApiService(httpClient, apiKeys, apiBudget, circuitBreaker)
                                     .SearchAsync(fallbackQuery, perSourceLimit)));
                         }
-                        else
+
+                        if (apiKeys.IsAvailable("currents"))
+                        {
+                            fallbackSources.Add(Task.Run(async () =>
+                                await new CurrentsApiService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                                    .SearchAsync(fallbackQuery, perSourceLimit)));
+                        }
+
+                        // GNews RSS as final news fallback if no API keys
+                        if (!apiKeys.IsAvailable("newsapi") && !apiKeys.IsAvailable("currents"))
                         {
                             fallbackSources.Add(Task.Run(async () =>
                                 await new GoogleNewsFetcher(httpClient)
@@ -1159,7 +1161,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     var topicTerms = interpreted.Topics.SelectMany(t => t.Split(' ')).ToList();
                     // Sources that already searched/filtered for the topic
                     var topicAwareSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                        { "gnews", "search", "bbc", "guardian", "cnn", "reuters",
+                        { "gnews", "search", "bbc", "guardian", "cnn", "reuters", "currents",
                           "factcheck", "spaceflight", "earthquake", "wikipedia", "arxiv" };
 
                     var preFilterCount = items.Count;
@@ -1452,7 +1454,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             }
                         }
 
-                        // Merge into results
+                        // Merge into results — with salience gate
+                        // Only keep KB items that are genuinely relevant to THIS query
                         if (candidateIds.Count > 0)
                         {
                             var storedItems = await storage.LoadItemsByIdsAsync(candidateIds.ToList());
@@ -1465,13 +1468,29 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 !existingIds.Contains(s.Id) &&
                                 (string.IsNullOrEmpty(s.Url) || !existingUrls2.Contains(s.Url.Split('?')[0].TrimEnd('/').ToLowerInvariant())))
                                 .ToList();
+
+                            // Salience gate: score KB candidates against query, keep only salient items
+                            var enrichQueryEmbed = embedding.Embed(enrichQuery);
+                            var preGateCount = newFromKb.Count;
+                            newFromKb = newFromKb.Where(item =>
+                            {
+                                if (item.Embedding == null) return false;
+                                var sim = EmbeddingService.CosineSimilarity(enrichQueryEmbed, item.Embedding);
+                                return sim >= 0.30f;
+                            }).ToList();
+
                             if (newFromKb.Count > 0)
                             {
                                 uniqueItems.AddRange(newFromKb);
                                 fetchTask.Description = $"[cyan]KB enrichment: +{newFromKb.Count} items[/]";
                                 var entityInfo = entityCount > 0 ? $", Entity={entityCount}" : "";
+                                var gateInfo = preGateCount > newFromKb.Count ? $", Gated={preGateCount - newFromKb.Count} below salience" : "";
                                 if (settings.DebugPipeline)
-                                    AnsiConsole.MarkupLine($"[grey]KB enrichment: Lucene={luceneCount}, Embed={embedCount}{entityInfo}, Merged={newFromKb.Count}[/]");
+                                    AnsiConsole.MarkupLine($"[grey]KB enrichment: Lucene={luceneCount}, Embed={embedCount}{entityInfo}, Merged={newFromKb.Count}{gateInfo}[/]");
+                            }
+                            else if (settings.DebugPipeline && preGateCount > 0)
+                            {
+                                AnsiConsole.MarkupLine($"[grey]KB enrichment: {preGateCount} candidates all below salience threshold (0.30) — skipped[/]");
                             }
                         }
                     }
@@ -1927,7 +1946,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                         .SearchAsync(reSearchQuery, 5)));
                             if (reSearchTasks.Count == 0)
                                 reSearchTasks.Add(Task.Run(async () =>
-                                    await new DuckDuckGoSearch(httpClient)
+                                    await new DuckDuckGoSearch(httpClient, circuitBreaker)
                                         .SearchAsync(reSearchQuery, 10)));
 
                             var reSearchBatches = await Task.WhenAll(reSearchTasks);
@@ -1979,15 +1998,11 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // The LLM is reserved for Stage 4 (synthesis) only.
                 analyzedItems = new List<(string title, string summary, string topic, float sentiment, string url, double relevance)>();
 
+                // Pre-compute anchor embeddings once for sentiment and topic inference
+                var processor = new ItemProcessor(embedding, storage);
+
                 {
                     var itemsToAnalyze = uniqueItems.Take(settings.Limit).ToList();
-
-                    // Pre-compute anchor embeddings once for sentiment and topic inference
-                    var positiveAnchor = embedding.Embed(RelevanceScorer.PositiveAnchorText);
-                    var negativeAnchor = embedding.Embed(RelevanceScorer.NegativeAnchorText);
-                    var topicAnchors = RelevanceScorer.TopicAnchorTexts.ToDictionary(
-                        kv => kv.Key,
-                        kv => embedding.Embed(kv.Value));
 
                     // Split: items with existing summaries skip re-analysis
                     var alreadyAnalyzed = itemsToAnalyze
@@ -2057,16 +2072,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             }
 
                             // Phase 2: Embedding-based sentiment + topic (pure math, thread-safe)
-                            if (item.Embedding != null)
-                            {
-                                item.SentimentScore = RelevanceScorer.ComputeEmbeddingSentiment(
-                                    item.Embedding, positiveAnchor, negativeAnchor);
-                                item.DetectedTopic = RelevanceScorer.InferTopic(item.Embedding, topicAnchors);
-                            }
-                            else
-                            {
-                                item.DetectedTopic = InferTopicFromSource(item.Source);
-                            }
+                            processor.ScoreSentimentAndTopic(item);
 
                             analyzeTask.Increment(1);
                         });
@@ -2081,15 +2087,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     // Save to storage + index into FTS5 for keyword pre-filtering
                     // Batch all writes in a single SQLite transaction for performance
-                    var batchEntries = itemsToAnalyze.Select(item =>
-                    {
-                        var kwProfile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
-                        if (string.IsNullOrEmpty(item.Keywords))
-                            item.Keywords = kwProfile.KeywordsText;
-                        return (item, kwProfile);
-                    }).ToList();
-
-                    await storage.SaveAndIndexBatchAsync(batchEntries);
+                    await processor.IndexBatchAsync(itemsToAnalyze);
 
                     analyzeTask.Description = $"[green]Analyzed {analyzedItems.Count} items (deterministic)[/]";
                 }
@@ -2209,28 +2207,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     {
                         foreach (var (ci, ents) in articleEntityMap)
                         {
-                            var deduped = ents
-                                .GroupBy(e => e.Text.ToLowerInvariant())
-                                .Select(g => g.OrderByDescending(e => e.Confidence).First())
-                                .ToList();
-
-                            var entityIds = new List<string>();
-                            foreach (var entity in deduped)
-                            {
-                                var entityId = KnowledgeGraphService.GenerateEntityId(entity.Text, entity.Type);
-                                entityIds.Add(entityId);
-                                await storage.UpsertEntityAsync(entityId, entity.Text, entity.Type, entity.Confidence);
-                                await storage.UpsertEntityMentionAsync(entityId, ci.Id, entity.Confidence, ci.Title);
-                            }
-
-                            // Build co-occurrence edges in SQLite too
-                            for (var ei = 0; ei < entityIds.Count; ei++)
-                            {
-                                for (var ej = ei + 1; ej < entityIds.Count; ej++)
-                                {
-                                    await storage.UpsertRelationshipAsync(entityIds[ei], entityIds[ej]);
-                                }
-                            }
+                            await processor.PersistEntitiesAsync(ci, ents);
                         }
                     }
                 }

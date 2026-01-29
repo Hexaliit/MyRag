@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text;
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Spectre.Console;
@@ -187,7 +188,16 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             var cachedStored = await storage.GetItemsByIdsAsync(cached.ItemIds);
             evidence = cachedStored
                 .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
+                .Where(s => effectiveSource == null ||
+                    s.Source.Equals(effectiveSource, StringComparison.OrdinalIgnoreCase))
                 .Select(s => s.ToContentItem())
+                .ToList();
+
+            // Re-score cached items — relevance is query-dependent, not stored
+            ScoreEvidence(evidence, queryEmbedding, question);
+            evidence = evidence
+                .Where(i => i.RelevanceScore > 0.15)
+                .OrderByDescending(i => i.RelevanceScore)
                 .ToList();
         }
         else
@@ -276,7 +286,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             foreach (var item in evidence.Take(settings.TopK))
             {
                 var title = item.Title.Length > 50 ? item.Title[..47] + "..." : item.Title;
-                var fetchedAge = FormatAge(item.FetchedAt);
+                var fetchedAge = FormattingHelpers.FormatAge(item.FetchedAt);
                 evidenceTable.AddRow(
                     $"[grey]{rank}[/]",
                     Markup.Escape(title),
@@ -352,7 +362,21 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
 
         if (items.Count == 0) return [];
 
-        // Score by embedding similarity
+        ScoreEvidence(items, queryEmbedding, question);
+
+        // Filter and rank
+        return items
+            .Where(i => i.RelevanceScore > 0.15)
+            .OrderByDescending(i => i.RelevanceScore)
+            .Take(settings.TopK * 2) // grab extras for diversity
+            .ToList();
+    }
+
+    /// <summary>
+    /// Score items by embedding similarity + BM25 keyword boost. Mutates in place.
+    /// </summary>
+    private static void ScoreEvidence(List<ContentItem> items, float[] queryEmbedding, string question)
+    {
         foreach (var item in items)
         {
             if (item.Embedding != null)
@@ -362,7 +386,6 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             }
         }
 
-        // BM25 boost: also score by keyword overlap
         var queryTokens = question.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
         foreach (var item in items)
         {
@@ -371,13 +394,6 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             var keywordBoost = keywordHits > 0 ? 0.1 * Math.Min(keywordHits, 5) / 5.0 : 0;
             item.RelevanceScore += keywordBoost;
         }
-
-        // Filter and rank
-        return items
-            .Where(i => i.RelevanceScore > 0.15)
-            .OrderByDescending(i => i.RelevanceScore)
-            .Take(settings.TopK * 2) // grab extras for diversity
-            .ToList();
     }
 
     private static async Task<string> GenerateAnswer(
@@ -466,15 +482,4 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         }
     }
 
-    private static string FormatAge(DateTimeOffset fetchedAt)
-    {
-        var age = DateTimeOffset.UtcNow - fetchedAt;
-        return age.TotalMinutes switch
-        {
-            < 1 => "just now",
-            < 60 => $"{(int)age.TotalMinutes}m ago",
-            < 1440 => $"{(int)age.TotalHours}h ago",
-            _ => $"{(int)age.TotalDays}d ago"
-        };
-    }
 }

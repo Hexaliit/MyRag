@@ -136,13 +136,16 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                         }
                         else
                         {
-                            AnsiConsole.MarkupLine("[yellow]\u26a0[/] Playwright installation returned non-zero exit code");
+                            AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Playwright install exited with code {exitCode} (common in single-file builds)");
+                            AnsiConsole.MarkupLine("   Install manually: [grey]dotnet tool install --global Microsoft.Playwright.CLI && playwright install chromium[/]");
+                            AnsiConsole.MarkupLine("   Or: [grey]npx playwright install chromium[/]");
                         }
                     }
                     catch (Exception ex)
                     {
-                        AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Playwright installation failed: {Markup.Escape(ex.Message)}");
-                        AnsiConsole.MarkupLine("   Run manually: [grey]playwright install chromium[/]");
+                        AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Playwright failed (common in single-file builds): {Markup.Escape(ex.Message)}");
+                        AnsiConsole.MarkupLine("   Install manually: [grey]dotnet tool install --global Microsoft.Playwright.CLI && playwright install chromium[/]");
+                        AnsiConsole.MarkupLine("   Or: [grey]npx playwright install chromium[/]");
                     }
                 }
                 else

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Spectre.Console;
@@ -114,7 +115,7 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
                 "snarky" => "yellow",
                 _ => "grey"
             };
-            AnsiConsole.MarkupLine($"  [{color}]{name}[/]: [grey]{Truncate(prompt, 60)}[/]");
+            AnsiConsole.MarkupLine($"  [{color}]{name}[/]: [grey]{FormattingHelpers.Truncate(prompt, 60)}[/]");
         }
 
         AnsiConsole.WriteLine();
@@ -128,8 +129,4 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
         AnsiConsole.MarkupLine("[grey]Edit config: ~/.doomsummarizer/config.json[/]");
     }
 
-    private static string Truncate(string text, int maxLength)
-    {
-        return text.Length <= maxLength ? text : text[..(maxLength - 3)] + "...";
-    }
 }

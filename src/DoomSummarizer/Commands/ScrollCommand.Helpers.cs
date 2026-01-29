@@ -93,23 +93,6 @@ public partial class ScrollCommand
         };
     }
 
-    /// <summary>
-    /// Infer a basic topic from the source name when embeddings aren't available.
-    /// </summary>
-    internal static string InferTopicFromSource(string source)
-    {
-        return source.ToLowerInvariant() switch
-        {
-            "hn" => "technology",
-            "reddit" => "technology",
-            "bbc" or "guardian" or "cnn" or "reuters" => "world",
-            "gnews" => "general",
-            "so" => "technology",
-            "ars" or "verge" => "technology",
-            _ => "general"
-        };
-    }
-
     private static string GetSourceFromUrl(string url)
     {
         if (string.IsNullOrEmpty(url)) return "?";
@@ -344,4 +327,162 @@ public partial class ScrollCommand
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex CollapseWhitespaceRegex();
+
+    // ─── Search API rotation ───
+
+    /// <summary>
+    /// Session-level round-robin counter for distributing search queries across
+    /// available API services. Avoids hammering a single provider.
+    /// </summary>
+    private static int _searchApiRotation;
+
+    /// <summary>
+    /// Build a list of available search services in priority order, then rotate
+    /// the starting position so each call uses a different primary service.
+    /// Returns an async function that tries services in rotated order.
+    /// </summary>
+    internal static Func<CancellationToken, Task<List<ContentItem>>> BuildRotatedSearchTask(
+        string qualifiedQuery, int searchLimit,
+        HttpClient httpClient, ApiKeyService apiKeys, ApiBudgetService apiBudget,
+        CircuitBreakerService circuitBreaker)
+    {
+        // Collect all available search services (order matters for fallback)
+        var available = new List<(string name, Func<Task<List<ContentItem>>> search)>();
+
+        if (apiKeys.HasGoogleSearch)
+            available.Add(("google_search", () => new GoogleSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                .SearchAsync(qualifiedQuery, searchLimit)));
+        if (apiKeys.IsAvailable("brave_search"))
+            available.Add(("brave_search", () => new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                .SearchAsync(qualifiedQuery, searchLimit)));
+        if (apiKeys.IsAvailable("serper"))
+            available.Add(("serper", () => new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                .SearchAsync(qualifiedQuery, searchLimit)));
+        if (apiKeys.IsAvailable("tavily"))
+            available.Add(("tavily", () => new TavilySearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                .SearchAsync(qualifiedQuery, searchLimit)));
+
+        // DDG always available as last resort (no API key needed)
+        available.Add(("duckduckgo", () => new DuckDuckGoSearch(httpClient, circuitBreaker)
+            .SearchAsync(qualifiedQuery, searchLimit)));
+
+        return async _ =>
+        {
+            if (available.Count <= 1)
+                return await available[0].search();
+
+            // Rotate: pick starting index, try each in order, return first success
+            var startIdx = Interlocked.Increment(ref _searchApiRotation) % (available.Count - 1); // exclude DDG from rotation
+            var paidServices = available.Count - 1; // DDG is always last
+
+            for (var i = 0; i < paidServices; i++)
+            {
+                var idx = (startIdx + i) % paidServices;
+                var (name, search) = available[idx];
+
+                // Skip if circuit is open for this service
+                if (ApiRateLimiter.IsCircuitOpen(name))
+                    continue;
+
+                try
+                {
+                    var results = await search();
+                    if (results.Count > 0)
+                        return results;
+                }
+                catch
+                {
+                    // Try next service
+                }
+            }
+
+            // All paid services failed/empty — fall back to DDG
+            return await available[^1].search();
+        };
+    }
+
+    // ─── Startup info panel ───
+
+    /// <summary>
+    /// Render a compact startup info panel showing config, LLM, embedding, search APIs,
+    /// and KB stats. Uses full terminal width adaptively.
+    /// </summary>
+    internal static void RenderStartupPanel(
+        DoomConfig config,
+        string? configPath,
+        LlmRouter llmRouter,
+        EmbeddingService embedding,
+        ApiKeyService apiKeys,
+        CircuitBreakerService circuitBreaker,
+        string? prompt)
+    {
+        var width = Math.Min(AnsiConsole.Profile.Width, 120);
+
+        // Build search service status
+        var searchServices = new[] { "google_search", "brave_search", "serper", "tavily", "newsapi", "newsdata", "currents", "jina", "duckduckgo" };
+        var searchStatus = new List<string>();
+        foreach (var svc in searchServices)
+        {
+            var shortName = svc switch
+            {
+                "google_search" => "Google",
+                "brave_search" => "Brave",
+                "serper" => "Serper",
+                "tavily" => "Tavily",
+                "newsapi" => "NewsAPI",
+                "newsdata" => "NewsData",
+                "currents" => "Currents",
+                "jina" => "Jina",
+                "duckduckgo" => "DDG",
+                _ => svc
+            };
+
+            if (svc == "duckduckgo")
+            {
+                // DDG is always available (no key needed)
+                var ddgCircuit = circuitBreaker.IsCircuitOpen("duckduckgo");
+                searchStatus.Add(ddgCircuit ? $"[red]{shortName}[/]" : $"[green]{shortName}[/]");
+                continue;
+            }
+
+            if (!apiKeys.IsAvailable(svc))
+            {
+                searchStatus.Add($"[grey]{shortName}[/]");
+                continue;
+            }
+
+            var isOpen = circuitBreaker.IsCircuitOpen(svc);
+            searchStatus.Add(isOpen ? $"[red]{shortName}[/]" : $"[green]{shortName}[/]");
+        }
+
+        // LLM info
+        var embeddingInfo = embedding.IsGpuAccelerated
+            ? $"[green]{Markup.Escape(embedding.ExecutionProvider)}[/]"
+            : $"[grey]{Markup.Escape(embedding.ExecutionProvider)}[/]";
+
+        // Build the grid
+        var grid = new Grid();
+        grid.AddColumn(new GridColumn().NoWrap().PadRight(2));
+        grid.AddColumn(new GridColumn());
+
+        grid.AddRow("[bold grey]Config[/]", Markup.Escape(configPath ?? "embedded default"));
+        grid.AddRow("[bold grey]LLM[/]", Markup.Escape(llmRouter.StatusDescription));
+        grid.AddRow("[bold grey]Embed[/]", embeddingInfo);
+        grid.AddRow("[bold grey]Search[/]", string.Join(" ", searchStatus));
+
+        if (!string.IsNullOrEmpty(prompt))
+            grid.AddRow("[bold grey]Query[/]", Markup.Escape(prompt.Length > width - 20 ? prompt[..(width - 23)] + "..." : prompt));
+
+        var panel = new Panel(grid)
+            .Header("[bold cyan]DoomSummarizer[/]")
+            .Border(BoxBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .Expand();
+
+        // Constrain to terminal width
+        if (width < 120)
+            panel.Width = width;
+
+        AnsiConsole.Write(panel);
+    }
 }

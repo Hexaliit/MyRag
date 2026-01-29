@@ -68,6 +68,8 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
                 AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(msg)}[/]");
         });
 
+        var processor = new ItemProcessor(embedding, storage);
+
         var ollamaAvailable = !settings.NoLlm && await ollama.IsAvailableAsync();
         if (!ollamaAvailable && !settings.NoLlm && !settings.Quiet)
             AnsiConsole.MarkupLine("[yellow]Ollama not available. Will show extracted content only.[/]");
@@ -174,14 +176,7 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
                 processTask.Value = 80;
 
                 // Sentiment + topic via embedding (no LLM)
-                var positiveAnchor = embedding.Embed(RelevanceScorer.PositiveAnchorText);
-                var negativeAnchor = embedding.Embed(RelevanceScorer.NegativeAnchorText);
-                var topicAnchors = RelevanceScorer.TopicAnchorTexts.ToDictionary(
-                    kv => kv.Key, kv => embedding.Embed(kv.Value));
-
-                item.SentimentScore = RelevanceScorer.ComputeEmbeddingSentiment(
-                    item.Embedding, positiveAnchor, negativeAnchor);
-                item.DetectedTopic = RelevanceScorer.InferTopic(item.Embedding, topicAnchors);
+                processor.ScoreSentimentAndTopic(item);
 
                 processTask.Value = 100;
                 processTask.Description = $"[green]Processed: {processed.Strategy}, {processed.Segments.Count} segments[/]";
@@ -401,15 +396,7 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
         }
 
         // Compute keyword profile and save to storage + FTS5
-        var kwProfile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
-        item.Keywords = kwProfile.KeywordsText;
-        await storage.SaveItemAsync(item);
-
-        var contentPreview = (item.Content ?? "").Length > 2000
-            ? item.Content![..2000]
-            : item.Content ?? "";
-        await storage.IndexDocumentFtsAsync(item.Id, item.Title, kwProfile.KeywordsText, contentPreview);
-        await storage.UpdateKeywordCorpusAsync(kwProfile.TopKeywords.Select(k => k.Keyword));
+        await processor.IndexItemAsync(item);
 
         return 0;
     }

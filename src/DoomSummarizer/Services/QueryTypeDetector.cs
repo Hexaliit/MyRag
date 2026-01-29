@@ -199,9 +199,17 @@ public static partial class QueryTypeDetector
 
     private static readonly string[] NewsDomains =
     [
-        "bbc.co.uk", "bbc.com", "theguardian.com", "reuters.com",
+        // Wire services + premium journalism
+        "bbc.co.uk", "bbc.com", "theguardian.com", "reuters.com", "apnews.com",
+        "nytimes.com", "washingtonpost.com", "economist.com", "ft.com",
+        "wsj.com", "npr.org", "pbs.org", "politico.com", "theatlantic.com",
+        // Tech & science press
         "arstechnica.com", "theverge.com", "techcrunch.com", "wired.com",
-        "theregister.com", "engadget.com", "zdnet.com"
+        "theregister.com", "engadget.com", "zdnet.com", "thenextweb.com",
+        "9to5mac.com", "tomshardware.com", "anandtech.com",
+        // International
+        "aljazeera.com", "france24.com", "dw.com", "scmp.com",
+        "japantimes.co.jp", "abc.net.au"
     ];
 
     [GeneratedRegex(@"\b(history|evolution|timeline|origin|how\s+did\s+\w+\s+(develop|start|begin|evolve|emerge)|chronolog|over\s+the\s+years|through\s+the\s+ages)\b", RegexOptions.IgnoreCase)]
