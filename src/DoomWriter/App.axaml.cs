@@ -91,6 +91,7 @@ public class App : Application
         });
 
         // DoomWriter services
+        services.AddSingleton<SpellCheckService>();
         services.AddSingleton<CorpusService>();
         services.AddSingleton<SuggestionService>();
         services.AddSingleton<WritingAssistantService>();

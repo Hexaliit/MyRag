@@ -31,6 +31,10 @@ public class WriterConfig
     public List<string> CorpusDirectories { get; set; } = [];
     public bool AutoIndexOnChange { get; set; } = true;
 
+    // Spell check
+    public string SpellCheckLanguage { get; set; } = "en_US";
+    public bool EnableSpellCheck { get; set; } = true;
+
     // Auto-save
     public int AutoSaveIntervalSeconds { get; set; } = 30;
 

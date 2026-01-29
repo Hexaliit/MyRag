@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DoomWriter.Models;
 using DoomWriter.ViewModels;
 
 namespace DoomWriter.Services;
@@ -120,12 +121,49 @@ public class EditorBridge
         await _invokeScript("hideAiGenerating()");
     }
 
+    // --- C# → JS: Diagnostics ---
+
+    /// <summary>Show diagnostics (spelling, grammar, entity links) in the editor.</summary>
+    public async Task ShowDiagnosticsAsync(List<DiagnosticItem> items)
+    {
+        if (_invokeScript == null) return;
+        var json = JsonSerializer.Serialize(items.Select(d => new
+        {
+            type = d.Type.ToString().ToLowerInvariant(),
+            word = d.Word,
+            line = d.Line,
+            col = d.Column,
+            length = d.Length,
+            message = d.Message,
+            suggestions = d.Suggestions,
+            quickFix = d.QuickFixText
+        }));
+        await _invokeScript($"showDiagnostics({json})");
+    }
+
+    /// <summary>Clear all diagnostics from the editor.</summary>
+    public async Task ClearDiagnosticsAsync()
+    {
+        if (_invokeScript == null) return;
+        await _invokeScript("clearDiagnostics()");
+    }
+
     // --- JS → C# message handling ---
 
     /// <summary>
     /// Raised when autocomplete is requested from the editor.
     /// </summary>
     public event EventHandler<string>? AutocompleteRequested;
+
+    /// <summary>
+    /// Raised when a quick action is requested from the editor (Ctrl+. or lightbulb click).
+    /// </summary>
+    public event EventHandler<QuickActionRequest>? QuickActionRequested;
+
+    /// <summary>
+    /// Raised when spell check is requested for a paragraph (on typing pause).
+    /// </summary>
+    public event EventHandler<string>? SpellCheckRequested;
 
     /// <summary>
     /// Handle a message received from the WebView (Vditor → C#).
@@ -171,6 +209,23 @@ public class EditorBridge
                 case "autocompleteRequest":
                     var textBefore = root.GetProperty("textBeforeCursor").GetString() ?? "";
                     AutocompleteRequested?.Invoke(this, textBefore);
+                    break;
+
+                case "quickAction":
+                    var qaLine = root.GetProperty("line").GetInt32();
+                    var qaCol = root.GetProperty("col").GetInt32();
+                    var qaWord = root.GetProperty("word").GetString() ?? "";
+                    QuickActionRequested?.Invoke(this, new QuickActionRequest
+                    {
+                        Line = qaLine,
+                        Column = qaCol,
+                        Word = qaWord
+                    });
+                    break;
+
+                case "spellCheck":
+                    var paragraph = root.GetProperty("text").GetString() ?? "";
+                    SpellCheckRequested?.Invoke(this, paragraph);
                     break;
             }
         }

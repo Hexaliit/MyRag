@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DoomWriter Editor</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor/dist/index.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.8/dist/index.css" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; overflow: hidden; }
@@ -119,6 +119,79 @@
             text-decoration-skip-ink: none;
         }
 
+        /* Diagnostics: entity link underline */
+        .diag-entitylink {
+            text-decoration: dotted underline #22c55e;
+            text-decoration-skip-ink: none;
+            cursor: pointer;
+        }
+        /* Diagnostics: suggestion underline */
+        .diag-suggestion {
+            text-decoration: wavy underline #3b82f6;
+            text-decoration-skip-ink: none;
+        }
+
+        /* Margin gutter with lightbulb/AI icons */
+        .diag-gutter {
+            position: absolute;
+            left: 4px;
+            width: 24px;
+            text-align: center;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+            z-index: 50;
+            opacity: 0.7;
+        }
+        .diag-gutter:hover { opacity: 1; }
+
+        /* Quick action popup (Ctrl+.) */
+        #quick-action-popup {
+            position: fixed;
+            background: #2d2d2d;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            min-width: 260px;
+            max-width: 400px;
+            max-height: 240px;
+            overflow-y: auto;
+            z-index: 300;
+            display: none;
+            font-size: 13px;
+        }
+        .qa-header {
+            padding: 6px 12px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.5);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .qa-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .qa-item:hover, .qa-item.selected {
+            background: rgba(59, 130, 246, 0.3);
+        }
+        .qa-item .qa-icon {
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .qa-item .qa-text {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .qa-item .qa-shortcut {
+            font-size: 10px;
+            opacity: 0.4;
+            flex-shrink: 0;
+        }
+
         /* AI generation indicator */
         #ai-generating {
             position: fixed;
@@ -144,17 +217,20 @@
     <div id="autocomplete-ghost"></div>
     <div id="autocomplete-popup"></div>
     <div id="ai-generating">AI writing...</div>
+    <div id="quick-action-popup"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/vditor/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vditor@3.10.8/dist/index.min.js"></script>
     <script>
         let vditor;
         let debounceTimer = null;
         let autocompleteTimer = null;
+        let spellCheckTimer = null;
         let currentGhostText = '';
         let acSelectedIndex = -1;
         let acItems = [];
         const DEBOUNCE_MS = 500;
         const AUTOCOMPLETE_DEBOUNCE_MS = 800;
+        const SPELLCHECK_DEBOUNCE_MS = 1500;
 
         // --- C# Interop ---
 
@@ -327,9 +403,233 @@
             return div.innerHTML;
         }
 
+        // --- Diagnostics System ---
+
+        let currentDiagnostics = [];
+        let qaSelectedIndex = -1;
+        let qaItems = [];
+
+        // Called from C# to display diagnostics (spelling, grammar, etc.)
+        function showDiagnostics(diagnostics) {
+            currentDiagnostics = diagnostics || [];
+            // Apply visual markers to the editor content
+            renderDiagnosticMarkers();
+        }
+
+        function clearDiagnostics() {
+            currentDiagnostics = [];
+            // Remove all diagnostic markers
+            const markers = document.querySelectorAll('.diag-marker, .diag-gutter');
+            markers.forEach(m => m.remove());
+        }
+
+        function renderDiagnosticMarkers() {
+            // Remove existing markers
+            const existing = document.querySelectorAll('.diag-gutter');
+            existing.forEach(m => m.remove());
+
+            // Group diagnostics by line
+            const byLine = {};
+            currentDiagnostics.forEach(d => {
+                if (!byLine[d.line]) byLine[d.line] = [];
+                byLine[d.line].push(d);
+            });
+
+            // Add gutter icons for lines with diagnostics
+            const editorEl = document.querySelector('.vditor-ir') ||
+                             document.querySelector('.vditor-wysiwyg') ||
+                             document.querySelector('.vditor-sv');
+            if (!editorEl) return;
+
+            Object.keys(byLine).forEach(lineNum => {
+                const diags = byLine[lineNum];
+                const hasSpelling = diags.some(d => d.type === 'spelling');
+                const hasGrammar = diags.some(d => d.type === 'grammar');
+                const hasEntityLink = diags.some(d => d.type === 'entitylink');
+
+                // Determine icon
+                let icon = '💡'; // default lightbulb
+                if (hasSpelling) icon = '📝';
+                else if (hasEntityLink) icon = '🔗';
+
+                const gutter = document.createElement('div');
+                gutter.className = 'diag-gutter';
+                gutter.textContent = icon;
+                gutter.title = `${diags.length} diagnostic(s) — Ctrl+. to fix`;
+                gutter.dataset.line = lineNum;
+                gutter.onclick = () => showQuickActions(parseInt(lineNum));
+
+                // Position relative to editor (approximate line height)
+                const lineHeight = 24;
+                gutter.style.top = (parseInt(lineNum) * lineHeight + 8) + 'px';
+                editorEl.style.position = 'relative';
+                editorEl.appendChild(gutter);
+            });
+        }
+
+        // --- Quick Action Popup (Ctrl+. or lightbulb click) ---
+
+        function showQuickActions(line) {
+            const diags = currentDiagnostics.filter(d => d.line === line);
+            if (diags.length === 0) return;
+
+            const popup = document.getElementById('quick-action-popup');
+            qaItems = [];
+            qaSelectedIndex = 0;
+
+            let html = '<div class="qa-header">Quick Actions</div>';
+
+            diags.forEach(d => {
+                if (d.type === 'spelling') {
+                    // Spelling: suggest corrections + add to dictionary
+                    (d.suggestions || []).forEach(s => {
+                        qaItems.push({ action: 'replace', word: d.word, replacement: s, line: d.line, col: d.col });
+                        html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+                            <span class="qa-icon">✏️</span>
+                            <span class="qa-text">Change to: ${escapeHtml(s)}</span>
+                        </div>`;
+                    });
+                    qaItems.push({ action: 'addToDict', word: d.word });
+                    html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+                        <span class="qa-icon">📖</span>
+                        <span class="qa-text">Add "${escapeHtml(d.word)}" to dictionary</span>
+                    </div>`;
+                    qaItems.push({ action: 'ignore', word: d.word });
+                    html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+                        <span class="qa-icon">⏭️</span>
+                        <span class="qa-text">Ignore</span>
+                    </div>`;
+                } else if (d.type === 'grammar') {
+                    if (d.quickFix) {
+                        qaItems.push({ action: 'replace', word: d.word, replacement: d.quickFix, line: d.line, col: d.col });
+                        html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+                            <span class="qa-icon">✅</span>
+                            <span class="qa-text">Fix: ${escapeHtml(d.quickFix)}</span>
+                        </div>`;
+                    }
+                    qaItems.push({ action: 'ignore', word: d.word });
+                    html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+                        <span class="qa-icon">⏭️</span>
+                        <span class="qa-text">Ignore</span>
+                    </div>`;
+                } else if (d.type === 'entitylink') {
+                    if (d.quickFix) {
+                        qaItems.push({ action: 'insertLink', text: d.quickFix, word: d.word, line: d.line, col: d.col });
+                        html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+                            <span class="qa-icon">🔗</span>
+                            <span class="qa-text">Link to: ${escapeHtml(d.quickFix)}</span>
+                        </div>`;
+                    }
+                }
+            });
+
+            popup.innerHTML = html;
+            // Highlight first item
+            const firstItem = popup.querySelector('.qa-item');
+            if (firstItem) firstItem.classList.add('selected');
+
+            // Position near the gutter icon
+            const gutterEl = document.querySelector(`.diag-gutter[data-line="${line}"]`);
+            if (gutterEl) {
+                const rect = gutterEl.getBoundingClientRect();
+                popup.style.left = (rect.right + 4) + 'px';
+                popup.style.top = rect.top + 'px';
+            } else {
+                popup.style.left = '40px';
+                popup.style.top = '100px';
+            }
+            popup.style.display = 'block';
+
+            // Click handlers on items
+            popup.querySelectorAll('.qa-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    const idx = parseInt(el.dataset.idx);
+                    acceptQuickAction(idx);
+                });
+            });
+        }
+
+        function hideQuickActions() {
+            document.getElementById('quick-action-popup').style.display = 'none';
+            qaItems = [];
+            qaSelectedIndex = -1;
+        }
+
+        function acceptQuickAction(index) {
+            if (index < 0 || index >= qaItems.length) return;
+            const item = qaItems[index];
+
+            // Send action back to C#
+            postToCSharp({
+                type: 'quickAction',
+                action: item.action,
+                word: item.word || '',
+                replacement: item.replacement || item.text || '',
+                line: item.line || 0,
+                col: item.col || 0
+            });
+
+            hideQuickActions();
+        }
+
         // --- Keyboard Handling ---
 
         document.addEventListener('keydown', function(e) {
+            // Ctrl+. : Quick Action (VS Code convention)
+            if ((e.ctrlKey || e.metaKey) && e.key === '.') {
+                e.preventDefault();
+                // Find diagnostics at cursor line
+                const pos = getCursorPosition();
+                const content = vditor.getValue();
+                const lines = content.substring(0, pos).split('\n');
+                const curLine = lines.length - 1;
+                showQuickActions(curLine);
+                return;
+            }
+
+            // Ctrl+Space: Manual autocomplete trigger
+            if ((e.ctrlKey || e.metaKey) && e.key === ' ') {
+                e.preventDefault();
+                const textBefore = getTextBeforeCursor();
+                if (textBefore.length > 3) {
+                    postToCSharp({
+                        type: 'autocompleteRequest',
+                        textBeforeCursor: textBefore.slice(-500),
+                        cursor: getCursorPosition()
+                    });
+                }
+                return;
+            }
+
+            // Quick action popup navigation
+            if (qaItems.length > 0) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    qaSelectedIndex = Math.min(qaSelectedIndex + 1, qaItems.length - 1);
+                    updateQaSelection();
+                    return;
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    qaSelectedIndex = Math.max(qaSelectedIndex - 1, 0);
+                    updateQaSelection();
+                    return;
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    acceptQuickAction(qaSelectedIndex);
+                    return;
+                } else if (e.key === 'Escape') {
+                    hideQuickActions();
+                    return;
+                }
+            }
+
+            // Ctrl+Right: accept ghost text word-by-word
+            if (e.ctrlKey && e.key === 'ArrowRight' && currentGhostText) {
+                e.preventDefault();
+                acceptGhostTextWord();
+                return;
+            }
+
             // Tab: accept ghost text or autocomplete
             if (e.key === 'Tab') {
                 if (currentGhostText) {
@@ -374,6 +674,33 @@
             });
         }
 
+        function updateQaSelection() {
+            const items = document.querySelectorAll('#quick-action-popup .qa-item');
+            items.forEach((el, i) => {
+                el.classList.toggle('selected', i === qaSelectedIndex);
+            });
+        }
+
+        // Accept ghost text word-by-word (Ctrl+Right)
+        function acceptGhostTextWord() {
+            if (!currentGhostText) return;
+            const firstSpace = currentGhostText.indexOf(' ');
+            let word;
+            if (firstSpace > 0) {
+                word = currentGhostText.substring(0, firstSpace + 1);
+                currentGhostText = currentGhostText.substring(firstSpace + 1);
+            } else {
+                word = currentGhostText;
+                currentGhostText = '';
+            }
+            vditor.insertValue(word);
+            if (currentGhostText) {
+                showGhostText(currentGhostText);
+            } else {
+                hideGhostText();
+            }
+        }
+
         // --- Initialize Vditor ---
 
         const savedMode = localStorage.getItem('doomwriter-mode') || 'ir';
@@ -387,15 +714,23 @@
             typewriterMode: true,
             placeholder: 'Start writing...',
 
-            // Rich preview: images, math, mermaid diagrams, tables
+            // Pin CDN for Mermaid, highlight.js, KaTeX lazy-loading
+            cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.8',
+
+            // Rich preview: images/GIF, math, Mermaid diagrams, tables, code
             preview: {
                 markdown: {
                     toc: true,
                     autoSpace: true,
-                    fixTermTypo: false
+                    fixTermTypo: false,
+                    mark: true // Enable ==highlight== syntax
                 },
                 math: { engine: 'KaTeX' },
-                hljs: { lineNumber: true }
+                hljs: {
+                    lineNumber: true,
+                    style: 'github-dark',
+                    enable: true
+                }
             },
 
             // Enable image upload via paste/drag
@@ -492,6 +827,18 @@
                         });
                     }
                 }, AUTOCOMPLETE_DEBOUNCE_MS);
+
+                // Debounced spell check request
+                clearTimeout(spellCheckTimer);
+                spellCheckTimer = setTimeout(function() {
+                    const content = vditor.getValue();
+                    if (content.length > 0) {
+                        postToCSharp({
+                            type: 'spellCheck',
+                            text: content
+                        });
+                    }
+                }, SPELLCHECK_DEBOUNCE_MS);
             },
 
             select: function(value) {

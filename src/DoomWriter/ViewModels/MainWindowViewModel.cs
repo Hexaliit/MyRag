@@ -21,6 +21,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly AutocompleteService _autocomplete;
     private readonly SuggestionService _suggestions;
     private readonly CorpusService _corpus;
+    private readonly SpellCheckService _spellCheck;
     private readonly EditorBridge _bridge;
     private readonly OllamaService _ollama;
     private System.Timers.Timer? _autoSaveTimer;
@@ -59,6 +60,7 @@ public partial class MainWindowViewModel : ObservableObject
         AutocompleteService autocomplete,
         SuggestionService suggestions,
         CorpusService corpus,
+        SpellCheckService spellCheck,
         EditorBridge bridge,
         OllamaService ollama)
     {
@@ -70,6 +72,7 @@ public partial class MainWindowViewModel : ObservableObject
         _autocomplete = autocomplete;
         _suggestions = suggestions;
         _corpus = corpus;
+        _spellCheck = spellCheck;
         _bridge = bridge;
         _ollama = ollama;
 
@@ -88,6 +91,19 @@ public partial class MainWindowViewModel : ObservableObject
         // Wire autocomplete
         _bridge.AutocompleteRequested += OnAutocompleteRequested;
         _autocomplete.SuggestionReady += OnAutocompleteSuggestionReady;
+
+        // Wire spell check
+        _bridge.SpellCheckRequested += OnSpellCheckRequested;
+
+        // When editor becomes ready (Vditor loaded), push any pending content
+        Editor.PropertyChanged += async (s, e) =>
+        {
+            if (e.PropertyName == nameof(EditorViewModel.IsEditorReady) && Editor.IsEditorReady)
+            {
+                if (!string.IsNullOrEmpty(Editor.Content))
+                    await _bridge.SetContentAsync(Editor.Content);
+            }
+        };
 
         // Wire writing assistant status events
         _writingAssistant.GenerationStarted += (_, msg) =>
@@ -114,6 +130,22 @@ public partial class MainWindowViewModel : ObservableObject
 
         // Check Ollama connectivity in background
         _ = CheckOllamaAsync();
+
+        // Initialize spell check in background
+        if (Config.EnableSpellCheck)
+            _ = InitSpellCheckAsync();
+    }
+
+    private async Task InitSpellCheckAsync()
+    {
+        try
+        {
+            await _spellCheck.InitializeAsync(Config.SpellCheckLanguage);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"SpellCheck init failed: {ex.Message}");
+        }
     }
 
     private async Task CheckOllamaAsync()
@@ -232,8 +264,30 @@ public partial class MainWindowViewModel : ObservableObject
         SignalPanel.SetActiveHeading(Editor.CursorPosition);
         IsAnalyzing = false;
 
+        // Feed entity names to spell checker so they aren't flagged
+        if (_spellCheck.IsLoaded && signals.Entities.Count > 0)
+            _spellCheck.AddEntityNames(signals.Entities.Select(e => e.Name));
+
         // Generate suggestions in background after analysis
         _ = GenerateSuggestionsAsync(signals, CancellationToken.None);
+    }
+
+    private async void OnSpellCheckRequested(object? sender, string content)
+    {
+        if (!_spellCheck.IsLoaded) return;
+
+        try
+        {
+            var diagnostics = _spellCheck.CheckDocument(content);
+            if (diagnostics.Count > 0)
+                await _bridge.ShowDiagnosticsAsync(diagnostics);
+            else
+                await _bridge.ClearDiagnosticsAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"SpellCheck failed: {ex.Message}");
+        }
     }
 
     private async Task GenerateSuggestionsAsync(DocumentSignals signals, CancellationToken ct)
@@ -259,9 +313,10 @@ public partial class MainWindowViewModel : ObservableObject
     // --- File operations ---
 
     [RelayCommand]
-    private void NewDocument()
+    private async Task NewDocument()
     {
         Editor.NewDocument();
+        await _bridge.SetContentAsync("");
         UpdateTitle();
     }
 
@@ -271,6 +326,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         var content = await File.ReadAllTextAsync(path);
         Editor.SetFile(path, content);
+        await _bridge.SetContentAsync(content);
         Config.AddRecentFile(path);
         _settings.Save();
         UpdateTitle();

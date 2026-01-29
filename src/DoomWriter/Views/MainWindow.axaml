@@ -84,27 +84,27 @@
             </Grid>
         </Border>
 
-        <!-- Main Content: Signal Panel + Editor -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
+        <!-- Main Content: Editor + Signal Panel (DockPanel avoids NativeControlHost sizing issues) -->
+        <DockPanel Grid.Row="1">
 
-            <!-- Signal Panel (Left) -->
-            <views:SignalPanel Grid.Column="0"
-                               DataContext="{Binding SignalPanel}"
-                               Width="{Binding $parent[Window].DataContext.SignalPanelWidth}"
-                               IsVisible="{Binding $parent[Window].DataContext.IsSignalPanelVisible}" />
+            <!-- Signal Panel (Right) — docked to right edge -->
+            <Border DockPanel.Dock="Right"
+                    Width="280"
+                    Background="#2d2d30">
+                <views:SignalPanel DataContext="{Binding SignalPanel}" />
+            </Border>
 
-            <!-- Editor (Center) - placeholder for WebView -->
-            <Border Grid.Column="1"
-                    Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+            <!-- Editor fills remaining space -->
+            <Border Background="#1e1e1e"
                     Name="EditorContainer">
-                <!-- WebView will be added programmatically in code-behind -->
                 <TextBlock Text="Loading editor..."
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
-                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           Foreground="#888888"
+                           FontSize="14"
                            Name="EditorPlaceholder" />
             </Border>
-        </Grid>
+        </DockPanel>
 
         <!-- Status Bar -->
         <Border Grid.Row="2"
