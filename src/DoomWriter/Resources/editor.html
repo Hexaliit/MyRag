@@ -289,6 +289,54 @@
             localStorage.setItem('doomwriter-mode', mode);
         }
 
+        // --- Navigation (signal panel clicks) ---
+
+        function scrollToText(searchText) {
+            if (!vditor) return false;
+            // Get the editor content element
+            var el = document.querySelector('.vditor-ir') || document.querySelector('.vditor-wysiwyg') || document.querySelector('.vditor-sv');
+            if (!el) return false;
+
+            // Walk text nodes to find the search text
+            var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+            var needle = searchText.substring(0, 40).replace(/\*\*/g, ''); // Strip markdown bold
+            var node;
+            while (node = walker.nextNode()) {
+                if (node.textContent && node.textContent.includes(needle)) {
+                    // Found it — scroll the parent element into view
+                    var parent = node.parentElement;
+                    if (parent) {
+                        parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        // Flash highlight
+                        parent.style.transition = 'background 0.3s';
+                        parent.style.background = 'rgba(59, 130, 246, 0.2)';
+                        setTimeout(function() { parent.style.background = ''; }, 1500);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function scrollToHeading(headingText) {
+            if (!vditor) return false;
+            var el = document.querySelector('.vditor-ir') || document.querySelector('.vditor-wysiwyg');
+            if (!el) return false;
+
+            // Headings are rendered as h1-h6 elements
+            var headings = el.querySelectorAll('h1, h2, h3, h4, h5, h6');
+            for (var i = 0; i < headings.length; i++) {
+                if (headings[i].textContent.trim().includes(headingText.substring(0, 30))) {
+                    headings[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    headings[i].style.transition = 'background 0.3s';
+                    headings[i].style.background = 'rgba(59, 130, 246, 0.2)';
+                    setTimeout(function() { headings[i].style.background = ''; }, 1500);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // --- Autocomplete ---
 
         function showGhostText(text) {
@@ -708,6 +756,7 @@
         vditor = new Vditor('vditor', {
             mode: savedMode,
             theme: 'dark',
+            icon: 'ant',
             height: '100%',
             outline: { enable: false },
             counter: { enable: false },
@@ -798,6 +847,8 @@
             cache: { enable: false },
 
             after: function() {
+                // Set dark content + code themes after initialization
+                vditor.setTheme('dark', 'dark', 'github-dark');
                 postToCSharp({ type: 'ready' });
             },
 

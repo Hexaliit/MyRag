@@ -1,3 +1,4 @@
+using DoomSummarizer.Services;
 using DoomWriter.Models;
 using DoomWriter.Services;
 
@@ -10,7 +11,8 @@ public class DocumentAnalysisServiceTests
     public DocumentAnalysisServiceTests()
     {
         var settings = new WriterSettingsService();
-        _sut = new DocumentAnalysisService(settings);
+        var nerService = new NerService(); // Falls back to regex when model not available
+        _sut = new DocumentAnalysisService(settings, nerService);
     }
 
     // --- Heading extraction ---

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Security.Cryptography;
 using System.Text;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
 using Spectre.Console.Cli;
 

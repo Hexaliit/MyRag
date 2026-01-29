@@ -1,0 +1,2 @@
+Initial NuGet package release.
+Signal extraction pipeline: embeddings, entities, knowledge graphs, ranking, LLM routing.

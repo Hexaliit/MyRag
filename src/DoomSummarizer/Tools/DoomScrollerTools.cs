@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Content;
 using ModelContextProtocol.Server;
 
 namespace DoomSummarizer.Tools;

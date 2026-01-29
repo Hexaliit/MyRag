@@ -1,10 +1,12 @@
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
+using SharedAnalysis = Mostlylucid.Summarizer.Core.Analysis;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
 /// Interface for pluggable image analysis components that contribute signals to a dynamic profile.
 /// Each wave is an independent analyzer that produces signals about different aspects of an image.
+/// Uses the shared Signal type from Summarizer.Core (extended with ValueType in the Image layer).
 /// </summary>
 public interface IAnalysisWave
 {
@@ -47,23 +49,28 @@ public interface IAnalysisWave
 /// <summary>
 /// Shared context passed between analysis waves.
 /// Allows waves to access results from higher-priority waves.
+/// Wraps the shared AnalysisContext from Summarizer.Core, adding image-specific routing.
 /// </summary>
 public class AnalysisContext
 {
-    private readonly Dictionary<string, List<Signal>> _signals = new();
-    private readonly Dictionary<string, object> _cache = new();
+    private readonly SharedAnalysis.AnalysisContext _shared;
+
+    public AnalysisContext() => _shared = new SharedAnalysis.AnalysisContext();
+
+    /// <summary>
+    /// Create a local context wrapping a shared context.
+    /// </summary>
+    public AnalysisContext(SharedAnalysis.AnalysisContext shared) => _shared = shared;
+
+    /// <summary>
+    /// Get the underlying shared context.
+    /// </summary>
+    public SharedAnalysis.AnalysisContext Shared => _shared;
 
     /// <summary>
     /// Add a signal to the context.
     /// </summary>
-    public void AddSignal(Signal signal)
-    {
-        if (!_signals.ContainsKey(signal.Key))
-        {
-            _signals[signal.Key] = new List<Signal>();
-        }
-        _signals[signal.Key].Add(signal);
-    }
+    public void AddSignal(Signal signal) => _shared.AddSignal(signal);
 
     /// <summary>
     /// Add multiple signals to the context.
@@ -71,94 +78,65 @@ public class AnalysisContext
     public void AddSignals(IEnumerable<Signal> signals)
     {
         foreach (var signal in signals)
-        {
-            AddSignal(signal);
-        }
+            _shared.AddSignal(signal);
     }
 
     /// <summary>
     /// Get all signals for a given key.
     /// </summary>
     public IEnumerable<Signal> GetSignals(string key)
-    {
-        return _signals.TryGetValue(key, out var signals) ? signals : Enumerable.Empty<Signal>();
-    }
+        => _shared.GetSignals(key).OfType<Signal>();
 
     /// <summary>
     /// Get the most confident signal for a key.
     /// </summary>
     public Signal? GetBestSignal(string key)
-    {
-        return GetSignals(key).OrderByDescending(s => s.Confidence).FirstOrDefault();
-    }
+        => _shared.GetBestSignal(key) as Signal;
 
     /// <summary>
     /// Get value from the most confident signal.
     /// </summary>
-    public T? GetValue<T>(string key)
-    {
-        var signal = GetBestSignal(key);
-        return signal?.Value is T value ? value : default;
-    }
+    public T? GetValue<T>(string key) => _shared.GetValue<T>(key);
 
     /// <summary>
     /// Check if a signal exists for a key.
     /// </summary>
-    public bool HasSignal(string key)
-    {
-        return _signals.ContainsKey(key) && _signals[key].Any();
-    }
+    public bool HasSignal(string key) => _shared.HasSignal(key);
 
     /// <summary>
     /// Get all signals.
     /// </summary>
     public IEnumerable<Signal> GetAllSignals()
-    {
-        return _signals.Values.SelectMany(s => s);
-    }
+        => _shared.GetAllSignals().OfType<Signal>();
 
     /// <summary>
     /// Cache arbitrary data for sharing between waves.
     /// </summary>
-    public void SetCached<T>(string key, T value)
-    {
-        _cache[key] = value!;
-    }
+    public void SetCached<T>(string key, T value) where T : notnull
+        => _shared.SetCached(key, value);
 
     /// <summary>
     /// Retrieve cached data.
     /// </summary>
-    public T? GetCached<T>(string key)
-    {
-        return _cache.TryGetValue(key, out var value) && value is T typed ? typed : default;
-    }
+    public T? GetCached<T>(string key) => _shared.GetCached<T>(key);
 
     /// <summary>
     /// Clear all cached data (useful for freeing memory after analysis).
     /// </summary>
-    public void ClearCache()
-    {
-        _cache.Clear();
-    }
+    public void ClearCache() => _shared.ClearCache();
 
     /// <summary>
     /// Check if a wave is skipped by auto-routing.
     /// Waves should call this in ShouldRun() to respect routing decisions.
     /// </summary>
-    /// <param name="waveName">Name of the wave to check</param>
-    /// <returns>True if the wave should be skipped</returns>
     public bool IsWaveSkippedByRouting(string waveName)
-    {
-        return GetValue<bool>($"route.skip.{waveName}");
-    }
+        => GetValue<bool>($"route.skip.{waveName}");
 
     /// <summary>
     /// Get the selected route (fast/balanced/quality).
     /// </summary>
     public string? GetSelectedRoute()
-    {
-        return GetValue<string>("route.selected");
-    }
+        => GetValue<string>("route.selected");
 
     /// <summary>
     /// Check if we're in fast mode (skip expensive operations).

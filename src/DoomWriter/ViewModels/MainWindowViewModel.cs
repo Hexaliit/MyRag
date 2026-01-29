@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DoomSummarizer.Services;
@@ -88,6 +87,18 @@ public partial class MainWindowViewModel : ObservableObject
         // Wire analysis results to signal panel + suggestions
         _analysisService.AnalysisCompleted += OnAnalysisCompleted;
 
+        // Wire signal panel navigation (clicks → scroll editor)
+        SignalPanel.HeadingClicked += async (_, h) => await _bridge.ScrollToHeadingAsync(h.Text);
+        SignalPanel.SegmentClicked += async (_, s) => await _bridge.ScrollToTextAsync(s.FirstLine);
+        SignalPanel.EntityClicked += async (_, e) => await _bridge.ScrollToTextAsync(e.Name);
+        SignalPanel.SuggestionClicked += async (_, s) =>
+        {
+            if (!string.IsNullOrEmpty(s.InsertText))
+                await _bridge.InsertAtCursorAsync(s.InsertText);
+            else if (!string.IsNullOrEmpty(s.Title))
+                await _bridge.ScrollToTextAsync(s.Title);
+        };
+
         // Wire autocomplete
         _bridge.AutocompleteRequested += OnAutocompleteRequested;
         _autocomplete.SuggestionReady += OnAutocompleteSuggestionReady;
@@ -95,13 +106,18 @@ public partial class MainWindowViewModel : ObservableObject
         // Wire spell check
         _bridge.SpellCheckRequested += OnSpellCheckRequested;
 
-        // When editor becomes ready (Vditor loaded), push any pending content
+        // When editor becomes ready (Vditor loaded), push any pending content and analyze
         Editor.PropertyChanged += async (s, e) =>
         {
             if (e.PropertyName == nameof(EditorViewModel.IsEditorReady) && Editor.IsEditorReady)
             {
                 if (!string.IsNullOrEmpty(Editor.Content))
+                {
                     await _bridge.SetContentAsync(Editor.Content);
+                    // Analyze immediately so signal panel populates on load
+                    IsAnalyzing = true;
+                    await _analysisService.AnalyzeImmediateAsync(Editor.Content);
+                }
             }
         };
 
@@ -310,6 +326,11 @@ public partial class MainWindowViewModel : ObservableObject
         Title = $"{Editor.FileName}{dirty} — DoomWriter";
     }
 
+    /// <summary>
+    /// Public version of UpdateTitle for code-behind (SaveAs flow).
+    /// </summary>
+    public void UpdateTitlePublic() => UpdateTitle();
+
     // --- File operations ---
 
     [RelayCommand]
@@ -330,32 +351,12 @@ public partial class MainWindowViewModel : ObservableObject
         Config.AddRecentFile(path);
         _settings.Save();
         UpdateTitle();
+
+        // Immediately analyze the document to populate the signal panel
+        IsAnalyzing = true;
+        await _analysisService.AnalyzeImmediateAsync(content);
     }
 
-    [RelayCommand]
-    private async Task OpenFileDialog(IStorageProvider? storage)
-    {
-        if (storage == null) return;
-
-        var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Open Markdown File",
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("Markdown") { Patterns = ["*.md", "*.markdown", "*.mdx"] },
-                new FilePickerFileType("Text") { Patterns = ["*.txt"] },
-                new FilePickerFileType("All Files") { Patterns = ["*.*"] }
-            ]
-        });
-
-        if (files.Count > 0)
-        {
-            var path = files[0].TryGetLocalPath();
-            if (path != null)
-                await OpenFileAsync(path);
-        }
-    }
 
     [RelayCommand]
     private async Task SaveFile()
@@ -370,36 +371,6 @@ public partial class MainWindowViewModel : ObservableObject
         UpdateTitle();
     }
 
-    [RelayCommand]
-    private async Task SaveFileAs(IStorageProvider? storage)
-    {
-        if (storage == null) return;
-
-        var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Save Markdown File",
-            DefaultExtension = "md",
-            SuggestedFileName = Editor.FileName == "Untitled" ? "document.md" : Editor.FileName,
-            FileTypeChoices =
-            [
-                new FilePickerFileType("Markdown") { Patterns = ["*.md"] },
-                new FilePickerFileType("Text") { Patterns = ["*.txt"] }
-            ]
-        });
-
-        if (file != null)
-        {
-            var path = file.TryGetLocalPath();
-            if (path != null)
-            {
-                await File.WriteAllTextAsync(path, Editor.Content);
-                Editor.SetFile(path, Editor.Content);
-                Config.AddRecentFile(path);
-                _settings.Save();
-                UpdateTitle();
-            }
-        }
-    }
 
     // --- Panel toggle ---
 

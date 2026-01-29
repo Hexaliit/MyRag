@@ -6,14 +6,14 @@
              x:Class="DoomWriter.Views.SignalPanel"
              x:DataType="vm:SignalPanelViewModel">
 
-    <Border Background="{DynamicResource SystemControlBackgroundAltMediumLowBrush}"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-            BorderThickness="1,0,0,0">
+    <Border BorderBrush="{DynamicResource SemiColorBorder}"
+            BorderThickness="0,0,1,0">
         <Grid RowDefinitions="Auto,*">
 
             <!-- Panel header -->
-            <Border Grid.Row="0" Padding="8,6"
-                    Background="{DynamicResource SystemControlBackgroundListMediumBrush}">
+            <Border Grid.Row="0" Padding="10,8"
+                    BorderBrush="{DynamicResource SemiColorBorder}"
+                    BorderThickness="0,0,0,1">
                 <TextBlock Text="Signals" FontWeight="SemiBold" FontSize="13" />
             </Border>
 
@@ -24,7 +24,6 @@
                 <!-- TOC Tab -->
                 <TabItem Header="TOC">
                     <ListBox ItemsSource="{Binding Headings}"
-                             Background="Transparent"
                              BorderThickness="0"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
@@ -34,7 +33,6 @@
                                         CommandParameter="{Binding}"
                                         HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Left"
-                                        Background="Transparent"
                                         Padding="{Binding Level, Converter={x:Static local:SignalPanel.LevelToPadding}}">
                                     <TextBlock Text="{Binding Text}"
                                                FontSize="12"
@@ -49,7 +47,6 @@
                 <!-- Segments Tab -->
                 <TabItem Header="Segments">
                     <ListBox ItemsSource="{Binding Segments}"
-                             Background="Transparent"
                              BorderThickness="0"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
@@ -59,8 +56,7 @@
                                         CommandParameter="{Binding}"
                                         HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Left"
-                                        Background="Transparent"
-                                        Padding="4">
+                                        Padding="6,4">
                                     <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
                                         <TextBlock Grid.Row="0" Grid.Column="0"
                                                    Text="{Binding FirstLine}"
@@ -69,12 +65,12 @@
                                         <TextBlock Grid.Row="0" Grid.Column="1"
                                                    Text="{Binding Salience, StringFormat='{}{0:F2}'}"
                                                    FontSize="10"
-                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                                                   Margin="4,0,0,0" />
+                                                   Foreground="#8899AA"
+                                                   Margin="6,0,0,0" />
                                         <ProgressBar Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                                                      Classes="salience-bar"
                                                      Value="{Binding Salience}"
-                                                     Margin="0,2,0,0" />
+                                                     Margin="0,3,0,0" />
                                     </Grid>
                                 </Button>
                             </DataTemplate>
@@ -85,7 +81,6 @@
                 <!-- Entities Tab -->
                 <TabItem Header="Entities">
                     <ListBox ItemsSource="{Binding Entities}"
-                             Background="Transparent"
                              BorderThickness="0"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
@@ -95,8 +90,7 @@
                                         CommandParameter="{Binding}"
                                         HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Left"
-                                        Background="Transparent"
-                                        Padding="4">
+                                        Padding="6,4">
                                     <Grid ColumnDefinitions="*,Auto,Auto">
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding Name}"
@@ -111,7 +105,7 @@
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding MentionCount}"
                                                    FontSize="10"
-                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                                                   Foreground="#8899AA" />
                                     </Grid>
                                 </Button>
                             </DataTemplate>
@@ -126,17 +120,16 @@
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8"
                                     IsVisible="{Binding !Warnings.Count}">
                             <TextBlock Text="No suggestions"
-                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                       Foreground="#8899AA"
                                        HorizontalAlignment="Center" />
                             <TextBlock Text="Cross-links, drift warnings, and suggestions will appear here"
                                        FontSize="11"
-                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                                       Foreground="#667788"
                                        HorizontalAlignment="Center"
                                        TextWrapping="Wrap" />
                         </StackPanel>
                         <!-- Suggestions list -->
                         <ListBox ItemsSource="{Binding Warnings}"
-                                 Background="Transparent"
                                  BorderThickness="0"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.ItemTemplate>
@@ -146,8 +139,7 @@
                                             CommandParameter="{Binding}"
                                             HorizontalAlignment="Stretch"
                                             HorizontalContentAlignment="Left"
-                                            Background="Transparent"
-                                            Padding="6">
+                                            Padding="8,6">
                                         <StackPanel Spacing="2">
                                             <TextBlock Text="{Binding Title}"
                                                        FontSize="12"
@@ -157,7 +149,7 @@
                                                        FontSize="11"
                                                        TextWrapping="Wrap"
                                                        MaxLines="3"
-                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                                                       Foreground="#8899AA" />
                                         </StackPanel>
                                     </Button>
                                 </DataTemplate>

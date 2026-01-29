@@ -26,6 +26,18 @@ public class LlmOptions
     public string? SystemPrompt { get; set; }
 
     /// <summary>
+    ///     Request JSON-formatted output. Provider handles this natively (OpenAI)
+    ///     or via prompt instruction (Anthropic, Ollama).
+    /// </summary>
+    public bool JsonMode { get; set; }
+
+    /// <summary>
+    ///     Role hint for model selection: "main", "sentinel", "analysis".
+    ///     Routers use this to pick the appropriate model tier.
+    /// </summary>
+    public string? Role { get; set; }
+
+    /// <summary>
     ///     Default options with temperature 0.3
     /// </summary>
     public static LlmOptions Default => new() { Temperature = 0.3 };

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Resilience;
 using Spectre.Console;
 
 namespace DoomSummarizer.Commands;

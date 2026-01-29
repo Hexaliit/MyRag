@@ -1,3 +1,5 @@
+using SharedAnalysis = Mostlylucid.Summarizer.Core.Analysis;
+
 namespace Mostlylucid.DocSummarizer.Scanning;
 
 /// <summary>
@@ -86,6 +88,32 @@ public class DocumentSignal
     /// Additional metadata.
     /// </summary>
     public Dictionary<string, object>? Metadata { get; init; }
+
+    /// <summary>
+    /// Convert to the shared Signal type from Summarizer.Core.
+    /// </summary>
+    public SharedAnalysis.Signal ToSharedSignal() => new()
+    {
+        Key = Key,
+        Value = Value,
+        Confidence = Confidence,
+        Source = Source,
+        Tags = Tags?.ToList(),
+        Metadata = Metadata
+    };
+
+    /// <summary>
+    /// Create a DocumentSignal from a shared Signal.
+    /// </summary>
+    public static DocumentSignal FromSharedSignal(SharedAnalysis.Signal signal) => new()
+    {
+        Key = signal.Key,
+        Value = signal.Value,
+        Confidence = signal.Confidence,
+        Source = signal.Source,
+        Tags = signal.Tags ?? [],
+        Metadata = signal.Metadata
+    };
 }
 
 /// <summary>

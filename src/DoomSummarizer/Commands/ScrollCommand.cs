@@ -5,6 +5,9 @@ using ConsoleImage.Player;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using DoomSummarizer.Services.LongFormGeneration;
+using Mostlylucid.DocSummarizer.Content;
+using Mostlylucid.DocSummarizer.Resilience;
+using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
 using Spectre.Console.Cli;
 

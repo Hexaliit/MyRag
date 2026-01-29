@@ -3,13 +3,14 @@ using System.Text.RegularExpressions;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Microsoft.ML.Tokenizers;
+using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
 /// ONNX-based Named Entity Recognition for extracting people, organizations, locations.
 /// </summary>
-public sealed class NerService : IDisposable
+public sealed class NerService : Mostlylucid.DocSummarizer.Services.Onnx.INerService
 {
     private static readonly Regex BioTagRx = new(@"^([BI])-(.+)$", RegexOptions.Compiled);
     private static readonly string[] DefaultLabels =
@@ -317,9 +318,4 @@ public sealed class NerService : IDisposable
     }
 }
 
-public class NerEntity
-{
-    public string Text { get; set; } = "";
-    public string Type { get; set; } = ""; // PER, ORG, LOC, MISC
-    public float Confidence { get; set; }
-}
+// NerEntity is now defined in Mostlylucid.DocSummarizer.Services.Onnx

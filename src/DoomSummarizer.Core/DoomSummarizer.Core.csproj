@@ -5,12 +5,48 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>DoomSummarizer</RootNamespace>
-        <Version>0.6.1</Version>
+
+        <!-- NuGet Package Metadata -->
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.DoomSummarizer.Core</PackageId>
         <Authors>Scott Galloway</Authors>
-        <Description>Core signal extraction pipeline: embeddings, entities, knowledge graphs, ranking, LLM integration</Description>
+        <Company>Mostlylucid</Company>
+        <Description>Core signal extraction pipeline: embeddings, entities, knowledge graphs, ranking, LLM routing with budget enforcement and circuit-breaking. Builds on Mostlylucid.DocSummarizer for shared NER, content extraction, and RRF scoring.</Description>
+        <PackageTags>signal-extraction;rag;llm;knowledge-graph;ner;ranking;rrf;embeddings;onnx;local-first</PackageTags>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/release-notes.txt"))</PackageReleaseNotes>
+
+        <!-- Symbols -->
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+        <!-- Documentation -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591</NoWarn>
+
+        <!-- Enable deterministic builds for NuGet -->
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
 
         <!-- Allow unsafe for ONNX -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    </PropertyGroup>
+
+    <!-- MinVer for automatic versioning -->
+    <PropertyGroup>
+        <MinVerTagPrefix>doomsumv</MinVerTagPrefix>
+    </PropertyGroup>
+    <PropertyGroup>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <!-- Release configuration: no PDB files for library consumers -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugSymbols>false</DebugSymbols>
+        <DebugType>none</DebugType>
     </PropertyGroup>
 
     <!-- Enable test access to internal members -->
@@ -20,20 +56,13 @@
         <InternalsVisibleTo Include="DoomWriter" />
     </ItemGroup>
 
-    <!-- Core dependencies -->
+    <!-- Core dependencies (Lucene and SQLite now come transitively via backend packages) -->
     <ItemGroup>
         <PackageReference Include="Fluid.Core" Version="2.31.0" />
-        <PackageReference Include="Lucene.Net" Version="4.8.0-beta00017" />
-        <PackageReference Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00017" />
-        <PackageReference Include="Lucene.Net.QueryParser" Version="4.8.0-beta00017" />
         <PackageReference Include="Microsoft.Recognizers.Text.DateTime" Version="1.8.13" />
         <PackageReference Include="Microsoft.Recognizers.Text.Number" Version="1.8.13" />
         <PackageReference Include="Microsoft.Recognizers.Text.Sequence" Version="1.8.13" />
-        <PackageReference Include="ReverseMarkdown" Version="5.0.0" />
         <PackageReference Include="SmartReader" Version="0.11.0" />
-
-        <!-- SQLite (metadata) -->
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
 
         <!-- DuckDB with VSS for HNSW vector search -->
         <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4-alpha.2" />
@@ -59,9 +88,26 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
     </ItemGroup>
 
-    <!-- Project references -->
+    <!-- MinVer -->
     <ItemGroup>
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <!-- DocSummarizer + backend packages (conditional: ProjectRef local, PackageRef CI) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Rdbms.Sqlite\Mostlylucid.DocSummarizer.Rdbms.Sqlite.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.FullText.Lucene\Mostlylucid.DocSummarizer.FullText.Lucene.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.FullText.Sqlite\Mostlylucid.DocSummarizer.FullText.Sqlite.csproj" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.DocSummarizer" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.DocSummarizer.Rdbms.Sqlite" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.DocSummarizer.FullText.Lucene" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.DocSummarizer.FullText.Sqlite" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <!-- Playwright for WebsiteFetcher (JS-rendered sites) -->
@@ -74,6 +120,16 @@
         <EmbeddedResource Include="Resources\default-config.json" />
         <EmbeddedResource Include="Resources\sources.yaml" />
         <EmbeddedResource Include="Resources\prompts\*.txt" />
+    </ItemGroup>
+
+    <!-- Package files -->
+    <ItemGroup>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
+        <None Include=".\release-notes.txt" Pack="true" PackagePath="">
+            <Link>Properties\release-notes.txt</Link>
+        </None>
     </ItemGroup>
 
 </Project>

@@ -1,71 +1,42 @@
 using System.Numerics.Tensors;
+using Mostlylucid.DocSummarizer.Services.Utilities;
 using OnnxTensor = Microsoft.ML.OnnxRuntime.Tensors.Tensor<float>;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// High-performance vector math using <see cref="TensorPrimitives"/> (System.Numerics.Tensors).
-/// Automatically selects the best hardware intrinsics (AVX2, AVX-512, ARM NEON) at runtime.
+/// DoomSummarizer-specific vector math.
+/// Core operations (CosineSimilarity, DotProduct, L2Normalize, AddScaled) are in
+/// <see cref="Mostlylucid.DocSummarizer.Services.Utilities.VectorMath"/>.
+/// This class only contains operations that depend on ONNX types.
 /// </summary>
 public static class VectorMath
 {
-    /// <summary>
-    /// Computes cosine similarity: dot(a, b) / (||a|| * ||b||).
-    /// Uses <see cref="TensorPrimitives.CosineSimilarity"/> for hardware-accelerated computation.
-    /// </summary>
+    // Delegate to shared implementation — these preserve the DoomSummarizer.Services.VectorMath call sites.
+    /// <inheritdoc cref="Mostlylucid.DocSummarizer.Services.Utilities.VectorMath.CosineSimilarityFloat"/>
     public static float CosineSimilarity(float[] a, float[] b)
-    {
-        if (a.Length != b.Length || a.Length == 0) return 0;
-        return TensorPrimitives.CosineSimilarity(a, b);
-    }
+        => Mostlylucid.DocSummarizer.Services.Utilities.VectorMath.CosineSimilarityFloat(a, b);
 
-    /// <summary>
-    /// Computes dot product using hardware-accelerated <see cref="TensorPrimitives.Dot"/>.
-    /// For L2-normalized vectors, this equals cosine similarity.
-    /// </summary>
+    /// <inheritdoc cref="Mostlylucid.DocSummarizer.Services.Utilities.VectorMath.DotProduct"/>
     public static float DotProduct(float[] a, float[] b)
-    {
-        if (a.Length != b.Length || a.Length == 0) return 0;
-        return TensorPrimitives.Dot(a.AsSpan(), b.AsSpan());
-    }
+        => Mostlylucid.DocSummarizer.Services.Utilities.VectorMath.DotProduct(a, b);
 
-    /// <summary>
-    /// Cosine similarity optimized for L2-normalized vectors (just dot product).
-    /// Since <see cref="EmbeddingService"/> always L2-normalizes embeddings, this skips
-    /// the norm computation entirely.
-    /// </summary>
+    /// <inheritdoc cref="Mostlylucid.DocSummarizer.Services.Utilities.VectorMath.CosineSimilarityNormalized"/>
     public static float CosineSimilarityNormalized(float[] a, float[] b)
-        => DotProduct(a, b);
+        => Mostlylucid.DocSummarizer.Services.Utilities.VectorMath.CosineSimilarityNormalized(a, b);
 
-    /// <summary>
-    /// L2-normalizes a vector in-place using hardware-accelerated operations.
-    /// </summary>
+    /// <inheritdoc cref="Mostlylucid.DocSummarizer.Services.Utilities.VectorMath.L2Normalize"/>
     public static void L2Normalize(float[] vector)
-    {
-        var norm = TensorPrimitives.Norm(vector);
-        if (norm <= 0) return;
-        TensorPrimitives.Divide(vector, norm, vector);
-    }
+        => Mostlylucid.DocSummarizer.Services.Utilities.VectorMath.L2Normalize(vector);
 
-    /// <summary>
-    /// Adds a scaled source vector to a target vector in-place: target[i] += source[i] * scale.
-    /// Uses <see cref="TensorPrimitives"/> for hardware-accelerated multiply-add.
-    /// </summary>
+    /// <inheritdoc cref="Mostlylucid.DocSummarizer.Services.Utilities.VectorMath.AddScaled"/>
     public static void AddScaled(float[] target, float[] source, float scale)
-    {
-        var len = Math.Min(target.Length, source.Length);
-        var targetSpan = target.AsSpan(0, len);
-        var sourceSpan = (ReadOnlySpan<float>)source.AsSpan(0, len);
-
-        // Multiply source by scale into a temp buffer, then add to target
-        var temp = len <= 512 ? stackalloc float[len] : new float[len];
-        TensorPrimitives.Multiply(sourceSpan, scale, temp);
-        TensorPrimitives.Add(targetSpan, (ReadOnlySpan<float>)temp, targetSpan);
-    }
+        => Mostlylucid.DocSummarizer.Services.Utilities.VectorMath.AddScaled(target, source, scale);
 
     /// <summary>
     /// Hardware-accelerated mean pooling over a transformer hidden state tensor.
     /// Accumulates embeddings for valid attention tokens, then divides by count.
+    /// This is ONNX-specific and stays in DoomSummarizer.Core.
     /// </summary>
     /// <param name="hiddenState">Tensor with shape [1, seqLen, embeddingDim].</param>
     /// <param name="attentionMask">Mask of length seqLen (1 = include, 0 = exclude).</param>
@@ -84,24 +55,19 @@ public static class VectorMath
 
         if (validTokens == 0) return embedding;
 
-        // Extract rows and accumulate using TensorPrimitives
         Span<float> row = embeddingDim <= 512 ? stackalloc float[embeddingDim] : new float[embeddingDim];
 
         for (var i = 0; i < seqLen; i++)
         {
             if (attentionMask[i] != 1) continue;
 
-            // Extract row from hiddenState[0, i, :]
             for (var j = 0; j < embeddingDim; j++)
                 row[j] = hiddenState[0, i, j];
 
-            // Accumulate: embedding += row
             TensorPrimitives.Add(embedding, (ReadOnlySpan<float>)row, embedding);
         }
 
-        // Divide by token count to get mean
         TensorPrimitives.Divide(embedding, validTokens, embedding);
-
         return embedding;
     }
 }

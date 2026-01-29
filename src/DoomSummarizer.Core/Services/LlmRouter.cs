@@ -1,4 +1,8 @@
+using System.Text.Json;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Resilience;
+using Mostlylucid.DocSummarizer.Services;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
@@ -6,11 +10,11 @@ namespace DoomSummarizer.Services;
 /// Provider priority: configured cloud → Ollama (free, always available).
 /// Budget is checked before each cloud API call.
 /// </summary>
-public class LlmRouter
+public class LlmRouter : ILlmService
 {
     private readonly List<ProviderEntry> _providers = [];
-    private readonly ApiBudgetService? _budget;
-    private readonly CircuitBreakerService? _circuit;
+    private readonly IApiBudget? _budget;
+    private readonly ICircuitBreaker? _circuit;
     private readonly OllamaConfig _ollamaConfig;
 
     private record ProviderEntry(
@@ -35,7 +39,7 @@ public class LlmRouter
         }
     }
 
-    private LlmRouter(ApiBudgetService? budget, CircuitBreakerService? circuit, OllamaConfig ollamaConfig)
+    private LlmRouter(IApiBudget? budget, ICircuitBreaker? circuit, OllamaConfig ollamaConfig)
     {
         _budget = budget;
         _circuit = circuit;
@@ -48,8 +52,8 @@ public class LlmRouter
     /// they are used when Ollama fails or is unavailable.
     /// </summary>
     public static async Task<LlmRouter> BuildAsync(
-        OllamaConfig ollamaConfig, ApiKeyService keys, ApiBudgetService? budget,
-        CircuitBreakerService? circuit = null, CancellationToken ct = default)
+        OllamaConfig ollamaConfig, ApiKeyService keys, IApiBudget? budget,
+        ICircuitBreaker? circuit = null, CancellationToken ct = default)
     {
         var router = new LlmRouter(budget, circuit, ollamaConfig);
 
@@ -117,7 +121,7 @@ public class LlmRouter
                     {
                         if (_circuit != null)
                         {
-                            var failureType = CircuitBreakerService.ClassifyBudgetDenial(check.DenialReason);
+                            var failureType = ICircuitBreaker.ClassifyBudgetDenial(check.DenialReason);
                             await _circuit.TripCircuitAsync(entry.BudgetServiceName, failureType, check.DenialReason);
                         }
                         else
@@ -236,6 +240,36 @@ public class LlmRouter
             System.Diagnostics.Debug.WriteLine($"  LLM {entry.Provider.Name} ({type}{budgetInfo}{ctxInfo}): {status}");
         }
     }
+
+    // ── ILlmService implementation ──────────────────────────────────────
+
+    /// <inheritdoc />
+    public string ProviderName => "LlmRouter";
+
+    /// <inheritdoc />
+    async Task<string> ILlmService.GenerateAsync(string prompt, LlmOptions? options, CancellationToken ct)
+        => await GenerateAsync(LlmRequest.FromOptions(prompt, options), ct);
+
+    /// <inheritdoc />
+    async Task<T?> ILlmService.GenerateJsonAsync<T>(string prompt, LlmOptions? options, CancellationToken ct)
+        where T : class
+    {
+        var jsonOptions = options ?? new LlmOptions();
+        jsonOptions.JsonMode = true;
+        var json = await GenerateAsync(LlmRequest.FromOptions(prompt, jsonOptions), ct);
+        return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+    }
+
+    /// <inheritdoc />
+    async Task<bool> ILlmService.IsAvailableAsync(CancellationToken ct)
+        => await IsAnyAvailableAsync(ct);
+
+    /// <inheritdoc />
+    Task<int> ILlmService.GetContextWindowAsync(CancellationToken ct)
+        => Task.FromResult(GetContextSize());
 
     // Known context window sizes for common models
     private static readonly Dictionary<string, int> KnownContextSizes = new(StringComparer.OrdinalIgnoreCase)

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Resilience;
 namespace DoomSummarizer.Services;
 
 /// <summary>
@@ -8,8 +9,9 @@ namespace DoomSummarizer.Services;
 /// 1. .NET user secrets (highest — explicitly managed per-project)
 /// 2. Environment variables (DOOM_*, OPENAI_API_KEY, ANTHROPIC_API_KEY)
 /// 3. DoomConfig JSON (keys array)
+/// Implements <see cref="IServiceBudgetLookup"/> to provide budget info to the shared ApiBudgetService.
 /// </summary>
-public class ApiKeyService
+public class ApiKeyService : IServiceBudgetLookup
 {
     private const string UserSecretsId = "bc19ab4d-717e-4cf3-bdd3-a5ee817de654";
 
@@ -110,6 +112,21 @@ public class ApiKeyService
 
             System.Diagnostics.Debug.WriteLine($"  {name}: {status}");
         }
+    }
+
+    /// <inheritdoc/>
+    public ServiceBudgetInfo? GetServiceBudgetInfo(string service)
+    {
+        var entry = GetService(service);
+        if (entry == null) return null;
+        return new ServiceBudgetInfo
+        {
+            Enabled = entry.Enabled,
+            MaxRequestsPerDay = entry.MaxRequestsPerDay,
+            MaxRequests = entry.MaxRequests,
+            DailyBudgetUsd = entry.DailyBudgetUsd,
+            CostPerRequest = entry.CostPerRequest
+        };
     }
 
     /// <summary>Get all enabled and configured services.</summary>

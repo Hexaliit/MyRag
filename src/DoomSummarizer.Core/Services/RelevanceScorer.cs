@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Scoring;
 using Mostlylucid.DocSummarizer.Services.Utilities;
 
 namespace DoomSummarizer.Services;
@@ -390,38 +391,21 @@ public partial class RelevanceScorer
 
     /// <summary>
     /// Reciprocal Rank Fusion across multiple ranking signals.
+    /// Delegates to the shared generic RrfFusion implementation.
     /// RRF(d) = Σ weight_i * 1/(k + rank_i(d))
     /// </summary>
     internal static List<(ContentItem item, double score)> FuseRRF(
         List<ContentItem> items,
         (List<(ContentItem item, double score)> scores, double weight)[] signals)
     {
-        var fusedScores = new Dictionary<string, double>();
-        foreach (var item in items)
-            fusedScores[item.Id] = 0;
+        var rankedSignals = signals
+            .Select(s => new RankedSignal<ContentItem>(
+                s.scores.OrderByDescending(x => x.score).Select(x => x.item).ToList(),
+                s.weight));
 
-        foreach (var (scores, weight) in signals)
-        {
-            if (weight <= 0) continue;
-
-            // Rank by this signal (descending)
-            var ranked = scores.OrderByDescending(x => x.score).ToList();
-            for (var rank = 0; rank < ranked.Count; rank++)
-            {
-                var itemId = ranked[rank].item.Id;
-                fusedScores[itemId] += weight * (1.0 / (RrfK + rank + 1));
-            }
-        }
-
-        // Normalize to 0-1 range (guard against all-zero scores)
-        var maxScore = fusedScores.Count > 0 ? fusedScores.Values.Max() : 0;
-        if (maxScore > 0)
-        {
-            foreach (var key in fusedScores.Keys.ToList())
-                fusedScores[key] /= maxScore;
-        }
-
-        return items.Select(i => (i, fusedScores.GetValueOrDefault(i.Id, 0))).ToList();
+        var fused = RrfFusion.Fuse(rankedSignals, item => item.Id, RrfK, normalize: true);
+        var scoreMap = fused.ToDictionary(f => f.Item.Id, f => f.Score);
+        return items.Select(i => (i, scoreMap.GetValueOrDefault(i.Id, 0.0))).ToList();
     }
 
     #region Signal Computations

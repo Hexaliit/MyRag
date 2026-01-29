@@ -87,6 +87,24 @@ public class EditorBridge
         await _invokeScript($"setEditorMode({m})");
     }
 
+    // --- C# → JS: Navigation ---
+
+    /// <summary>Scroll to a heading by text.</summary>
+    public async Task ScrollToHeadingAsync(string headingText)
+    {
+        if (_invokeScript == null) return;
+        var escaped = JsonSerializer.Serialize(headingText);
+        await _invokeScript($"scrollToHeading({escaped})");
+    }
+
+    /// <summary>Scroll to a text fragment in the editor.</summary>
+    public async Task ScrollToTextAsync(string text)
+    {
+        if (_invokeScript == null) return;
+        var escaped = JsonSerializer.Serialize(text);
+        await _invokeScript($"scrollToText({escaped})");
+    }
+
     // --- C# → JS: Autocomplete ---
 
     /// <summary>Show autocomplete suggestion in the editor (ghost text or popup).</summary>

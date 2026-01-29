@@ -1,4 +1,5 @@
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Services;
 

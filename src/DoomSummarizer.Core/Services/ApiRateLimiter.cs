@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Resilience;
 using Polly;
 using Polly.Retry;
 namespace DoomSummarizer.Services;
@@ -33,12 +34,12 @@ public static class ApiRateLimiter
     private static readonly ConcurrentDictionary<string, ResiliencePipeline<HttpResponseMessage>> Pipelines = new();
     private static readonly ConcurrentDictionary<string, int> ConsecutiveFailures = new();
     private static readonly ConcurrentDictionary<string, ApiKeyEntry> ServiceConfigs = new();
-    private static CircuitBreakerService? _circuitBreaker;
+    private static ICircuitBreaker? _circuitBreaker;
 
     /// <summary>
     /// Set the persistent circuit breaker. Call once during startup after initializing CircuitBreakerService.
     /// </summary>
-    public static void SetCircuitBreaker(CircuitBreakerService circuitBreaker)
+    public static void SetCircuitBreaker(ICircuitBreaker circuitBreaker)
         => _circuitBreaker = circuitBreaker;
 
     /// <summary>
@@ -104,7 +105,7 @@ public static class ApiRateLimiter
             ConsecutiveFailures.AddOrUpdate(service, 1, (_, n) => n + 1);
             if (_circuitBreaker != null)
             {
-                var failureType = CircuitBreakerService.ClassifyHttpStatus((int)result.StatusCode);
+                var failureType = ICircuitBreaker.ClassifyHttpStatus((int)result.StatusCode);
                 _ = _circuitBreaker.ReportFailureAsync(service, failureType,
                     $"HTTP {(int)result.StatusCode}");
             }

@@ -1,10 +1,16 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:semi="https://irihi.tech/semi"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="DoomWriter.App"
              RequestedThemeVariant="Dark">
 
     <Application.Styles>
-        <FluentTheme />
+        <!-- Semi.Avalonia: Modern, clean theme (replaces FluentTheme) -->
+        <semi:SemiTheme Locale="en-US" />
+
+        <!-- Material Icons -->
+        <mi:MaterialIconStyles />
 
         <!-- Global DoomWriter styles -->
         <StyleInclude Source="avares://DoomWriter/Resources/Styles.axaml" />

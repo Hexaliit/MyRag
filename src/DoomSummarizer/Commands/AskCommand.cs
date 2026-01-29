@@ -3,6 +3,7 @@ using System.Text;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Resilience;
 using Spectre.Console;
 using Spectre.Console.Cli;
 

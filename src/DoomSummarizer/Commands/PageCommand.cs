@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Content;
 using Spectre.Console;
 using Spectre.Console.Cli;
 

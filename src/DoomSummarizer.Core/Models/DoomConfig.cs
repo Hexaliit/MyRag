@@ -254,18 +254,8 @@ public record SmtpConfig
     public string? Password { get; init; }
 }
 
-/// <summary>
-/// Global budget controls across all paid/limited APIs.
-/// Individual service limits on each ApiKeyEntry override these when set.
-/// </summary>
-public record ApiBudgetConfig
-{
-    /// <summary>Global daily request limit across all paid APIs. 0 = unlimited.</summary>
-    public int GlobalMaxRequestsPerDay { get; init; } = 200;
-
-    /// <summary>Global daily budget in USD. 0 = unlimited.</summary>
-    public double GlobalDailyBudgetUsd { get; init; } = 2.0;
-}
+// ApiBudgetConfig is now defined in Mostlylucid.DocSummarizer.Resilience.
+// Re-exported via global using in Services/ApiBudgetService.cs.
 
 // JSON serialization context for AOT
 [JsonSourceGenerationOptions(

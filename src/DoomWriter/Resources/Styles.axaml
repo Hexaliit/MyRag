@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia">
 
     <!-- Status indicator dot -->
     <Style Selector="Ellipse.status-dot">
@@ -38,13 +39,43 @@
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
-    <!-- Toolbar buttons -->
+    <!-- Toolbar buttons (text) -->
     <Style Selector="Button.toolbar-btn">
         <Setter Property="Padding" Value="8,4" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="MinWidth" Value="0" />
         <Setter Property="MinHeight" Value="0" />
     </Style>
+
+    <!-- Toolbar icon buttons — let Semi theme handle background, just override sizing -->
+    <Style Selector="Button.toolbar-icon-btn">
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="CornerRadius" Value="4" />
+    </Style>
+    <Style Selector="Button.toolbar-icon-btn mi|MaterialIcon">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+    </Style>
+
+    <!-- Toggle variant for toolbar icons -->
+    <Style Selector="ToggleButton.toolbar-icon-btn">
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="CornerRadius" Value="4" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-icon-btn mi|MaterialIcon">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+    </Style>
+
+    <!-- Accent toolbar button -->
     <Style Selector="Button.toolbar-btn-accent">
         <Setter Property="Padding" Value="10,4" />
         <Setter Property="FontSize" Value="12" />

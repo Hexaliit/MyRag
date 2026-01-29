@@ -86,11 +86,6 @@ public class WebView2Host : NativeControlHost, IDisposable
                 NavigationCompleted?.Invoke(this, EventArgs.Empty);
             };
 
-            // Debug: log console messages from the WebView
-            _webView.ConsoleMessageReceived += (s, e) =>
-            {
-                System.Diagnostics.Debug.WriteLine($"[WebView2 Console] {e.Message}");
-            };
 
             // Set initial bounds
             UpdateBounds();

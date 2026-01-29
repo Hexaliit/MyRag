@@ -1,31 +1,66 @@
-using System.Text.RegularExpressions;
+using System.IO.Hashing;
+using System.Text;
+using Mostlylucid.Summarizer.Core.Analysis;
+using DoomSummarizer.Services;
 using DoomWriter.Models;
+using DoomWriter.Waves;
 
 namespace DoomWriter.Services;
 
 /// <summary>
-/// Reactive document analysis pipeline.
-/// On every content change (debounced), extracts signals:
+/// Reactive document analysis pipeline using WaveCoordinator.
+/// On every content change (debounced), runs analysis waves that produce signals:
 /// headings, segments, entities, topics, drift.
+/// Uses XxHash64 for content change detection to skip re-analysis of unchanged content.
+/// Waves execute with concurrency lanes: fast (regex/text), ml (ONNX NER).
 /// </summary>
-public partial class DocumentAnalysisService
+public class DocumentAnalysisService
 {
     private readonly WriterSettingsService _settings;
+    private readonly WaveCoordinator _coordinator;
     private CancellationTokenSource? _debounceCts;
     private readonly SemaphoreSlim _analysisLock = new(1, 1);
+    private ulong _lastContentHash;
+    private DocumentSignals? _cachedSignals;
+    private CoordinatorResult? _lastCoordinatorResult;
 
     /// <summary>
     /// Raised when analysis completes with new signals.
     /// </summary>
     public event EventHandler<DocumentSignals>? AnalysisCompleted;
 
-    public DocumentAnalysisService(WriterSettingsService settings)
+    /// <summary>
+    /// The last coordinator result with execution telemetry (wave durations, lanes, errors).
+    /// </summary>
+    public CoordinatorResult? LastCoordinatorResult => _lastCoordinatorResult;
+
+    public DocumentAnalysisService(WriterSettingsService settings, NerService nerService)
     {
         _settings = settings;
+
+        // Build wave coordinator with all analysis waves
+        _coordinator = new WaveCoordinator();
+        _coordinator.RegisterWaves([
+            new HeadingExtractionWave(),     // Priority 90, fast lane
+            new SegmentExtractionWave(),     // Priority 85, fast lane
+            new WordCountWave(),             // Priority 80, fast lane
+            new EntityExtractionWave(nerService), // Priority 60, ml lane
+            new TopicInferenceWave()         // Priority 50, fast lane (depends on headings + segments)
+        ]);
+    }
+
+    /// <summary>
+    /// Compute XxHash64 of the content for change detection.
+    /// </summary>
+    private static ulong ComputeHash(string content)
+    {
+        var bytes = Encoding.UTF8.GetBytes(content);
+        return XxHash64.HashToUInt64(bytes);
     }
 
     /// <summary>
     /// Analyze markdown content. Debounced — cancels any pending analysis.
+    /// Skips analysis if content hash hasn't changed.
     /// </summary>
     public async Task AnalyzeAsync(string markdown)
     {
@@ -39,10 +74,20 @@ public partial class DocumentAnalysisService
             // Debounce wait
             await Task.Delay(_settings.Config.DebounceMs, ct);
 
+            // XxHash64 change detection — skip if content unchanged
+            var hash = ComputeHash(markdown);
+            if (hash == _lastContentHash && _cachedSignals != null)
+            {
+                AnalysisCompleted?.Invoke(this, _cachedSignals);
+                return;
+            }
+
             await _analysisLock.WaitAsync(ct);
             try
             {
-                var signals = await RunPipelineAsync(markdown, ct);
+                var signals = await RunWavePipelineAsync(markdown, ct);
+                _lastContentHash = hash;
+                _cachedSignals = signals;
                 AnalysisCompleted?.Invoke(this, signals);
             }
             finally
@@ -56,244 +101,65 @@ public partial class DocumentAnalysisService
         }
     }
 
-    private async Task<DocumentSignals> RunPipelineAsync(string markdown, CancellationToken ct)
+    /// <summary>
+    /// Analyze markdown content immediately (no debounce).
+    /// Use for initial document load — populates signal panel right away.
+    /// Still uses XxHash64 to skip if content is unchanged.
+    /// </summary>
+    public async Task AnalyzeImmediateAsync(string markdown)
     {
-        var signals = new DocumentSignals();
+        if (string.IsNullOrWhiteSpace(markdown)) return;
 
-        // 1. Parse headings for TOC
-        var headings = ExtractHeadings(markdown);
-        signals.Headings = headings;
-
-        // 2. Extract segments (paragraphs separated by blank lines)
-        var segments = ExtractSegments(markdown);
-        signals.Segments = segments;
-        signals.SegmentCount = segments.Count;
-
-        // 3. Word count
-        signals.WordCount = CountWords(markdown);
-
-        // 4. Entity extraction (regex-based for speed — NER via Core in Phase 2)
-        var entities = ExtractEntitiesBasic(markdown, segments);
-        signals.Entities = entities;
-        signals.EntityCount = entities.Count;
-
-        // 5. Topic inference (simple: use heading text as topic proxy)
-        var topics = InferTopics(headings, segments);
-        signals.Topics = topics;
-        signals.DominantTopic = topics.Count > 0
-            ? topics.MaxBy(t => t.Score)?.Topic ?? ""
-            : "";
-
-        // 6. Drift detection (placeholder — full embedding-based in Phase 2)
-        signals.DriftScore = 0f;
-        signals.CoherenceScore = 1f;
-
-        return signals;
-    }
-
-    // --- Heading extraction ---
-
-    private static List<HeadingItem> ExtractHeadings(string markdown)
-    {
-        var headings = new List<HeadingItem>();
-        var lines = markdown.Split('\n');
-        var charOffset = 0;
-
-        for (int i = 0; i < lines.Length; i++)
+        var hash = ComputeHash(markdown);
+        if (hash == _lastContentHash && _cachedSignals != null)
         {
-            var line = lines[i].TrimEnd('\r');
-            var match = HeadingRegex().Match(line);
-            if (match.Success)
-            {
-                headings.Add(new HeadingItem
-                {
-                    Level = match.Groups[1].Value.Length,
-                    Text = match.Groups[2].Value.Trim(),
-                    LineNumber = i + 1,
-                    CharOffset = charOffset
-                });
-            }
-            charOffset += lines[i].Length + 1; // +1 for \n
+            AnalysisCompleted?.Invoke(this, _cachedSignals);
+            return;
         }
 
-        return headings;
-    }
-
-    [GeneratedRegex(@"^(#{1,6})\s+(.+)$")]
-    private static partial Regex HeadingRegex();
-
-    // --- Segment extraction ---
-
-    private static List<AnalyzedSegment> ExtractSegments(string markdown)
-    {
-        var segments = new List<AnalyzedSegment>();
-        var paragraphs = ParagraphSplitRegex().Split(markdown);
-        var charOffset = 0;
-        var position = 0;
-
-        foreach (var para in paragraphs)
+        await _analysisLock.WaitAsync();
+        try
         {
-            var trimmed = para.Trim();
-            if (string.IsNullOrWhiteSpace(trimmed))
-            {
-                charOffset += para.Length;
-                continue;
-            }
-
-            // Skip headings as standalone segments (they're in the TOC)
-            if (trimmed.StartsWith('#'))
-            {
-                charOffset += para.Length;
-                continue;
-            }
-
-            var firstLine = trimmed.Split('\n')[0];
-            if (firstLine.Length > 80)
-                firstLine = firstLine[..77] + "...";
-
-            // Simple salience heuristic: longer paragraphs with more varied vocabulary score higher
-            var words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var uniqueRatio = words.Length > 0
-                ? (float)words.Distinct(StringComparer.OrdinalIgnoreCase).Count() / words.Length
-                : 0f;
-            var lengthFactor = Math.Min(1f, words.Length / 50f);
-            var salience = (uniqueRatio * 0.6f + lengthFactor * 0.4f);
-
-            segments.Add(new AnalyzedSegment
-            {
-                Text = trimmed,
-                FirstLine = firstLine,
-                Salience = salience,
-                Position = position,
-                CharOffset = charOffset,
-                EntityNames = ExtractInlineEntities(trimmed)
-            });
-
-            position++;
-            charOffset += para.Length;
+            var signals = await RunWavePipelineAsync(markdown, CancellationToken.None);
+            _lastContentHash = hash;
+            _cachedSignals = signals;
+            AnalysisCompleted?.Invoke(this, signals);
         }
-
-        return segments;
-    }
-
-    [GeneratedRegex(@"\n\s*\n")]
-    private static partial Regex ParagraphSplitRegex();
-
-    // --- Basic entity extraction (regex-based) ---
-
-    private static List<TrackedEntity> ExtractEntitiesBasic(string markdown, List<AnalyzedSegment> segments)
-    {
-        var entityMentions = new Dictionary<string, (string Type, int Count, List<int> Sections)>(
-            StringComparer.OrdinalIgnoreCase);
-
-        for (int i = 0; i < segments.Count; i++)
+        finally
         {
-            foreach (var name in segments[i].EntityNames)
-            {
-                if (entityMentions.TryGetValue(name, out var existing))
-                {
-                    existing.Count++;
-                    if (!existing.Sections.Contains(i))
-                        existing.Sections.Add(i);
-                    entityMentions[name] = existing;
-                }
-                else
-                {
-                    entityMentions[name] = (InferEntityType(name), 1, [i]);
-                }
-            }
+            _analysisLock.Release();
         }
-
-        return entityMentions.Select(kv => new TrackedEntity
-        {
-            Name = kv.Key,
-            Type = kv.Value.Type,
-            MentionCount = kv.Value.Count,
-            SectionIndices = kv.Value.Sections
-        }).ToList();
     }
 
     /// <summary>
-    /// Extract entities from a single segment using regex patterns.
-    /// Finds: capitalized multi-word phrases, backtick code, bold terms.
+    /// Execute the wave coordinator and map results to DocumentSignals.
     /// </summary>
-    private static List<string> ExtractInlineEntities(string text)
+    private async Task<DocumentSignals> RunWavePipelineAsync(string markdown, CancellationToken ct)
     {
-        var entities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = await _coordinator.ExecuteAsync(
+            markdown,
+            profile: CoordinatorProfile.Default,
+            ct: ct);
 
-        // Capitalized multi-word names (e.g., "Hacker News", "OpenAI")
-        foreach (Match m in CapitalizedPhraseRegex().Matches(text))
+        _lastCoordinatorResult = result;
+        var ctx = result.Context;
+
+        // Map wave signals → DocumentSignals
+        var signals = new DocumentSignals
         {
-            var phrase = m.Value.Trim();
-            if (phrase.Length >= 3 && !IsCommonPhrase(phrase))
-                entities.Add(phrase);
-        }
+            Headings = ctx.GetValue<List<HeadingItem>>("doc.structure.headings") ?? [],
+            Segments = ctx.GetValue<List<AnalyzedSegment>>("doc.structure.segments") ?? [],
+            WordCount = ctx.GetValue<int>("doc.metrics.word_count"),
+            Entities = ctx.GetValue<List<TrackedEntity>>("doc.entities.tracked") ?? [],
+            Topics = ctx.GetValue<List<TopicScore>>("doc.topics.inferred") ?? [],
+            DominantTopic = ctx.GetValue<string>("doc.topics.dominant") ?? "",
+            DriftScore = 0f, // Placeholder — embedding-based drift in future wave
+            CoherenceScore = 1f
+        };
 
-        // Backtick code references (e.g., `EmbeddingService`)
-        foreach (Match m in BacktickRegex().Matches(text))
-        {
-            var code = m.Groups[1].Value;
-            if (code.Length >= 2)
-                entities.Add(code);
-        }
+        signals.SegmentCount = signals.Segments.Count;
+        signals.EntityCount = signals.Entities.Count;
 
-        return entities.ToList();
-    }
-
-    [GeneratedRegex(@"(?<![#\[])(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)")]
-    private static partial Regex CapitalizedPhraseRegex();
-
-    [GeneratedRegex(@"`([^`]+)`")]
-    private static partial Regex BacktickRegex();
-
-    private static bool IsCommonPhrase(string phrase) =>
-        phrase is "The" or "This" or "That" or "These" or "Those" or "Here"
-            or "There" or "In The" or "On The" or "For The";
-
-    private static string InferEntityType(string name)
-    {
-        // Simple heuristic type inference
-        if (name.Contains('.') || name.All(c => char.IsLetterOrDigit(c)))
-            return "MISC"; // Code-like
-        if (name.EndsWith("Service") || name.EndsWith("API") || name.EndsWith("Inc") || name.EndsWith("Corp"))
-            return "ORG";
-        return "MISC";
-    }
-
-    // --- Topic inference ---
-
-    private static List<TopicScore> InferTopics(List<HeadingItem> headings, List<AnalyzedSegment> segments)
-    {
-        var topics = new List<TopicScore>();
-
-        // Use heading text as topic proxy for nearby segments
-        for (int i = 0; i < headings.Count; i++)
-        {
-            var heading = headings[i];
-            var nextHeadingOffset = i + 1 < headings.Count ? headings[i + 1].CharOffset : int.MaxValue;
-
-            var sectionSegments = segments.Where(s =>
-                s.CharOffset >= heading.CharOffset && s.CharOffset < nextHeadingOffset).ToList();
-
-            if (sectionSegments.Count > 0)
-            {
-                topics.Add(new TopicScore
-                {
-                    Topic = heading.Text,
-                    Score = sectionSegments.Average(s => s.Salience),
-                    SectionIndex = i
-                });
-            }
-        }
-
-        return topics;
-    }
-
-    // --- Word count ---
-
-    private static int CountWords(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return 0;
-        return text.Split([' ', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries).Length;
+        return signals;
     }
 }

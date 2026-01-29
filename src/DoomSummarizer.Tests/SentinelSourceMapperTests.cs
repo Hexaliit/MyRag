@@ -1,4 +1,5 @@
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Tests;
 

@@ -1,5 +1,5 @@
-using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Resilience;
 using FluentAssertions;
 
 namespace DoomSummarizer.Tests;

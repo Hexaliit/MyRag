@@ -10,7 +10,7 @@ namespace Mostlylucid.DocSummarizer.Services.Onnx;
 ///     ONNX-based Named Entity Recognition service for enhancing TF-IDF.
 ///     Uses BERT-based NER model to identify persons, organizations, locations, etc.
 /// </summary>
-public sealed class OnnxNerService : IDisposable
+public sealed class OnnxNerService : INerService
 {
     // BIO tag pattern
     private static readonly Regex BioTagRx = new(@"^([BI])-(.+)$", RegexOptions.Compiled);

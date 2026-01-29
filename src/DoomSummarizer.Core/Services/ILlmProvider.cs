@@ -32,4 +32,25 @@ public record LlmRequest
 
     /// <summary>Role hint: "main", "sentinel", "analysis". Used by router for model selection.</summary>
     public string Role { get; init; } = "main";
+
+    /// <summary>Convert to shared LlmOptions.</summary>
+    public Mostlylucid.DocSummarizer.Services.LlmOptions ToOptions() => new()
+    {
+        Temperature = Temperature,
+        MaxTokens = MaxTokens,
+        SystemPrompt = SystemPrompt,
+        JsonMode = JsonMode,
+        Role = Role
+    };
+
+    /// <summary>Create from shared LlmOptions.</summary>
+    public static LlmRequest FromOptions(string prompt, Mostlylucid.DocSummarizer.Services.LlmOptions? options) => new()
+    {
+        Prompt = prompt,
+        SystemPrompt = options?.SystemPrompt,
+        Temperature = options?.Temperature ?? 0.4,
+        MaxTokens = options?.MaxTokens ?? 4096,
+        JsonMode = options?.JsonMode ?? false,
+        Role = options?.Role ?? "main"
+    };
 }

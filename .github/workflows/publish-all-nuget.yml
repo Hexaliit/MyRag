@@ -1,0 +1,380 @@
+name: Cascading NuGet Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: write   # needed for tagging
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_QUALITY: 'preview'
+
+jobs:
+  # ── Tier 0: Summarizer.Core (pure interfaces) ──────────────────────────
+  publish-summarizer-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Tag for MinVer
+        run: |
+          git tag "sumcv${{ inputs.version }}" || true
+          git tag -l "sumcv*"
+
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.Summarizer.Core/Mostlylucid.Summarizer.Core.csproj \
+            -c Release \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.Summarizer.Core/Mostlylucid.Summarizer.Core.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+          dotnet nuget push ./artifacts/*.snupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: summarizer-core-pkg
+          path: ./artifacts/*
+
+  # ── Wait for Summarizer.Core on NuGet ──────────────────────────────────
+  wait-for-summarizer-core:
+    needs: publish-summarizer-core
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet for Mostlylucid.Summarizer.Core
+        run: |
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://api.nuget.org/v3-flatcontainer/mostlylucid.summarizer.core/${{ inputs.version }}/mostlylucid.summarizer.core.${{ inputs.version }}.nupkg")
+            echo "Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then exit 0; fi
+            sleep 30
+          done
+          echo "Package not found after 15 minutes, continuing anyway..."
+
+  # ── Tier 1: DocSummarizer (interfaces + services) ─────────────────────
+  publish-docsummarizer:
+    needs: wait-for-summarizer-core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DocSummarizer.Core/Mostlylucid.DocSummarizer.Core.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DocSummarizer.Core/Mostlylucid.DocSummarizer.Core.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+          dotnet nuget push ./artifacts/*.snupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docsummarizer-pkg
+          path: ./artifacts/*
+
+  # ── Wait for DocSummarizer on NuGet ────────────────────────────────────
+  wait-for-docsummarizer:
+    needs: publish-docsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet for Mostlylucid.DocSummarizer
+        run: |
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://api.nuget.org/v3-flatcontainer/mostlylucid.docsummarizer/${{ inputs.version }}/mostlylucid.docsummarizer.${{ inputs.version }}.nupkg")
+            echo "Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then exit 0; fi
+            sleep 30
+          done
+          echo "Package not found after 15 minutes, continuing anyway..."
+
+  # ── Tier 2: Backend packages (parallel) ────────────────────────────────
+  publish-rdbms-sqlite:
+    needs: wait-for-docsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DocSummarizer.Rdbms.Sqlite/Mostlylucid.DocSummarizer.Rdbms.Sqlite.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DocSummarizer.Rdbms.Sqlite/Mostlylucid.DocSummarizer.Rdbms.Sqlite.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rdbms-sqlite-pkg
+          path: ./artifacts/*
+
+  publish-fts-lucene:
+    needs: wait-for-docsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DocSummarizer.FullText.Lucene/Mostlylucid.DocSummarizer.FullText.Lucene.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DocSummarizer.FullText.Lucene/Mostlylucid.DocSummarizer.FullText.Lucene.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fts-lucene-pkg
+          path: ./artifacts/*
+
+  publish-fts-sqlite:
+    needs: wait-for-docsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Build & Pack
+        run: |
+          dotnet build src/Mostlylucid.DocSummarizer.FullText.Sqlite/Mostlylucid.DocSummarizer.FullText.Sqlite.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/Mostlylucid.DocSummarizer.FullText.Sqlite/Mostlylucid.DocSummarizer.FullText.Sqlite.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fts-sqlite-pkg
+          path: ./artifacts/*
+
+  # ── Wait for backends on NuGet ─────────────────────────────────────────
+  wait-for-backends:
+    needs: [publish-rdbms-sqlite, publish-fts-lucene, publish-fts-sqlite]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet for backend packages
+        run: |
+          PACKAGES=(
+            "mostlylucid.docsummarizer.rdbms.sqlite"
+            "mostlylucid.docsummarizer.fulltext.lucene"
+            "mostlylucid.docsummarizer.fulltext.sqlite"
+          )
+          for pkg in "${PACKAGES[@]}"; do
+            echo "Waiting for $pkg..."
+            for i in $(seq 1 30); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                "https://api.nuget.org/v3-flatcontainer/$pkg/${{ inputs.version }}/$pkg.${{ inputs.version }}.nupkg")
+              echo "  Attempt $i: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then break; fi
+              sleep 30
+            done
+          done
+
+  # ── Tier 3: DoomSummarizer.Core (domain-specific) ─────────────────────
+  publish-doomsummarizer:
+    needs: wait-for-backends
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Build & Pack
+        run: |
+          dotnet build src/DoomSummarizer.Core/DoomSummarizer.Core.csproj \
+            -c Release \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+          dotnet pack src/DoomSummarizer.Core/DoomSummarizer.Core.csproj \
+            -c Release --no-build --output ./artifacts \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ inputs.version }} \
+            -p:MinVerVersionOverride=${{ inputs.version }}
+
+      - name: Login to NuGet (OIDC)
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+          dotnet nuget push ./artifacts/*.snupkg \
+            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doomsummarizer-pkg
+          path: ./artifacts/*
+
+  # ── Summary ────────────────────────────────────────────────────────────
+  summary:
+    needs: publish-doomsummarizer
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<'EOF'
+          ## Cascading NuGet Publish — v${{ inputs.version }}
+
+          | Tier | Package | Status |
+          |------|---------|--------|
+          | 0 | `Mostlylucid.Summarizer.Core` | ${{ needs.publish-summarizer-core.result }} |
+          | 1 | `Mostlylucid.DocSummarizer` | ${{ needs.publish-docsummarizer.result }} |
+          | 2 | `Mostlylucid.DocSummarizer.Rdbms.Sqlite` | ${{ needs.publish-rdbms-sqlite.result }} |
+          | 2 | `Mostlylucid.DocSummarizer.FullText.Lucene` | ${{ needs.publish-fts-lucene.result }} |
+          | 2 | `Mostlylucid.DocSummarizer.FullText.Sqlite` | ${{ needs.publish-fts-sqlite.result }} |
+          | 3 | `Mostlylucid.DoomSummarizer.Core` | ${{ needs.publish-doomsummarizer.result }} |
+          EOF

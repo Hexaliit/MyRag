@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:DoomWriter.ViewModels"
         xmlns:views="using:DoomWriter.Views"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="DoomWriter.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="{Binding Title}"
@@ -19,29 +20,35 @@
             <Grid ColumnDefinitions="Auto,*,Auto">
 
                 <!-- Left: File + Panel controls -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
-                    <Button Classes="toolbar-btn" Content="New"
-                            Command="{Binding NewDocumentCommand}"
-                            ToolTip.Tip="New Document (Ctrl+N)" />
-                    <Button Classes="toolbar-btn" Content="Open"
-                            Command="{Binding OpenFileDialogCommand}"
-                            CommandParameter="{Binding $parent[Window].StorageProvider}"
-                            ToolTip.Tip="Open File (Ctrl+O)" />
-                    <Button Classes="toolbar-btn" Content="Save"
-                            Command="{Binding SaveFileCommand}"
-                            ToolTip.Tip="Save (Ctrl+S)" />
-                    <Button Classes="toolbar-btn" Content="Save As"
-                            Command="{Binding SaveFileAsCommand}"
-                            CommandParameter="{Binding $parent[Window].StorageProvider}"
-                            ToolTip.Tip="Save As (Ctrl+Shift+S)" />
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="2">
+                    <Button Classes="toolbar-icon-btn" Name="BtnNew"
+                            ToolTip.Tip="New Document (Ctrl+N)">
+                        <mi:MaterialIcon Kind="FilePlusOutline" />
+                    </Button>
+                    <Button Classes="toolbar-icon-btn" Name="BtnOpen"
+                            ToolTip.Tip="Open File (Ctrl+O)">
+                        <mi:MaterialIcon Kind="FolderOpenOutline" />
+                    </Button>
+                    <Button Classes="toolbar-icon-btn" Name="BtnSave"
+                            ToolTip.Tip="Save (Ctrl+S)">
+                        <mi:MaterialIcon Kind="ContentSaveOutline" />
+                    </Button>
+                    <Button Classes="toolbar-icon-btn" Name="BtnSaveAs"
+                            ToolTip.Tip="Save As (Ctrl+Shift+S)">
+                        <mi:MaterialIcon Kind="ContentSaveEditOutline" />
+                    </Button>
 
                     <Border Width="1" Height="20" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                            Margin="4,0" />
+                            Margin="6,0" />
 
-                    <ToggleButton Classes="toolbar-btn"
+                    <ToggleButton Classes="toolbar-icon-btn"
                                   IsChecked="{Binding IsSignalPanelVisible}"
-                                  Content="Signals"
-                                  ToolTip.Tip="Toggle Signal Panel" />
+                                  ToolTip.Tip="Toggle Signal Panel">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <mi:MaterialIcon Kind="ChartTimelineVariantShimmer" />
+                            <TextBlock Text="Signals" VerticalAlignment="Center" FontSize="12" />
+                        </StackPanel>
+                    </ToggleButton>
                 </StackPanel>
 
                 <!-- Center: Title -->
@@ -53,13 +60,18 @@
                            Foreground="{DynamicResource SystemControlForegroundBaseMediumHighBrush}" />
 
                 <!-- Right: Corpus, Settings, Status -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Button Classes="toolbar-btn" Content="Corpus"
-                            Command="{Binding OpenCorpusDialogCommand}"
-                            ToolTip.Tip="Manage corpus knowledge base" />
-                    <Button Classes="toolbar-btn" Content="Settings"
-                            Command="{Binding OpenSettingsDialogCommand}"
-                            ToolTip.Tip="Settings" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Button Classes="toolbar-icon-btn" Name="BtnCorpus"
+                            ToolTip.Tip="Manage corpus knowledge base">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <mi:MaterialIcon Kind="BookOpenPageVariantOutline" />
+                            <TextBlock Text="Corpus" VerticalAlignment="Center" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="toolbar-icon-btn" Name="BtnSettings"
+                            ToolTip.Tip="Settings">
+                        <mi:MaterialIcon Kind="CogOutline" />
+                    </Button>
 
                     <Border Width="1" Height="20" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                             Margin="4,0" />
@@ -84,13 +96,13 @@
             </Grid>
         </Border>
 
-        <!-- Main Content: Editor + Signal Panel (DockPanel avoids NativeControlHost sizing issues) -->
+        <!-- Main Content: Signal Panel + Editor -->
         <DockPanel Grid.Row="1">
 
-            <!-- Signal Panel (Right) — docked to right edge -->
-            <Border DockPanel.Dock="Right"
-                    Width="280"
-                    Background="#2d2d30">
+            <!-- Signal Panel (Left) — docked left to avoid NativeControlHost airspace overlap -->
+            <Border DockPanel.Dock="Left"
+                    Width="{Binding SignalPanelWidth}"
+                    IsVisible="{Binding IsSignalPanelVisible}">
                 <views:SignalPanel DataContext="{Binding SignalPanel}" />
             </Border>
 
@@ -146,13 +158,9 @@
         </Border>
     </Grid>
 
-    <!-- Keyboard shortcuts -->
+    <!-- Keyboard shortcuts (file dialogs handled in code-behind) -->
     <Window.KeyBindings>
         <KeyBinding Gesture="Ctrl+N" Command="{Binding NewDocumentCommand}" />
-        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFileDialogCommand}"
-                    CommandParameter="{Binding $parent[Window].StorageProvider}" />
         <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveFileCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveFileAsCommand}"
-                    CommandParameter="{Binding $parent[Window].StorageProvider}" />
     </Window.KeyBindings>
 </Window>
