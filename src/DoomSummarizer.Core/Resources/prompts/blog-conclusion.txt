@@ -1,0 +1,14 @@
+Write a conclusion ({{CONCLUSION_WORDS}} words) for an article titled "{{TITLE}}".
+
+Angle: {{CONCLUSION_ANGLE}}
+Tone: {{VIBE_PROMPT}}
+Previous section ended with: "{{PREVIOUS_CONTEXT}}"
+{{CONCLUSION_EXTRA}}
+
+Rules:
+- Tie back to the introduction's hook
+- Look forward — what should readers watch for?
+- Do NOT summarize each section
+- Be concrete, not generic
+- Start directly with content — no preamble or meta-commentary
+- No author biography or credentials

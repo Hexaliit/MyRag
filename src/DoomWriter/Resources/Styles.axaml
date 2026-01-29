@@ -1,0 +1,72 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Status indicator dot -->
+    <Style Selector="Ellipse.status-dot">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Height" Value="8" />
+    </Style>
+
+    <!-- Panel section headers -->
+    <Style Selector="TextBlock.panel-header">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,8,0,4" />
+    </Style>
+
+    <!-- Signal panel list items -->
+    <Style Selector="ListBoxItem.signal-item">
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <!-- Compact tab strip -->
+    <Style Selector="TabControl.signal-tabs">
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="TabControl.signal-tabs > TabItem">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Padding" Value="8,4" />
+    </Style>
+
+    <!-- Status bar -->
+    <Style Selector="Border.status-bar">
+        <Setter Property="Padding" Value="8,4" />
+    </Style>
+    <Style Selector="TextBlock.status-text">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- Toolbar buttons -->
+    <Style Selector="Button.toolbar-btn">
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="Button.toolbar-btn-accent">
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Background" Value="#3B82F6" />
+        <Setter Property="Foreground" Value="White" />
+    </Style>
+
+    <!-- Salience bar -->
+    <Style Selector="ProgressBar.salience-bar">
+        <Setter Property="Height" Value="4" />
+        <Setter Property="MinWidth" Value="40" />
+        <Setter Property="Maximum" Value="1" />
+        <Setter Property="Foreground" Value="#3B82F6" />
+    </Style>
+
+    <!-- Entity type badges -->
+    <Style Selector="Border.entity-badge">
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Padding" Value="4,1" />
+    </Style>
+    <Style Selector="TextBlock.entity-badge-text">
+        <Setter Property="FontSize" Value="9" />
+        <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+</Styles>

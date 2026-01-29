@@ -1,0 +1,11 @@
+Digest for {{TODAY}} | Tone: {{VIBE_PROMPT}}
+
+ITEMS (confidence-scored):
+{{ITEMS}}
+
+RULES: Only use items above | Prioritize [HIGH-CONF] | No hallucination | No URLs or links | No sources section | Match {{VIBE}} tone
+
+FORMAT:
+1. Overview (2-3 sentences, match the vibe)
+2. Group by topic, high-confidence items first
+3. What to watch (1-2 sentences)

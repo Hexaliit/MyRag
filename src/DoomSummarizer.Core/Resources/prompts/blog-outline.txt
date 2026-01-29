@@ -1,0 +1,22 @@
+Create an article outline from these evidence items about: "{{QUERY}}"
+
+EVIDENCE:
+{{EVIDENCE}}
+
+{{OUTLINE_INSTRUCTIONS}}
+
+Respond with JSON only:
+{% raw %}{
+  "title": "compelling article title",
+  "sections": [
+    {"heading": "section heading", "key_items": [0, 2, 5], "notes": "what to cover"},
+    ...
+  ],
+  "conclusion_angle": "forward-looking angle for conclusion"
+}{% endraw %}
+
+Rules:
+- 4-6 sections maximum
+- Each section references 2-4 evidence items by index number
+- Every evidence item should be referenced at least once
+- Notes should guide what to extract from each item

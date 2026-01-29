@@ -1,0 +1,12 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DoomWriter.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Styles>
+        <FluentTheme />
+
+        <!-- Global DoomWriter styles -->
+        <StyleInclude Source="avares://DoomWriter/Resources/Styles.axaml" />
+    </Application.Styles>
+</Application>

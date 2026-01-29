@@ -1,0 +1,93 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DoomWriter.ViewModels"
+        x:Class="DoomWriter.Views.CorpusDialog"
+        x:DataType="vm:CorpusViewModel"
+        Title="Manage Corpus"
+        Width="600" Height="450"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False">
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="16">
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+            <TextBlock Text="Corpus Knowledge Base" FontWeight="SemiBold" FontSize="16" />
+            <TextBlock Text="Add markdown directories to build your searchable knowledge base for writing assistance."
+                       FontSize="12"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Directory list -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="1" CornerRadius="4">
+            <Grid RowDefinitions="*,Auto">
+                <ListBox Grid.Row="0"
+                         ItemsSource="{Binding Directories}"
+                         SelectedItem="{Binding SelectedDirectory}"
+                         Background="Transparent"
+                         BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding}"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Add/Remove buttons -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" Margin="4">
+                    <Button Content="Add Directory..."
+                            Command="{Binding AddDirectoryCommand}"
+                            FontSize="12" Padding="8,4" />
+                    <Button Content="Remove"
+                            Command="{Binding RemoveDirectoryCommand}"
+                            IsEnabled="{Binding SelectedDirectory, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                            FontSize="12" Padding="8,4" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Indexing status -->
+        <StackPanel Grid.Row="2" Spacing="4" Margin="0,12,0,0">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Spacing="2">
+                    <TextBlock FontSize="12">
+                        <Run Text="Documents: " Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <Run Text="{Binding TotalDocuments}" />
+                        <Run Text=" | Segments: " Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <Run Text="{Binding TotalSegments}" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding IndexingStatus}" FontSize="11"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Re-index All"
+                        Command="{Binding ReindexCommand}"
+                        IsEnabled="{Binding !IsIndexing}"
+                        VerticalAlignment="Center" />
+            </Grid>
+
+            <ProgressBar Value="{Binding IndexProgress}"
+                         IsVisible="{Binding IsIndexing}"
+                         Minimum="0" Maximum="100"
+                         Height="4" Margin="0,4,0,0" />
+
+            <CheckBox Content="Auto-reindex on file changes"
+                      IsChecked="{Binding AutoIndexOnChange}"
+                      Margin="0,4,0,0" />
+        </StackPanel>
+
+        <!-- Close button -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Close" Command="{Binding CloseCommand}" Width="80" />
+        </StackPanel>
+    </Grid>
+</Window>

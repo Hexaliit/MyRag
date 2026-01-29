@@ -1,0 +1,34 @@
+name: pros-cons
+description: "Balanced analysis weighing advantages and disadvantages from evidence"
+base_template: blog-article
+
+outline_instructions: |
+  Structure as a balanced analysis with clear pros and cons sections.
+  Weigh evidence from multiple perspectives before reaching a verdict.
+
+introduction:
+  prompt: "Introduce the topic and why a balanced analysis is needed. Acknowledge the debate."
+  target_words: 100
+
+sections:
+  - heading: "Background"
+    prompt: "Set context — what is being evaluated and why opinions differ."
+    target_words: 200
+
+  - heading: "The Case For"
+    prompt: "Present the strongest arguments and evidence in favor. Use specific data and examples."
+    target_words: 300
+    evidence_strategy: highest_relevance
+
+  - heading: "The Case Against"
+    prompt: "Present the strongest counterarguments and concerns. Be fair and specific."
+    target_words: 300
+    evidence_strategy: highest_relevance
+
+  - heading: "The Verdict"
+    prompt: "Weigh the evidence and provide a nuanced assessment. Avoid false balance — if one side is stronger, say so."
+    target_words: 250
+
+conclusion:
+  prompt: "Summarize the key takeaway and who should care about this analysis."
+  target_words: 80

@@ -1,0 +1,18 @@
+Write section "{{HEADING}}" for an article about "{{QUERY}}".
+{{FOCUS}}
+
+{{CONTEXT_BRIDGE}}
+
+Tone: {{VIBE_PROMPT}}
+{{TIMELINE_EXTRA}}
+
+EVIDENCE:
+{{EVIDENCE}}
+
+Rules:
+- Write {{WORD_RANGE}} words of flowing prose
+- Extract specific facts, names, dates, and quotes from evidence
+- Every claim MUST come from the evidence — no outside knowledge
+- Do NOT repeat the section heading
+- No URLs or links in output — sources handled separately
+- No generic filler — be specific and concrete

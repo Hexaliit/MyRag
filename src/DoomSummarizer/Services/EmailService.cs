@@ -4,8 +4,6 @@ using MailKit.Security;
 using MimeKit;
 using SendGrid;
 using SendGrid.Helpers.Mail;
-using Spectre.Console;
-
 namespace DoomSummarizer.Services;
 
 /// <summary>
@@ -34,7 +32,7 @@ public sealed class EmailService
     {
         if (!_config.Enabled)
         {
-            AnsiConsole.MarkupLine("[yellow]Email delivery is disabled. Set email.enabled=true in config.[/]");
+            System.Diagnostics.Debug.WriteLine("Email delivery is disabled. Set email.enabled=true in config.");
             return false;
         }
 
@@ -48,13 +46,13 @@ public sealed class EmailService
 
         if (recipients.Count == 0)
         {
-            AnsiConsole.MarkupLine("[red]No recipients configured. Set email.toAddresses in config.[/]");
+            System.Diagnostics.Debug.WriteLine("No recipients configured. Set email.toAddresses in config.");
             return false;
         }
 
         if (string.IsNullOrEmpty(_config.FromAddress))
         {
-            AnsiConsole.MarkupLine("[red]No sender address configured. Set email.fromAddress in config.[/]");
+            System.Diagnostics.Debug.WriteLine("No sender address configured. Set email.fromAddress in config.");
             return false;
         }
 
@@ -80,9 +78,9 @@ public sealed class EmailService
 
         if (string.IsNullOrEmpty(apiKey))
         {
-            AnsiConsole.MarkupLine("[red]SendGrid API key not configured. Set via:[/]");
-            AnsiConsole.MarkupLine("[grey]  dotnet user-secrets set \"SendGrid\" \"SG.xxx\"[/]");
-            AnsiConsole.MarkupLine("[grey]  or env var DOOM_SENDGRID / SENDGRID_API_KEY[/]");
+            System.Diagnostics.Debug.WriteLine("SendGrid API key not configured. Set via:");
+            System.Diagnostics.Debug.WriteLine("  dotnet user-secrets set \"SendGrid\" \"SG.xxx\"");
+            System.Diagnostics.Debug.WriteLine("  or env var DOOM_SENDGRID / SENDGRID_API_KEY");
             return false;
         }
 
@@ -103,12 +101,12 @@ public sealed class EmailService
 
         if (statusCode is >= 200 and < 300)
         {
-            AnsiConsole.MarkupLine($"[green]Email sent via SendGrid to {recipients.Count} recipient(s)[/]");
+            System.Diagnostics.Debug.WriteLine($"Email sent via SendGrid to {recipients.Count} recipient(s)");
             return true;
         }
 
         var body = await response.Body.ReadAsStringAsync(ct);
-        AnsiConsole.MarkupLine($"[red]SendGrid error ({statusCode}): {body}[/]");
+        System.Diagnostics.Debug.WriteLine($"SendGrid error ({statusCode}): {body}");
         return false;
     }
 
@@ -147,12 +145,12 @@ public sealed class EmailService
             await client.SendAsync(message, ct);
             await client.DisconnectAsync(true, ct);
 
-            AnsiConsole.MarkupLine($"[green]Email sent via SMTP ({smtp.Host}) to {recipients.Count} recipient(s)[/]");
+            System.Diagnostics.Debug.WriteLine($"Email sent via SMTP ({smtp.Host}) to {recipients.Count} recipient(s)");
             return true;
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]SMTP error: {Markup.Escape(ex.Message)}[/]");
+            System.Diagnostics.Debug.WriteLine($"SMTP error: {ex.Message}");
             return false;
         }
     }

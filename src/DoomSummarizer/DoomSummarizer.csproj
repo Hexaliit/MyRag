@@ -35,46 +35,15 @@
         <InternalsVisibleTo Include="DoomSummarizer.Tests" />
     </ItemGroup>
 
-    <!-- Core dependencies - minimal -->
+    <!-- CLI-only dependencies (Spectre.Console, MCP, Playwright, email, console images) -->
     <ItemGroup>
-        <PackageReference Include="Fluid.Core" Version="2.31.0" />
-        <PackageReference Include="Lucene.Net" Version="4.8.0-beta00017" />
-        <PackageReference Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00017" />
-        <PackageReference Include="Lucene.Net.QueryParser" Version="4.8.0-beta00017" />
         <PackageReference Include="MailKit" Version="4.14.1" />
-        <PackageReference Include="Microsoft.Recognizers.Text.DateTime" Version="1.8.13" />
-        <PackageReference Include="Microsoft.Recognizers.Text.Number" Version="1.8.13" />
-        <PackageReference Include="Microsoft.Recognizers.Text.Sequence" Version="1.8.13" />
-        <PackageReference Include="ReverseMarkdown" Version="5.0.0" />
         <PackageReference Include="SendGrid" Version="9.29.3" />
-        <PackageReference Include="SmartReader" Version="0.11.0" />
         <PackageReference Include="Spectre.Console" Version="0.54.0" />
         <PackageReference Include="Spectre.Console.Cli" Version="0.53.1" />
 
-        <!-- SQLite (metadata) -->
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
-
-        <!-- DuckDB with VSS for HNSW vector search -->
-        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4-alpha.2" />
-
-        <!-- ONNX for local embeddings with GPU auto-detection -->
-        <!-- Base package (CPU) -->
-        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.0" />
-        <!-- DirectML for Windows GPU acceleration (AMD, Intel, NVIDIA) -->
-        <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.23.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
-        <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
-
-        <!-- HTML parsing -->
-        <PackageReference Include="AngleSharp" Version="1.4.1-beta.506" />
-
         <!-- Playwright for JS-rendered sites -->
         <PackageReference Include="Microsoft.Playwright" Version="1.57.0" />
-
-        <!-- Markdown generation -->
-        <PackageReference Include="Markdig" Version="0.44.0" />
-
-        <!-- Polly for resilience -->
-        <PackageReference Include="Polly.Core" Version="8.6.5" />
 
         <!-- MCP server for AI agent integration -->
         <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1" />
@@ -83,11 +52,11 @@
         <!-- Console image display and animation -->
         <PackageReference Include="mostlylucid.consoleimage" Version="4.1.2" />
         <PackageReference Include="mostlylucid.consoleimage.player" Version="4.1.2" />
-        <PackageReference Include="YamlDotNet" Version="16.3.0" />
     </ItemGroup>
 
-    <!-- Project reference for pipeline integration -->
+    <!-- Project references -->
     <ItemGroup>
+        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
     </ItemGroup>
 

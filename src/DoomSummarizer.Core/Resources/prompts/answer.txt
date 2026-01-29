@@ -1,0 +1,11 @@
+Answer the question using ONLY evidence below.
+Tone: {{VIBE_PROMPT}}
+
+QUESTION: {{USER_QUERY}} | DATE: {{TODAY}}
+
+EVIDENCE:
+{{EVIDENCE}}
+
+RULES: Answer directly — lead with the key fact | Only use evidence above | Synthesize across items | Include context and data | Prefer recent evidence | No URLs or links | No sources section
+
+FORMAT: 2-4 paragraphs of clean prose. Less is fine if evidence is thin.

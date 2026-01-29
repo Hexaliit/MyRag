@@ -1,0 +1,12 @@
+Digest for {{TODAY}} | Tone: {{VIBE_PROMPT}}
+
+ITEMS:
+{{ITEMS}}
+
+{% if USER_QUERY and USER_QUERY != "" %}TOPIC: {{USER_QUERY}} — only include relevant items, skip off-topic.
+{% endif %}RULES: Only use items above | No hallucination | No URLs or links in output | No sources section | Match {{VIBE}} tone
+
+FORMAT:
+1. Overview (2-3 sentences, match the vibe)
+2. Group by topic — key developments per topic
+3. What to watch (1-2 sentences)

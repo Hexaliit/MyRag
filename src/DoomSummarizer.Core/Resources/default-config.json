@@ -1,0 +1,282 @@
+{
+  "sources": {
+    "hackerNews": {
+      "enabled": true,
+      "sections": ["top", "best", "new"],
+      "maxStories": 30,
+      "minScore": 50
+    },
+    "reddit": {
+      "enabled": true,
+      "subreddits": [
+        "programming",
+        "csharp",
+        "dotnet",
+        "ExperiencedDevs",
+        "technology"
+      ],
+      "sort": "hot",
+      "maxPosts": 25,
+      "minScore": 20
+    },
+    "websites": []
+  },
+  "sourceFilter": {
+    "allowedDomains": [],
+    "blockedDomains": [],
+    "weights": {
+      "reuters": 1.4,
+      "bbc": 1.3,
+      "guardian": 1.2,
+      "ars": 1.2,
+      "hn": 1.1,
+      "arxiv": 1.3,
+      "reddit": 0.9,
+      "search": 0.8,
+      "brave_search": 1.0,
+      "brave_news": 1.1,
+      "serper": 1.0,
+      "serper_news": 1.1,
+      "tavily": 1.0,
+      "newsapi": 1.1,
+      "newsdata": 1.0,
+      "jina": 0.9,
+      "currents": 1.0
+    }
+  },
+  "ollama": {
+    "baseUrl": "http://localhost:11434",
+    "model": "gemma3:4b",
+    "sentinelModel": "qwen3:0.6b",
+    "embedModel": "nomic-embed-text",
+    "temperature": 0.4,
+    "timeoutSeconds": 300,
+    "contextSize": 8192,
+    "sentinelContextSize": 32768
+  },
+  "embedding": {
+    "backend": "onnx",
+    "model": "all-MiniLM-L6-v2",
+    "similarityThreshold": 0.95
+  },
+  "output": {
+    "format": "markdown",
+    "maxSummaryLength": 500,
+    "includeLinks": true,
+    "groupByTopic": true
+  },
+  "linkFollowing": {
+    "enabled": true,
+    "maxLinksPerArticle": 3,
+    "maxTotalLinks": 15,
+    "maxContentLength": 2000,
+    "timeoutSeconds": 10,
+    "blockedDomains": [
+      "facebook.com", "twitter.com", "x.com", "instagram.com",
+      "linkedin.com", "youtube.com", "tiktok.com",
+      "accounts.google.com", "play.google.com", "apps.apple.com"
+    ],
+    "blockedExtensions": [
+      ".pdf", ".zip", ".tar", ".gz", ".exe", ".dmg",
+      ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp",
+      ".mp3", ".mp4", ".mov", ".avi", ".mkv"
+    ]
+  },
+  "email": {
+    "provider": "smtp",
+    "enabled": false,
+    "fromAddress": "",
+    "fromName": "DoomSummarizer",
+    "toAddresses": "",
+    "subjectTemplate": "Doom Scroll Digest — {{DATE}}",
+    "template": "email",
+    "smtp": {
+      "host": "smtp.gmail.com",
+      "port": 587,
+      "useSsl": true,
+      "username": "",
+      "password": ""
+    },
+    "sendGridApiKey": ""
+  },
+  "storage": {
+    "dbPath": "~/.doomsummarizer/doom.db",
+    "retentionDays": 30
+  },
+  "keys": [
+    {
+      "name": "google_search",
+      "apiKey": "",
+      "searchEngineId": "",
+      "enabled": true,
+      "maxRequestsPerDay": 100,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0.50,
+      "costPerRequest": 0.005,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "google_places",
+      "apiKey": "",
+      "searchEngineId": "",
+      "enabled": true,
+      "maxRequestsPerDay": 50,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0.85,
+      "costPerRequest": 0.017,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "openai",
+      "apiKey": "",
+      "searchEngineId": "gpt-4o-mini|gpt-4o-mini",
+      "enabled": true,
+      "maxRequestsPerDay": 200,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 1.00,
+      "costPerRequest": 0.0003,
+      "rateLimitMs": 100,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "anthropic",
+      "apiKey": "",
+      "searchEngineId": "claude-sonnet-4-20250514|claude-3-5-haiku-latest",
+      "enabled": true,
+      "maxRequestsPerDay": 200,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 1.00,
+      "costPerRequest": 0.003,
+      "rateLimitMs": 100,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "brave_search",
+      "apiKey": "",
+      "enabled": true,
+      "maxRequestsPerDay": 60,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0,
+      "costPerRequest": 0,
+      "rateLimitMs": 1100,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "serper",
+      "apiKey": "",
+      "enabled": true,
+      "maxRequestsPerDay": 40,
+      "maxRequests": 2400,
+      "dailyBudgetUsd": 0,
+      "costPerRequest": 0,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "newsapi",
+      "apiKey": "",
+      "enabled": true,
+      "maxRequestsPerDay": 90,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0,
+      "costPerRequest": 0,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "newsdata",
+      "apiKey": "",
+      "enabled": true,
+      "maxRequestsPerDay": 180,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0,
+      "costPerRequest": 0,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "tavily",
+      "apiKey": "",
+      "enabled": true,
+      "maxRequestsPerDay": 30,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0,
+      "costPerRequest": 0,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "jina",
+      "apiKey": "",
+      "enabled": true,
+      "maxRequestsPerDay": 50,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0,
+      "costPerRequest": 0,
+      "rateLimitMs": 500,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    },
+    {
+      "name": "duckduckgo",
+      "apiKey": "",
+      "enabled": true,
+      "maxRequestsPerDay": 50,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0,
+      "costPerRequest": 0,
+      "rateLimitMs": 2000,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 600
+    },
+    {
+      "name": "currents",
+      "apiKey": "",
+      "enabled": true,
+      "maxRequestsPerDay": 600,
+      "maxRequests": 0,
+      "dailyBudgetUsd": 0,
+      "costPerRequest": 0,
+      "rateLimitMs": 200,
+      "maxRetries": 2,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerResetSeconds": 300
+    }
+  ],
+  "apiBudget": {
+    "globalMaxRequestsPerDay": 500,
+    "globalDailyBudgetUsd": 2.0
+  },
+  "vibes": {
+    "doom": "Pessimistic, concerning. Focus on threats, vulnerabilities, layoffs, debt, industry problems.",
+    "hopeful": "Optimistic, encouraging. Highlight innovations, tools, opportunities, positive developments.",
+    "snarky": "Sharp dry wit. Mock hype and buzzwords. Deadpan humor, ironic observations, 'well actually' energy.",
+    "funny": "Genuinely funny. Puns, absurd analogies, playful exaggeration. Comedy writer covering the news.",
+    "upbeat": "High energy! Exclamation points, celebrate wins, highlight exciting parts. Three-coffees enthusiasm.",
+    "friendly": "Warm, conversational. Explaining to a smart friend over coffee. Use 'you' and 'we'.",
+    "toon": "Comic-strip energy. Bold exaggeration, sound effects (WHAM! KABOOM!), dramatic reveals, cartoon logic. Every story is an episode.",
+    "neutral": "Objective, balanced. Just the facts, no emotional coloring."
+  }
+}

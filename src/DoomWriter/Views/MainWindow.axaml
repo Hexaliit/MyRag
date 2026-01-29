@@ -1,0 +1,158 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DoomWriter.ViewModels"
+        xmlns:views="using:DoomWriter.Views"
+        x:Class="DoomWriter.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="{Binding Title}"
+        Width="1200" Height="800"
+        MinWidth="800" MinHeight="500"
+        WindowStartupLocation="CenterScreen"
+        DragDrop.AllowDrop="True">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- Header Bar -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SystemControlBackgroundAltMediumLowBrush}"
+                Padding="8,4">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+
+                <!-- Left: File + Panel controls -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                    <Button Classes="toolbar-btn" Content="New"
+                            Command="{Binding NewDocumentCommand}"
+                            ToolTip.Tip="New Document (Ctrl+N)" />
+                    <Button Classes="toolbar-btn" Content="Open"
+                            Command="{Binding OpenFileDialogCommand}"
+                            CommandParameter="{Binding $parent[Window].StorageProvider}"
+                            ToolTip.Tip="Open File (Ctrl+O)" />
+                    <Button Classes="toolbar-btn" Content="Save"
+                            Command="{Binding SaveFileCommand}"
+                            ToolTip.Tip="Save (Ctrl+S)" />
+                    <Button Classes="toolbar-btn" Content="Save As"
+                            Command="{Binding SaveFileAsCommand}"
+                            CommandParameter="{Binding $parent[Window].StorageProvider}"
+                            ToolTip.Tip="Save As (Ctrl+Shift+S)" />
+
+                    <Border Width="1" Height="20" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                            Margin="4,0" />
+
+                    <ToggleButton Classes="toolbar-btn"
+                                  IsChecked="{Binding IsSignalPanelVisible}"
+                                  Content="Signals"
+                                  ToolTip.Tip="Toggle Signal Panel" />
+                </StackPanel>
+
+                <!-- Center: Title -->
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Title}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="13"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumHighBrush}" />
+
+                <!-- Right: Corpus, Settings, Status -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Classes="toolbar-btn" Content="Corpus"
+                            Command="{Binding OpenCorpusDialogCommand}"
+                            ToolTip.Tip="Manage corpus knowledge base" />
+                    <Button Classes="toolbar-btn" Content="Settings"
+                            Command="{Binding OpenSettingsDialogCommand}"
+                            ToolTip.Tip="Settings" />
+
+                    <Border Width="1" Height="20" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                            Margin="4,0" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Panel Width="8" Height="8">
+                            <Ellipse Width="8" Height="8" Fill="#22C55E"
+                                     IsVisible="{Binding IsOllamaConnected}" />
+                            <Ellipse Width="8" Height="8" Fill="#EF4444"
+                                     IsVisible="{Binding !IsOllamaConnected}" />
+                        </Panel>
+                        <TextBlock Text="Ollama" FontSize="11"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="4"
+                                IsVisible="{Binding IsGenerating}">
+                        <TextBlock Text="{Binding GeneratingStatus}" FontSize="11"
+                                   Foreground="#F59E0B" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content: Signal Panel + Editor -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
+
+            <!-- Signal Panel (Left) -->
+            <views:SignalPanel Grid.Column="0"
+                               DataContext="{Binding SignalPanel}"
+                               Width="{Binding $parent[Window].DataContext.SignalPanelWidth}"
+                               IsVisible="{Binding $parent[Window].DataContext.IsSignalPanelVisible}" />
+
+            <!-- Editor (Center) - placeholder for WebView -->
+            <Border Grid.Column="1"
+                    Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                    Name="EditorContainer">
+                <!-- WebView will be added programmatically in code-behind -->
+                <TextBlock Text="Loading editor..."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           Name="EditorPlaceholder" />
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource SystemControlBackgroundAltMediumLowBrush}"
+                Classes="status-bar"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+                <!-- Left: Metrics -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16">
+                    <TextBlock Classes="status-text">
+                        <Run Text="words: " Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <Run Text="{Binding WordCount}" />
+                    </TextBlock>
+                    <TextBlock Classes="status-text">
+                        <Run Text="segments: " Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <Run Text="{Binding SegmentCount}" />
+                    </TextBlock>
+                    <TextBlock Classes="status-text">
+                        <Run Text="entities: " Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <Run Text="{Binding EntityCount}" />
+                    </TextBlock>
+                    <TextBlock Classes="status-text" IsVisible="{Binding DominantTopic, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <Run Text="topic: " Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <Run Text="{Binding DominantTopic}" />
+                    </TextBlock>
+                    <TextBlock Classes="status-text">
+                        <Run Text="drift: " Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <Run Text="{Binding DriftScore, StringFormat='{}{0:F2}'}" />
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Right: Analysis spinner -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsAnalyzing}">
+                    <TextBlock Classes="status-text" Text="Analyzing..."
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+
+    <!-- Keyboard shortcuts -->
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding NewDocumentCommand}" />
+        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFileDialogCommand}"
+                    CommandParameter="{Binding $parent[Window].StorageProvider}" />
+        <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveFileCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveFileAsCommand}"
+                    CommandParameter="{Binding $parent[Window].StorageProvider}" />
+    </Window.KeyBindings>
+</Window>

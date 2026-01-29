@@ -1,0 +1,124 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DoomWriter.ViewModels"
+        x:Class="DoomWriter.Views.SettingsDialog"
+        x:DataType="vm:SettingsViewModel"
+        Title="DoomWriter Settings"
+        Width="520" Height="560"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False">
+
+    <Grid RowDefinitions="*,Auto" Margin="16">
+
+        <!-- Settings tabs -->
+        <TabControl Grid.Row="0">
+
+            <!-- Ollama / LLM -->
+            <TabItem Header="LLM">
+                <StackPanel Spacing="12" Margin="8">
+                    <TextBlock Text="Ollama Configuration" FontWeight="SemiBold" FontSize="14" />
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Base URL" FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <TextBox Text="{Binding OllamaBaseUrl}" Watermark="http://localhost:11434" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Main Model" FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <TextBox Text="{Binding MainModel}" Watermark="llama3.2" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Sentinel Model (fast, for autocomplete)" FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <TextBox Text="{Binding SentinelModel}" Watermark="llama3.2:1b" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Context Window" FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <NumericUpDown Value="{Binding ContextWindow}"
+                                       Minimum="1024" Maximum="131072" Increment="1024"
+                                       FormatString="N0" />
+                    </StackPanel>
+
+                    <Button Content="Test Connection" Command="{Binding TestConnectionCommand}"
+                            HorizontalAlignment="Left" Margin="0,8,0,0" />
+                    <TextBlock Text="{Binding ConnectionStatus}" FontSize="11"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                </StackPanel>
+            </TabItem>
+
+            <!-- Editor -->
+            <TabItem Header="Editor">
+                <StackPanel Spacing="12" Margin="8">
+                    <TextBlock Text="Editor Preferences" FontWeight="SemiBold" FontSize="14" />
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Default Mode" FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <ComboBox SelectedItem="{Binding EditorMode}" ItemsSource="{Binding EditorModes}" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Font Size" FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <NumericUpDown Value="{Binding FontSize}"
+                                       Minimum="10" Maximum="32" Increment="1" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Theme" FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <ComboBox SelectedItem="{Binding Theme}" ItemsSource="{Binding Themes}" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Auto-Save Interval (seconds)" FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <NumericUpDown Value="{Binding AutoSaveInterval}"
+                                       Minimum="5" Maximum="300" Increment="5" />
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+
+            <!-- Analysis -->
+            <TabItem Header="Analysis">
+                <StackPanel Spacing="12" Margin="8">
+                    <TextBlock Text="Analysis Pipeline" FontWeight="SemiBold" FontSize="14" />
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Debounce (ms)" FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <NumericUpDown Value="{Binding DebounceMs}"
+                                       Minimum="100" Maximum="5000" Increment="100" />
+                    </StackPanel>
+
+                    <CheckBox Content="Enable NER (Named Entity Recognition)"
+                              IsChecked="{Binding EnableNer}" />
+
+                    <CheckBox Content="Enable Drift Detection"
+                              IsChecked="{Binding EnableDriftDetection}" />
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Minimum Salience Threshold" FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                        <NumericUpDown Value="{Binding MinSalienceThreshold}"
+                                       Minimum="0" Maximum="1" Increment="0.05"
+                                       FormatString="F2" />
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
+            <Button Content="Cancel" Command="{Binding CancelCommand}" Width="80" />
+            <Button Content="Save" Command="{Binding SaveCommand}" Width="80"
+                    Classes="accent" />
+        </StackPanel>
+    </Grid>
+</Window>

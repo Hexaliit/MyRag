@@ -1,0 +1,35 @@
+name: problem-solution
+description: "Problem/Solution article structure — identifies the issue, explores approaches, and recommends solutions"
+base_template: blog-article
+
+outline_instructions: |
+  Structure the article as a problem/solution analysis.
+  Identify the core problem from the evidence, explore attempted solutions,
+  and conclude with the most promising approach.
+
+introduction:
+  prompt: "Open with a vivid description of the problem. Make the reader feel the pain point."
+  target_words: 120
+
+sections:
+  - heading: "The Problem"
+    prompt: "Describe the core problem using evidence. Include specific data points, affected users, and consequences."
+    target_words: 300
+    evidence_strategy: highest_relevance
+
+  - heading: "Why It Matters"
+    prompt: "Explain the broader impact — who is affected, what's at stake, and why current approaches fall short."
+    target_words: 250
+
+  - heading: "Proposed Solutions"
+    prompt: "Detail the solutions being attempted or proposed. Compare approaches objectively using evidence."
+    target_words: 350
+    evidence_strategy: newest
+
+  - heading: "The Path Forward"
+    prompt: "Synthesize the evidence into a recommended approach. Be specific about next steps."
+    target_words: 200
+
+conclusion:
+  prompt: "End with a call to action or forward-looking statement about the solution trajectory."
+  target_words: 80
