@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
-using Mostlylucid.DocSummarizer.Services.Preprocessing;
+using Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 using OpenCvSharp;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;

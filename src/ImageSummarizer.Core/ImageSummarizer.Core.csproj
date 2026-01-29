@@ -29,7 +29,7 @@
 
   <ItemGroup>
     <!-- StyloFlow.Retrieval.Core - Universal retrieval infrastructure -->
-    <PackageReference Include="Mostlylucid.StyloFlow.Retrieval.Core" Version="2.3.1" />
+    <PackageReference Include="Mostlylucid.StyloFlow.Retrieval.Core" Version="2.4.0" />
     <!-- Common pipeline abstractions -->
     <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
   </ItemGroup>

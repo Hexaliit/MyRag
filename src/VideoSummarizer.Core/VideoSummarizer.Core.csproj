@@ -37,7 +37,7 @@
 
   <ItemGroup>
     <!-- FFmpeg for video processing -->
-    <PackageReference Include="Xabe.FFmpeg" Version="5.2.6" />
+    <PackageReference Include="Xabe.FFmpeg" Version="6.0.2" />
 
     <!-- OpenCV for frame analysis and shot detection -->
     <PackageReference Include="OpenCvSharp4" Version="4.11.0.20250507" />

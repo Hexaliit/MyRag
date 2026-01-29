@@ -18,7 +18,7 @@ using Mostlylucid.DocSummarizer.Images.Services.Storage;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Pipeline;
 using Mostlylucid.DocSummarizer.Services;
-using Mostlylucid.DocSummarizer.Services.Preprocessing;
+using Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace Mostlylucid.DocSummarizer.Images.Extensions;

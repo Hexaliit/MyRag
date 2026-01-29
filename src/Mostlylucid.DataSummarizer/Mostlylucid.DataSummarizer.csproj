@@ -46,10 +46,10 @@
         <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4-alpha.2"/>
 
         <!-- LLM for insight generation (optional) -->
-        <PackageReference Include="OllamaSharp" Version="5.4.12"/>
+        <PackageReference Include="OllamaSharp" Version="5.4.16" />
 
         <!-- CLI -->
-        <PackageReference Include="System.CommandLine" Version="2.0.1"/>
+        <PackageReference Include="System.CommandLine" Version="2.0.2" />
         <PackageReference Include="Spectre.Console" Version="0.54.1-alpha.0.29"/>
 
         <!-- Optional ONNX sentinel -->
@@ -58,15 +58,15 @@
         <!-- Stats utilities -->
         <PackageReference Include="MathNet.Numerics" Version="6.0.0-beta2"/>
         <!-- SQLite for index creation after export -->
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.1"/>
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
         <!-- Data synthesis -->
         <PackageReference Include="Bogus" Version="35.6.5"/>
         <!-- Markdown + configuration -->
         <PackageReference Include="Markdig" Version="0.44.0"/>
-        <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.1"/>
-        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.1"/>
-        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.1"/>
-        <PackageReference Include="System.IO.Hashing" Version="10.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.2" />
+        <PackageReference Include="System.IO.Hashing" Version="10.0.2" />
     </ItemGroup>
 
 </Project>

@@ -24,7 +24,7 @@
   <!-- Audio processing -->
   <ItemGroup>
     <PackageReference Include="NAudio" Version="2.2.1" />
-    <PackageReference Include="FftSharp" Version="2.1.0" />
+    <PackageReference Include="FftSharp" Version="2.2.0" />
   </ItemGroup>
 
   <!-- ML and ONNX -->
@@ -40,10 +40,10 @@
 
   <!-- Utilities -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2" />
   </ItemGroup>
 
 </Project>

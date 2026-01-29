@@ -24,7 +24,6 @@ Each signal provides evidence of salience; none is the final arbiter.
 - [x] **Composite query decomposition** - Multi-part questions decomposed into subqueries (see below)
 - [x] **Multi-query embedding** - Each subquery gets its own embedding, items scored against best match
 - [x] **SQLite thread safety** - Semaphore-protected database operations in ApiBudgetService
-
 ---
 
 ## Entity-Based Semantic Retrieval (NEW)
