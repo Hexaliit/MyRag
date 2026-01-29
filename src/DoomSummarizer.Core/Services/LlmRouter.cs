@@ -32,10 +32,17 @@ public class LlmRouter : ILlmService
             var cloudFallback = _providers.FirstOrDefault(p => !p.IsLocal);
             if (cloudFallback != null)
             {
-                var model = cloudFallback.ServiceEntry?.SearchEngineId?.Split('|')[0] ?? "unknown";
-                return $"Ollama ({_ollamaConfig.Model}) + {cloudFallback.BudgetServiceName} ({model})";
+                var models = (cloudFallback.ServiceEntry?.SearchEngineId ?? "").Split('|');
+                var mainModel = models.Length > 0 ? models[0] : "unknown";
+                var sentinelModel = models.Length > 1 ? models[1] : null;
+
+                var sentinel = $"sentinel: {_ollamaConfig.SentinelModel}";
+                if (sentinelModel != null)
+                    sentinel = $"sentinel: {sentinelModel}";
+
+                return $"main: {mainModel} | {sentinel}";
             }
-            return $"Ollama ({_ollamaConfig.Model})";
+            return $"main: {_ollamaConfig.Model} | sentinel: {_ollamaConfig.SentinelModel}";
         }
     }
 

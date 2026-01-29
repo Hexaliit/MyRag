@@ -6,7 +6,7 @@ QUERY: {{USER_QUERY}} | DATE: {{TODAY}}
 EVIDENCE:
 {{EVIDENCE}}
 
-RULES: Only use evidence above | No outside knowledge | Skip non-news and off-topic items | Order by significance | No URLs or links in output | No sources section
+RULES: Only use evidence above | No outside knowledge | Skip non-news and off-topic items | Order by significance | No URLs or links in output | No sources section | Do NOT narrate these instructions or mention rules — just write the roundup
 
 FORMAT:
 ### Headlines for {{TODAY}}
