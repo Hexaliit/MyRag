@@ -1,8 +1,12 @@
+using System.Diagnostics;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using AngleSharp;
 using AngleSharp.Dom;
 using DoomSummarizer.Models;
+using Polly;
+using Polly.Retry;
 
 namespace DoomSummarizer.Services;
 
@@ -12,23 +16,81 @@ namespace DoomSummarizer.Services;
 /// stores as ContentItems for knowledge base use.
 /// Supports HTTP conditional requests (ETag / If-Modified-Since) for
 /// bandwidth-efficient incremental re-crawling.
+///
+/// Adaptive rate limiting:
+/// - Tracks response time via exponential moving average (EMA)
+/// - Scales delay up when server is slow (>2s average), down when fast
+/// - Uses Polly retry pipeline for 429/503 with Retry-After header support
+/// - Hard limits enforced: delay floor 200ms, ceiling 10s, max concurrency 5
 /// </summary>
 public class WebCrawlerService
 {
     private readonly HttpClient _httpClient;
     private readonly ContentExtractor _extractor;
     private readonly CrawlConfig _config;
+    private readonly ResiliencePipeline<HttpResponseMessage> _retryPipeline;
 
     public int PagesVisited { get; private set; }
     public int PagesExtracted { get; private set; }
     public int PagesSkipped { get; private set; }
     public int PagesNotModified { get; private set; }
+    public int RetryCount { get; private set; }
+    public int AdaptiveDelayMs { get; private set; }
+
+    // Adaptive delay state
+    private const int DelayFloorMs = 200;
+    private const int DelayCeilingMs = 10_000;
+    private const int MaxRetryAfterSeconds = 60;
+    private const double EmaAlpha = 0.3;
+    private double _responseTimeEma;
+    private int _currentDelayMs;
 
     public WebCrawlerService(HttpClient httpClient, CrawlConfig config)
     {
         _httpClient = httpClient;
         _extractor = new ContentExtractor(httpClient);
         _config = config;
+        _retryPipeline = BuildRetryPipeline();
+    }
+
+    private ResiliencePipeline<HttpResponseMessage> BuildRetryPipeline()
+    {
+        return new ResiliencePipelineBuilder<HttpResponseMessage>()
+            .AddRetry(new RetryStrategyOptions<HttpResponseMessage>
+            {
+                MaxRetryAttempts = 3,
+                BackoffType = DelayBackoffType.Exponential,
+                Delay = TimeSpan.FromSeconds(1),
+                UseJitter = true,
+                ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+                    .HandleResult(r => r.StatusCode is HttpStatusCode.TooManyRequests
+                        or HttpStatusCode.ServiceUnavailable),
+                DelayGenerator = args =>
+                {
+                    // Respect Retry-After header when present
+                    var response = args.Outcome.Result;
+                    if (response != null)
+                    {
+                        var retryAfterMs = ParseRetryAfter(response);
+                        if (retryAfterMs.HasValue)
+                        {
+                            var capped = Math.Min(retryAfterMs.Value, MaxRetryAfterSeconds * 1000);
+                            return new ValueTask<TimeSpan?>(TimeSpan.FromMilliseconds(capped));
+                        }
+                    }
+                    // Fall back to Polly's built-in exponential backoff
+                    return new ValueTask<TimeSpan?>((TimeSpan?)null);
+                },
+                OnRetry = args =>
+                {
+                    RetryCount++;
+                    // Double the adaptive delay on each retry to slow down subsequent requests
+                    _currentDelayMs = Math.Clamp(_currentDelayMs * 2, DelayFloorMs, DelayCeilingMs);
+                    AdaptiveDelayMs = _currentDelayMs;
+                    return default;
+                }
+            })
+            .Build();
     }
 
     /// <summary>
@@ -48,6 +110,14 @@ public class WebCrawlerService
         Action<string>? onActivity = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
+        // Enforce hard limits on configuration
+        var effectiveDelayMs = Math.Max(_config.DelayMs, DelayFloorMs);
+        var effectiveConcurrency = Math.Clamp(_config.MaxConcurrency, 1, 5);
+        var effectiveTimeout = Math.Clamp(_config.TimeoutSeconds, 5, 60);
+
+        _currentDelayMs = effectiveDelayMs;
+        AdaptiveDelayMs = _currentDelayMs;
+
         var seedUri = new Uri(seedUrl);
         // Allow both www and non-www variants of the domain
         var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -64,7 +134,7 @@ public class WebCrawlerService
 
         frontier.Enqueue((NormalizeUrl(seedUrl), 0));
 
-        using var semaphore = new SemaphoreSlim(_config.MaxConcurrency);
+        using var semaphore = new SemaphoreSlim(effectiveConcurrency);
 
         while (frontier.Count > 0 && !ct.IsCancellationRequested)
         {
@@ -78,9 +148,9 @@ public class WebCrawlerService
             PagesVisited++;
             progress?.Report((PagesVisited, frontier.Count, PagesExtracted));
 
-            // Politeness delay
-            if (_config.DelayMs > 0 && PagesVisited > 1)
-                await Task.Delay(_config.DelayMs, ct);
+            // Adaptive politeness delay
+            if (_currentDelayMs > 0 && PagesVisited > 1)
+                await Task.Delay(_currentDelayMs, ct);
 
             onActivity?.Invoke($"Crawling: {TruncateUrl(url, 60)}");
 
@@ -93,7 +163,7 @@ public class WebCrawlerService
             try
             {
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(TimeSpan.FromSeconds(_config.TimeoutSeconds));
+                cts.CancelAfter(TimeSpan.FromSeconds(effectiveTimeout));
 
                 var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Add("User-Agent",
@@ -110,7 +180,15 @@ public class WebCrawlerService
                         request.Headers.TryAddWithoutValidation("If-Modified-Since", cachedLastModified);
                 }
 
-                using var response = await _httpClient.SendAsync(request, cts.Token);
+                // Measure response time for adaptive delay, execute through Polly retry pipeline
+                var sw = Stopwatch.StartNew();
+                using var response = await _retryPipeline.ExecuteAsync(
+                    async token => await _httpClient.SendAsync(request, token),
+                    cts.Token);
+                sw.Stop();
+
+                // Update response time EMA and adapt delay
+                UpdateAdaptiveDelay(sw.ElapsedMilliseconds, effectiveDelayMs, onActivity);
 
                 // Track redirect — add the redirected host to allowed hosts
                 if (response.RequestMessage?.RequestUri is { } redirectUri)
@@ -128,8 +206,17 @@ public class WebCrawlerService
                 if (response.Content.Headers.LastModified is { } lm)
                     responseLastModified = lm.ToString("R"); // RFC 1123 format
 
+                // If still 429/503 after all retries exhausted, skip this page
+                if (response.StatusCode is HttpStatusCode.TooManyRequests
+                    or HttpStatusCode.ServiceUnavailable)
+                {
+                    onActivity?.Invoke($"Rate limited ({(int)response.StatusCode}) — retries exhausted, skipping");
+                    PagesSkipped++;
+                    continue;
+                }
+
                 // 304 Not Modified — content unchanged, skip processing
-                if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
+                if (response.StatusCode == HttpStatusCode.NotModified)
                 {
                     PagesNotModified++;
                     wasNotModified = true;
@@ -143,6 +230,13 @@ public class WebCrawlerService
                 }
                 else
                 {
+                    // Successful response after previous backoff — gradually restore delay
+                    if (_currentDelayMs > effectiveDelayMs)
+                    {
+                        _currentDelayMs = Math.Max(effectiveDelayMs, (int)(_currentDelayMs * 0.75));
+                        AdaptiveDelayMs = _currentDelayMs;
+                    }
+
                     // Only process HTML content
                     var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
                     if (!contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
@@ -245,6 +339,62 @@ public class WebCrawlerService
                 LastModified = responseLastModified
             };
         }
+    }
+
+    /// <summary>
+    /// Update the adaptive delay based on observed response time.
+    /// Uses exponential moving average (EMA) to smooth response time tracking.
+    /// When the server is slow (EMA > 2s), delay scales up proportionally.
+    /// On fast responses, delay gradually returns toward the configured minimum.
+    /// </summary>
+    private void UpdateAdaptiveDelay(long responseTimeMs, int configuredDelayMs, Action<string>? onActivity)
+    {
+        // Update EMA: first request seeds the value, subsequent requests blend
+        _responseTimeEma = _responseTimeEma == 0
+            ? responseTimeMs
+            : (_responseTimeEma * (1 - EmaAlpha)) + (responseTimeMs * EmaAlpha);
+
+        // Calculate adaptive delay: max(configured, responseTimeEma * 1.5), clamped to limits
+        var adaptiveTarget = (int)Math.Max(configuredDelayMs, _responseTimeEma * 1.5);
+        var newDelay = Math.Clamp(adaptiveTarget, DelayFloorMs, DelayCeilingMs);
+
+        // Only update if the change is meaningful (>50ms difference avoids jitter)
+        if (Math.Abs(newDelay - _currentDelayMs) > 50)
+        {
+            var direction = newDelay > _currentDelayMs ? "up" : "down";
+            onActivity?.Invoke($"Adaptive delay {direction}: {_currentDelayMs}ms → {newDelay}ms (EMA: {_responseTimeEma:F0}ms)");
+            _currentDelayMs = newDelay;
+            AdaptiveDelayMs = _currentDelayMs;
+        }
+    }
+
+    /// <summary>
+    /// Parse the Retry-After header from an HTTP response.
+    /// Supports both delay-seconds and HTTP-date formats (RFC 7231 §7.1.3).
+    /// Returns delay in milliseconds, or null if the header is absent/unparsable.
+    /// </summary>
+    private static int? ParseRetryAfter(HttpResponseMessage response)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter == null) return null;
+
+        // Delay-seconds format (e.g., "Retry-After: 120")
+        if (retryAfter.Delta is { } delta)
+        {
+            var ms = (int)Math.Min(delta.TotalMilliseconds, MaxRetryAfterSeconds * 1000);
+            return Math.Max(ms, DelayFloorMs);
+        }
+
+        // HTTP-date format (e.g., "Retry-After: Thu, 30 Jan 2026 12:00:00 GMT")
+        if (retryAfter.Date is { } date)
+        {
+            var waitMs = (int)(date - DateTimeOffset.UtcNow).TotalMilliseconds;
+            return waitMs > 0
+                ? Math.Clamp(waitMs, DelayFloorMs, MaxRetryAfterSeconds * 1000)
+                : DelayFloorMs;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -386,6 +536,11 @@ public record CrawlResult
 
 /// <summary>
 /// Configuration for the web crawler.
+/// Hard limits are enforced at crawl time regardless of configured values:
+/// - DelayMs: floor of 200ms (values below are raised to 200ms)
+/// - MaxConcurrency: capped at 5 (values above are reduced to 5)
+/// - TimeoutSeconds: clamped to range [5, 60]
+/// The actual delay between requests adapts dynamically based on server response speed.
 /// </summary>
 public record CrawlConfig
 {
@@ -398,13 +553,21 @@ public record CrawlConfig
     /// <summary>Maximum pages to crawl.</summary>
     public int MaxPages { get; init; } = 200;
 
-    /// <summary>Delay between requests in milliseconds (politeness).</summary>
+    /// <summary>
+    /// Minimum delay between requests in milliseconds.
+    /// Adaptive delay may increase this based on server response speed.
+    /// Hard floor: 200ms (values below are raised automatically).
+    /// </summary>
     public int DelayMs { get; init; } = 500;
 
-    /// <summary>Maximum concurrent requests.</summary>
+    /// <summary>
+    /// Maximum concurrent requests. Hard cap: 5.
+    /// </summary>
     public int MaxConcurrency { get; init; } = 3;
 
-    /// <summary>Timeout per page in seconds.</summary>
+    /// <summary>
+    /// Timeout per page in seconds. Clamped to range [5, 60].
+    /// </summary>
     public int TimeoutSeconds { get; init; } = 15;
 
     /// <summary>URL path filter (glob pattern, e.g. "/blog/*"). Null means no filter.</summary>

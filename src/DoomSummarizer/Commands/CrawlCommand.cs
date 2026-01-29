@@ -44,12 +44,12 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         public int MaxPages { get; init; } = 200;
 
         [CommandOption("--delay")]
-        [Description("Delay between requests in milliseconds (politeness)")]
-        [DefaultValue(500)]
-        public int DelayMs { get; init; } = 500;
+        [Description("Minimum delay between requests in ms (adaptive — increases for slow servers, floor: 200ms)")]
+        [DefaultValue(1000)]
+        public int DelayMs { get; init; } = 1000;
 
         [CommandOption("--concurrency")]
-        [Description("Maximum concurrent requests")]
+        [Description("Maximum concurrent requests (hard cap: 5)")]
         [DefaultValue(3)]
         public int Concurrency { get; init; } = 3;
 
@@ -330,6 +330,9 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
             table.AddRow("Content hash match", $"{contentHashCachedCount}");
         table.AddRow("Total cached", $"{totalCachedFinal}");
         table.AddRow("Skipped", $"{crawler.PagesSkipped}");
+        if (crawler.RetryCount > 0)
+            table.AddRow("Rate-limit retries", $"{crawler.RetryCount}");
+        table.AddRow("Final adaptive delay", $"{crawler.AdaptiveDelayMs}ms");
         table.AddRow("With embeddings", $"{newItems.Count(i => i.Embedding != null)}");
         if (newItems.Count > 0)
         {
