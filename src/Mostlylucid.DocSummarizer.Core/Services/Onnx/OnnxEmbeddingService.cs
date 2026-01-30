@@ -156,13 +156,6 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
 
         var batchSize = texts.Count;
 
-        // For very small batches, use sequential processing (less overhead)
-        if (batchSize == 1)
-        {
-            var singleResult = EmbedSingleSync(texts[0]);
-            return new[] { singleResult };
-        }
-
         // Preprocess all texts (add instruction prefix if needed)
         var processedTexts = texts.Select(text =>
         {
@@ -225,9 +218,20 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         // Run batched inference
         using var results = _session.Run(inputs);
 
-        // Get output tensor [batch_size, seq_len, hidden_size]
+        // Get output tensor — expected shape: [batch_size, seq_len, hidden_size]
         var output = results.First(r => r.Name == "last_hidden_state" || r.Name == "output_0");
         var outputTensor = output.AsTensor<float>();
+
+        // Validate output batch dimension. Some ONNX models are exported with fixed
+        // batch_size=1 and silently ignore additional batch items. When this happens,
+        // the output tensor has shape [1, seq_len, hidden_size] regardless of input batch
+        // size, causing all items to read from the same hidden states — producing identical
+        // embeddings for all inputs. Fall back to sequential processing in this case.
+        var outputDims = outputTensor.Dimensions.ToArray();
+        if (outputDims.Length >= 1 && outputDims[0] != batchSize)
+        {
+            return EmbedSequential(texts);
+        }
 
         // Mean pool each sample in the batch
         var embeddings = new float[batchSize][];

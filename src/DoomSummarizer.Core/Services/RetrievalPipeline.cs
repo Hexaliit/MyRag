@@ -33,7 +33,7 @@ public sealed class RetrievalPipeline
 
     /// <summary>
     /// Execute the full retrieval pipeline: Lucene FTS + embedding HNSW + entity profile HNSW,
-    /// fused via 6-signal RRF with PRF centroid refinement and outlier penalty.
+    /// fused via 5-signal RRF (+ optional Lucene FTS signal) with PRF centroid refinement and outlier penalty.
     /// </summary>
     public async Task<RetrievalResult> SearchAsync(
         string query,
@@ -230,6 +230,7 @@ public sealed class RetrievalPipeline
 
         // Compute embeddings for items that need them
         var itemsNeedingEmbedding = items.Where(i => i.Embedding == null).ToList();
+
         if (itemsNeedingEmbedding.Count > 0)
         {
             var textsToEmbed = itemsNeedingEmbedding
@@ -258,11 +259,23 @@ public sealed class RetrievalPipeline
                 textRelevanceScores: options.TextRelevanceScores);
         }
 
-        // PRF centroid refinement: blend query embedding with top-5 centroid
+        // PRF centroid refinement: blend query embedding with top-5 centroid.
+        // IMPORTANT: Only use items with decent semantic similarity (>= 0.30) to the
+        // ORIGINAL query for the centroid. Without this filter, off-topic items that score
+        // high in Phase 1 (freshness/authority) poison the centroid, causing Phase 2's
+        // QuerySim signal to show uniform similarity across all items — destroying
+        // the embedding signal's ability to discriminate on-topic vs off-topic content.
         float[]? refinedQueryEmbedding = options.QueryEmbedding;
         if (items.Count >= 5)
         {
-            refinedQueryEmbedding = RelevanceScorer.ComputePRFCentroid(items, options.QueryEmbedding);
+            var prfCandidates = items
+                .Where(i => i.Embedding != null &&
+                            VectorMath.CosineSimilarity(i.Embedding, options.QueryEmbedding) >= 0.30f)
+                .ToList();
+
+            refinedQueryEmbedding = prfCandidates.Count >= 3
+                ? RelevanceScorer.ComputePRFCentroid(prfCandidates, options.QueryEmbedding)
+                : options.QueryEmbedding; // Not enough on-topic items — skip PRF
         }
 
         // Phase 2: Full RRF with all signals (+ optional Lucene FTS)

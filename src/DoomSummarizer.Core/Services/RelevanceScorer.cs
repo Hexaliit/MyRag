@@ -52,7 +52,7 @@ namespace DoomSummarizer.Services;
 ///    BBC/Guardian/Reuters=0.5, Google News=0.4, other=0.3.
 ///    Measures: How trustworthy/popular is this item within its source?
 ///
-/// 3. QuerySimilarity (semantic relevance) — weight default: 1.2
+/// 3. QuerySimilarity (semantic relevance) — weight default: 1.5
 ///    Cosine similarity between item embedding and query embedding.
 ///    Uses all-MiniLM-L6-v2 (384-dim ONNX). Range: -1 to 1, typically 0.1-0.7.
 ///    Bridges vocabulary gap: "pharmaceutical" matches "drug pricing" without synonyms.
@@ -87,7 +87,7 @@ namespace DoomSummarizer.Services;
 ///   Timeline:   freshness↑↑(1.0) authority↓(0.2) querySim(1.0) quality↓(0.1) — time is paramount
 ///   Explainer:  freshness↓(0.3) authority↑(0.5) querySim↑(1.5) quality↑(0.4) — quality &amp; precision
 ///   Comparison: freshness↓(0.3) authority(0.4) querySim↑(1.5) quality(0.3) — precise matching
-///   General:    default weights (querySim: 1.2, quality: 0.2) — balanced for mixed-intent queries
+///   General:    default weights (querySim: 1.5, quality: 0.2) — balanced for mixed-intent queries
 /// </summary>
 public partial class RelevanceScorer
 {
@@ -131,7 +131,7 @@ public partial class RelevanceScorer
     public RelevanceScorer(
         double freshnessWeight = 0.5,
         double authorityWeight = 0.3,
-        double querySimWeight = 1.2,
+        double querySimWeight = 1.5,
         double vibeWeight = 0.4,
         double qualityWeight = 0.2,
         double freshnessHalfLifeHours = DefaultFreshnessHalfLifeHours)

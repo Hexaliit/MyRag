@@ -157,7 +157,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         List<(string question, string answer, List<string> sourceIds)> history,
         CancellationToken ct)
     {
-        // 1. Full retrieval pipeline: Lucene FTS + embedding HNSW + entity profiles + 6-signal RRF
+        // 1. Full retrieval pipeline: Lucene FTS + embedding HNSW + entity profiles + 5-signal RRF (+ Lucene FTS signal)
         var collectionName = settings.Name ?? "default";
         var retrievalResult = await retrieval.SearchAsync(question, new RetrievalOptions
         {

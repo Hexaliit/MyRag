@@ -89,7 +89,7 @@ public class HuggingFaceTokenizer
         var preTokenizer = config.PreTokenizer?.Type?.ToLowerInvariant() switch
         {
             "whitespace" => new WhitespacePreTokenizer(),
-            "berttokenizer" or "bert" => new BertPreTokenizer(),
+            "bertpretokenizer" or "berttokenizer" or "bert" => new BertPreTokenizer(),
             "metaspace" => new MetaspacePreTokenizer(config.PreTokenizer),
             "bytlevel" or "bytelevel" => new ByteLevelPreTokenizer(),
             "sequence" => CreateSequencePreTokenizer(config.PreTokenizer),
@@ -190,7 +190,7 @@ public class HuggingFaceTokenizer
             PreTokenizer? sub = pt.Type?.ToLowerInvariant() switch
             {
                 "whitespace" => new WhitespacePreTokenizer(),
-                "berttokenizer" or "bert" => new BertPreTokenizer(),
+                "bertpretokenizer" or "berttokenizer" or "bert" => new BertPreTokenizer(),
                 "metaspace" => new MetaspacePreTokenizer(pt),
                 "bytelevel" => new ByteLevelPreTokenizer(),
                 _ => null

@@ -118,6 +118,7 @@ public static class DoomScrollerTools
 
             // Layer 1: Lucene search (deterministic query builder)
             var candidateIds = new HashSet<string>();
+            Dictionary<string, double>? luceneScores = null;
             try
             {
                 var luceneIndexPath = Path.Combine(_storage!.DataPath, "lucene", "mcp");
@@ -137,6 +138,8 @@ public static class DoomScrollerTools
                 var luceneQuery = await LuceneQueryGenerator.GenerateQueryAsync(query, _ollama!, CancellationToken.None, useLlm: _ollama != null);
                 var luceneResults = lucene.Search(luceneQuery, source, limit: limit * 3);
                 foreach (var r in luceneResults) candidateIds.Add(r.Id);
+                // Capture FTS scores for RRF fusion in a single pass
+                luceneScores = luceneResults.ToDictionary(r => r.Id, r => (double)r.Score);
             }
             catch { /* Lucene search failed - fall through to embeddings */ }
 
@@ -182,22 +185,6 @@ public static class DoomScrollerTools
 
             if (queryEmbedding != null)
             {
-                // Pass Lucene FTS scores through as an RRF signal for keyword precision
-                Dictionary<string, double>? luceneScores = null;
-                if (candidateIds.Count > 0)
-                {
-                    try
-                    {
-                        var luceneIndexPath2 = Path.Combine(_storage!.DataPath, "lucene", "mcp");
-                        using var lucene2 = new LuceneSearchService(luceneIndexPath2);
-                        lucene2.Open();
-                        var luceneQuery2 = LuceneQueryGenerator.BuildSimpleQuery(query);
-                        var luceneHits2 = lucene2.Search(luceneQuery2, source, limit: items.Count);
-                        luceneScores = luceneHits2.ToDictionary(r => r.Id, r => (double)r.Score);
-                    }
-                    catch { /* best-effort */ }
-                }
-
                 var pipeline = new RetrievalPipeline(_embedding!, _storage!);
                 var scoringResult = await pipeline.ScoreItemsAsync(items, new ScoringOptions
                 {

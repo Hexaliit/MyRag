@@ -1247,6 +1247,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             .AddColumn("[cyan]Fresh[/]")
                             .AddColumn("[cyan]Auth[/]")
                             .AddColumn("[cyan]QSim[/]")
+                            .AddColumn("[cyan]Qual[/]")
                             .AddColumn("[cyan]Vibe[/]")
                             .AddColumn("[cyan]RRF[/]")
                             .AddColumn("[cyan]Title[/]");
@@ -1255,13 +1256,51 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         if (scoringVibeText != null)
                             debugVibeEmbed = await boot.Embedding.EmbedAsync(scoringVibeText, cancellationToken);
 
+                        // Quality anchors for debug display
+                        var debugHighQ = await boot.Embedding.EmbedAsync(RelevanceScorer.HighQualityAnchorText, cancellationToken);
+                        var debugLowQ = await boot.Embedding.EmbedAsync(RelevanceScorer.LowQualityAnchorText, cancellationToken);
+
                         var rank = 1;
-                        var debugQueryEmbed = scoringResult.RefinedQueryEmbedding ?? queryEmbedding;
+                        // Use ORIGINAL query embedding for debug QSim — not the PRF-refined one.
+                        // PRF centroid can drift toward off-topic items, showing misleading uniform
+                        // similarity values. The original embedding reflects the actual user query.
+                        var debugQueryEmbed = queryEmbedding;
+
+                        // Diagnostic: embedding state
+                        var withEmbed = uniqueItems.Count(i => i.Embedding != null);
+                        var nullEmbed = uniqueItems.Count(i => i.Embedding == null);
+                        AnsiConsole.MarkupLine($"[grey]Embeddings: {withEmbed} set, {nullEmbed} null | queryEmbed: {(debugQueryEmbed != null ? $"{debugQueryEmbed.Length}d" : "NULL")} | subqueries: {subqueryEmbeddings?.Count ?? 0}[/]");
+                        if (withEmbed > 0 && debugQueryEmbed != null)
+                        {
+                            // Show actual cosine similarities for first 3 items to verify embedding discrimination
+                            foreach (var diagItem in uniqueItems.Take(5))
+                            {
+                                if (diagItem.Embedding != null)
+                                {
+                                    var rawCos = VectorMath.CosineSimilarity(diagItem.Embedding, debugQueryEmbed);
+                                    var sqInfo = "";
+                                    if (subqueryEmbeddings?.Count > 0)
+                                    {
+                                        var sqSims = subqueryEmbeddings.Select(sq => VectorMath.CosineSimilarity(diagItem.Embedding, sq)).ToList();
+                                        sqInfo = $", subq=({string.Join(", ", sqSims.Select(s => $"{s:F3}"))})";
+                                    }
+                                    var diagMsg = $"  {diagItem.Source}: \"{diagItem.Title[..Math.Min(40, diagItem.Title.Length)]}\" primary={rawCos:F4}{sqInfo} max={ComputeMaxQuerySimilarity(diagItem.Embedding, debugQueryEmbed, subqueryEmbeddings):F3}";
+                                    AnsiConsole.MarkupLine($"[grey]{Markup.Escape(diagMsg)}[/]");
+                                }
+                                else
+                                {
+                                    AnsiConsole.MarkupLine($"[grey]  {Markup.Escape(diagItem.Source)}: \"{Markup.Escape(diagItem.Title[..Math.Min(40, diagItem.Title.Length)])}\" NO EMBEDDING[/]");
+                                }
+                            }
+                        }
+
                         foreach (var item in uniqueItems.Take(25))
                         {
                             var fresh = RelevanceScorer.ComputeFreshness(item);
                             var auth = authLookup2.GetValueOrDefault(item.Id, 0.3);
                             var qSim = ComputeMaxQuerySimilarity(item.Embedding, debugQueryEmbed, subqueryEmbeddings);
+                            var qual = item.Embedding != null
+                                ? RelevanceScorer.ComputeQualityScore(item.Embedding, debugHighQ, debugLowQ) : 0.5;
                             var vSim = debugVibeEmbed != null && item.Embedding != null
                                 ? VectorMath.CosineSimilarity(item.Embedding, debugVibeEmbed) : 0f;
 
@@ -1271,6 +1310,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 $"{fresh:F2}",
                                 $"{auth:F2}",
                                 $"{qSim:F3}",
+                                $"{qual:F2}",
                                 $"{vSim:F3}",
                                 $"[bold]{item.RelevanceScore:F3}[/]",
                                 Markup.Escape(item.Title.Length > 50 ? item.Title[..47] + "..." : item.Title));
