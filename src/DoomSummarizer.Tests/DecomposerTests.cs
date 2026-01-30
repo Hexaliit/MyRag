@@ -1140,6 +1140,209 @@ public class DecomposerTests
         (await executor.SupportsToolAsync(ToolKind.FileSystem)).Should().BeFalse();
         (await executor.SupportsToolAsync(ToolKind.Transform)).Should().BeFalse();
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    // FileSystem Tool: YAML Frontmatter Extraction
+    // ════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void ExtractYamlFrontMatter_ValidYaml_ExtractsAllFields()
+    {
+        var content = """
+                      ---
+                      title: Test Article
+                      author: John Doe
+                      date: 2025-06-15
+                      tags: [AI, machine-learning, transformers]
+                      categories: [tech, research]
+                      ---
+                      # Main Content
+                      This is the body text.
+                      """;
+
+        var result = DoomSummarizer.Services.RetrievalSubQueryExecutor.ExtractYamlFrontMatter(content);
+
+        result.Should().ContainKey("title").WhoseValue.Should().Be("Test Article");
+        result.Should().ContainKey("author").WhoseValue.Should().Be("John Doe");
+        result.Should().ContainKey("date").WhoseValue.Should().Be("2025-06-15");
+        result.Should().ContainKey("tags");
+        result["tags"].Should().Contain("AI");
+    }
+
+    [Fact]
+    public void ExtractYamlFrontMatter_NoFrontmatter_ReturnsEmpty()
+    {
+        var content = "# Just a heading\nSome text here";
+        var result = DoomSummarizer.Services.RetrievalSubQueryExecutor.ExtractYamlFrontMatter(content);
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ExtractYamlFrontMatter_QuotedValues_StripsQuotes()
+    {
+        var content = """
+                      ---
+                      title: "Quoted Title"
+                      author: 'Single Quoted'
+                      ---
+                      Body text.
+                      """;
+
+        var result = DoomSummarizer.Services.RetrievalSubQueryExecutor.ExtractYamlFrontMatter(content);
+        result["title"].Should().Be("Quoted Title");
+        result["author"].Should().Be("Single Quoted");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // FileSystem Tool: BuildContentItemFromFileAsync
+    // ════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task BuildContentItemFromFile_MarkdownFile_ExtractsMetadata()
+    {
+        // Use a real markdown file from the bundled test corpus
+        var testDir = Path.Combine(AppContext.BaseDirectory, "TestData", "Markdown");
+        var testFile = Path.Combine(testDir, "aboutme.md");
+
+        var item = await DoomSummarizer.Services.RetrievalSubQueryExecutor
+            .BuildContentItemFromFileAsync(testFile, CancellationToken.None);
+
+        // Basic ContentItem fields
+        item.Should().NotBeNull();
+        item.Source.Should().StartWith("filesystem:");
+        item.Url.Should().Be(testFile);
+        item.Content.Should().NotBeNullOrEmpty();
+
+        // Metadata populated
+        item.Metadata.Should().NotBeNull();
+        item.Metadata.Should().ContainKey("file_size");
+        item.Metadata.Should().ContainKey("extension").WhoseValue.Should().Be(".md");
+        item.Metadata.Should().ContainKey("file_name").WhoseValue.Should().Be("aboutme.md");
+        item.Metadata.Should().ContainKey("last_modified");
+        item.Metadata.Should().ContainKey("created");
+        item.Metadata.Should().ContainKey("line_count");
+        item.Metadata.Should().ContainKey("word_count");
+        item.Metadata.Should().ContainKey("char_count");
+
+        // Content-derived metadata should be non-zero
+        int.Parse(item.Metadata!["line_count"]).Should().BeGreaterThan(0);
+        int.Parse(item.Metadata!["word_count"]).Should().BeGreaterThan(0);
+
+        // Markdown structure analysis
+        item.Metadata.Should().ContainKey("headings");
+        int.Parse(item.Metadata!["headings"]).Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task BuildContentItemFromFile_PopulatesHumanReadableSize()
+    {
+        var testDir = Path.Combine(AppContext.BaseDirectory, "TestData", "Markdown");
+        var testFile = Path.Combine(testDir, "aboutme.md");
+
+        var item = await DoomSummarizer.Services.RetrievalSubQueryExecutor
+            .BuildContentItemFromFileAsync(testFile, CancellationToken.None);
+
+        item.Metadata.Should().ContainKey("file_size_human");
+        item.Metadata!["file_size_human"].Should().MatchRegex(@"\d+\.?\d*\s*(B|KB|MB|GB)");
+    }
+
+    [Fact]
+    public async Task BuildContentItemFromFile_MarkdownWithYamlFrontmatter_ExtractsFrontmatterMetadata()
+    {
+        // Create a temp markdown file with YAML frontmatter
+        var tempDir = Path.Combine(Path.GetTempPath(), "decomposer-test-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var tempFile = Path.Combine(tempDir, "test-article.md");
+            await File.WriteAllTextAsync(tempFile, """
+                ---
+                title: My Test Article
+                author: Jane Smith
+                date: 2025-03-15
+                tags: [testing, CI, dotnet]
+                ---
+                # My Test Article
+
+                This is the test body content with enough text to be meaningful.
+                It covers multiple lines and topics.
+                """);
+
+            var item = await DoomSummarizer.Services.RetrievalSubQueryExecutor
+                .BuildContentItemFromFileAsync(tempFile, CancellationToken.None);
+
+            // Frontmatter extracted to metadata with fm_ prefix
+            item.Metadata.Should().ContainKey("fm_title").WhoseValue.Should().Be("My Test Article");
+            item.Metadata.Should().ContainKey("fm_author").WhoseValue.Should().Be("Jane Smith");
+            item.Metadata.Should().ContainKey("fm_date").WhoseValue.Should().Be("2025-03-15");
+
+            // Title derived from frontmatter
+            item.Title.Should().Be("My Test Article");
+            item.Author.Should().Be("Jane Smith");
+
+            // Tags extracted from frontmatter
+            item.Tags.Should().Contain("testing");
+            item.Tags.Should().Contain("CI");
+            item.Tags.Should().Contain("dotnet");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task BuildContentItemFromFile_NonMarkdownTextFile_ExtractsBasicMetadata()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "decomposer-test-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var tempFile = Path.Combine(tempDir, "sample.txt");
+            await File.WriteAllTextAsync(tempFile, "Line 1\nLine 2\nLine 3\n");
+
+            var item = await DoomSummarizer.Services.RetrievalSubQueryExecutor
+                .BuildContentItemFromFileAsync(tempFile, CancellationToken.None);
+
+            item.Source.Should().Be("filesystem:txt");
+            item.Metadata.Should().ContainKey("extension").WhoseValue.Should().Be(".txt");
+            item.Metadata.Should().ContainKey("line_count").WhoseValue.Should().Be("4"); // 3 newlines + 1
+            item.Content.Should().Contain("Line 1");
+
+            // No Markdown structure for .txt
+            item.ContentStructure.Should().BeNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // FileSystem Tool: Bulk file scanning (real corpus)
+    // ════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task BuildContentItemFromFile_MultipleFiles_AllHaveMetadata()
+    {
+        var testDir = Path.Combine(AppContext.BaseDirectory, "TestData", "Markdown");
+
+        var files = Directory.EnumerateFiles(testDir, "*.md", SearchOption.TopDirectoryOnly)
+            .Take(10)
+            .ToList();
+
+        foreach (var file in files)
+        {
+            var item = await DoomSummarizer.Services.RetrievalSubQueryExecutor
+                .BuildContentItemFromFileAsync(file, CancellationToken.None);
+
+            item.Should().NotBeNull($"File: {file}");
+            item.Content.Should().NotBeNullOrEmpty($"File: {file}");
+            item.Metadata.Should().NotBeNull($"File: {file}");
+            item.Metadata!["extension"].Should().Be(".md", $"File: {file}");
+            long.Parse(item.Metadata["file_size"]).Should().BeGreaterThan(0, $"File: {file}");
+        }
+    }
 }
 
 /// <summary>

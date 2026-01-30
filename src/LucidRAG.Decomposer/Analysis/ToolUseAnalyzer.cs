@@ -327,10 +327,22 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
     {
         if (_archetypeEmbeddings != null) return;
 
-        _archetypeEmbeddings = new Dictionary<ToolKind, float[][]>();
+        // Flatten all tool archetype texts into a single batch call, then slice results back.
+        var allTexts = new List<string>();
+        var slices = new List<(ToolKind tool, int offset, int count)>();
+
         foreach (var (tool, texts) in ToolArchetypes)
         {
-            _archetypeEmbeddings[tool] = await _embedding!.EmbedBatchAsync(texts, ct);
+            slices.Add((tool, allTexts.Count, texts.Length));
+            allTexts.AddRange(texts);
+        }
+
+        var allEmbeddings = await _embedding!.EmbedBatchAsync(allTexts, ct);
+
+        _archetypeEmbeddings = new Dictionary<ToolKind, float[][]>();
+        foreach (var (tool, offset, count) in slices)
+        {
+            _archetypeEmbeddings[tool] = allEmbeddings[offset..(offset + count)];
         }
     }
 

@@ -59,16 +59,16 @@ public class DecompositionPipeline
         CancellationToken ct = default)
     {
         entities ??= [];
+        var embeddingCache = new Dictionary<string, float[]>();
 
         // ─── STEP 1: Fast-path classification ───
         var entityTypeCount = entities.Select(e => e.Type).Distinct().Count();
         var complexity = await _complexityClassifier.ClassifyAsync(
-            query, entities.Count, entityTypeCount, hasUrls, hasDateTimes, ct);
+            query, entities.Count, entityTypeCount, hasUrls, hasDateTimes, embeddingCache, ct);
 
         _logger?.LogDebug("Query complexity: {Complexity} for: {Query}", complexity, query);
 
         // ─── STEP 2: Concept classification ───
-        var embeddingCache = new Dictionary<string, float[]>();
         var (concept, archetypeScores) = await _conceptClassifier.ClassifyAsync(
             query, embeddingCache, ct);
 
@@ -117,7 +117,31 @@ public class DecompositionPipeline
             EmbeddingCache = embeddingCache
         };
 
+        // Split analyzers into independent (parallel) and dependent (sequential) groups.
+        // Phase 1 analyzers read from input signals only and don't depend on each other's output.
+        // Phase 2 analyzers check accumulated state (ProposedNodes.Count, DetectedTools.Count).
+        var phase1 = new List<IQueryAnalyzer>();
+        var phase2 = new List<IQueryAnalyzer>();
+
         foreach (var analyzer in _analyzers)
+        {
+            if (analyzer is SemanticClusterAnalyzer or ToolUseAnalyzer)
+                phase2.Add(analyzer);
+            else
+                phase1.Add(analyzer);
+        }
+
+        // Phase 1: run independent analyzers in parallel
+        if (phase1.Count > 0)
+        {
+            ct.ThrowIfCancellationRequested();
+            var phase1Tasks = phase1.Select(a => a.AnalyzeAsync(query, currentSignals, ct)).ToArray();
+            var phase1Results = await Task.WhenAll(phase1Tasks);
+            currentSignals = MergeSignals(currentSignals, phase1Results);
+        }
+
+        // Phase 2: run dependent analyzers sequentially
+        foreach (var analyzer in phase2)
         {
             ct.ThrowIfCancellationRequested();
             currentSignals = await analyzer.AnalyzeAsync(query, currentSignals, ct);
@@ -133,5 +157,65 @@ public class DecompositionPipeline
             result.Nodes.Count, result.Complexity, result.Concept);
 
         return result;
+    }
+
+    /// <summary>
+    /// Merge signals from parallel analyzer results back into a single QuerySignals.
+    /// Unions ProposedNodes, References, DetectedTools, and EmbeddingCache from all results.
+    /// </summary>
+    private static QuerySignals MergeSignals(QuerySignals baseline, QuerySignals[] results)
+    {
+        var mergedNodes = new List<QueryNode>(baseline.ProposedNodes);
+        var mergedRefs = new List<ContentReference>(baseline.References);
+        var mergedTools = new List<ToolAction>(baseline.DetectedTools);
+        var mergedCache = new Dictionary<string, float[]>(baseline.EmbeddingCache);
+        var mergedScores = new Dictionary<string, float>(baseline.ArchetypeScores);
+        var mergedComplexity = baseline.Complexity;
+
+        foreach (var result in results)
+        {
+            // Union new nodes (skip duplicates already in baseline)
+            foreach (var node in result.ProposedNodes)
+            {
+                if (!mergedNodes.Any(n => n.Id == node.Id))
+                    mergedNodes.Add(node);
+            }
+
+            // Union references
+            foreach (var r in result.References)
+            {
+                if (!mergedRefs.Any(existing => existing.Uri == r.Uri))
+                    mergedRefs.Add(r);
+            }
+
+            // Union tools
+            mergedTools.AddRange(result.DetectedTools.Where(t =>
+                !mergedTools.Any(existing => existing.Intent == t.Intent)));
+
+            // Merge embedding cache
+            foreach (var (key, value) in result.EmbeddingCache)
+                mergedCache.TryAdd(key, value);
+
+            // Merge archetype scores (take max)
+            foreach (var (key, value) in result.ArchetypeScores)
+            {
+                if (!mergedScores.TryGetValue(key, out var existing) || value > existing)
+                    mergedScores[key] = value;
+            }
+
+            // Take highest complexity
+            if (result.Complexity > mergedComplexity)
+                mergedComplexity = result.Complexity;
+        }
+
+        return baseline with
+        {
+            ProposedNodes = mergedNodes,
+            References = mergedRefs,
+            DetectedTools = mergedTools,
+            EmbeddingCache = mergedCache,
+            ArchetypeScores = mergedScores,
+            Complexity = mergedComplexity
+        };
     }
 }

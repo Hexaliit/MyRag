@@ -224,7 +224,8 @@ public partial class RelevanceScorer
     /// <returns>Scored items in descending relevance order, with bottom tier discarded.</returns>
     public List<ContentItem> ScoreFast(List<ContentItem> items, string query, double discardRatio = 0.25,
         float[]? queryEmbedding = null,
-        Dictionary<string, double>? textRelevanceScores = null)
+        Dictionary<string, double>? textRelevanceScores = null,
+        Dictionary<string, double>? querySimOut = null)
     {
         if (items.Count == 0) return items;
 
@@ -266,6 +267,13 @@ public partial class RelevanceScorer
                 ? (double)VectorMath.CosineSimilarity(i.Embedding, queryEmbedding)
                 : 0.0)).ToList();
             signals.Add((querySimScores, _querySimWeight));
+
+            // Export query-sim scores for reuse by PRF centroid filtering
+            if (querySimOut != null)
+            {
+                foreach (var (item, score) in querySimScores)
+                    querySimOut[item.Id] = score;
+            }
         }
 
         // Content quality signal: penalizes clickbait/low-quality content
@@ -388,9 +396,26 @@ public partial class RelevanceScorer
         // PRF-refined embedding used for ranking. PRF centroid drift can shift the gate's
         // acceptance region toward off-topic content when Phase 1 lets through noise.
         var effectiveGateEmbedding = gateEmbedding ?? queryEmbedding;
-        var gateSim = items.Select(i => (item: i, score: i.Embedding != null
-            ? (double)VectorMath.CosineSimilarity(i.Embedding, effectiveGateEmbedding)
-            : 0.0)).ToDictionary(x => x.item.Id, x => x.score);
+
+        // Reuse querySim scores when gate embedding matches query embedding (common case)
+        Dictionary<string, double> gateSim;
+        if (ReferenceEquals(effectiveGateEmbedding, queryEmbedding))
+        {
+            gateSim = new Dictionary<string, double>(querySim.Count);
+            foreach (var (item, score) in querySim)
+                gateSim[item.Id] = score;
+        }
+        else
+        {
+            gateSim = new Dictionary<string, double>(items.Count);
+            foreach (var item in items)
+            {
+                gateSim[item.Id] = item.Embedding != null
+                    ? (double)VectorMath.CosineSimilarity(item.Embedding, effectiveGateEmbedding)
+                    : 0.0;
+            }
+        }
+
         var gated = rrfScores
             .Where(x => gateSim.GetValueOrDefault(x.item.Id, 0) >= 0.20
                         || x.item.Embedding == null) // keep items without embeddings (can't gate)

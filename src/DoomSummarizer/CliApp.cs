@@ -128,6 +128,34 @@ public static class CliApp
                 .WithExample("plugin", "install", "source-imap")
                 .WithExample("plugin", "install", "Acme.CustomSource", "--version", "2.1.0")
                 .WithExample("plugin", "shorthands");
+
+            config.AddBranch("list", list =>
+            {
+                list.SetDescription("List stored data: documents, segments, or entities");
+
+                list.AddCommand<ListDocsCommand>("docs")
+                    .WithDescription("List documents (filter by query, source, entity, or scan filesystem)")
+                    .WithExample("list", "docs")
+                    .WithExample("list", "docs", "transformer models")
+                    .WithExample("list", "docs", "--entity", "OpenAI")
+                    .WithExample("list", "docs", "--source", "crawl:docs")
+                    .WithExample("list", "docs", "--path", "C:\\Blog\\Markdown")
+                    .WithExample("list", "docs", "--path", ".", "--pattern", "*.cs");
+
+                list.AddCommand<ListSegmentsCommand>("segments")
+                    .WithDescription("List content segments (filter by query, source, or topic)")
+                    .WithExample("list", "segments")
+                    .WithExample("list", "segments", "attention mechanisms")
+                    .WithExample("list", "segments", "--topic", "AI Safety")
+                    .WithExample("list", "segments", "--source", "hn", "--full");
+
+                list.AddCommand<ListEntitiesCommand>("entities")
+                    .WithDescription("List entities from the knowledge graph")
+                    .WithExample("list", "entities")
+                    .WithExample("list", "entities", "OpenAI")
+                    .WithExample("list", "entities", "--type", "ORG")
+                    .WithExample("list", "entities", "--type", "PER", "--articles");
+            });
         });
 
         return await app.RunAsync(args);
@@ -138,7 +166,7 @@ public static class CliApp
         arg.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsKnownCommand(string arg) =>
-        arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "benchmark" or "page" or "plugin";
+        arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "benchmark" or "page" or "plugin" or "list";
 
     private static async Task PlayEasterEggAsync(CancellationToken ct)
     {

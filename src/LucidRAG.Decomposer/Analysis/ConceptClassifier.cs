@@ -155,10 +155,22 @@ public class ConceptClassifier
     {
         if (_archetypeEmbeddings != null) return;
 
-        _archetypeEmbeddings = new Dictionary<ConceptType, float[][]>();
+        // Flatten all archetype texts into a single batch call, then slice results back.
+        var allTexts = new List<string>();
+        var slices = new List<(ConceptType concept, int offset, int count)>();
+
         foreach (var (concept, texts) in Archetypes)
         {
-            _archetypeEmbeddings[concept] = await _embedding!.EmbedBatchAsync(texts, ct);
+            slices.Add((concept, allTexts.Count, texts.Length));
+            allTexts.AddRange(texts);
+        }
+
+        var allEmbeddings = await _embedding!.EmbedBatchAsync(allTexts, ct);
+
+        _archetypeEmbeddings = new Dictionary<ConceptType, float[][]>();
+        foreach (var (concept, offset, count) in slices)
+        {
+            _archetypeEmbeddings[concept] = allEmbeddings[offset..(offset + count)];
         }
     }
 }

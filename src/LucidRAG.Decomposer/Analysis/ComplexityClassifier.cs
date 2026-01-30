@@ -1,3 +1,5 @@
+using System.Numerics.Tensors;
+using System.Runtime.CompilerServices;
 using LucidRAG.Decomposer.Models;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Services;
@@ -56,6 +58,7 @@ public class ComplexityClassifier
         int entityTypeCount,
         bool hasUrls,
         bool hasDateTimes,
+        Dictionary<string, float[]>? embeddingCache = null,
         CancellationToken ct = default)
     {
         // Obvious complex signals (no embedding needed)
@@ -79,7 +82,12 @@ public class ComplexityClassifier
         {
             await EnsureArchetypeEmbeddingsAsync(ct);
 
-            var queryEmbedding = await _embedding.EmbedAsync(query, ct);
+            embeddingCache ??= new Dictionary<string, float[]>();
+            if (!embeddingCache.TryGetValue(query, out var queryEmbedding))
+            {
+                queryEmbedding = await _embedding.EmbedAsync(query, ct);
+                embeddingCache[query] = queryEmbedding;
+            }
 
             var comparisonScore = MaxSimilarity(queryEmbedding, _comparisonArchetypeEmbeddings!);
             if (comparisonScore >= 0.55f)
@@ -113,19 +121,26 @@ public class ComplexityClassifier
     /// </summary>
     internal static bool HasToolUseSignals(string query)
     {
-        var lower = query.ToLowerInvariant();
-
-        // File path patterns (Windows C:\, Unix /home/, ~/)
-        var hasFilePath = (lower.Contains("c:/") || lower.Contains("c:\\") ||
-                           lower.Contains("d:/") || lower.Contains("d:\\") ||
-                           lower.Contains("/home/") || lower.Contains("~/"));
+        // File path patterns (Windows C:\, Unix /home/, ~/) — case-insensitive, zero-allocation
+        var hasFilePath = query.Contains("c:/", StringComparison.OrdinalIgnoreCase) ||
+                          query.Contains("c:\\", StringComparison.OrdinalIgnoreCase) ||
+                          query.Contains("d:/", StringComparison.OrdinalIgnoreCase) ||
+                          query.Contains("d:\\", StringComparison.OrdinalIgnoreCase) ||
+                          query.Contains("/home/", StringComparison.OrdinalIgnoreCase) ||
+                          query.Contains("~/", StringComparison.OrdinalIgnoreCase);
 
         // Tool action verbs
-        var hasToolVerb = lower.Contains("index ") || lower.Contains("ingest ") ||
-                          lower.Contains("crawl ") || lower.Contains("spider ") ||
-                          lower.Contains("scrape ") ||
-                          (lower.Contains("build") && (lower.Contains("knowledge") || lower.Contains(" kb "))) ||
-                          (lower.Contains("create") && (lower.Contains("knowledge") || lower.Contains(" kb ")));
+        var hasToolVerb = query.Contains("index ", StringComparison.OrdinalIgnoreCase) ||
+                          query.Contains("ingest ", StringComparison.OrdinalIgnoreCase) ||
+                          query.Contains("crawl ", StringComparison.OrdinalIgnoreCase) ||
+                          query.Contains("spider ", StringComparison.OrdinalIgnoreCase) ||
+                          query.Contains("scrape ", StringComparison.OrdinalIgnoreCase) ||
+                          (query.Contains("build", StringComparison.OrdinalIgnoreCase) &&
+                           (query.Contains("knowledge", StringComparison.OrdinalIgnoreCase) ||
+                            query.Contains(" kb ", StringComparison.OrdinalIgnoreCase))) ||
+                          (query.Contains("create", StringComparison.OrdinalIgnoreCase) &&
+                           (query.Contains("knowledge", StringComparison.OrdinalIgnoreCase) ||
+                            query.Contains(" kb ", StringComparison.OrdinalIgnoreCase)));
 
         return hasFilePath || hasToolVerb;
     }
@@ -152,18 +167,16 @@ public class ComplexityClassifier
             }
         }
 
-        // Check for coordinating conjunctions that likely split topics
-        // "and also", "as well as", "plus", "in addition"
-        var lower = query.ToLowerInvariant();
-        if (lower.Contains(" and also ")) count++;
-        if (lower.Contains(" as well as ")) count++;
-        if (lower.Contains(" plus ")) count++;
-        if (lower.Contains(" in addition ")) count++;
+        // Check for coordinating conjunctions that likely split topics — zero-allocation
+        if (query.Contains(" and also ", StringComparison.OrdinalIgnoreCase)) count++;
+        if (query.Contains(" as well as ", StringComparison.OrdinalIgnoreCase)) count++;
+        if (query.Contains(" plus ", StringComparison.OrdinalIgnoreCase)) count++;
+        if (query.Contains(" in addition ", StringComparison.OrdinalIgnoreCase)) count++;
         // Simple "and" only counts if query is long enough to have two topics
-        if (lower.Contains(" and ") && query.Length > 40)
+        if (query.Contains(" and ", StringComparison.OrdinalIgnoreCase) && query.Length > 40)
         {
             // Only count if the "and" isn't near the start (not "find and show me")
-            var andIdx = lower.IndexOf(" and ", StringComparison.Ordinal);
+            var andIdx = query.IndexOf(" and ", StringComparison.OrdinalIgnoreCase);
             if (andIdx > 15) count++;
         }
 
@@ -174,8 +187,14 @@ public class ComplexityClassifier
     {
         if (_comparisonArchetypeEmbeddings != null) return;
 
-        _comparisonArchetypeEmbeddings = await _embedding!.EmbedBatchAsync(ComparisonArchetypes, ct);
-        _temporalArchetypeEmbeddings = await _embedding.EmbedBatchAsync(TemporalComparisonArchetypes, ct);
+        // Flatten comparison + temporal archetypes into a single batch call.
+        var allTexts = new List<string>(ComparisonArchetypes);
+        allTexts.AddRange(TemporalComparisonArchetypes);
+
+        var allEmbeddings = await _embedding!.EmbedBatchAsync(allTexts, ct);
+
+        _comparisonArchetypeEmbeddings = allEmbeddings[..ComparisonArchetypes.Length];
+        _temporalArchetypeEmbeddings = allEmbeddings[ComparisonArchetypes.Length..];
     }
 
     private static float MaxSimilarity(float[] query, float[][] archetypes)
@@ -189,19 +208,10 @@ public class ComplexityClassifier
         return max;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static float CosineSimilarity(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
     {
         if (a.Length != b.Length || a.Length == 0) return 0f;
-
-        float dot = 0, normA = 0, normB = 0;
-        for (var i = 0; i < a.Length; i++)
-        {
-            dot += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
-        }
-
-        var denom = MathF.Sqrt(normA) * MathF.Sqrt(normB);
-        return denom == 0f ? 0f : dot / denom;
+        return TensorPrimitives.CosineSimilarity(a, b);
     }
 }

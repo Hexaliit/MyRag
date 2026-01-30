@@ -140,17 +140,31 @@ public class StructuralAnalyzer : IQueryAnalyzer
 
             if (before.Length < 5 || after.Length < 5) continue;
 
-            // Embed both sides
-            if (!embeddingCache.TryGetValue(before, out var embBefore))
-            {
-                embBefore = await _embedding!.EmbedAsync(before, ct);
-                embeddingCache[before] = embBefore;
-            }
+            // Embed both sides (batch when both are cache misses)
+            var hasBefore = embeddingCache.TryGetValue(before, out var embBefore);
+            var hasAfter = embeddingCache.TryGetValue(after, out var embAfter);
 
-            if (!embeddingCache.TryGetValue(after, out var embAfter))
+            if (!hasBefore && !hasAfter)
             {
-                embAfter = await _embedding!.EmbedAsync(after, ct);
+                // Both miss: single batch call instead of two sequential calls
+                var batch = await _embedding!.EmbedBatchAsync([before, after], ct);
+                embBefore = batch[0];
+                embAfter = batch[1];
+                embeddingCache[before] = embBefore;
                 embeddingCache[after] = embAfter;
+            }
+            else
+            {
+                if (!hasBefore)
+                {
+                    embBefore = await _embedding!.EmbedAsync(before, ct);
+                    embeddingCache[before] = embBefore;
+                }
+                if (!hasAfter)
+                {
+                    embAfter = await _embedding!.EmbedAsync(after, ct);
+                    embeddingCache[after] = embAfter;
+                }
             }
 
             var similarity = ComplexityClassifier.CosineSimilarity(embBefore, embAfter);

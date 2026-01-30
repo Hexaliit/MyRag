@@ -21,6 +21,11 @@ public sealed class RetrievalPipeline
     private readonly StorageService _storage;
     private readonly IEntityGraphStore? _entityStore;
 
+    // Cached quality anchor embeddings (computed once, reused across all ScoreItemsAsync calls)
+    private float[]? _highQualityAnchor;
+    private float[]? _lowQualityAnchor;
+    private readonly SemaphoreSlim _anchorLock = new(1, 1);
+
     public RetrievalPipeline(
         IEmbeddingService embedding,
         StorageService storage,
@@ -241,10 +246,9 @@ public sealed class RetrievalPipeline
                 itemsNeedingEmbedding[i].Embedding = embeddings[i];
         }
 
-        // Quality anchors: detect clickbait vs substantive content
-        var highQualityAnchor = await _embedding.EmbedAsync(RelevanceScorer.HighQualityAnchorText, ct);
-        var lowQualityAnchor = await _embedding.EmbedAsync(RelevanceScorer.LowQualityAnchorText, ct);
-        scorer = scorer.WithQualityAnchors(highQualityAnchor, lowQualityAnchor);
+        // Quality anchors: detect clickbait vs substantive content (cached after first use)
+        await EnsureQualityAnchorsAsync(ct);
+        scorer = scorer.WithQualityAnchors(_highQualityAnchor!, _lowQualityAnchor!);
 
         // Compute vibe embedding if specified
         float[]? vibeEmbedding = null;
@@ -252,11 +256,15 @@ public sealed class RetrievalPipeline
             vibeEmbedding = await _embedding.EmbedAsync(options.VibeText, ct);
 
         // Phase 1: Fast discard (freshness + authority + semantic + optional Lucene FTS)
+        // Capture query-sim scores for PRF centroid filtering (avoids recomputing cosine similarities)
+        Dictionary<string, double>? querySimScores = null;
         if (items.Count > 5)
         {
+            querySimScores = new Dictionary<string, double>(items.Count);
             items = scorer.ScoreFast(items, options.Query, discardRatio: 0.25,
                 queryEmbedding: options.QueryEmbedding,
-                textRelevanceScores: options.TextRelevanceScores);
+                textRelevanceScores: options.TextRelevanceScores,
+                querySimOut: querySimScores);
         }
 
         // PRF centroid refinement: blend query embedding with top-5 centroid.
@@ -270,7 +278,9 @@ public sealed class RetrievalPipeline
         {
             var prfCandidates = items
                 .Where(i => i.Embedding != null &&
-                            VectorMath.CosineSimilarity(i.Embedding, options.QueryEmbedding) >= 0.30f)
+                            (querySimScores != null
+                                ? querySimScores.GetValueOrDefault(i.Id) >= 0.30
+                                : VectorMath.CosineSimilarity(i.Embedding, options.QueryEmbedding) >= 0.30f))
                 .ToList();
 
             refinedQueryEmbedding = prfCandidates.Count >= 3
@@ -345,6 +355,31 @@ public sealed class RetrievalPipeline
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Lazily compute and cache quality anchor embeddings.
+    /// Both anchors are embedded in a single batch call on first use.
+    /// </summary>
+    private async Task EnsureQualityAnchorsAsync(CancellationToken ct)
+    {
+        if (_highQualityAnchor != null) return;
+
+        await _anchorLock.WaitAsync(ct);
+        try
+        {
+            if (_highQualityAnchor != null) return; // Double-check after acquiring lock
+
+            var anchors = await _embedding.EmbedBatchAsync(
+                [RelevanceScorer.HighQualityAnchorText, RelevanceScorer.LowQualityAnchorText], ct);
+
+            _highQualityAnchor = anchors[0];
+            _lowQualityAnchor = anchors[1];
+        }
+        finally
+        {
+            _anchorLock.Release();
+        }
     }
 }
 
