@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using LucidRAG.LLM.Config;
+using LucidRAG.LLM.Services.LoadBalancing;
 using LucidRAG.LLM.Services.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -159,28 +160,59 @@ public class LlmProviderFactory : ILlmProviderFactory
     {
         try
         {
-            // Create OllamaService and wrap in OllamaLlmService
-            var ollamaConfig = new OllamaConfig
+            var effectiveEndpoints = GetFilteredEndpoints(backendConfig, modelConfig);
+
+            if (effectiveEndpoints.Count == 0)
             {
-                BaseUrl = backendConfig.BaseUrl,
-                Model = modelConfig.Model,
-                Temperature = modelConfig.Temperature,
-                TimeoutSeconds = backendConfig.TimeoutSeconds
-            };
+                _logger.LogWarning("No endpoints available for Ollama backend");
+                return null;
+            }
 
-            var ollamaService = new OllamaService(
-                modelConfig.Model,
-                "nomic-embed-text", // Default embedding model
-                backendConfig.BaseUrl,
-                TimeSpan.FromSeconds(backendConfig.TimeoutSeconds));
+            // Single endpoint: direct creation (zero overhead)
+            if (effectiveEndpoints.Count == 1)
+            {
+                return CreateSingleOllamaService(effectiveEndpoints[0].Url, backendConfig, modelConfig);
+            }
 
-            return new OllamaLlmService(ollamaService, ollamaConfig);
+            // Multi-endpoint: create per-endpoint services and wrap in load balancer
+            var endpoints = new List<EndpointState>();
+            var services = new Dictionary<string, ILlmService>();
+
+            foreach (var entry in effectiveEndpoints)
+            {
+                var service = CreateSingleOllamaService(entry.Url, backendConfig, modelConfig);
+                if (service == null) continue;
+
+                endpoints.Add(new EndpointState(entry.Url, entry.Name));
+                services[entry.Url] = service;
+            }
+
+            return WrapInLoadBalancer("Ollama", modelConfig.Backend, endpoints, services, backendConfig);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create Ollama service");
             return null;
         }
+    }
+
+    private ILlmService CreateSingleOllamaService(string url, BackendConfig backendConfig, ModelConfig modelConfig)
+    {
+        var ollamaConfig = new OllamaConfig
+        {
+            BaseUrl = url,
+            Model = modelConfig.Model,
+            Temperature = modelConfig.Temperature,
+            TimeoutSeconds = backendConfig.TimeoutSeconds
+        };
+
+        var ollamaService = new OllamaService(
+            modelConfig.Model,
+            "nomic-embed-text",
+            url,
+            TimeSpan.FromSeconds(backendConfig.TimeoutSeconds));
+
+        return new OllamaLlmService(ollamaService, ollamaConfig);
     }
 
     private ILlmService? CreateAnthropicService(BackendConfig backendConfig, ModelConfig modelConfig)
@@ -207,12 +239,35 @@ public class LlmProviderFactory : ILlmProviderFactory
     {
         try
         {
-            // Try to get existing OpenAI service from DI
+            var effectiveEndpoints = GetFilteredEndpoints(backendConfig, modelConfig);
+
+            // Multi-endpoint for LMStudio-type backends
+            if (effectiveEndpoints.Count > 1 && backendConfig.GetBackendType() == LlmBackendType.LMStudio)
+            {
+                var endpoints = new List<EndpointState>();
+                var services = new Dictionary<string, ILlmService>();
+
+                foreach (var entry in effectiveEndpoints)
+                {
+                    // Create a per-endpoint OllamaService as OpenAI-compatible proxy
+                    // LMStudio uses OpenAI-compatible API, which OllamaService can also target
+                    var service = CreateSingleOllamaService(entry.Url, backendConfig, modelConfig);
+                    if (service == null) continue;
+
+                    endpoints.Add(new EndpointState(entry.Url, entry.Name));
+                    services[entry.Url] = service;
+                }
+
+                var balanced = WrapInLoadBalancer("LMStudio", modelConfig.Backend, endpoints, services, backendConfig);
+                if (balanced != null)
+                    return balanced;
+            }
+
+            // Single endpoint or non-LMStudio: use DI-registered service
             var existingService = _serviceProvider.GetService<ILlmService>();
             if (existingService?.ProviderName.Contains("OpenAI", StringComparison.OrdinalIgnoreCase) == true)
                 return existingService;
 
-            // Otherwise, we need the OpenAI assembly to create a new one
             _logger.LogDebug("OpenAI service not registered in DI, skipping");
             return null;
         }
@@ -222,6 +277,54 @@ public class LlmProviderFactory : ILlmProviderFactory
             return null;
         }
     }
+
+    /// <summary>
+    /// Get effective endpoints for a backend, filtered by model-level endpoint restrictions.
+    /// </summary>
+    private static List<EndpointEntry> GetFilteredEndpoints(BackendConfig backendConfig, ModelConfig modelConfig)
+    {
+        var endpoints = backendConfig.GetEffectiveEndpoints();
+
+        if (modelConfig.Endpoints is { Count: > 0 })
+        {
+            var allowed = new HashSet<string>(modelConfig.Endpoints, StringComparer.OrdinalIgnoreCase);
+            endpoints = endpoints.Where(e => allowed.Contains(e.Url)).ToList();
+        }
+
+        return endpoints;
+    }
+
+    private ILlmService? WrapInLoadBalancer(
+        string label,
+        string backendName,
+        List<EndpointState> endpoints,
+        Dictionary<string, ILlmService> services,
+        BackendConfig backendConfig)
+    {
+        if (endpoints.Count == 0) return null;
+        if (endpoints.Count == 1) return services.Values.First();
+
+        var selector = CreateSelector(backendConfig.GetSelectionStrategy());
+        var loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
+
+        _logger.LogInformation(
+            "Created load-balanced {Label} service with {Count} endpoints ({Strategy})",
+            label, endpoints.Count, backendConfig.Selection);
+
+        return new LoadBalancedLlmService(
+            backendName,
+            endpoints,
+            services,
+            selector,
+            loggerFactory.CreateLogger<LoadBalancedLlmService>(),
+            backendConfig.HealthCheckIntervalSeconds);
+    }
+
+    private static IEndpointSelector CreateSelector(EndpointSelectionStrategy strategy) => strategy switch
+    {
+        EndpointSelectionStrategy.Fastest => new FastestSelector(),
+        _ => new RoundRobinSelector()
+    };
 
     private INamedLlmProvider CreateNamedProvider(
         string name,

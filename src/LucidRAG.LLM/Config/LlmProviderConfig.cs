@@ -70,6 +70,54 @@ public class BackendConfig
     /// </summary>
     public bool Enabled { get; set; } = true;
 
+    #region Multi-Endpoint Load Balancing
+
+    /// <summary>
+    /// Multiple endpoint URLs for load balancing. When set, replaces base_url.
+    /// </summary>
+    public List<EndpointEntry>? Endpoints { get; set; }
+
+    /// <summary>
+    /// Endpoint selection strategy: round_robin or fastest.
+    /// </summary>
+    public string Selection { get; set; } = "round_robin";
+
+    /// <summary>
+    /// Interval in seconds between health probes for unhealthy endpoints.
+    /// </summary>
+    [YamlMember(Alias = "health_check_interval_seconds")]
+    public int HealthCheckIntervalSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Whether this backend has multiple endpoints configured.
+    /// </summary>
+    public bool IsMultiEndpoint => Endpoints is { Count: > 1 };
+
+    /// <summary>
+    /// Parse the selection strategy string to enum.
+    /// </summary>
+    public EndpointSelectionStrategy GetSelectionStrategy() => Selection?.ToLowerInvariant() switch
+    {
+        "fastest" => EndpointSelectionStrategy.Fastest,
+        _ => EndpointSelectionStrategy.RoundRobin
+    };
+
+    /// <summary>
+    /// Get effective endpoints: returns Endpoints if set, otherwise wraps BaseUrl in a single-element list.
+    /// </summary>
+    public List<EndpointEntry> GetEffectiveEndpoints()
+    {
+        if (Endpoints is { Count: > 0 })
+            return Endpoints;
+
+        if (!string.IsNullOrEmpty(BaseUrl))
+            return [new EndpointEntry { Url = BaseUrl }];
+
+        return [];
+    }
+
+    #endregion
+
     #region Resilience Configuration (Polly)
 
     /// <summary>
@@ -175,6 +223,12 @@ public class ModelConfig
     /// Check if model supports vision.
     /// </summary>
     public bool SupportsVision => Capabilities.Contains("vision", StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Optional endpoint URL filter: restrict this model to a subset of the backend's endpoints.
+    /// URLs must match entries in the backend's endpoints list.
+    /// </summary>
+    public List<string>? Endpoints { get; set; }
 }
 
 /// <summary>
@@ -253,4 +307,20 @@ public class DefaultsConfig
         "fallback" => Fallback,
         _ => General
     };
+}
+
+/// <summary>
+/// A single endpoint in a multi-endpoint backend configuration.
+/// </summary>
+public class EndpointEntry
+{
+    /// <summary>
+    /// Endpoint URL (e.g., http://localhost:11434).
+    /// </summary>
+    public string Url { get; set; } = "";
+
+    /// <summary>
+    /// Optional human-readable label for this endpoint.
+    /// </summary>
+    public string? Name { get; set; }
 }

@@ -54,6 +54,10 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         var ollama = boot.CreateOllama();
         var llmRouter = await boot.InitializeLlmStackAsync(ct: cancellationToken);
 
+        // Initialize entity store for entity profile HNSW search
+        try { await boot.InitializeEntityGraphStoreAsync(); }
+        catch { /* Entity store is optional */ }
+
         var ollamaAvailable = await ollama.IsAvailableAsync();
         var hasCloudLlm = llmRouter.HasCloudProvider;
         if (!ollamaAvailable && !hasCloudLlm)
@@ -71,10 +75,8 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             ? $"crawl:{settings.Name}"
             : settings.Source;
 
-        // Determine search window
-        var searchDays = settings.Days > 0 ? settings.Days
-            : effectiveSource?.StartsWith("crawl:", StringComparison.OrdinalIgnoreCase) == true ? 365
-            : 30;
+        // Build the shared retrieval pipeline (Lucene + embedding + entity HNSW + RRF)
+        var retrieval = new RetrievalPipeline(boot.Embedding, boot.Storage, boot.EntityStore);
 
         // Conversation history for multi-turn context
         var history = new List<(string question, string answer, List<string> sourceIds)>();
@@ -129,8 +131,9 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
 
             // Search and answer — cloud LLM counts as available
             var llmAvailable = ollamaAvailable || hasCloudLlm;
-            await AnswerQuestion(question, settings, effectiveSource, boot.Config, boot.Storage, boot.Embedding, ollama,
-                llmAvailable, searchDays, history, cancellationToken);
+            await AnswerQuestion(question, settings, effectiveSource, retrieval,
+                boot.Storage, boot.Embedding, ollama,
+                llmAvailable, history, cancellationToken);
 
             if (settings.Once) break;
             question = null;
@@ -146,48 +149,27 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         string question,
         Settings settings,
         string? effectiveSource,
-        DoomConfig config,
+        RetrievalPipeline retrieval,
         StorageService storage,
         IEmbeddingService embedding,
         DoomSummarizer.Services.OllamaService ollama,
         bool ollamaAvailable,
-        int searchDays,
         List<(string question, string answer, List<string> sourceIds)> history,
         CancellationToken ct)
     {
-        // 1. Check for cached similar query
-        var queryEmbedding = await embedding.EmbedAsync(question, ct);
-        var cached = await storage.FindSimilarQueryAsync(queryEmbedding, threshold: 0.92);
-
-        List<ContentItem> evidence;
-
-        if (cached != null && cached.Similarity > 0.95)
+        // 1. Full retrieval pipeline: Lucene FTS + embedding HNSW + entity profiles + 6-signal RRF
+        var collectionName = settings.Name ?? "default";
+        var retrievalResult = await retrieval.SearchAsync(question, new RetrievalOptions
         {
-            // Very close match — reuse stored evidence
-            if (!settings.Quiet)
-                AnsiConsole.MarkupLine($"[grey]Reusing cached evidence (similarity: {cached.Similarity:F2})[/]");
+            SourceFilter = effectiveSource,
+            CollectionName = collectionName,
+            TopK = settings.TopK * 2, // Grab extras for disambiguation/diversity
+            MinRelevance = 0.15f,
+            IsKnowledgeBase = true,
+            UseEmbeddingDedup = true,
+        }, ct);
 
-            var cachedStored = await storage.GetItemsByIdsAsync(cached.ItemIds);
-            evidence = cachedStored
-                .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
-                .Where(s => effectiveSource == null ||
-                    s.Source.Equals(effectiveSource, StringComparison.OrdinalIgnoreCase))
-                .Select(s => s.ToContentItem())
-                .ToList();
-
-            // Re-score cached items — relevance is query-dependent, not stored
-            ScoreEvidence(evidence, queryEmbedding, question);
-            evidence = evidence
-                .Where(i => i.RelevanceScore > 0.15)
-                .OrderByDescending(i => i.RelevanceScore)
-                .ToList();
-        }
-        else
-        {
-            // Fresh search
-            evidence = await SearchEvidence(question, queryEmbedding, settings, effectiveSource, storage,
-                embedding, searchDays, ct);
-        }
+        var evidence = retrievalResult.Items;
 
         if (evidence.Count == 0)
         {
@@ -318,64 +300,8 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
 
         // 5. Log query and update history
         history.Add((question, answer, sourceIds));
-        var logEmbedding = queryEmbedding;
+        var logEmbedding = await embedding.EmbedAsync(question, ct);
         await storage.LogQueryAsync(question, logEmbedding, null, sourceIds);
-    }
-
-    private static async Task<List<ContentItem>> SearchEvidence(
-        string question,
-        float[] queryEmbedding,
-        Settings settings,
-        string? effectiveSource,
-        StorageService storage,
-        IEmbeddingService embedding,
-        int searchDays,
-        CancellationToken ct)
-    {
-        // Load stored items filtered by source at the RDBMS level
-        var stored = effectiveSource != null
-            ? await storage.GetRecentItemsAsync(days: searchDays, source: effectiveSource)
-            : await storage.GetRecentItemsAsync(days: searchDays);
-
-        var items = stored
-            .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
-            .Select(s => s.ToContentItem())
-            .ToList();
-
-        if (items.Count == 0) return [];
-
-        ScoreEvidence(items, queryEmbedding, question);
-
-        // Filter and rank
-        return items
-            .Where(i => i.RelevanceScore > 0.15)
-            .OrderByDescending(i => i.RelevanceScore)
-            .Take(settings.TopK * 2) // grab extras for diversity
-            .ToList();
-    }
-
-    /// <summary>
-    /// Score items by embedding similarity + BM25 keyword boost. Mutates in place.
-    /// </summary>
-    private static void ScoreEvidence(List<ContentItem> items, float[] queryEmbedding, string question)
-    {
-        foreach (var item in items)
-        {
-            if (item.Embedding != null)
-            {
-                var sim = VectorMath.CosineSimilarity(queryEmbedding, item.Embedding);
-                item.RelevanceScore = Math.Max(sim, 0);
-            }
-        }
-
-        var queryTokens = question.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
-        foreach (var item in items)
-        {
-            var text = $"{item.Title} {item.Content}".ToLowerInvariant();
-            var keywordHits = queryTokens.Count(t => text.Contains(t, StringComparison.Ordinal));
-            var keywordBoost = keywordHits > 0 ? 0.1 * Math.Min(keywordHits, 5) / 5.0 : 0;
-            item.RelevanceScore += keywordBoost;
-        }
     }
 
     private static async Task<string> GenerateAnswer(

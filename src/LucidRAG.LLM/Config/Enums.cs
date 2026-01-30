@@ -38,3 +38,15 @@ public enum ProviderTier
     /// <summary>Cost-effective fallback</summary>
     Fallback
 }
+
+/// <summary>
+/// Strategy for selecting among multiple endpoints in a load-balanced backend.
+/// </summary>
+public enum EndpointSelectionStrategy
+{
+    /// <summary>Distribute requests evenly across endpoints</summary>
+    RoundRobin,
+
+    /// <summary>Prefer the endpoint with the lowest observed response time</summary>
+    Fastest
+}

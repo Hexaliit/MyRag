@@ -98,8 +98,8 @@ public static class DoomScrollerTools
     [McpServerTool(Name = "search_kb")]
     [Description(
         "Search the knowledge base using the full relevance pipeline: " +
-        "Lucene pre-filter (LLM-generated query) → BM25F scoring with global IDF → embedding similarity → " +
-        "RRF (Reciprocal Rank Fusion) combining 4+ signals. " +
+        "Lucene FTS pre-filter → embedding similarity → " +
+        "RRF (Reciprocal Rank Fusion) combining 5+ signals (Lucene FTS, semantic similarity, freshness, authority, quality). " +
         "Returns ranked results with IDs (use with get_item_content), titles, URLs, " +
         "summaries, keywords, and multi-signal relevance scores. " +
         "Filter by source (e.g., 'crawl:docs', 'hn', 'bbc').")]
@@ -177,37 +177,38 @@ public static class DoomScrollerTools
                     }
                 });
 
-            // Ensure keyword profiles
-            foreach (var item in items.Where(i => string.IsNullOrEmpty(i.Keywords)))
-            {
-                var profile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
-                item.Keywords = profile.KeywordsText;
-            }
-
-            // Layer 2: Full RRF pipeline with global IDF
-            var globalCorpus = await _storage.GetKeywordCorpusAsync();
-            var globalCorpusSize = await _storage.GetKeywordCorpusSizeAsync();
-
+            // Layer 2: Unified scoring pipeline (5-signal RRF + optional Lucene FTS)
             float[]? queryEmbedding = _embedding is not null ? await _embedding.EmbedAsync(query) : null;
-            var bm25Query = query;
 
-            var scorer = new RelevanceScorer();
-            items = scorer.ScoreFast(items, bm25Query, discardRatio: 0.25,
-                queryEmbedding: queryEmbedding,
-                globalCorpus: globalCorpus, globalCorpusSize: globalCorpusSize);
-
-            // PRF refinement (only with enough results to avoid drift)
-            float[]? refinedEmbedding = queryEmbedding;
-            if (items.Count >= 5 && queryEmbedding != null)
-                refinedEmbedding = RelevanceScorer.ComputePRFCentroid(items, queryEmbedding);
-
-            // ScoreFull requires a non-null embedding; skip if embeddings unavailable
-            var finalEmbedding = refinedEmbedding ?? queryEmbedding;
-            if (finalEmbedding != null)
+            if (queryEmbedding != null)
             {
-                items = scorer.ScoreFull(items, bm25Query,
-                    queryEmbedding: finalEmbedding,
-                    globalCorpus: globalCorpus, globalCorpusSize: globalCorpusSize);
+                // Pass Lucene FTS scores through as an RRF signal for keyword precision
+                Dictionary<string, double>? luceneScores = null;
+                if (candidateIds.Count > 0)
+                {
+                    try
+                    {
+                        var luceneIndexPath2 = Path.Combine(_storage!.DataPath, "lucene", "mcp");
+                        using var lucene2 = new LuceneSearchService(luceneIndexPath2);
+                        lucene2.Open();
+                        var luceneQuery2 = LuceneQueryGenerator.BuildSimpleQuery(query);
+                        var luceneHits2 = lucene2.Search(luceneQuery2, source, limit: items.Count);
+                        luceneScores = luceneHits2.ToDictionary(r => r.Id, r => (double)r.Score);
+                    }
+                    catch { /* best-effort */ }
+                }
+
+                var pipeline = new RetrievalPipeline(_embedding!, _storage!);
+                var scoringResult = await pipeline.ScoreItemsAsync(items, new ScoringOptions
+                {
+                    Query = query,
+                    QueryEmbedding = queryEmbedding,
+                    IsKnowledgeBase = true,
+                    TextRelevanceScores = luceneScores,
+                    UseOutlierPenalty = true,
+                    UseEmbeddingDedup = true,
+                });
+                items = scoringResult.Items;
             }
 
             var rankedItems = items.Take(limit).ToList();
@@ -239,10 +240,9 @@ public static class DoomScrollerTools
             {
                 success = true,
                 query, source_filter = source,
-                pipeline = "Lucene → ScoreFast (BM25F+Freshness+Authority) → PRF → ScoreFull (+QuerySim+Vibe) → RRF",
+                pipeline = "ScoreItemsAsync (keyword profiles → embeddings → quality anchors → Lucene FTS → ScoreFast → PRF → ScoreFull → outlier → dedup)",
                 total_candidates = candidateIds.Count > 0 ? candidateIds.Count : items.Count,
                 result_count = results.Count,
-                global_corpus = new { terms = globalCorpus.Count, docs = globalCorpusSize },
                 results
             });
         }

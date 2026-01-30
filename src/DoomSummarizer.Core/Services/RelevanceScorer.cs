@@ -12,13 +12,17 @@ namespace DoomSummarizer.Services;
 /// ========================
 ///
 /// Phase 1 — ScoreFast (early discard):
-///   Signals: BM25F + Freshness + Authority [+ QuerySimilarity + Quality if embeddings available]
+///   Signals: Freshness + Authority [+ QuerySimilarity + Quality if embeddings available]
 ///   Purpose: Discard obviously irrelevant items before expensive embedding computation.
 ///   Each signal produces an independent ranking; RRF fuses them.
 ///
 /// Phase 2 — ScoreFull (precise ranking):
-///   Signals: BM25F + Freshness + Authority + QuerySimilarity + VibeSimilarity + Quality
+///   Signals: Freshness + Authority + QuerySimilarity + VibeSimilarity + Quality
 ///   Purpose: Final ranking with all signals including embedding-based semantic matching.
+///
+/// NOTE: BM25 keyword matching is handled exclusively by Lucene at the retrieval layer.
+/// The scorer does NOT run BM25 — QuerySimilarity (semantic embedding) is the primary
+/// relevance signal. BM25 static methods are retained as internal utilities.
 ///
 /// HOW RRF WORKS
 /// =============
@@ -31,42 +35,37 @@ namespace DoomSummarizer.Services;
 /// A weight of 0.5 means the signal's rank contribution is halved.
 /// Weight 0 disables the signal entirely.
 ///
-/// THE SIX SIGNALS
+/// THE FIVE SIGNALS
 /// ================
 ///
-/// 1. BM25F (text relevance) — weight default: 1.0
-///    Field-weighted BM25 scoring. Title 2×, Keywords 2.5×, Content 1×.
-///    Uses global IDF corpus when available, falls back to batch-level IDF.
-///    Measures: How well do the query's keywords match the item's text?
-///
-/// 2. Freshness (recency) — weight default: 0.5
+/// 1. Freshness (recency) — weight default: 0.5
 ///    Exponential decay from the item's publication time (CreatedAt if available,
 ///    otherwise FetchedAt). Half-life: 48 hours.
 ///    Formula: exp(-age_hours × ln(2) / 48)
 ///    At 0h → 1.0, at 48h → 0.5, at 96h → 0.25, at 7d → 0.06
 ///    Measures: How recent is this item? Newer = higher score.
 ///
-/// 3. Authority (source quality) — weight default: 0.3
+/// 2. Authority (source quality) — weight default: 0.3
 ///    For items with native scores (HN points, Reddit upvotes): normalized within
 ///    same-source batch to 0-1 range.
 ///    For items without scores: hard-coded baseline by source reputation:
 ///    BBC/Guardian/Reuters=0.5, Google News=0.4, other=0.3.
 ///    Measures: How trustworthy/popular is this item within its source?
 ///
-/// 4. QuerySimilarity (semantic relevance) — weight default: 0.8
+/// 3. QuerySimilarity (semantic relevance) — weight default: 1.2
 ///    Cosine similarity between item embedding and query embedding.
 ///    Uses all-MiniLM-L6-v2 (384-dim ONNX). Range: -1 to 1, typically 0.1-0.7.
 ///    Bridges vocabulary gap: "pharmaceutical" matches "drug pricing" without synonyms.
-///    Only available in Phase 2, or Phase 1 when embeddings are pre-computed.
+///    Primary relevance signal now that BM25 is handled at retrieval by Lucene.
 ///    Measures: Is this item semantically about the query topic?
 ///
-/// 5. VibeSimilarity (tone alignment) — weight default: 0.4
+/// 4. VibeSimilarity (tone alignment) — weight default: 0.4
 ///    Cosine similarity between item embedding and vibe prompt embedding.
 ///    Promotes items matching the requested tone (doom, hopeful, snarky, etc.)
 ///    Only available in Phase 2.
 ///    Measures: Does this item match the desired editorial tone?
 ///
-/// 6. Quality (content substance) — weight default: 0.2
+/// 5. Quality (content substance) — weight default: 0.2
 ///    Cosine-similarity difference between item embedding and quality anchor embeddings.
 ///    High-quality anchor = "detailed analysis, well-researched, expert opinion..."
 ///    Low-quality anchor = "clickbait, shocking, sensational, you won't believe..."
@@ -76,18 +75,19 @@ namespace DoomSummarizer.Services;
 ///
 /// POST-RRF GATES
 /// ==============
-/// After RRF fusion, a hard gate removes items with cosine similarity &lt; 0.20.
-/// This prevents authority/freshness from inflating scores for topically irrelevant items.
-/// Items without embeddings are exempt (can't be gated).
+/// After RRF fusion, a hard gate removes items with cosine similarity &lt; threshold.
+/// Phase 1 gate: embedding similarity &gt;= 0.25 (items without embeddings are exempt).
+/// Phase 2 gate: embedding similarity &gt;= 0.20 using the ORIGINAL query embedding
+/// (not PRF-refined) to prevent centroid drift from shifting acceptance toward off-topic content.
 ///
 /// QUERY-TYPE ADAPTATION
 /// =====================
 /// ForQueryType() returns a scorer with weights tuned per query type:
-///   Roundup:    freshness↑(0.8) bm25↓(0.7) authority↓(0.2) querySim↓(0.5) quality↓(0.15) — recency first
-///   Timeline:   freshness↑↑(1.0) bm25↓(0.5) authority↓(0.2) querySim(0.6) quality↓(0.1) — time is paramount
-///   Explainer:  freshness↓(0.3) bm25(1.0) authority↑(0.5) querySim↑(1.0) quality↑(0.4) — quality &amp; precision
-///   Comparison: freshness↓(0.3) bm25(0.8) authority(0.4) querySim↑(1.0) quality(0.3) — precise matching
-///   General:    default weights (quality: 0.2) — balanced for mixed-intent queries
+///   Roundup:    freshness↑(0.8) authority↓(0.2) querySim(1.0) quality↓(0.15) — recency first
+///   Timeline:   freshness↑↑(1.0) authority↓(0.2) querySim(1.0) quality↓(0.1) — time is paramount
+///   Explainer:  freshness↓(0.3) authority↑(0.5) querySim↑(1.5) quality↑(0.4) — quality &amp; precision
+///   Comparison: freshness↓(0.3) authority(0.4) querySim↑(1.5) quality(0.3) — precise matching
+///   General:    default weights (querySim: 1.2, quality: 0.2) — balanced for mixed-intent queries
 /// </summary>
 public partial class RelevanceScorer
 {
@@ -102,6 +102,13 @@ public partial class RelevanceScorer
     private const int RrfK = 60;
 
     /// <summary>
+    /// Weight for pre-computed text relevance scores (e.g., Lucene FTS) in RRF fusion.
+    /// When Lucene FTS scores are passed through, they provide keyword precision that
+    /// complements the embedding-based QuerySimilarity signal.
+    /// </summary>
+    private const double TextRelevanceWeight = 1.0;
+
+    /// <summary>
     /// Default freshness half-life in hours. At 48h, an item's freshness score is 0.5.
     /// Query-type-specific half-lives: Roundup=24h, Timeline=24h, Explainer=168h, General=48h.
     /// </summary>
@@ -111,7 +118,6 @@ public partial class RelevanceScorer
     private readonly double _freshnessHalfLifeHours;
 
     // Signal weights for RRF fusion — see class summary for what each weight controls
-    private readonly double _bm25Weight;
     private readonly double _freshnessWeight;
     private readonly double _authorityWeight;
     private readonly double _querySimWeight;
@@ -123,15 +129,13 @@ public partial class RelevanceScorer
     private float[]? _lowQualityAnchor;
 
     public RelevanceScorer(
-        double bm25Weight = 1.0,
         double freshnessWeight = 0.5,
         double authorityWeight = 0.3,
-        double querySimWeight = 0.8,
+        double querySimWeight = 1.2,
         double vibeWeight = 0.4,
         double qualityWeight = 0.2,
         double freshnessHalfLifeHours = DefaultFreshnessHalfLifeHours)
     {
-        _bm25Weight = bm25Weight;
         _freshnessWeight = freshnessWeight;
         _authorityWeight = authorityWeight;
         _querySimWeight = querySimWeight;
@@ -163,26 +167,26 @@ public partial class RelevanceScorer
     {
         // Roundup: aggressive freshness decay (24h half-life) — stale news is noise
         QueryType.Roundup => new RelevanceScorer(
-            bm25Weight: 0.7, freshnessWeight: 0.8, authorityWeight: 0.2,
-            querySimWeight: 0.5, vibeWeight: 0.4, qualityWeight: 0.15,
+            freshnessWeight: 0.8, authorityWeight: 0.2,
+            querySimWeight: 1.0, vibeWeight: 0.4, qualityWeight: 0.15,
             freshnessHalfLifeHours: 24.0),
 
         // Timeline: aggressive freshness decay (24h) — recency is paramount
         QueryType.Timeline => new RelevanceScorer(
-            bm25Weight: 0.5, freshnessWeight: 1.0, authorityWeight: 0.2,
-            querySimWeight: 0.6, vibeWeight: 0.3, qualityWeight: 0.1,
+            freshnessWeight: 1.0, authorityWeight: 0.2,
+            querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.1,
             freshnessHalfLifeHours: 24.0),
 
         // Explainer: relaxed freshness (168h / 7 days) — older quality content is fine
         QueryType.Explainer => new RelevanceScorer(
-            bm25Weight: 1.0, freshnessWeight: 0.3, authorityWeight: 0.5,
-            querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.4,
+            freshnessWeight: 0.3, authorityWeight: 0.5,
+            querySimWeight: 1.5, vibeWeight: 0.3, qualityWeight: 0.4,
             freshnessHalfLifeHours: 168.0),
 
         // Comparison: relaxed freshness (168h) — precision over recency
         QueryType.Comparison => new RelevanceScorer(
-            bm25Weight: 0.8, freshnessWeight: 0.3, authorityWeight: 0.4,
-            querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.3,
+            freshnessWeight: 0.3, authorityWeight: 0.4,
+            querySimWeight: 1.5, vibeWeight: 0.3, qualityWeight: 0.3,
             freshnessHalfLifeHours: 168.0),
 
         _ => new RelevanceScorer() // General: default weights + 48h half-life
@@ -191,17 +195,18 @@ public partial class RelevanceScorer
     /// <summary>
     /// Create a scorer tuned for knowledge base queries where Authority and Freshness
     /// provide zero discrimination (all items have Score=0 and similar crawl dates).
-    /// Zeroes out noise signals and boosts BM25F + QuerySimilarity for precision.
+    /// Zeroes out noise signals and boosts QuerySimilarity for precision.
+    /// Keyword matching is handled by Lucene at the retrieval layer.
     /// </summary>
     public static RelevanceScorer ForKnowledgeBase(QueryType queryType) => queryType switch
     {
         QueryType.Roundup => new RelevanceScorer(
-            bm25Weight: 1.0, freshnessWeight: 0.2, authorityWeight: 0.0,
-            querySimWeight: 0.8, vibeWeight: 0.2, qualityWeight: 0.15),
+            freshnessWeight: 0.2, authorityWeight: 0.0,
+            querySimWeight: 1.0, vibeWeight: 0.2, qualityWeight: 0.15),
 
         _ => new RelevanceScorer(
-            bm25Weight: 1.5, freshnessWeight: 0.0, authorityWeight: 0.0,
-            querySimWeight: 1.2, vibeWeight: 0.2, qualityWeight: 0.3)
+            freshnessWeight: 0.0, authorityWeight: 0.0,
+            querySimWeight: 1.5, vibeWeight: 0.2, qualityWeight: 0.3)
     };
 
     /// <summary>
@@ -214,46 +219,45 @@ public partial class RelevanceScorer
     /// <param name="query">User's search query.</param>
     /// <param name="discardRatio">Fraction of items to discard (0.0-1.0). 0 = keep all.</param>
     /// <param name="queryEmbedding">Pre-computed query embedding for semantic matching (null = text-only).</param>
-    /// <param name="globalCorpus">Optional global keyword corpus for proper IDF (keyword → document_count).</param>
-    /// <param name="globalCorpusSize">Total document count for global IDF computation.</param>
+    /// <param name="textRelevanceScores">Pre-computed text relevance scores (e.g., from Lucene FTS).
+    /// When provided, included as an RRF signal for keyword precision.</param>
     /// <returns>Scored items in descending relevance order, with bottom tier discarded.</returns>
     public List<ContentItem> ScoreFast(List<ContentItem> items, string query, double discardRatio = 0.25,
         float[]? queryEmbedding = null,
-        Dictionary<string, int>? globalCorpus = null, int? globalCorpusSize = null)
+        Dictionary<string, double>? textRelevanceScores = null)
     {
         if (items.Count == 0) return items;
 
-        var queryTokens = Tokenize(query);
-        if (queryTokens.Count == 0 && queryEmbedding == null)
+        if (string.IsNullOrWhiteSpace(query) && queryEmbedding == null)
         {
-            // No meaningful query tokens or embedding — score by freshness + authority only
+            // No meaningful query or embedding — score by freshness + authority only
             var authScores = ComputeAuthorityScores(items).ToDictionary(x => x.item.Id, x => x.score);
             foreach (var item in items)
                 item.RelevanceScore = ComputeFreshness(item) * 0.7 + authScores.GetValueOrDefault(item.Id, 0.3) * 0.3;
             return items.OrderByDescending(i => i.RelevanceScore).ToList();
         }
 
-        // Pre-tokenize all items once — avoids redundant Tokenize() calls in BM25 and corpus stats
-        var tokenCache = PreTokenizeItems(items);
-
-        // Build BM25 corpus stats — use global corpus if available for proper IDF
-        var (idf, avgDocLen) = BuildCorpusStats(items, globalCorpus, globalCorpusSize, tokenCache);
-
         // Score each signal independently, then rank
-        // Use BM25F (field-weighted) to boost title + keywords matches over content matches
-        var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen, tokenCache))).ToList();
         var freshnessScores = items.Select(i => (item: i, score: ComputeFreshnessForQueryType(i))).ToList();
         var authorityScores = ComputeAuthorityScores(items);
 
         var signals = new List<(List<(ContentItem item, double score)> scores, double weight)>
         {
-            (bm25Scores, _bm25Weight),
             (freshnessScores, _freshnessWeight),
             (authorityScores, _authorityWeight)
         };
 
+        // Text relevance signal: pre-computed scores from Lucene FTS or similar.
+        // Provides keyword precision that complements semantic similarity.
+        if (textRelevanceScores is { Count: > 0 })
+        {
+            var textScores = items.Select(i => (item: i,
+                score: textRelevanceScores.GetValueOrDefault(i.Id, 0.0))).ToList();
+            signals.Add((textScores, TextRelevanceWeight));
+        }
+
         // When embeddings are available, add semantic query similarity in Phase 1
-        // This is the key fix: "pharmaceutical" embedding matches "drug pricing" content
+        // This is the primary relevance signal: "pharmaceutical" embedding matches "drug pricing"
         // without needing synonym dictionaries
         List<(ContentItem item, double score)>? querySimScores = null;
         if (queryEmbedding != null)
@@ -282,17 +286,14 @@ public partial class RelevanceScorer
 
         var sorted = rrfScores.OrderByDescending(x => x.score).Select(x => x.item).ToList();
 
-        // Hard gate: remove items with near-zero relevance signals.
-        // An item survives if it has EITHER decent embedding similarity OR keyword matches.
-        // This prevents the gate from being overly aggressive on specific QA queries where
-        // search results have good keyword overlap but low embedding similarity.
+        // Hard gate: remove items with low embedding similarity.
+        // Keyword matching is handled by Lucene at retrieval — the scorer gates on
+        // semantic similarity only. Items without embeddings are exempt (can't be gated).
         if (querySimScores != null)
         {
             var simLookup = querySimScores.ToDictionary(x => x.item.Id, x => x.score);
-            var bm25Lookup = bm25Scores.ToDictionary(x => x.item.Id, x => x.score);
             sorted = sorted
-                .Where(i => simLookup.GetValueOrDefault(i.Id, 0) >= 0.20 ||
-                            bm25Lookup.GetValueOrDefault(i.Id, 0) > 0 ||
+                .Where(i => simLookup.GetValueOrDefault(i.Id, 0) >= 0.25 ||
                             i.Embedding == null)
                 .ToList();
         }
@@ -313,44 +314,48 @@ public partial class RelevanceScorer
     /// </summary>
     /// <param name="items">Items with embeddings set.</param>
     /// <param name="query">User's search query.</param>
-    /// <param name="queryEmbedding">Pre-computed query embedding.</param>
+    /// <param name="queryEmbedding">Pre-computed query embedding (may be PRF-refined for ranking).</param>
     /// <param name="vibeEmbedding">Pre-computed vibe embedding (null = skip vibe signal).</param>
-    /// <param name="globalCorpus">Optional global keyword corpus for proper IDF.</param>
-    /// <param name="globalCorpusSize">Total document count for global IDF computation.</param>
+    /// <param name="gateEmbedding">Original (non-PRF) query embedding for the hard gate.
+    /// When null, falls back to queryEmbedding. Separate from queryEmbedding to prevent
+    /// PRF centroid drift from shifting the topical relevance gate.</param>
+    /// <param name="textRelevanceScores">Pre-computed text relevance scores (e.g., from Lucene FTS).
+    /// When provided, included as an RRF signal for keyword precision. Items not in the
+    /// dictionary receive score 0 (worst rank in RRF).</param>
     /// <returns>Items re-ranked with full RRF scores.</returns>
     public List<ContentItem> ScoreFull(
         List<ContentItem> items,
         string query,
         float[] queryEmbedding,
         float[]? vibeEmbedding = null,
-        Dictionary<string, int>? globalCorpus = null,
-        int? globalCorpusSize = null)
+        float[]? gateEmbedding = null,
+        Dictionary<string, double>? textRelevanceScores = null)
     {
         if (items.Count == 0) return items;
 
-        var queryTokens = Tokenize(query);
-
-        // Pre-tokenize all items once — avoids redundant Tokenize() calls in BM25 and corpus stats
-        var tokenCache = PreTokenizeItems(items);
-        var (idf, avgDocLen) = BuildCorpusStats(items, globalCorpus, globalCorpusSize, tokenCache);
-
-        // Phase 1 signals (recomputed for refined batch) — BM25F for field weighting
-        var bm25Scores = items.Select(i => (item: i, score: BM25FScore(i, queryTokens, idf, avgDocLen, tokenCache))).ToList();
         var freshnessScores = items.Select(i => (item: i, score: ComputeFreshnessForQueryType(i))).ToList();
         var authorityScores = ComputeAuthorityScores(items);
 
-        // Phase 2 signals (embedding-based)
+        // Embedding-based signals
         var querySim = items.Select(i => (item: i, score: i.Embedding != null
             ? (double)VectorMath.CosineSimilarity(i.Embedding, queryEmbedding)
             : 0.0)).ToList();
 
         var signals = new List<(List<(ContentItem item, double score)> scores, double weight)>
         {
-            (bm25Scores, _bm25Weight),
             (freshnessScores, _freshnessWeight),
             (authorityScores, _authorityWeight),
             (querySim, _querySimWeight)
         };
+
+        // Text relevance signal: pre-computed scores from Lucene FTS or similar.
+        // Provides keyword precision that complements semantic similarity.
+        if (textRelevanceScores is { Count: > 0 })
+        {
+            var textScores = items.Select(i => (item: i,
+                score: textRelevanceScores.GetValueOrDefault(i.Id, 0.0))).ToList();
+            signals.Add((textScores, TextRelevanceWeight));
+        }
 
         if (vibeEmbedding != null)
         {
@@ -378,9 +383,16 @@ public partial class RelevanceScorer
         // RRF can inflate scores via authority/freshness even when an item has
         // zero topical relevance (e.g., "Grok AI" appearing in "transistor" results).
         // Minimum cosine similarity of 0.20 ensures basic topical alignment.
-        var querySimLookup = querySim.ToDictionary(x => x.item.Id, x => x.score);
+        //
+        // IMPORTANT: Use the original (non-PRF) query embedding for the gate, not the
+        // PRF-refined embedding used for ranking. PRF centroid drift can shift the gate's
+        // acceptance region toward off-topic content when Phase 1 lets through noise.
+        var effectiveGateEmbedding = gateEmbedding ?? queryEmbedding;
+        var gateSim = items.Select(i => (item: i, score: i.Embedding != null
+            ? (double)VectorMath.CosineSimilarity(i.Embedding, effectiveGateEmbedding)
+            : 0.0)).ToDictionary(x => x.item.Id, x => x.score);
         var gated = rrfScores
-            .Where(x => querySimLookup.GetValueOrDefault(x.item.Id, 0) >= 0.20
+            .Where(x => gateSim.GetValueOrDefault(x.item.Id, 0) >= 0.20
                         || x.item.Embedding == null) // keep items without embeddings (can't gate)
             .OrderByDescending(x => x.score)
             .Select(x => x.item)

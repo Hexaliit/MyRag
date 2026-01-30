@@ -55,7 +55,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         public bool Quiet { get; init; }
 
         [CommandOption("--no-llm|--nollm")]
-        [Description("Skip LLM analysis — still runs embeddings, BM25, sentiment, topic inference")]
+        [Description("Skip LLM analysis — still runs embeddings, sentiment, topic inference")]
         public bool NoLlm { get; init; }
 
         [CommandOption("--json")]
@@ -486,17 +486,15 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     maxValue: 100);
 
                 // --local / --name mode: skip ALL fetching, query stored knowledge base only
-                // Uses Lucene for advanced full-text search (fuzzy, phrase, boosting)
+                // Delegates to shared RetrievalPipeline (Lucene FTS + embedding HNSW + entity profiles + RRF)
                 if (isLocalMode)
                 {
                     var localQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
 
                     // Derive source filter: --name takes priority, then --source crawl:xxx or page:xxx
-                    // --name matches any collection: crawl:{name}, page:{name}, or just {name}
                     string? sourceFilter = null;
                     if (!string.IsNullOrWhiteSpace(settings.Name))
                     {
-                        // Check what collections exist with this name
                         var collections = await boot.Storage.GetCollectionsAsync();
                         var matchingCollection = collections.FirstOrDefault(c =>
                             c.Source.Equals(settings.Name, StringComparison.OrdinalIgnoreCase) ||
@@ -513,132 +511,23 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     var collectionLabel = sourceFilter ?? "all";
                     var collectionName = settings.Name ?? "default";
-                    List<ContentItem> localItems = [];
+                    fetchTask.Value = 10;
 
                     if (!string.IsNullOrWhiteSpace(localQuery))
                     {
-                        fetchTask.Value = 10;
-
-                        // Initialize Lucene index for this collection
-                        var luceneIndexPath = Path.Combine(boot.Storage.DataPath, "lucene", collectionName);
-                        using var lucene = new LuceneSearchService(luceneIndexPath);
-                        lucene.Open();
-
-                        // Ensure items are indexed in Lucene (incremental update)
-                        var allStoredItems = await boot.Storage.GetRecentItemsAsync(days: 365, source: sourceFilter);
-                        var itemsToIndex = allStoredItems
-                            .Where(s => !lucene.ContainsDocument(s.Id))
-                            .Select(s => s.ToContentItem())
-                            .ToList();
-
-                        if (itemsToIndex.Count > 0)
+                        var retrieval = new RetrievalPipeline(boot.Embedding, boot.Storage, boot.EntityStore);
+                        var retrievalResult = await retrieval.SearchAsync(localQuery, new RetrievalOptions
                         {
-                            lucene.IndexItems(itemsToIndex);
-                            lucene.Commit();
-                            fetchTask.Description = $"[cyan]Lucene: indexed {itemsToIndex.Count} new items[/]";
-                        }
-                        fetchTask.Value = 25;
+                            SourceFilter = sourceFilter,
+                            CollectionName = collectionName,
+                            TopK = settings.Limit * 2,
+                            MinRelevance = 0.15f,
+                            IsKnowledgeBase = true,
+                            UseEmbeddingDedup = true,
+                            QueryEntities = interpreted?.SentinelIntent?.Entities,
+                        }, cancellationToken);
 
-                        // Generate optimized Lucene query using fast sentinel LLM
-                        var luceneQuery = await LuceneQueryGenerator.GenerateQueryAsync(localQuery, ollama, cancellationToken);
-                        if (settings.DebugPipeline)
-                            AnsiConsole.MarkupLine($"[grey]Lucene query: {Markup.Escape(luceneQuery)}[/]");
-                        fetchTask.Value = 40;
-
-                        // Search Lucene (fuzzy, phrase, boosted)
-                        var luceneResults = lucene.Search(luceneQuery, sourceFilter, limit: settings.Limit * 3);
-                        var luceneIds = luceneResults.Select(r => r.Id).ToHashSet();
-                        fetchTask.Value = 50;
-
-                        // Parallel: embedding search for semantic coverage
-                        var queryEmbed = await boot.Embedding.EmbedAsync(localQuery, cancellationToken);
-                        var embeddingResults = await boot.Storage.FindSimilarAsync(
-                            queryEmbed, limit: settings.Limit * 2, threshold: 0.20, source: sourceFilter);
-                        var embeddingIds = embeddingResults.Select(r => r.Id).ToHashSet();
-                        fetchTask.Value = 55;
-
-                        // Entity profile HNSW search (when entity profiles exist)
-                        // Uses query entities (extracted by Sentinel) to find semantically related docs
-                        var entityProfileIds = new HashSet<string>();
-                        if (boot.EntityStore != null && interpreted?.SentinelIntent?.Entities?.Count >= 2)
-                        {
-                            try
-                            {
-                                var hasProfiles = await boot.EntityStore!.HasEntityProfilesAsync();
-                                if (hasProfiles)
-                                {
-                                    var entityProfileService = new EntityProfileService(boot.Embedding);
-                                    var entityDocCounts = await boot.EntityStore!.GetEntityDocCountsAsync();
-                                    var totalDocs = await boot.EntityStore!.GetTotalDocsWithEntitiesAsync();
-
-                                    // Convert Sentinel entities to typed format for profile computation
-                                    // Infer entity types using heuristics (ORG, PER, LOC, MISC)
-                                    var queryEntities = interpreted.SentinelIntent.Entities
-                                        .Select(e => (name: e, type: EntityProfileService.InferEntityType(e), confidence: 0.8f))
-                                        .ToList();
-
-                                    var queryEntityProfile = await entityProfileService.ComputeQueryProfileAsync(
-                                        queryEntities, entityDocCounts, totalDocs);
-
-                                    if (queryEntityProfile.Length > 0)
-                                    {
-                                        var entityResults = await boot.EntityStore!.FindRelatedByEntityProfileAsync(
-                                            queryEntityProfile, topK: settings.Limit, minSimilarity: 0.25f);
-
-                                        foreach (var (itemId, _, _) in entityResults)
-                                            entityProfileIds.Add(itemId);
-
-                                        if (settings.DebugPipeline && entityResults.Count > 0)
-                                        {
-                                            AnsiConsole.MarkupLine($"[grey]Entity profile HNSW: {entityResults.Count} candidates from {queryEntities.Count} query entities[/]");
-                                            foreach (var (itemId, title, sim) in entityResults.Take(3))
-                                            {
-                                                var truncTitle = title.Length > 40 ? title[..37] + "..." : title;
-                                                AnsiConsole.MarkupLine($"[grey]  ⤷ {Markup.Escape(truncTitle)}: {sim:F3}[/]");
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                if (settings.DebugPipeline)
-                                    AnsiConsole.MarkupLine($"[grey]Entity profile search skipped: {ex.Message}[/]");
-                            }
-                        }
-                        fetchTask.Value = 60;
-
-                        // Fuse results: union of Lucene + embedding + entity profile results
-                        var allCandidateIds = luceneIds.Union(embeddingIds).Union(entityProfileIds).ToList();
-
-                        if (allCandidateIds.Count > 0)
-                        {
-                            localItems = await boot.Storage.LoadItemsByIdsAsync(allCandidateIds);
-
-                            // Apply Lucene scores as boost (items found by Lucene get priority)
-                            var luceneScoreLookup = luceneResults.ToDictionary(r => r.Id, r => r.Score);
-                            foreach (var item in localItems)
-                            {
-                                if (luceneScoreLookup.TryGetValue(item.Id, out var luceneScore))
-                                    item.RelevanceScore = luceneScore / 10.0; // Normalize Lucene score
-                            }
-
-                            var entityInfo = entityProfileIds.Count > 0 ? $" | Entity: {entityProfileIds.Count}" : "";
-                            fetchTask.Description = $"[cyan]Lucene: {luceneResults.Count} | Embed: {embeddingResults.Count}{entityInfo} | Fused: {allCandidateIds.Count}[/]";
-                            if (settings.DebugPipeline)
-                                AnsiConsole.MarkupLine($"[grey]Lucene: {luceneResults.Count} hits, Embedding: {embeddingResults.Count} hits, Entity: {entityProfileIds.Count} hits, Fused: {allCandidateIds.Count} unique[/]");
-                        }
-                        else
-                        {
-                            fetchTask.Description = "[yellow]No results from Lucene or embeddings[/]";
-                        }
-                        fetchTask.Value = 70;
-
-                        // Filter out items without any content
-                        localItems = localItems
-                            .Where(i => !string.IsNullOrEmpty(i.Summary) || !string.IsNullOrEmpty(i.Title))
-                            .Take(settings.Limit * 2)
-                            .ToList();
+                        items.AddRange(retrievalResult.Items);
                     }
                     else
                     {
@@ -646,20 +535,17 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         var storedLocal = sourceFilter != null
                             ? await boot.Storage.GetRecentItemsAsync(days: 365, source: sourceFilter)
                             : await boot.Storage.GetRecentItemsAsync(days: 30);
-                        fetchTask.Value = 70;
 
-                        localItems = storedLocal
+                        var localItems = storedLocal
                             .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
                             .Select(s => s.ToContentItem())
                             .OrderByDescending(i => i.FetchedAt)
                             .Take(settings.Limit)
                             .ToList();
+                        items.AddRange(localItems);
                     }
 
-                    items.AddRange(localItems);
                     fetchTask.Value = 100;
-                    fetchTask.Description = $"[green]Loaded {items.Count} items from KB '{Markup.Escape(collectionLabel)}'[/]";
-
                     fetchTask.Description = $"[cyan]KB: {items.Count} items matched[/]";
                     if (settings.DebugPipeline)
                         AnsiConsole.MarkupLine($"[grey]KB query ({Markup.Escape(collectionLabel)}): {items.Count} items matched[/]");
@@ -1290,63 +1176,20 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     }
                 }
 
-                // Stage 2.5: Embedding computation + two-phase relevance scoring with RRF
-                // KB queries: zero out Authority/Freshness (all items get identical scores on both,
-                // injecting random noise that dilutes BM25F and QuerySimilarity discrimination).
-                // Web queries: use query-type-adaptive weights (freshness matters for roundups, etc.)
-                var scorer = isLocalMode
-                    ? RelevanceScorer.ForKnowledgeBase(earlyQueryType)
-                    : RelevanceScorer.ForQueryType(earlyQueryType);
+                // Stage 2.5: Unified scoring pipeline (5-signal RRF with PRF + outlier penalty)
+                // All scoring goes through RetrievalPipeline.ScoreItemsAsync — single path for
+                // KB queries (zero auth/freshness + Lucene FTS), web queries (query-type-adaptive),
+                // and MCP tools. BM25 handled by Lucene at retrieval, not in scorer.
                 var queryText = interpreted?.RawPrompt ?? settings.Prompt ?? "";
-
-                // Augment BM25 query with sentinel-expanded search terms.
-                // The sentinel LLM expands abbreviations (e.g. "SNL" → "Saturday Night Live"),
-                // fixes spelling, and adds synonyms. These extra terms improve BM25F vocabulary
-                // coverage without affecting the embedding-based semantic similarity signal.
-                var bm25Query = queryText;
-                if (interpreted?.SearchQueries?.Count > 0)
-                {
-                    var extraTerms = string.Join(" ", interpreted.SearchQueries);
-                    bm25Query = $"{queryText} {extraTerms}";
-                    fetchTask.Description = $"[cyan]BM25: +{interpreted.SearchQueries.Count} terms[/]";
-                    if (settings.DebugPipeline)
-                        AnsiConsole.MarkupLine($"[grey]BM25 expanded: +{interpreted.SearchQueries.Count} sentinel terms[/]");
-                }
-
-                // Compute keyword profiles for items that don't have them yet (web-fetched items)
-                foreach (var item in uniqueItems)
-                {
-                    if (string.IsNullOrEmpty(item.Keywords))
-                    {
-                        var profile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
-                        item.Keywords = profile.KeywordsText;
-                    }
-                }
-
-                // Compute embeddings for ALL items BEFORE scoring
-                // This enables semantic matching in Phase 1 (e.g. "pharmaceutical" matches "drug pricing")
-                // without needing synonym dictionaries — embeddings capture semantic similarity dynamically
                 float[]? queryEmbedding = null;
-                float[]? vibeEmbedding = null;
-                List<float[]>? subqueryEmbeddings = null; // For composite queries: embeddings for each subquery
+                List<float[]>? subqueryEmbeddings = null;
+
+                // Compute query embedding (needed for scoring and post-scoring steps)
                 if (!string.IsNullOrWhiteSpace(queryText))
                 {
-                    // Compute embeddings for items that need them
-                    var itemsNeedingEmbedding = uniqueItems.Where(i => i.Embedding == null).ToList();
-                    if (itemsNeedingEmbedding.Count > 0)
-                    {
-                        var textsToEmbed = itemsNeedingEmbedding
-                            .Select(item => $"{item.Title} {item.Content ?? ""}".Trim())
-                            .ToList();
-                        var embeddings = await boot.Embedding.EmbedBatchAsync(textsToEmbed, cancellationToken);
-                        for (var i = 0; i < itemsNeedingEmbedding.Count; i++)
-                            itemsNeedingEmbedding[i].Embedding = embeddings[i];
-                    }
-
                     queryEmbedding = await boot.Embedding.EmbedAsync(queryText, cancellationToken);
 
-                    // Composite query handling: embed each subquery for multi-query retrieval
-                    // Items are scored against the BEST matching subquery (max similarity)
+                    // Composite query: embed each subquery for multi-query evidence checks
                     if (interpreted?.SentinelIntent?.HasSubqueries == true)
                     {
                         var subqueryTexts = interpreted.SentinelIntent.Subqueries!;
@@ -1355,141 +1198,52 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         if (settings.DebugPipeline)
                             AnsiConsole.MarkupLine($"[grey]Multi-query: {subqueryEmbeddings.Count} subquery embeddings[/]");
                     }
-
-                    var vibeText = GetVibeRepresentativeText(vibe);
-                    vibeEmbedding = vibe != "neutral" ? await boot.Embedding.EmbedAsync(vibeText, cancellationToken) : null;
-
-                    // Quality anchors: detect clickbait vs substantive content
-                    var highQualityAnchor = await boot.Embedding.EmbedAsync(RelevanceScorer.HighQualityAnchorText, cancellationToken);
-                    var lowQualityAnchor = await boot.Embedding.EmbedAsync(RelevanceScorer.LowQualityAnchorText, cancellationToken);
-                    scorer = scorer.WithQualityAnchors(highQualityAnchor, lowQualityAnchor);
                 }
 
-                // Load global keyword corpus for proper IDF computation
-                // (IDF from full corpus is more reliable than batch-only IDF)
-                Dictionary<string, int>? globalCorpus = null;
-                int? globalCorpusSize = null;
-                try
-                {
-                    globalCorpus = await boot.Storage.GetKeywordCorpusAsync();
-                    if (globalCorpus.Count > 0)
-                    {
-                        globalCorpusSize = await boot.Storage.GetKeywordCorpusSizeAsync();
-                        fetchTask.Description = $"[cyan]IDF: {globalCorpus.Count} terms[/]";
-                        if (settings.DebugPipeline)
-                            AnsiConsole.MarkupLine($"[grey]Global IDF: {globalCorpus.Count} terms, {globalCorpusSize} docs[/]");
-                    }
-                    else
-                    {
-                        globalCorpus = null; // Fall back to batch IDF
-                    }
-                }
-                catch
-                {
-                    // Keyword corpus not yet populated — fall back to batch IDF
-                }
+                var scoringVibeText = vibe != "neutral" ? GetVibeRepresentativeText(vibe) : null;
 
-                // Phase 1: Fast discard using BM25 + freshness + authority + semantic similarity
-                if (!string.IsNullOrWhiteSpace(queryText) && uniqueItems.Count > 5)
+                // Construct pipeline once — reused for scoring and potential re-search
+                var scoringPipeline = new RetrievalPipeline(boot.Embedding, boot.Storage, boot.EntityStore);
+                ScoringOptions? scoringOpts = null;
+                ScoringResult? scoringResult = null;
+
+                if (!string.IsNullOrWhiteSpace(queryText) && queryEmbedding != null)
                 {
                     var preScoreCount = uniqueItems.Count;
 
-                    // Capture pre-discard scores for debug output
-                    List<(ContentItem item, double bm25, double freshness, double authority, double qSim)>? phase1Debug = null;
-                    if (settings.DebugPipeline)
+                    scoringOpts = new ScoringOptions
                     {
-                        var qt = RelevanceScorer.Tokenize(bm25Query);
-                        var (idf, avgDocLen) = RelevanceScorer.BuildCorpusStats(uniqueItems, globalCorpus, globalCorpusSize);
-                        var authLookup = RelevanceScorer.ComputeAuthorityScores(uniqueItems)
-                            .ToDictionary(x => x.item.Id, x => x.score);
-                        phase1Debug = uniqueItems.Select(i => (
-                            item: i,
-                            bm25: (double)RelevanceScorer.BM25FScore(i, qt, idf, avgDocLen),
-                            freshness: RelevanceScorer.ComputeFreshness(i),
-                            authority: authLookup.GetValueOrDefault(i.Id, 0.3),
-                            // Multi-query: use max similarity across subqueries for composite queries
-                            qSim: (double)ComputeMaxQuerySimilarity(i.Embedding, queryEmbedding, subqueryEmbeddings)
-                        )).ToList();
-                    }
+                        Query = queryText,
+                        QueryEmbedding = queryEmbedding,
+                        VibeText = scoringVibeText,
+                        IsKnowledgeBase = isLocalMode,
+                        QueryType = earlyQueryType,
+                        UseOutlierPenalty = true,
+                        UseEmbeddingDedup = false, // Web-mode uses URL/title dedup instead
+                    };
 
-                    uniqueItems = scorer.ScoreFast(uniqueItems, bm25Query, discardRatio: 0.25, queryEmbedding: queryEmbedding,
-                        globalCorpus: globalCorpus, globalCorpusSize: globalCorpusSize);
-
-                    if (settings.DebugPipeline && phase1Debug != null)
-                    {
-                        // Show which items were kept vs discarded
-                        var keptIds = new HashSet<string>(uniqueItems.Select(i => i.Id));
-                        AnsiConsole.WriteLine();
-                        var table = new Table()
-                            .Title("[bold yellow]Phase 1: Scoring (BM25F + Freshness + Authority + Semantic)[/]")
-                            .Border(TableBorder.Rounded)
-                            .AddColumn("[cyan]Status[/]")
-                            .AddColumn("[cyan]Source[/]")
-                            .AddColumn("[cyan]BM25F[/]")
-                            .AddColumn("[cyan]Fresh[/]")
-                            .AddColumn("[cyan]Auth[/]")
-                            .AddColumn("[cyan]QSim[/]")
-                            .AddColumn("[cyan]RRF[/]")
-                            .AddColumn("[cyan]Title[/]");
-
-                        foreach (var d in phase1Debug.OrderByDescending(x => x.item.RelevanceScore).Take(30))
-                        {
-                            var kept = keptIds.Contains(d.item.Id);
-                            var status = kept ? "[green]KEPT[/]" : "[red]CUT[/]";
-                            table.AddRow(
-                                status,
-                                Markup.Escape(d.item.Source),
-                                $"{d.bm25:F2}",
-                                $"{d.freshness:F2}",
-                                $"{d.authority:F2}",
-                                $"{d.qSim:F3}",
-                                $"{d.item.RelevanceScore:F3}",
-                                Markup.Escape(d.item.Title.Length > 60 ? d.item.Title[..57] + "..." : d.item.Title));
-                        }
-                        AnsiConsole.Write(table);
-                        AnsiConsole.MarkupLine($"[grey]Query type: {earlyQueryType} | BM25 tokens: {string.Join(", ", RelevanceScorer.Tokenize(bm25Query))}[/]");
-                    }
+                    scoringResult = await scoringPipeline.ScoreItemsAsync(uniqueItems, scoringOpts, cancellationToken);
+                    uniqueItems = scoringResult.Items;
 
                     if (uniqueItems.Count < preScoreCount)
                         fetchTask.Description = $"[cyan]Relevance: {uniqueItems.Count} items[/]";
-                    if (settings.DebugPipeline && uniqueItems.Count < preScoreCount)
-                        AnsiConsole.MarkupLine($"[grey]Fast relevance filter: {preScoreCount} → {uniqueItems.Count} items (discarded low-salience)[/]");
-                }
-
-                // PRF centroid refinement: blend query embedding with top-K results from Phase 1.
-                // This captures the "semantic neighborhood" of relevant results, helping with
-                // vocabulary mismatch (e.g. query "drug pricing" finds "pharmaceutical costs").
-                float[]? refinedQueryEmbedding = queryEmbedding;
-                if (queryEmbedding != null && uniqueItems.Count >= 5)
-                {
-                    refinedQueryEmbedding = RelevanceScorer.ComputePRFCentroid(uniqueItems, queryEmbedding);
-                    if (refinedQueryEmbedding != queryEmbedding)
-                        fetchTask.Description = $"[cyan]PRF: refined from top-{Math.Min(5, uniqueItems.Count)}[/]";
-                    if (settings.DebugPipeline && refinedQueryEmbedding != queryEmbedding)
-                        AnsiConsole.MarkupLine($"[grey]PRF: refined query embedding from top-{Math.Min(5, uniqueItems.Count)} results[/]");
-                }
-
-                // Phase 2: Full RRF with vibe alignment added (embeddings already computed)
-                if (!string.IsNullOrWhiteSpace(queryText) && refinedQueryEmbedding != null)
-                {
-                    uniqueItems = scorer.ScoreFull(uniqueItems, bm25Query, refinedQueryEmbedding, vibeEmbedding,
-                        globalCorpus: globalCorpus, globalCorpusSize: globalCorpusSize);
+                    fetchTask.Description = $"[cyan]RRF ranked: {uniqueItems.Count} items[/]";
 
                     if (settings.DebugPipeline)
                     {
-                        // Recompute individual Phase 2 signals for debug display
-                        var qt = RelevanceScorer.Tokenize(bm25Query);
-                        var (idf2, avgDocLen2) = RelevanceScorer.BuildCorpusStats(uniqueItems, globalCorpus, globalCorpusSize);
+                        if (uniqueItems.Count < preScoreCount)
+                            AnsiConsole.MarkupLine($"[grey]Fast relevance filter: {preScoreCount} → {uniqueItems.Count} items[/]");
+
+                        // Post-hoc signal breakdown for debug display
                         var authLookup2 = RelevanceScorer.ComputeAuthorityScores(uniqueItems)
                             .ToDictionary(x => x.item.Id, x => x.score);
 
                         AnsiConsole.WriteLine();
                         var table = new Table()
-                            .Title("[bold yellow]Phase 2: Full RRF (+ Query Similarity + Vibe Alignment)[/]")
+                            .Title("[bold yellow]Scoring Pipeline Results (5-signal RRF)[/]")
                             .Border(TableBorder.Rounded)
                             .AddColumn("[cyan]#[/]")
                             .AddColumn("[cyan]Source[/]")
-                            .AddColumn("[cyan]BM25F[/]")
                             .AddColumn("[cyan]Fresh[/]")
                             .AddColumn("[cyan]Auth[/]")
                             .AddColumn("[cyan]QSim[/]")
@@ -1497,21 +1251,23 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             .AddColumn("[cyan]RRF[/]")
                             .AddColumn("[cyan]Title[/]");
 
+                        float[]? debugVibeEmbed = null;
+                        if (scoringVibeText != null)
+                            debugVibeEmbed = await boot.Embedding.EmbedAsync(scoringVibeText, cancellationToken);
+
                         var rank = 1;
+                        var debugQueryEmbed = scoringResult.RefinedQueryEmbedding ?? queryEmbedding;
                         foreach (var item in uniqueItems.Take(25))
                         {
-                            var bm25 = RelevanceScorer.BM25FScore(item, qt, idf2, avgDocLen2);
                             var fresh = RelevanceScorer.ComputeFreshness(item);
                             var auth = authLookup2.GetValueOrDefault(item.Id, 0.3);
-                            // Multi-query: use max similarity across subqueries for composite queries
-                            var qSim = ComputeMaxQuerySimilarity(item.Embedding, refinedQueryEmbedding, subqueryEmbeddings);
-                            var vSim = vibeEmbedding != null && item.Embedding != null
-                                ? VectorMath.CosineSimilarity(item.Embedding, vibeEmbedding) : 0f;
+                            var qSim = ComputeMaxQuerySimilarity(item.Embedding, debugQueryEmbed, subqueryEmbeddings);
+                            var vSim = debugVibeEmbed != null && item.Embedding != null
+                                ? VectorMath.CosineSimilarity(item.Embedding, debugVibeEmbed) : 0f;
 
                             table.AddRow(
                                 $"{rank++}",
                                 Markup.Escape(item.Source),
-                                $"{bm25:F2}",
                                 $"{fresh:F2}",
                                 $"{auth:F2}",
                                 $"{qSim:F3}",
@@ -1520,50 +1276,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 Markup.Escape(item.Title.Length > 50 ? item.Title[..47] + "..." : item.Title));
                         }
                         AnsiConsole.Write(table);
-                    }
 
-                    fetchTask.Description = $"[cyan]RRF ranked: {uniqueItems.Count} items[/]";
-                    if (settings.DebugPipeline)
-                    {
                         var topScore = uniqueItems.FirstOrDefault()?.RelevanceScore ?? 0;
                         var botScore = uniqueItems.LastOrDefault()?.RelevanceScore ?? 0;
                         AnsiConsole.MarkupLine($"[grey]RRF ranked {uniqueItems.Count} items (top={topScore:F3}, bot={botScore:F3})[/]");
-                    }
-                }
-
-                // Stage 2.5α: Query-term coverage outlier detection
-                // Items missing distinctive query terms (high IDF) get penalized.
-                // Prevents "RAG for Implementers" from ranking alongside HTMX articles
-                // when the query is "How does HTMX work with ASP.NET?".
-                // Skipped for Roundup queries where diverse topics are expected.
-                // Uses semantic similarity when query embedding is available for better detection
-                // (e.g., "Google Auth" is semantically related to "authentication" query).
-                if (earlyQueryType != QueryType.Roundup && globalCorpus != null && !string.IsNullOrWhiteSpace(bm25Query))
-                {
-                    var qt = RelevanceScorer.Tokenize(bm25Query);
-                    var (idfForCoverage, _) = RelevanceScorer.BuildCorpusStats(uniqueItems, globalCorpus, globalCorpusSize);
-                    // Pass query embedding for semantic outlier detection (catches synonyms/related terms)
-                    var outlierQueryEmbed = refinedQueryEmbedding ?? queryEmbedding;
-                    var penalties = RelevanceScorer.ComputeQueryTermCoverage(
-                        uniqueItems, qt, idfForCoverage, queryEmbedding: outlierQueryEmbed);
-                    var penalizedCount = RelevanceScorer.ApplyOutlierPenalties(uniqueItems, penalties);
-
-                    if (penalizedCount > 0)
-                    {
-                        // Re-sort after penalty
-                        uniqueItems = uniqueItems.OrderByDescending(i => i.RelevanceScore).ToList();
-                        fetchTask.Description = $"[cyan]Outlier filter: {penalizedCount} penalized[/]";
-                        if (settings.DebugPipeline)
-                        {
-                            var detectionMode = outlierQueryEmbed != null ? "semantic" : "term-based";
-                            AnsiConsole.MarkupLine($"[grey]Outlier detection ({detectionMode}): {penalizedCount} items penalized[/]");
-                            foreach (var (id, penalty) in penalties)
-                            {
-                                var title = uniqueItems.FirstOrDefault(i => i.Id == id)?.Title ?? id;
-                                if (title.Length > 50) title = title[..47] + "...";
-                                AnsiConsole.MarkupLine($"[grey]  ⤷ {Markup.Escape(title)}: ×{penalty:F2}[/]");
-                            }
-                        }
                     }
                 }
 
@@ -1771,10 +1487,13 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 for (var ei = 0; ei < newItems.Count; ei++)
                                     newItems[ei].Embedding = newEmbeddings[ei];
 
-                                // Merge and re-score
+                                // Merge and re-score through the unified pipeline
                                 uniqueItems.AddRange(newItems);
-                                uniqueItems = scorer.ScoreFull(uniqueItems, bm25Query, queryEmbedding, vibeEmbedding,
-                                    globalCorpus: globalCorpus, globalCorpusSize: globalCorpusSize);
+                                if (scoringOpts != null)
+                                {
+                                    var reScored = await scoringPipeline.ScoreItemsAsync(uniqueItems, scoringOpts, cancellationToken);
+                                    uniqueItems = reScored.Items;
+                                }
 
                                 fetchTask.Description = $"[cyan]Re-search: +{newItems.Count} items[/]";
                                 if (settings.DebugPipeline)

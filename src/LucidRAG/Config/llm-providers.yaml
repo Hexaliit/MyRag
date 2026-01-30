@@ -25,6 +25,31 @@ backends:
     max_retries: 5
     circuit_breaker_duration_seconds: 60
 
+  # --- Multi-endpoint load balancing examples (uncomment to use) ---
+  #
+  # ollama-cluster:
+  #   type: ollama
+  #   endpoints:
+  #     - url: http://localhost:11434
+  #       name: local-gpu
+  #     - url: http://192.168.1.100:11434
+  #       name: remote-gpu-1
+  #     - url: http://192.168.1.101:11434
+  #       name: workstation
+  #   selection: fastest              # round_robin | fastest
+  #   health_check_interval_seconds: 30
+  #   timeout_seconds: 120
+  #   enabled: true
+  #
+  # lmstudio-cluster:
+  #   type: lmstudio
+  #   endpoints:
+  #     - url: http://localhost:1234/v1
+  #     - url: http://192.168.1.100:1234/v1
+  #   selection: round_robin
+  #   timeout_seconds: 120
+  #   enabled: false
+
   anthropic:
     type: anthropic
     base_url: https://api.anthropic.com
@@ -126,6 +151,17 @@ models:
     temperature: 0.3
     capabilities:
       - vision
+
+  # Multi-endpoint model example (restrict to specific endpoints in a cluster):
+  # llama3-cluster:
+  #   backend: ollama-cluster
+  #   model: llama3.2:3b
+  #   context_window: 8192
+  #   max_tokens: 4096
+  #   temperature: 0.3
+  #   endpoints:                      # restrict to subset of backend endpoints
+  #     - http://localhost:11434
+  #     - http://192.168.1.100:11434
 
   # LMStudio models
   lmstudio-default:
