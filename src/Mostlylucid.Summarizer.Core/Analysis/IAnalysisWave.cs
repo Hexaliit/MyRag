@@ -2,9 +2,9 @@ namespace Mostlylucid.Summarizer.Core.Analysis;
 
 /// <summary>
 /// Base interface for pluggable analysis components that produce signals.
-/// Waves are composable analyzers that run in priority order within concurrency lanes.
+/// Extends IWave so all analysis waves are also unified waves.
 /// </summary>
-public interface IAnalysisWave
+public interface IAnalysisWave : IWave
 {
     /// <summary>
     /// Unique name identifying this analysis wave.
@@ -35,6 +35,7 @@ public interface IAnalysisWave
 
 /// <summary>
 /// Analysis wave for in-memory content (markdown text, structured data, etc.).
+/// Provides a default IWave.ExecuteAsync that gets content from context cache.
 /// </summary>
 /// <typeparam name="T">Type of content to analyze.</typeparam>
 public interface ITypedAnalysisWave<T> : IAnalysisWave
@@ -51,10 +52,25 @@ public interface ITypedAnalysisWave<T> : IAnalysisWave
         T content,
         AnalysisContext context,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Default IWave bridge: gets typed content from cache key "content" and delegates to AnalyzeAsync.
+    /// </summary>
+    async Task<IReadOnlyList<Signal>> IWave.ExecuteAsync(WaveContext context, CancellationToken ct)
+    {
+        var content = context.Cache.Get<T>("content");
+        if (content is null) return [];
+        var analysisContext = new AnalysisContext { SelectedRoute = context.Route };
+        foreach (var signal in context.Signals.All)
+            analysisContext.AddSignal(signal);
+        var result = await AnalyzeAsync(content, analysisContext, ct);
+        return result.ToList();
+    }
 }
 
 /// <summary>
 /// Analysis wave for path-based content (files on disk).
+/// Provides a default IWave.ExecuteAsync that bridges to AnalyzeAsync.
 /// </summary>
 public interface IContentAnalysisWave : IAnalysisWave
 {
@@ -70,6 +86,20 @@ public interface IContentAnalysisWave : IAnalysisWave
         string contentPath,
         AnalysisContext context,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Default IWave bridge: gets file path from context and delegates to AnalyzeAsync.
+    /// </summary>
+    async Task<IReadOnlyList<Signal>> IWave.ExecuteAsync(WaveContext context, CancellationToken ct)
+    {
+        if (context.FilePath is null) return [];
+        var analysisContext = new AnalysisContext { SelectedRoute = context.Route };
+        // Copy existing signals into analysis context
+        foreach (var signal in context.Signals.All)
+            analysisContext.AddSignal(signal);
+        var result = await AnalyzeAsync(context.FilePath, analysisContext, ct);
+        return result.ToList();
+    }
 }
 
 /// <summary>

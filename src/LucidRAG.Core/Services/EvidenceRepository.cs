@@ -6,6 +6,7 @@ using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Multitenancy;
 using LucidRAG.Services.Storage;
+using Mostlylucid.DocSummarizer.Search;
 
 namespace LucidRAG.Services;
 
@@ -102,6 +103,7 @@ public class EvidenceRepository(
     IEvidenceStorage storage,
     ITenantLfuCacheService? cache,
     ITenantAccessor? tenantAccessor,
+    IFullTextSearch? fullTextSearch,
     ILogger<EvidenceRepository> logger) : IEvidenceRepository
 {
     public async Task<Guid> StoreAsync(
@@ -185,6 +187,23 @@ public class EvidenceRepository(
 
         db.EvidenceArtifacts.Add(artifact);
         await db.SaveChangesAsync(ct);
+
+        // Index text artifacts in Lucene for core FTS
+        if (fullTextSearch != null && storeInline && !string.IsNullOrEmpty(inlineContent))
+        {
+            try
+            {
+                await fullTextSearch.IndexDocumentAsync(
+                    artifact.Id.ToString(),
+                    "", // evidence artifacts don't have separate titles
+                    inlineContent,
+                    ct: ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to index artifact {ArtifactId} in Lucene FTS", artifact.Id);
+            }
+        }
 
         logger.LogInformation(
             "Stored evidence artifact {ArtifactId} type={Type} for entity {EntityId} ({Size} bytes), segmentHash={SegmentHash}",

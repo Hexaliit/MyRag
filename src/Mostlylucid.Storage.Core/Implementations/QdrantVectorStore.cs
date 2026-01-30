@@ -16,7 +16,7 @@ namespace Mostlylucid.Storage.Core.Implementations;
 /// Provides persistent storage, distributed support, and advanced filtering.
 /// Requires Qdrant server to be running.
 /// </summary>
-public class QdrantVectorStore : IVectorStore
+public class QdrantVectorStore : IMultiVectorStore
 {
     private readonly QdrantClient _client;
     private readonly ILogger<QdrantVectorStore> _logger;
@@ -53,13 +53,7 @@ public class QdrantVectorStore : IVectorStore
                     new VectorParams
                     {
                         Size = (ulong)schema.VectorDimension,
-                        Distance = schema.DistanceMetric switch
-                        {
-                            VectorDistance.Cosine => Distance.Cosine,
-                            VectorDistance.Euclidean => Distance.Euclid,
-                            VectorDistance.DotProduct => Distance.Dot,
-                            _ => Distance.Cosine
-                        }
+                        Distance = MapDistance(schema.DistanceMetric)
                     },
                     cancellationToken: ct);
 
@@ -643,6 +637,203 @@ public class QdrantVectorStore : IVectorStore
                 summary.DocumentId, collectionName);
         }
     }
+
+    // ========== Multi-Vector Operations ==========
+
+    public async Task InitializeMultiVectorAsync(
+        string collectionName,
+        VectorStoreSchema primarySchema,
+        IEnumerable<NamedVectorConfig> namedVectors,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var collections = await _client.ListCollectionsAsync(ct);
+            var exists = collections.Any(c => c == collectionName);
+
+            if (!exists)
+            {
+                var namedVectorList = namedVectors.ToList();
+
+                // Build VectorParamsMap with default + named vectors
+                var vectorParamsMap = new VectorParamsMap();
+                vectorParamsMap.Map[""] = new VectorParams
+                {
+                    Size = (ulong)primarySchema.VectorDimension,
+                    Distance = MapDistance(primarySchema.DistanceMetric)
+                };
+
+                foreach (var nv in namedVectorList)
+                {
+                    vectorParamsMap.Map[nv.Name] = new VectorParams
+                    {
+                        Size = (ulong)nv.Dimension,
+                        Distance = MapDistance(nv.DistanceMetric)
+                    };
+                }
+
+                await _client.CreateCollectionAsync(
+                    collectionName,
+                    vectorParamsMap,
+                    cancellationToken: ct);
+
+                var names = string.Join(", ", namedVectorList.Select(n => $"{n.Name}({n.Dimension})"));
+                _logger.LogInformation(
+                    "Created Qdrant multi-vector collection {Collection} (primary dim={Dim}, named=[{Named}])",
+                    collectionName, primarySchema.VectorDimension, names);
+            }
+            else
+            {
+                _logger.LogDebug("Using existing Qdrant collection {Collection}", collectionName);
+            }
+
+            _collections[collectionName] = new CollectionMetadata
+            {
+                Name = collectionName,
+                VectorDimension = primarySchema.VectorDimension,
+                DistanceMetric = primarySchema.DistanceMetric,
+                StoreText = primarySchema.StoreText
+            };
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Failed to initialize Qdrant multi-vector collection '{collectionName}': {ex.Message}", ex);
+        }
+    }
+
+    public async Task UpsertMultiVectorDocumentsAsync(
+        string collectionName,
+        IEnumerable<MultiVectorDocument> documents,
+        CancellationToken ct = default)
+    {
+        var docList = documents.ToList();
+        if (docList.Count == 0) return;
+
+        var metadata = _collections.GetValueOrDefault(collectionName);
+        if (metadata == null)
+        {
+            throw new InvalidOperationException(
+                $"Collection '{collectionName}' not initialized. Call InitializeMultiVectorAsync first.");
+        }
+
+        var points = docList.Select(d =>
+        {
+            // Build named vectors map including the default vector
+            var namedVectors = new NamedVectors();
+            namedVectors.Vectors[""] = new Qdrant.Client.Grpc.Vector { Data = { d.Embedding } };
+
+            foreach (var (name, vector) in d.NamedVectors)
+            {
+                namedVectors.Vectors[name] = new Qdrant.Client.Grpc.Vector { Data = { vector } };
+            }
+
+            var point = new PointStruct
+            {
+                Id = new PointId { Uuid = GenerateUuidFromId(d.ContentHash ?? d.Id) },
+                Vectors = new Vectors { Vectors_ = namedVectors },
+                Payload =
+                {
+                    ["id"] = d.Id,
+                    ["parentId"] = d.ParentId ?? "",
+                    ["contentHash"] = d.ContentHash ?? "",
+                    ["createdAt"] = d.CreatedAt.ToString("O"),
+                    ["updatedAt"] = (d.UpdatedAt ?? DateTimeOffset.UtcNow).ToString("O")
+                }
+            };
+
+            if (metadata.StoreText && d.Text != null)
+            {
+                point.Payload["text"] = d.Text;
+            }
+
+            if (d.Metadata.Count > 0)
+            {
+                point.Payload["metadata"] = JsonSerializer.Serialize(d.Metadata);
+            }
+
+            return point;
+        }).ToList();
+
+        const int batchSize = 100;
+        for (int i = 0; i < points.Count; i += batchSize)
+        {
+            var batch = points.Skip(i).Take(batchSize).ToList();
+            await _client.UpsertAsync(collectionName, batch, cancellationToken: ct);
+        }
+
+        _logger.LogDebug("Upserted {Count} multi-vector documents to Qdrant collection {Collection}",
+            docList.Count, collectionName);
+    }
+
+    public async Task<List<VectorSearchResult>> SearchByNamedVectorAsync(
+        string collectionName,
+        string vectorName,
+        VectorSearchQuery query,
+        CancellationToken ct = default)
+    {
+        var metadata = _collections.GetValueOrDefault(collectionName);
+        if (metadata == null)
+        {
+            throw new InvalidOperationException(
+                $"Collection '{collectionName}' not initialized. Call InitializeMultiVectorAsync first.");
+        }
+
+        Filter? filter = null;
+        if (query.ParentId != null)
+        {
+            filter = new Filter();
+            filter.Must.Add(new Condition
+            {
+                Field = new FieldCondition
+                {
+                    Key = "parentId",
+                    Match = new Match { Keyword = query.ParentId }
+                }
+            });
+        }
+
+        var results = await _client.SearchAsync(
+            collectionName,
+            query.QueryEmbedding,
+            filter: filter,
+            limit: (ulong)query.TopK,
+            vectorName: vectorName,
+            payloadSelector: query.IncludeDocument,
+            vectorsSelector: query.IncludeEmbedding,
+            cancellationToken: ct);
+
+        return results
+            .Select(r =>
+            {
+                VectorDocument? doc = null;
+                if (query.IncludeDocument)
+                {
+                    doc = PayloadToDocument(r.Payload, query.IncludeEmbedding ? ExtractVectorData(r.Vectors) : null);
+                }
+
+                return new VectorSearchResult
+                {
+                    Id = r.Payload.TryGetValue("id", out var idVal) ? idVal.StringValue : "",
+                    Score = r.Score,
+                    Distance = null,
+                    Document = doc,
+                    Metadata = doc?.Metadata ?? new Dictionary<string, object>(),
+                    Text = query.IncludeDocument && doc != null ? doc.Text : null,
+                    ParentId = doc?.ParentId
+                };
+            })
+            .Where(r => r.Score >= query.MinScore && (!query.MaxScore.HasValue || r.Score <= query.MaxScore.Value))
+            .ToList();
+    }
+
+    private static Distance MapDistance(VectorDistance distance) => distance switch
+    {
+        VectorDistance.Cosine => Distance.Cosine,
+        VectorDistance.Euclidean => Distance.Euclid,
+        VectorDistance.DotProduct => Distance.Dot,
+        _ => Distance.Cosine
+    };
 
     // ========== Private Helpers ==========
 

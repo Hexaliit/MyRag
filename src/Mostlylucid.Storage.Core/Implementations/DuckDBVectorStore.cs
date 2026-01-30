@@ -14,7 +14,7 @@ namespace Mostlylucid.Storage.Core.Implementations;
 /// DuckDB-based vector store with VSS extension support for HNSW indexes.
 /// Falls back to in-memory cosine similarity if VSS unavailable.
 /// </summary>
-public class DuckDBVectorStore : IVectorStore
+public class DuckDBVectorStore : IMultiVectorStore
 {
     private readonly ILogger<DuckDBVectorStore> _logger;
     private readonly DuckDBOptions _options;
@@ -562,7 +562,152 @@ public class DuckDBVectorStore : IVectorStore
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    // ========== Multi-Vector Operations ==========
+
+    public async Task InitializeMultiVectorAsync(
+        string collectionName,
+        VectorStoreSchema primarySchema,
+        IEnumerable<NamedVectorConfig> namedVectors,
+        CancellationToken ct = default)
+    {
+        // Initialize the primary collection as normal
+        await InitializeAsync(collectionName, primarySchema, ct);
+
+        var namedVectorList = namedVectors.ToList();
+        if (namedVectorList.Count == 0) return;
+
+        // Store configs on the schema
+        primarySchema.NamedVectors = namedVectorList;
+
+        // Create side table for named vectors
+        var namedTable = GetNamedVectorTableName(collectionName);
+        await ExecAsync($@"
+            CREATE TABLE IF NOT EXISTS {namedTable} (
+                document_id TEXT NOT NULL,
+                vector_name TEXT NOT NULL,
+                embedding_json TEXT NOT NULL,
+                dimension INT NOT NULL,
+                PRIMARY KEY (document_id, vector_name)
+            );
+        ", ct);
+
+        await ExecAsync($"CREATE INDEX IF NOT EXISTS idx_{namedTable}_name ON {namedTable}(vector_name);", ct);
+
+        var names = string.Join(", ", namedVectorList.Select(n => $"{n.Name}({n.Dimension})"));
+        _logger.LogInformation(
+            "Initialized multi-vector collection {Collection} with named vectors: [{Named}]",
+            collectionName, names);
+    }
+
+    public async Task UpsertMultiVectorDocumentsAsync(
+        string collectionName,
+        IEnumerable<MultiVectorDocument> documents,
+        CancellationToken ct = default)
+    {
+        await EnsureConnectionAsync(ct);
+
+        var docList = documents.ToList();
+
+        // Upsert primary embeddings via existing path
+        await UpsertDocumentsAsync(collectionName, docList, ct);
+
+        // Upsert named vectors into the side table
+        var namedTable = GetNamedVectorTableName(collectionName);
+
+        foreach (var doc in docList)
+        {
+            foreach (var (name, vector) in doc.NamedVectors)
+            {
+                var embeddingJson = JsonSerializer.Serialize(vector);
+
+                var sql = $@"
+                    INSERT OR REPLACE INTO {namedTable}
+                    (document_id, vector_name, embedding_json, dimension)
+                    VALUES (@doc_id, @vec_name, @embedding_json, @dimension);
+                ";
+
+                using var cmd = _connection!.CreateCommand();
+                cmd.CommandText = sql;
+                AddParameter(cmd, "@doc_id", doc.Id);
+                AddParameter(cmd, "@vec_name", name);
+                AddParameter(cmd, "@embedding_json", embeddingJson);
+                AddParameter(cmd, "@dimension", vector.Length);
+
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+        }
+
+        _logger.LogDebug("Upserted {Count} multi-vector documents to collection {Collection}",
+            docList.Count, collectionName);
+    }
+
+    public async Task<List<VectorSearchResult>> SearchByNamedVectorAsync(
+        string collectionName,
+        string vectorName,
+        VectorSearchQuery query,
+        CancellationToken ct = default)
+    {
+        await EnsureConnectionAsync(ct);
+
+        var namedTable = GetNamedVectorTableName(collectionName);
+        var tableName = GetTableName(collectionName);
+
+        // Load named vectors from side table and compute cosine similarity in-memory
+        // (DuckDB VSS doesn't support multiple HNSW indexes per row natively)
+        var sql = $@"
+            SELECT nv.document_id, nv.embedding_json,
+                   d.parent_id, d.text, d.metadata, d.content_hash
+            FROM {namedTable} nv
+            JOIN {tableName} d ON nv.document_id = d.id
+            WHERE nv.vector_name = @vec_name
+            {(query.ParentId != null ? "AND d.parent_id = @parent_id" : "")};
+        ";
+
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        AddParameter(cmd, "@vec_name", vectorName);
+        if (query.ParentId != null)
+        {
+            AddParameter(cmd, "@parent_id", query.ParentId);
+        }
+
+        var results = new List<VectorSearchResult>();
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var docId = reader.GetString(0);
+            var embeddingJson = reader.GetString(1);
+            var embedding = JsonSerializer.Deserialize<float[]>(embeddingJson) ?? Array.Empty<float>();
+
+            var distance = CosineDistance(query.QueryEmbedding, embedding);
+            var score = 1.0 - distance;
+
+            var metadataJson = reader.GetStringOrNull(4);
+            var metadata = string.IsNullOrEmpty(metadataJson)
+                ? new Dictionary<string, object>()
+                : JsonSerializer.Deserialize<Dictionary<string, object>>(metadataJson) ?? new Dictionary<string, object>();
+
+            results.Add(new VectorSearchResult
+            {
+                Id = docId,
+                Score = score,
+                Distance = distance,
+                Metadata = metadata,
+                Text = query.IncludeDocument ? reader.GetStringOrNull(3) : null,
+                ParentId = reader.GetStringOrNull(2)
+            });
+        }
+
+        return results
+            .Where(r => r.Score >= query.MinScore && (!query.MaxScore.HasValue || r.Score <= query.MaxScore.Value))
+            .OrderByDescending(r => r.Score)
+            .Take(query.TopK)
+            .ToList();
+    }
+
     // ========== Private Helpers ==========
+
+    private static string GetNamedVectorTableName(string collectionName) => $"vec_{collectionName}_named_vectors";
 
     private async Task<List<VectorSearchResult>> SearchWithVssAsync(string tableName, VectorSearchQuery query, CancellationToken ct)
     {

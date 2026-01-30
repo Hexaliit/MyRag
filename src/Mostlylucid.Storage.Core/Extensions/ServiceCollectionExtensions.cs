@@ -30,12 +30,15 @@ public static class ServiceCollectionExtensions
         // Register configuration
         services.Configure(configure);
 
-        // Register factory that creates the appropriate implementation based on config
-        services.AddSingleton<IVectorStore>(sp =>
+        // Register as IMultiVectorStore (which extends IVectorStore, so both interfaces resolve)
+        services.AddSingleton<IMultiVectorStore>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<VectorStoreOptions>>().Value;
             return CreateVectorStore(options, sp);
         });
+
+        // Forward IVectorStore to the same singleton
+        services.AddSingleton<IVectorStore>(sp => sp.GetRequiredService<IMultiVectorStore>());
 
         return services;
     }
@@ -94,8 +97,9 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Create the appropriate vector store implementation based on configuration.
+    /// All implementations now implement IMultiVectorStore.
     /// </summary>
-    private static IVectorStore CreateVectorStore(VectorStoreOptions options, IServiceProvider serviceProvider)
+    private static IMultiVectorStore CreateVectorStore(VectorStoreOptions options, IServiceProvider serviceProvider)
     {
         return options.Backend switch
         {
@@ -106,21 +110,21 @@ public static class ServiceCollectionExtensions
         };
     }
 
-    private static IVectorStore CreateInMemoryStore(VectorStoreOptions options, IServiceProvider serviceProvider)
+    private static InMemoryVectorStore CreateInMemoryStore(VectorStoreOptions options, IServiceProvider serviceProvider)
     {
         var logger = serviceProvider.GetRequiredService<ILogger<InMemoryVectorStore>>();
         var wrappedOptions = Options.Create(options);
         return new InMemoryVectorStore(wrappedOptions, logger);
     }
 
-    private static IVectorStore CreateDuckDBStore(VectorStoreOptions options, IServiceProvider serviceProvider)
+    private static DuckDBVectorStore CreateDuckDBStore(VectorStoreOptions options, IServiceProvider serviceProvider)
     {
         var logger = serviceProvider.GetRequiredService<ILogger<DuckDBVectorStore>>();
         var wrappedOptions = Options.Create(options);
         return new DuckDBVectorStore(wrappedOptions, logger);
     }
 
-    private static IVectorStore CreateQdrantStore(VectorStoreOptions options, IServiceProvider serviceProvider)
+    private static QdrantVectorStore CreateQdrantStore(VectorStoreOptions options, IServiceProvider serviceProvider)
     {
         var logger = serviceProvider.GetRequiredService<ILogger<QdrantVectorStore>>();
         var wrappedOptions = Options.Create(options);

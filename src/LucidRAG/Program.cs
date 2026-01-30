@@ -4,6 +4,7 @@ using LucidRAG.Authorization;
 using LucidRAG.Config;
 using LucidRAG.Core.Services;
 using LucidRAG.Core.Services.Caching;
+using LucidRAG.Plugin.Postgres;
 using LucidRAG.Data;
 using LucidRAG.Extensions;
 using LucidRAG.GraphQL;
@@ -26,6 +27,7 @@ using Mostlylucid.DocSummarizer.Extensions;
 using Mostlylucid.DocSummarizer.Images.Extensions;
 using Mostlylucid.DocSummarizer.OpenAI.Extensions;
 using Mostlylucid.DocSummarizer.Data.Extensions;
+using Mostlylucid.DocSummarizer.FullText.Lucene;
 using Mostlylucid.Summarizer.Core.Extensions;
 using Mostlylucid.Summarizer.Core.Pipeline;
 using Scalar.AspNetCore;
@@ -198,13 +200,15 @@ builder.Services.AddScoped<IExplorerSearchService, ExplorerSearchService>();
 // YAML manifest-based lens system for customizable response formatting
 builder.Services.AddYamlLenses(builder.Configuration);
 
-// PostgreSQL full-text search service (10-25x faster than C# BM25)
-// Only register for PostgreSQL databases (not SQLite)
+// Full-text search: Lucene.NET is core default, PostgreSQL plugin overrides when available
+var luceneIndexPath = Path.Combine(
+    builder.Environment.ContentRootPath, "data", "lucene-index");
+builder.Services.AddLuceneFullTextSearch(luceneIndexPath);
+builder.Services.AddScoped<IBm25SearchService, LuceneBm25SearchService>();
+
+// PostgreSQL FTS plugin: override Lucene when PostgreSQL is the backend (10-25x faster)
 if (!standaloneMode && connectionString?.Contains("Host=") == true)
-    builder.Services.AddScoped<PostgresBM25Service>();
-else
-    // Standalone/SQLite mode: register null for optional injection
-    builder.Services.AddScoped<PostgresBM25Service>(sp => null!);
+    builder.Services.AddScoped<IBm25SearchService, PostgresBm25Service>();
 
 // Table extraction services
 // TableExtractorFactory must be Singleton to avoid DI scope issues with DocumentToMarkdownService
@@ -318,6 +322,13 @@ builder.Services.AddAntiforgery(options =>
 });
 
 var app = builder.Build();
+
+// Initialize Lucene FTS index
+using (var scope = app.Services.CreateScope())
+{
+    var fts = scope.ServiceProvider.GetRequiredService<Mostlylucid.DocSummarizer.Search.IFullTextSearch>();
+    await fts.InitializeAsync();
+}
 
 // Serilog request logging
 app.UseSerilogRequestLogging();

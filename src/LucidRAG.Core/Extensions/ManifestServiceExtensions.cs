@@ -1,5 +1,7 @@
+using LucidRAG.Coordination;
 using LucidRAG.Manifests;
 using LucidRAG.Services.Lenses;
+using LucidRAG.Services.Waves;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -102,7 +104,14 @@ public static class ManifestServiceExtensions
             });
         }
 
-        // TODO: Register wave registry and orchestrator
+        // Register wave registry
+        services.AddSingleton<IWaveRegistry, WaveRegistry>();
+
+        // Register coordinator for wave orchestration
+        services.AddSingleton<ICoordinator, DocumentCoordinator>();
+
+        // Register background initializer for wave registry
+        services.AddHostedService<WaveRegistryInitializer>();
 
         return services;
     }

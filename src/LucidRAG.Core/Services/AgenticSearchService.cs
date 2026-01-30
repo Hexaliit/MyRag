@@ -32,7 +32,7 @@ public class AgenticSearchService(
     ILlmService llmService,
     SynthesisCacheService synthesisCache,
     IEvidenceRepository evidenceRepository,
-    PostgresBM25Service? postgresBM25, // Optional - only for PostgreSQL
+    IBm25SearchService? bm25Search, // Optional - only when a BM25 plugin is registered
     ILensRegistry lensRegistry,
     ILensRenderService lensRender,
     IOptions<PromptsConfig> promptsConfig,
@@ -43,7 +43,7 @@ public class AgenticSearchService(
     private readonly PromptsConfig _prompts = promptsConfig.Value;
     private readonly DocSummarizerConfig _docSummarizerConfig = docSummarizerConfig.Value;
     private readonly RagDocumentsConfig _ragConfig = ragDocumentsConfig.Value;
-    private readonly PostgresBM25Service? _postgresBM25 = postgresBM25;
+    private readonly IBm25SearchService? _bm25Search = bm25Search;
 
     public async Task<SearchResult> SearchAsync(SearchRequest request, CancellationToken ct = default)
     {
@@ -720,13 +720,12 @@ ANSWER:";
 
         logger.LogDebug("Query expansion: '{Original}' → '{Expanded}'", query, queryForBm25);
 
-        // Get BM25 scores - use PostgreSQL FTS if available (10-25x faster), fall back to C# BM25
-        Dictionary<string, double> bm25ScoreLookup;
+        // Get BM25 scores via IBm25SearchService (Lucene core or PostgreSQL plugin)
+        var bm25ScoreLookup = new Dictionary<string, double>();
 
-        if (_postgresBM25 != null)
+        if (_bm25Search != null)
         {
-            // PostgreSQL FTS path (fast - database native)
-            logger.LogDebug("Using PostgreSQL FTS for BM25 scoring");
+            logger.LogDebug("Using IBm25SearchService for full-text scoring");
 
             // Map segments to evidence artifact IDs via ContentHash
             var segmentHashes = candidates
@@ -743,22 +742,19 @@ ANSWER:";
                     .Select(ea => new { ea.Id, ea.SegmentHash })
                     .ToListAsync(ct);
 
-                var evidenceIds = evidenceArtifacts.Select(ea => ea.Id).ToList();
-
-                // Use PostgreSQL FTS to score these specific evidence artifacts
-                var ftsResults = await _postgresBM25.SearchWithScoresAsync(
+                // Score via the registered BM25 service (Lucene or PostgreSQL)
+                var ftsResults = await _bm25Search.SearchWithScoresAsync(
                     queryForBm25,
-                    topK: evidenceIds.Count, // Get scores for all candidates
-                    documentIds: null, // Not filtering by document here
+                    topK: evidenceArtifacts.Count,
+                    documentIds: null,
                     ct);
 
-                // Build lookup: SegmentHash -> BM25 score (use DistinctBy to handle duplicate hashes)
+                // Build lookup: SegmentHash -> BM25 score
                 var hashToIdLookup = evidenceArtifacts
                     .DistinctBy(ea => ea.SegmentHash!)
                     .ToDictionary(ea => ea.SegmentHash!, ea => ea.Id);
                 var idToScoreLookup = ftsResults.ToDictionary(r => r.artifact.Id, r => r.score);
 
-                bm25ScoreLookup = new Dictionary<string, double>();
                 foreach (var candidate in candidates)
                 {
                     if (!string.IsNullOrEmpty(candidate.Segment.ContentHash) &&
@@ -769,23 +765,6 @@ ANSWER:";
                     }
                 }
             }
-            else
-            {
-                bm25ScoreLookup = new Dictionary<string, double>();
-            }
-        }
-        else
-        {
-            // C# BM25 fallback path (slower - for SQLite or when PostgreSQL FTS unavailable)
-            logger.LogDebug("Using C# BM25 for scoring (fallback)");
-
-            var corpus = Bm25Corpus.Build(candidates.Select(c => Bm25Scorer.Tokenize(c.Segment.Text)));
-            var bm25 = new Bm25Scorer(corpus);
-
-            bm25ScoreLookup = candidates.ToDictionary(
-                c => c.Segment.Id,
-                c => bm25.Score(queryForBm25, c.Segment.Text)
-            );
         }
 
         // Score all candidates with BM25 scores and get document freshness

@@ -99,12 +99,16 @@
     <!-- DocSummarizer + backend packages (conditional: ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Anthropic\Mostlylucid.DocSummarizer.Anthropic.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.OpenAI\Mostlylucid.DocSummarizer.OpenAI.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Rdbms.Sqlite\Mostlylucid.DocSummarizer.Rdbms.Sqlite.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.FullText.Lucene\Mostlylucid.DocSummarizer.FullText.Lucene.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.FullText.Sqlite\Mostlylucid.DocSummarizer.FullText.Sqlite.csproj" />
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
         <PackageReference Include="Mostlylucid.DocSummarizer" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.DocSummarizer.Anthropic" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.DocSummarizer.OpenAI" Version="$(CorePackageVersion)" />
         <PackageReference Include="Mostlylucid.DocSummarizer.Rdbms.Sqlite" Version="$(CorePackageVersion)" />
         <PackageReference Include="Mostlylucid.DocSummarizer.FullText.Lucene" Version="$(CorePackageVersion)" />
         <PackageReference Include="Mostlylucid.DocSummarizer.FullText.Sqlite" Version="$(CorePackageVersion)" />

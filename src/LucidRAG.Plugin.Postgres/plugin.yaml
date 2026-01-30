@@ -1,0 +1,19 @@
+name: postgres
+display_name: "PostgreSQL"
+version: 1.0.0
+description: "PostgreSQL storage plugin with ts_rank_cd full-text search, pgVector embeddings, and schema-based multitenancy"
+author: "Scott Galloway"
+license: MIT
+
+waves:
+  - PostgresBm25Wave
+
+requires:
+  - LucidRAG.Core
+
+config:
+  connection_string:
+    type: string
+    required: true
+    secret: true
+    description: "PostgreSQL connection string"

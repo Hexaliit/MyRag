@@ -27,6 +27,7 @@
     <ItemGroup>
         <ProjectReference Include="..\LucidRAG\LucidRAG.csproj"/>
         <ProjectReference Include="..\LucidRAG.Core\LucidRAG.Core.csproj"/>
+        <ProjectReference Include="..\LucidRAG.Plugin.Postgres\LucidRAG.Plugin.Postgres.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

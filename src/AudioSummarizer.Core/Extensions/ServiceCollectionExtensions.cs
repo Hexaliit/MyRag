@@ -73,6 +73,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAudioWave, TranscriptionWave>();      // Phase 3: Priority 60
         services.AddSingleton<IAudioWave, SpeakerDiarizationWave>(); // Phase 5: Priority 50
         services.AddSingleton<IAudioWave, VoiceEmbeddingWave>();     // Phase 4: Priority 30
+        services.AddSingleton<IAudioWave, EmbeddingStorageWave>();  // Phase 4b: Priority 20 (storage)
 
         // Register the pipeline for unified pipeline registry
         services.AddSingleton<AudioPipeline>();

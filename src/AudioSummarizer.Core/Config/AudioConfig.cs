@@ -175,4 +175,14 @@ public class VoiceEmbeddingConfig
     /// Minimum audio duration in seconds for reliable embedding
     /// </summary>
     public double MinDurationSeconds { get; set; } = 1.0;
+
+    /// <summary>
+    /// Whether to persist voice embeddings to the vector store (when available).
+    /// </summary>
+    public bool PersistEmbeddings { get; set; } = true;
+
+    /// <summary>
+    /// Vector store collection name for persisted audio embeddings.
+    /// </summary>
+    public string CollectionName { get; set; } = "audio_embeddings";
 }

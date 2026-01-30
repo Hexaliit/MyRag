@@ -77,6 +77,12 @@ public class VectorStoreSchema
     /// Set to false for privacy-preserving deployments.
     /// </summary>
     public bool StoreText { get; set; } = true;
+
+    /// <summary>
+    /// Named vector configurations for multi-vector collections.
+    /// Empty for single-vector collections.
+    /// </summary>
+    public List<NamedVectorConfig> NamedVectors { get; set; } = new();
 }
 
 /// <summary>

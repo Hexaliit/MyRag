@@ -221,7 +221,7 @@ public class TextOnlyImagePipelineTests
         photoWithCaption.EdgeDensity.Should().BeGreaterThan(pureLogo.EdgeDensity,
             "photos have more complex edge patterns from scenes");
 
-        (pureLogo.DominantColors.Count).Should().BeLessOrEqualTo(3,
+        (pureLogo.DominantColors.Count).Should().BeLessThanOrEqualTo(3,
             "logos typically use limited color palettes");
 
         (photoWithCaption.DominantColors.Count).Should().BeGreaterThan(pureLogo.DominantColors.Count,

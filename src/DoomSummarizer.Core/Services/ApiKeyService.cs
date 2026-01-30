@@ -163,7 +163,7 @@ public class ApiKeyService : IServiceBudgetLookup
             {
                 Name = "openai",
                 SearchEngineId = "gpt-4o-mini|gpt-4o-mini", // main|sentinel model
-                Enabled = true,
+                Enabled = false, // disabled by default — Ollama is the primary LLM
                 MaxRequestsPerDay = 200,
                 CostPerRequest = 0.0003 // ~$0.30/1M input tokens for gpt-4o-mini
             };
@@ -175,7 +175,7 @@ public class ApiKeyService : IServiceBudgetLookup
             {
                 Name = "anthropic",
                 SearchEngineId = "claude-sonnet-4-20250514|claude-3-5-haiku-latest", // main|sentinel
-                Enabled = true,
+                Enabled = false, // disabled by default — Ollama is the primary LLM
                 MaxRequestsPerDay = 200,
                 CostPerRequest = 0.003 // ~$3/1M input tokens for Sonnet 3.5
             };

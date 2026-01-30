@@ -1,5 +1,9 @@
 using System.Text.Json;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Anthropic.Config;
+using Mostlylucid.DocSummarizer.Anthropic.Services;
+using Mostlylucid.DocSummarizer.OpenAI.Config;
+using Mostlylucid.DocSummarizer.OpenAI.Services;
 using Mostlylucid.DocSummarizer.Resilience;
 using Mostlylucid.DocSummarizer.Services;
 
@@ -9,6 +13,7 @@ namespace DoomSummarizer.Services;
 /// Routes LLM calls across providers with budget enforcement and fallback.
 /// Provider priority: configured cloud → Ollama (free, always available).
 /// Budget is checked before each cloud API call.
+/// Internally delegates to DocSummarizer's ILlmService implementations.
 /// </summary>
 public class LlmRouter : ILlmService
 {
@@ -18,31 +23,29 @@ public class LlmRouter : ILlmService
     private readonly OllamaConfig _ollamaConfig;
 
     private record ProviderEntry(
-        ILlmProvider Provider, string? BudgetServiceName, bool IsLocal, ApiKeyEntry? ServiceEntry);
+        ILlmService Service, string? BudgetServiceName, bool IsLocal, ApiKeyEntry? ServiceEntry);
 
     public bool HasCloudProvider => _providers.Any(p => !p.IsLocal);
 
     /// <summary>
     /// Human-readable description of the active LLM configuration (for status display).
+    /// Ollama is always the primary provider; cloud providers are fallbacks only.
     /// </summary>
     public string StatusDescription
     {
         get
         {
+            var desc = $"main: {_ollamaConfig.Model} | sentinel: {_ollamaConfig.SentinelModel}";
+
             var cloudFallback = _providers.FirstOrDefault(p => !p.IsLocal);
             if (cloudFallback != null)
             {
                 var models = (cloudFallback.ServiceEntry?.SearchEngineId ?? "").Split('|');
                 var mainModel = models.Length > 0 ? models[0] : "unknown";
-                var sentinelModel = models.Length > 1 ? models[1] : null;
-
-                var sentinel = $"sentinel: {_ollamaConfig.SentinelModel}";
-                if (sentinelModel != null)
-                    sentinel = $"sentinel: {sentinelModel}";
-
-                return $"main: {mainModel} | {sentinel}";
+                desc += $" (fallback: {mainModel})";
             }
-            return $"main: {_ollamaConfig.Model} | sentinel: {_ollamaConfig.SentinelModel}";
+
+            return desc;
         }
     }
 
@@ -65,23 +68,45 @@ public class LlmRouter : ILlmService
         var router = new LlmRouter(budget, circuit, ollamaConfig);
 
         // Ollama is the primary provider — local, free, no API costs
-        router._providers.Add(new(new OllamaLlmProvider(ollamaConfig), null, true, null));
+        var docSumOllamaService = new Mostlylucid.DocSummarizer.Services.OllamaService(
+            ollamaConfig.Model,
+            ollamaConfig.EmbedModel,
+            ollamaConfig.BaseUrl,
+            TimeSpan.FromSeconds(ollamaConfig.TimeoutSeconds));
+        var ollamaLlm = new OllamaLlmService(docSumOllamaService,
+            new Mostlylucid.DocSummarizer.Config.OllamaConfig
+            {
+                BaseUrl = ollamaConfig.BaseUrl,
+                Model = ollamaConfig.Model,
+                Temperature = ollamaConfig.Temperature
+            });
+        router._providers.Add(new(ollamaLlm, null, true, null));
 
         // Cloud providers as fallbacks (tried only if Ollama fails)
         if (keys.IsAvailable("anthropic"))
         {
             var entry = AutoFillContextSizes(keys.GetService("anthropic")!);
-            var provider = new AnthropicLlmProvider(entry);
-            if (await provider.IsAvailableAsync(ct))
-                router._providers.Add(new(provider, "anthropic", false, entry));
+            var models = (entry.SearchEngineId ?? "claude-3-5-haiku-latest").Split('|');
+            var service = new AnthropicLlmService(new AnthropicConfig
+            {
+                ApiKey = entry.ApiKey!,
+                Model = models[0]
+            });
+            if (await service.IsAvailableAsync(ct))
+                router._providers.Add(new(service, "anthropic", false, entry));
         }
 
         if (keys.IsAvailable("openai"))
         {
             var entry = AutoFillContextSizes(keys.GetService("openai")!);
-            var provider = new OpenAiLlmProvider(entry);
-            if (await provider.IsAvailableAsync(ct))
-                router._providers.Add(new(provider, "openai", false, entry));
+            var models = (entry.SearchEngineId ?? "gpt-4o-mini").Split('|');
+            var service = new OpenAILlmService(new OpenAIConfig
+            {
+                ApiKey = entry.ApiKey!,
+                Model = models[0]
+            });
+            if (await service.IsAvailableAsync(ct))
+                router._providers.Add(new(service, "openai", false, entry));
         }
 
         return router;
@@ -108,9 +133,9 @@ public class LlmRouter : ILlmService
 
     /// <summary>
     /// Generate a completion using the best available provider.
-    /// Tries cloud providers first (if budget allows), falls back to Ollama.
+    /// Tries providers in order, with budget enforcement for cloud providers.
     /// </summary>
-    public async Task<string> GenerateAsync(LlmRequest request, CancellationToken ct = default)
+    public async Task<string> GenerateAsync(string prompt, LlmOptions? options = null, CancellationToken ct = default)
     {
         foreach (var entry in _providers)
         {
@@ -133,7 +158,7 @@ public class LlmRouter : ILlmService
                         }
                         else
                         {
-                            System.Diagnostics.Debug.WriteLine($"{entry.Provider.Name}: {check.DenialReason} -- trying next");
+                            System.Diagnostics.Debug.WriteLine($"{entry.Service.ProviderName}: {check.DenialReason} -- trying next");
                         }
                         continue;
                     }
@@ -142,7 +167,7 @@ public class LlmRouter : ILlmService
 
             try
             {
-                var result = await entry.Provider.GenerateAsync(request, ct);
+                var result = await entry.Service.GenerateAsync(prompt, options, ct);
 
                 // Record usage for cloud providers
                 if (!entry.IsLocal && _budget != null && entry.BudgetServiceName != null)
@@ -157,7 +182,7 @@ public class LlmRouter : ILlmService
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine(
-                    $"{entry.Provider.Name} failed: {ex.Message} -- trying next provider");
+                    $"{entry.Service.ProviderName} failed: {ex.Message} -- trying next provider");
             }
         }
 
@@ -166,13 +191,13 @@ public class LlmRouter : ILlmService
 
     /// <summary>
     /// Generate with a specific role hint (main/sentinel).
+    /// Convenience overload used by DoomSummarizer's OllamaService.
     /// </summary>
-    public Task<string> GenerateAsync(string prompt, string? systemPrompt = null,
-        double temperature = 0.4, string role = "main", bool jsonMode = false,
+    public Task<string> GenerateAsync(string prompt, string? systemPrompt,
+        double temperature, string role = "main", bool jsonMode = false,
         CancellationToken ct = default) =>
-        GenerateAsync(new LlmRequest
+        GenerateAsync(prompt, new LlmOptions
         {
-            Prompt = prompt,
             SystemPrompt = systemPrompt,
             Temperature = temperature,
             Role = role,
@@ -186,7 +211,7 @@ public class LlmRouter : ILlmService
     {
         foreach (var entry in _providers)
         {
-            if (await entry.Provider.IsAvailableAsync(ct))
+            if (await entry.Service.IsAvailableAsync(ct))
                 return true;
         }
         return false;
@@ -236,7 +261,7 @@ public class LlmRouter : ILlmService
     {
         foreach (var entry in _providers)
         {
-            var available = await entry.Provider.IsAvailableAsync(ct);
+            var available = await entry.Service.IsAvailableAsync(ct);
             var type = entry.IsLocal ? "local" : "cloud";
             var budgetInfo = !entry.IsLocal && entry.BudgetServiceName != null
                 ? " (budget-controlled)"
@@ -244,7 +269,7 @@ public class LlmRouter : ILlmService
             var ctx = entry.ServiceEntry?.ContextSize ?? (entry.IsLocal ? _ollamaConfig.ContextSize : 0);
             var ctxInfo = ctx > 0 ? $", {ctx / 1000}K ctx" : "";
             var status = available ? "available" : "unavailable";
-            System.Diagnostics.Debug.WriteLine($"  LLM {entry.Provider.Name} ({type}{budgetInfo}{ctxInfo}): {status}");
+            System.Diagnostics.Debug.WriteLine($"  LLM {entry.Service.ProviderName} ({type}{budgetInfo}{ctxInfo}): {status}");
         }
     }
 
@@ -254,8 +279,8 @@ public class LlmRouter : ILlmService
     public string ProviderName => "LlmRouter";
 
     /// <inheritdoc />
-    async Task<string> ILlmService.GenerateAsync(string prompt, LlmOptions? options, CancellationToken ct)
-        => await GenerateAsync(LlmRequest.FromOptions(prompt, options), ct);
+    Task<string> ILlmService.GenerateAsync(string prompt, LlmOptions? options, CancellationToken ct)
+        => GenerateAsync(prompt, options, ct);
 
     /// <inheritdoc />
     async Task<T?> ILlmService.GenerateJsonAsync<T>(string prompt, LlmOptions? options, CancellationToken ct)
@@ -263,7 +288,7 @@ public class LlmRouter : ILlmService
     {
         var jsonOptions = options ?? new LlmOptions();
         jsonOptions.JsonMode = true;
-        var json = await GenerateAsync(LlmRequest.FromOptions(prompt, jsonOptions), ct);
+        var json = await GenerateAsync(prompt, jsonOptions, ct);
         return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true

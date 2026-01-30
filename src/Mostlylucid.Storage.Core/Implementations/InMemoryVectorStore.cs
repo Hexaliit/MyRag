@@ -12,7 +12,7 @@ namespace Mostlylucid.Storage.Core.Implementations;
 /// Fast and simple - ideal for testing, tool/MCP mode, and one-shot analysis.
 /// All data is lost when the process exits.
 /// </summary>
-public class InMemoryVectorStore : IVectorStore
+public class InMemoryVectorStore : IMultiVectorStore
 {
     private readonly ILogger<InMemoryVectorStore> _logger;
     private readonly InMemoryOptions _options;
@@ -348,6 +348,149 @@ public class InMemoryVectorStore : IVectorStore
         }
 
         return Task.CompletedTask;
+    }
+
+    // ========== Multi-Vector Operations ==========
+
+    public Task InitializeMultiVectorAsync(
+        string collectionName,
+        VectorStoreSchema primarySchema,
+        IEnumerable<NamedVectorConfig> namedVectors,
+        CancellationToken ct = default)
+    {
+        // Store named vector configs on the schema so CollectionData has them
+        primarySchema.NamedVectors = namedVectors.ToList();
+
+        _collections.TryAdd(collectionName, new CollectionData
+        {
+            Name = collectionName,
+            Schema = primarySchema,
+            Documents = new List<VectorDocument>()
+        });
+
+        if (_options.Verbose)
+        {
+            var names = string.Join(", ", primarySchema.NamedVectors.Select(n => $"{n.Name}({n.Dimension})"));
+            _logger.LogInformation(
+                "Initialized in-memory multi-vector collection {Collection} (primary dim={Dim}, named=[{Named}])",
+                collectionName, primarySchema.VectorDimension, names);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task UpsertMultiVectorDocumentsAsync(
+        string collectionName,
+        IEnumerable<MultiVectorDocument> documents,
+        CancellationToken ct = default)
+    {
+        if (!_collections.TryGetValue(collectionName, out var collection))
+        {
+            throw new InvalidOperationException($"Collection '{collectionName}' does not exist. Call InitializeMultiVectorAsync first.");
+        }
+
+        var docList = documents.ToList();
+        var namedConfigs = collection.Schema.NamedVectors.ToDictionary(n => n.Name);
+
+        foreach (var doc in docList)
+        {
+            // Validate primary embedding dimension
+            if (doc.Embedding.Length != collection.Schema.VectorDimension)
+            {
+                throw new ArgumentException(
+                    $"Document {doc.Id} primary embedding dimension {doc.Embedding.Length} does not match collection dimension {collection.Schema.VectorDimension}");
+            }
+
+            // Validate named vector dimensions
+            foreach (var (name, vector) in doc.NamedVectors)
+            {
+                if (!namedConfigs.TryGetValue(name, out var config))
+                {
+                    throw new ArgumentException(
+                        $"Document {doc.Id} has named vector '{name}' which is not configured on collection '{collectionName}'");
+                }
+
+                if (vector.Length != config.Dimension)
+                {
+                    throw new ArgumentException(
+                        $"Document {doc.Id} named vector '{name}' dimension {vector.Length} does not match configured dimension {config.Dimension}");
+                }
+            }
+        }
+
+        lock (collection.Documents)
+        {
+            var newIds = docList.Select(d => d.Id).ToHashSet();
+            collection.Documents.RemoveAll(d => newIds.Contains(d.Id));
+            collection.Documents.AddRange(docList);
+
+            if (_options.MaxDocuments > 0 && collection.Documents.Count > _options.MaxDocuments)
+            {
+                var toRemove = collection.Documents.Count - _options.MaxDocuments;
+                collection.Documents.RemoveRange(0, toRemove);
+            }
+        }
+
+        if (_options.Verbose)
+        {
+            _logger.LogDebug("Upserted {Count} multi-vector documents to in-memory collection {Collection}",
+                docList.Count, collectionName);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task<List<VectorSearchResult>> SearchByNamedVectorAsync(
+        string collectionName,
+        string vectorName,
+        VectorSearchQuery query,
+        CancellationToken ct = default)
+    {
+        if (!_collections.TryGetValue(collectionName, out var collection))
+            return Task.FromResult(new List<VectorSearchResult>());
+
+        var namedConfig = collection.Schema.NamedVectors.FirstOrDefault(n => n.Name == vectorName);
+        if (namedConfig == null)
+        {
+            throw new ArgumentException($"Named vector '{vectorName}' is not configured on collection '{collectionName}'");
+        }
+
+        if (query.QueryEmbedding.Length != namedConfig.Dimension)
+        {
+            throw new ArgumentException(
+                $"Query embedding dimension {query.QueryEmbedding.Length} does not match named vector '{vectorName}' dimension {namedConfig.Dimension}");
+        }
+
+        var candidates = collection.Documents.AsEnumerable();
+
+        if (query.ParentId != null)
+        {
+            candidates = candidates.Where(d => d.ParentId == query.ParentId);
+        }
+
+        var results = candidates
+            .OfType<MultiVectorDocument>()
+            .Where(d => d.NamedVectors.ContainsKey(vectorName))
+            .Select(d =>
+            {
+                var similarity = CosineSimilarity(query.QueryEmbedding, d.NamedVectors[vectorName]);
+                return new VectorSearchResult
+                {
+                    Id = d.Id,
+                    Score = similarity,
+                    Distance = 1.0 - similarity,
+                    Document = query.IncludeDocument ? d : null,
+                    Metadata = d.Metadata,
+                    Text = query.IncludeDocument ? d.Text : null,
+                    ParentId = d.ParentId
+                };
+            })
+            .Where(r => r.Score >= query.MinScore && (!query.MaxScore.HasValue || r.Score <= query.MaxScore.Value))
+            .OrderByDescending(r => r.Score)
+            .Take(query.TopK)
+            .ToList();
+
+        return Task.FromResult(results);
     }
 
     // ========== Private Helpers ==========

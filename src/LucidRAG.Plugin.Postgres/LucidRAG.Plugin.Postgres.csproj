@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>LucidRAG.Plugin.Postgres</RootNamespace>
+        <Description>PostgreSQL plugin for LucidRAG - provides ts_rank_cd FTS, pgVector embeddings, and schema-based multitenancy</Description>
+    </PropertyGroup>
+
+    <!-- PostgreSQL-specific packages -->
+    <ItemGroup>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+        <PackageReference Include="Pgvector" Version="0.3.2" />
+        <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.3.0" />
+    </ItemGroup>
+
+    <!-- Project references -->
+    <ItemGroup>
+        <ProjectReference Include="..\LucidRAG.Core\LucidRAG.Core.csproj" />
+    </ItemGroup>
+
+    <!-- Embed plugin manifest -->
+    <ItemGroup>
+        <EmbeddedResource Include="plugin.yaml" />
+    </ItemGroup>
+
+</Project>

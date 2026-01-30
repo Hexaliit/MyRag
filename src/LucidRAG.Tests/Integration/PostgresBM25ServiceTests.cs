@@ -1,8 +1,9 @@
 using System.Diagnostics;
 using FluentAssertions;
-using LucidRAG.Core.Services;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using LucidRAG.Plugin.Postgres;
+using LucidRAG.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LucidRAG.Tests.Integration;
@@ -17,7 +18,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
     private readonly TestWebApplicationFactory _factory;
     private RagDocumentsDbContext _db = null!;
     private IServiceScope _scope = null!;
-    private PostgresBM25Service _service = null!;
+    private PostgresBm25Service _service = null!;
 
     public PostgresBM25ServiceTests(TestWebApplicationFactory factory)
     {
@@ -31,7 +32,7 @@ public class PostgresBM25ServiceTests : IAsyncLifetime
         // Create scope for services
         _scope = _factory.Services.CreateScope();
         _db = _scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
-        _service = _scope.ServiceProvider.GetRequiredService<PostgresBM25Service>();
+        _service = (PostgresBm25Service)_scope.ServiceProvider.GetRequiredService<IBm25SearchService>();
 
         // Seed test data
         await SeedTestEvidenceAsync();

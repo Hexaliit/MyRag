@@ -39,6 +39,27 @@ public class OpenAILlmService : ILlmService
         _httpClient.Timeout = TimeSpan.FromSeconds(_config.TimeoutSeconds);
     }
 
+    /// <summary>
+    ///     Manual constructor for non-DI usage (e.g. LlmRouter creating providers from ApiKeyEntry config).
+    ///     Creates its own HttpClient internally.
+    /// </summary>
+    public OpenAILlmService(OpenAIConfig config, ILogger<OpenAILlmService>? logger = null)
+    {
+        _config = config;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<OpenAILlmService>.Instance;
+
+        _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        _httpClient = new HttpClient();
+        _httpClient.BaseAddress = new Uri(_config.BaseUrl);
+        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {ResolveApiKey(_config.ApiKey)}");
+        _httpClient.Timeout = TimeSpan.FromSeconds(_config.TimeoutSeconds);
+    }
+
     /// <inheritdoc />
     public string ProviderName => "OpenAI";
 

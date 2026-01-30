@@ -19,6 +19,7 @@
     <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
     <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
     <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" />
+    <ProjectReference Include="..\Mostlylucid.Storage.Core\Mostlylucid.Storage.Core.csproj" />
   </ItemGroup>
 
   <!-- Audio processing -->
