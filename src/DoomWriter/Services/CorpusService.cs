@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DoomSummarizer.Services;
 using DoomWriter.Models;
+using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomWriter.Services;
 
@@ -10,7 +11,7 @@ namespace DoomWriter.Services;
 /// </summary>
 public class CorpusService : IDisposable
 {
-    private readonly EmbeddingService _embedding;
+    private readonly IEmbeddingService _embedding;
     private readonly StorageService _storage;
     private readonly NerService _ner;
     private readonly EntityProfileService _entityProfiles;
@@ -30,7 +31,7 @@ public class CorpusService : IDisposable
     public int TotalSegments { get; private set; }
 
     public CorpusService(
-        EmbeddingService embedding,
+        IEmbeddingService embedding,
         StorageService storage,
         NerService ner,
         EntityProfileService entityProfiles,
@@ -52,9 +53,6 @@ public class CorpusService : IDisposable
     {
         await _storage.InitializeAsync();
         await _vectorStore.InitializeAsync();
-
-        if (_embedding.IsSetup)
-            _embedding.Initialize();
 
         IsInitialized = true;
     }
@@ -138,34 +136,31 @@ public class CorpusService : IDisposable
         var segments = ExtractSegments(body);
 
         // Embed segments and compute document centroid
-        if (_embedding.IsSetup)
+        foreach (var segment in segments)
         {
-            foreach (var segment in segments)
-            {
-                var embedding = _embedding.Embed(segment.Text);
-                segment.Embedding = embedding;
-            }
+            var embedding = await _embedding.EmbedAsync(segment.Text, ct);
+            segment.Embedding = embedding;
+        }
 
-            // Compute document embedding (mean of segment embeddings)
-            var validEmbeddings = segments.Where(s => s.Embedding != null).Select(s => s.Embedding!).ToList();
-            if (validEmbeddings.Count > 0)
-            {
-                var centroid = new float[384];
-                foreach (var emb in validEmbeddings)
-                    for (int i = 0; i < centroid.Length && i < emb.Length; i++)
-                        centroid[i] += emb[i];
-                for (int i = 0; i < centroid.Length; i++)
-                    centroid[i] /= validEmbeddings.Count;
-                VectorMath.L2Normalize(centroid);
-                item.Embedding = centroid;
-            }
+        // Compute document embedding (mean of segment embeddings)
+        var validEmbeddings = segments.Where(s => s.Embedding != null).Select(s => s.Embedding!).ToList();
+        if (validEmbeddings.Count > 0)
+        {
+            var centroid = new float[384];
+            foreach (var emb in validEmbeddings)
+                for (int i = 0; i < centroid.Length && i < emb.Length; i++)
+                    centroid[i] += emb[i];
+            for (int i = 0; i < centroid.Length; i++)
+                centroid[i] /= validEmbeddings.Count;
+            VectorMath.L2Normalize(centroid);
+            item.Embedding = centroid;
+        }
 
-            // Store document-level embedding in vector store (DuckDB HNSW)
-            if (item.Embedding != null)
-            {
-                await _vectorStore.UpsertItemEmbeddingAsync(
-                    itemId, title, "corpus", filePath, item.Embedding);
-            }
+        // Store document-level embedding in vector store (DuckDB HNSW)
+        if (item.Embedding != null)
+        {
+            await _vectorStore.UpsertItemEmbeddingAsync(
+                itemId, title, "corpus", filePath, item.Embedding);
         }
 
         // Store item in SQLite
@@ -181,9 +176,7 @@ public class CorpusService : IDisposable
     {
         var results = new List<CorpusMatch>();
 
-        if (!_embedding.IsSetup) return results;
-
-        var queryEmbedding = _embedding.Embed(query);
+        var queryEmbedding = await _embedding.EmbedAsync(query);
         var matches = await _vectorStore.FindSimilarItemsAsync(queryEmbedding, topK, minSimilarity: 0.3f);
 
         foreach (var (itemId, title, url, similarity) in matches)

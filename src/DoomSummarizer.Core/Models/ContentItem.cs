@@ -89,7 +89,7 @@ public record StoredItem
         Score = Score,
         CreatedAt = CreatedAt,
         FetchedAt = FetchedAt,
-        Embedding = Embedding != null ? EmbeddingService.FromBytes(Embedding) : null,
+        Embedding = Embedding != null ? EmbeddingCompat.FromBytes(Embedding) : null,
         Keywords = Keywords,
         Tags = DeserializeTags(Tags)
     };

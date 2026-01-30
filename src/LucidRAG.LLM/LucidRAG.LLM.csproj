@@ -44,4 +44,11 @@
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.OpenAI\Mostlylucid.DocSummarizer.OpenAI.csproj" />
     </ItemGroup>
 
+    <!-- Allow test and consumer projects to access internal members -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="DoomSummarizer.Tests" />
+        <InternalsVisibleTo Include="doomsummarizer" />
+        <InternalsVisibleTo Include="DoomWriter" />
+    </ItemGroup>
+
 </Project>

@@ -5,7 +5,7 @@ Core signal extraction pipeline for news and content analysis.
 ## Features
 
 - **Signal Extraction**: Wave-based analysis pipeline (entities, topics, knowledge graphs)
-- **LLM Routing**: Budget-enforced, circuit-breaking multi-provider routing (Ollama primary + cloud fallback)
+- **LLM Routing**: Budget-enforced, circuit-breaking multi-provider routing (Ollama primary, cloud providers disabled by default)
 - **Relevance Scoring**: 6-signal RRF fusion with query-type adaptive ranking
 - **Content Extraction**: SmartReader + Markdown analysis for web content
 - **Knowledge Graphs**: Entity extraction and relationship mapping

@@ -8,7 +8,7 @@ using DoomSummarizer.Plugins.Runtime;
 using DoomSummarizer.Services;
 using DoomSummarizer.Services.LongFormGeneration;
 using Mostlylucid.DocSummarizer.Content;
-using Mostlylucid.DocSummarizer.Resilience;
+using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -195,18 +195,14 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             return 0;
         }
 
-        var config = await ConfigService.LoadAsync();
+        await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
         if (settings.DebugPipeline)
             AnsiConsole.MarkupLine($"[grey]Config: {Markup.Escape(ConfigService.LoadedConfigPath ?? "embedded default")}[/]");
-        var dbPath = ConfigService.GetDbPath(config);
-
-        await using var storage = new StorageService(dbPath);
-        await storage.InitializeAsync();
 
         // Handle --clear-storage: wipe all cached data and exit
         if (settings.ClearStorage)
         {
-            await storage.ClearAllAsync();
+            await boot.Storage.ClearAllAsync();
 
             // Also clear the DuckDB vector store (knowledge graph, HNSW embeddings)
             var clearVectorDbPath = ConfigService.GetVectorDbPath();
@@ -217,11 +213,23 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     await using var vs = new DuckDbVectorStore(clearVectorDbPath);
                     await vs.InitializeAsync();
                     await vs.ClearAllAsync();
-                    AnsiConsole.MarkupLine("[green]Vector store cleared (knowledge graph, HNSW embeddings)[/]");
+                    AnsiConsole.MarkupLine("[green]Vector store cleared (HNSW embeddings)[/]");
                 }
                 catch (Exception ex)
                 {
                     AnsiConsole.MarkupLine($"[yellow]Could not clear vector store: {Markup.Escape(ex.Message)}[/]");
+                }
+
+                try
+                {
+                    await using var es = new DuckDbEntityGraphStore(clearVectorDbPath);
+                    await es.InitializeAsync();
+                    await es.ClearAllAsync();
+                    AnsiConsole.MarkupLine("[green]Entity graph store cleared (entities, relationships, profiles)[/]");
+                }
+                catch (Exception ex)
+                {
+                    AnsiConsole.MarkupLine($"[yellow]Could not clear entity graph store: {Markup.Escape(ex.Message)}[/]");
                 }
             }
 
@@ -230,36 +238,27 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         }
 
         // Auto-backfill FTS5 index if empty (one-time migration for existing KB items)
-        if (await storage.IsFtsIndexEmptyAsync())
+        if (await boot.Storage.IsFtsIndexEmptyAsync())
         {
-            await BackfillFtsIndexAsync(storage, settings.Quiet);
+            await BackfillFtsIndexAsync(boot.Storage, settings.Quiet);
         }
 
-        // Initialize DuckDB vector store for HNSW-backed knowledge graph
-        // Used for: --graph display, entity profile retrieval, item embedding indexing
-        DuckDbVectorStore? vectorStore = null;
+        // Initialize DuckDB vector store and entity graph store if needed
         var vectorDbPath = ConfigService.GetVectorDbPath();
         if (File.Exists(vectorDbPath) || settings.Graph || settings.BackfillEntityProfiles)
-        {
-            // Open existing DB for entity profile retrieval, or create new if --graph requested
-            vectorStore = new DuckDbVectorStore(vectorDbPath);
-            await vectorStore.InitializeAsync();
-        }
+            await boot.InitializeEntityStoresAsync();
 
         // Handle --backfill-entity-profiles: compute entity profiles for existing KB items
         if (settings.BackfillEntityProfiles)
         {
-            if (vectorStore == null)
+            if (boot.VectorStore == null)
             {
                 AnsiConsole.MarkupLine("[yellow]No vector store found. Run with --graph flag first to create the knowledge graph.[/]");
                 return 1;
             }
 
-            using var backfillEmbedding = new EmbeddingService();
-            await backfillEmbedding.EnsureReadyAsync();
-
-            var entityProfileService = new EntityProfileService(backfillEmbedding);
-            var graphService = new KnowledgeGraphService(vectorStore, entityProfileService);
+            var entityProfileService = new EntityProfileService(boot.Embedding, boot.EntityStore!);
+            var graphService = new KnowledgeGraphService(boot.VectorStore, boot.EntityStore!, entityProfileService);
 
             AnsiConsole.MarkupLine("[cyan]Backfilling entity profiles for existing KB items...[/]");
 
@@ -293,38 +292,13 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
         // Initialize template service for output rendering
         var outputTemplates = new TemplateService();
-        var templatesDir = Path.Combine(ConfigService.GetConfigDir(), "templates");
-        await outputTemplates.LoadCustomTemplatesAsync(templatesDir);
+        await outputTemplates.LoadCustomTemplatesAsync(Path.Combine(ConfigService.GetConfigDir(), "templates"));
 
-        using var embedding = new EmbeddingService();
-        var ollama = new OllamaService(config.Ollama);
-
-        // Initialize API key service, resilience pipeline, and budget tracker
-        var apiKeys = ApiKeyService.Load(config);
-        ApiRateLimiter.Configure(apiKeys);
-        await using var apiBudget = new ApiBudgetService(config.ApiBudget, apiKeys, dbPath);
-        await apiBudget.InitializeAsync();
-
-        // Persistent circuit breaker — survives restarts, smart retry by failure type
-        await using var circuitBreaker = new CircuitBreakerService(dbPath);
-        await circuitBreaker.InitializeAsync();
-        ApiRateLimiter.SetCircuitBreaker(circuitBreaker);
-
+        var ollama = boot.CreateOllama();
+        var circuitBreaker = await boot.InitializeCircuitBreakerAsync();
         if (settings.DebugPipeline)
             circuitBreaker.PrintCircuitStatus();
-
-        // Wire cloud LLM providers (OpenAI/Anthropic) through the router
-        // When available, OllamaService delegates generate calls through the router
-        // with budget enforcement and automatic fallback to local Ollama
-        var llmRouter = await LlmRouter.BuildAsync(config.Ollama, apiKeys, apiBudget, circuitBreaker, cancellationToken);
-        ollama.Router = llmRouter;
-
-        // Auto-setup: download ONNX models if not present (first run)
-        await embedding.EnsureReadyAsync(msg =>
-        {
-            if (!settings.Quiet)
-                AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(msg)}[/]");
-        });
+        var llmRouter = await boot.InitializeLlmStackAsync(circuitBreaker, cancellationToken);
 
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         httpClient.DefaultRequestHeaders.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
@@ -342,7 +316,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         }
 
         if (!settings.Quiet)
-            RenderStartupPanel(config, ConfigService.LoadedConfigPath, llmRouter, embedding, apiKeys, circuitBreaker, settings.Prompt);
+            RenderStartupPanel(boot.Config, ConfigService.LoadedConfigPath, llmRouter, boot.Embedding, boot.ApiKeys!, circuitBreaker, settings.Prompt);
 
         // NER preprocessing: extract entities from query BEFORE the LLM sentinel
         // This gives us structured search filters, cached segment lookups, and URL dedup
@@ -350,7 +324,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         if (!string.IsNullOrEmpty(settings.Prompt))
         {
             nerContext = await QueryPreprocessor.PreprocessAsync(
-                settings.Prompt, embedding, storage, settings.Locale, cancellationToken);
+                settings.Prompt, boot.Embedding, boot.Storage, settings.Locale, cancellationToken);
 
             if (nerContext.HasEntities)
             {
@@ -382,7 +356,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         {
             WriteStatus($"[grey]Interpreting: {Markup.Escape(settings.Prompt)}[/]");
 
-            var interpreter = new PromptInterpreter(ollama, embedding);
+            var interpreter = new PromptInterpreter(ollama, boot.Embedding);
             interpreted = await interpreter.InterpretAsync(settings.Prompt, nerContext);
 
             // Composite query handling: add subqueries as additional search queries
@@ -429,7 +403,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
         // Get vibe prompt - supports predefined vibes or arbitrary text
         string vibePrompt;
-        if (config.Vibes.TryGetValue(vibe, out var configuredPrompt))
+        if (boot.Config.Vibes.TryGetValue(vibe, out var configuredPrompt))
         {
             vibePrompt = configuredPrompt;
         }
@@ -440,7 +414,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         }
         else
         {
-            vibePrompt = config.Vibes.GetValueOrDefault("neutral", "Objective, balanced summary.");
+            vibePrompt = boot.Config.Vibes.GetValueOrDefault("neutral", "Objective, balanced summary.");
         }
 
         var ollamaAvailable = !settings.NoLlm && await ollama.IsAvailableAsync();
@@ -466,8 +440,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             }
             else
             {
-                earlyQueryEmbedding = embedding.Embed(queryText);
-                cachedQuery = await storage.FindSimilarQueryAsync(earlyQueryEmbedding, threshold: 0.97);
+                earlyQueryEmbedding = await boot.Embedding.EmbedAsync(queryText, cancellationToken);
+                cachedQuery = await boot.Storage.FindSimilarQueryAsync(earlyQueryEmbedding, threshold: 0.97);
                 if (cachedQuery != null)
                 {
                     useCachedSegments = true;
@@ -523,7 +497,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     if (!string.IsNullOrWhiteSpace(settings.Name))
                     {
                         // Check what collections exist with this name
-                        var collections = await storage.GetCollectionsAsync();
+                        var collections = await boot.Storage.GetCollectionsAsync();
                         var matchingCollection = collections.FirstOrDefault(c =>
                             c.Source.Equals(settings.Name, StringComparison.OrdinalIgnoreCase) ||
                             c.Source.Equals($"crawl:{settings.Name}", StringComparison.OrdinalIgnoreCase) ||
@@ -546,12 +520,12 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         fetchTask.Value = 10;
 
                         // Initialize Lucene index for this collection
-                        var luceneIndexPath = Path.Combine(storage.DataPath, "lucene", collectionName);
+                        var luceneIndexPath = Path.Combine(boot.Storage.DataPath, "lucene", collectionName);
                         using var lucene = new LuceneSearchService(luceneIndexPath);
                         lucene.Open();
 
                         // Ensure items are indexed in Lucene (incremental update)
-                        var allStoredItems = await storage.GetRecentItemsAsync(days: 365, source: sourceFilter);
+                        var allStoredItems = await boot.Storage.GetRecentItemsAsync(days: 365, source: sourceFilter);
                         var itemsToIndex = allStoredItems
                             .Where(s => !lucene.ContainsDocument(s.Id))
                             .Select(s => s.ToContentItem())
@@ -577,8 +551,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         fetchTask.Value = 50;
 
                         // Parallel: embedding search for semantic coverage
-                        var queryEmbed = embedding.Embed(localQuery);
-                        var embeddingResults = await storage.FindSimilarAsync(
+                        var queryEmbed = await boot.Embedding.EmbedAsync(localQuery, cancellationToken);
+                        var embeddingResults = await boot.Storage.FindSimilarAsync(
                             queryEmbed, limit: settings.Limit * 2, threshold: 0.20, source: sourceFilter);
                         var embeddingIds = embeddingResults.Select(r => r.Id).ToHashSet();
                         fetchTask.Value = 55;
@@ -586,16 +560,16 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         // Entity profile HNSW search (when entity profiles exist)
                         // Uses query entities (extracted by Sentinel) to find semantically related docs
                         var entityProfileIds = new HashSet<string>();
-                        if (vectorStore != null && interpreted?.SentinelIntent?.Entities?.Count >= 2)
+                        if (boot.EntityStore != null && interpreted?.SentinelIntent?.Entities?.Count >= 2)
                         {
                             try
                             {
-                                var hasProfiles = await vectorStore.HasEntityProfilesAsync();
+                                var hasProfiles = await boot.EntityStore!.HasEntityProfilesAsync();
                                 if (hasProfiles)
                                 {
-                                    var entityProfileService = new EntityProfileService(embedding);
-                                    var entityDocCounts = await vectorStore.GetEntityDocCountsAsync();
-                                    var totalDocs = await vectorStore.GetTotalDocsWithEntitiesAsync();
+                                    var entityProfileService = new EntityProfileService(boot.Embedding);
+                                    var entityDocCounts = await boot.EntityStore!.GetEntityDocCountsAsync();
+                                    var totalDocs = await boot.EntityStore!.GetTotalDocsWithEntitiesAsync();
 
                                     // Convert Sentinel entities to typed format for profile computation
                                     // Infer entity types using heuristics (ORG, PER, LOC, MISC)
@@ -603,12 +577,12 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                         .Select(e => (name: e, type: EntityProfileService.InferEntityType(e), confidence: 0.8f))
                                         .ToList();
 
-                                    var queryEntityProfile = entityProfileService.ComputeQueryProfile(
+                                    var queryEntityProfile = await entityProfileService.ComputeQueryProfileAsync(
                                         queryEntities, entityDocCounts, totalDocs);
 
                                     if (queryEntityProfile.Length > 0)
                                     {
-                                        var entityResults = await vectorStore.FindRelatedByEntityProfileAsync(
+                                        var entityResults = await boot.EntityStore!.FindRelatedByEntityProfileAsync(
                                             queryEntityProfile, topK: settings.Limit, minSimilarity: 0.25f);
 
                                         foreach (var (itemId, _, _) in entityResults)
@@ -639,7 +613,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                         if (allCandidateIds.Count > 0)
                         {
-                            localItems = await storage.LoadItemsByIdsAsync(allCandidateIds);
+                            localItems = await boot.Storage.LoadItemsByIdsAsync(allCandidateIds);
 
                             // Apply Lucene scores as boost (items found by Lucene get priority)
                             var luceneScoreLookup = luceneResults.ToDictionary(r => r.Id, r => r.Score);
@@ -670,8 +644,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     {
                         // No query: return most recent from the collection
                         var storedLocal = sourceFilter != null
-                            ? await storage.GetRecentItemsAsync(days: 365, source: sourceFilter)
-                            : await storage.GetRecentItemsAsync(days: 30);
+                            ? await boot.Storage.GetRecentItemsAsync(days: 365, source: sourceFilter)
+                            : await boot.Storage.GetRecentItemsAsync(days: 30);
                         fetchTask.Value = 70;
 
                         localItems = storedLocal
@@ -694,7 +668,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // Segment reuse: load cached items from a similar recent query
                 if (!isLocalMode && useCachedSegments && cachedQuery != null)
                 {
-                    var cachedStored = await storage.GetItemsByIdsAsync(cachedQuery.ItemIds);
+                    var cachedStored = await boot.Storage.GetItemsByIdsAsync(cachedQuery.ItemIds);
                     var cachedItems = cachedStored
                         .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
                         .Select(s => s.ToContentItem())
@@ -708,7 +682,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         if (withEmbeddings.Count > 0)
                         {
                             var similarities = withEmbeddings
-                                .Select(i => EmbeddingService.CosineSimilarity(earlyQueryEmbedding, i.Embedding!))
+                                .Select(i => VectorMath.CosineSimilarity(earlyQueryEmbedding, i.Embedding!))
                                 .OrderByDescending(s => s)
                                 .ToList();
 
@@ -790,8 +764,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 var pluginServices = new SourcePluginServices
                 {
                     HttpClient = httpClient,
-                    ApiKeys = apiKeys,
-                    ApiBudget = apiBudget,
+                    ApiKeys = boot.ApiKeys!,
+                    ApiBudget = boot.ApiBudget!,
                     CircuitBreaker = circuitBreaker
                 };
                 await pluginRegistry.InitializeAllAsync(pluginServices, cancellationToken);
@@ -805,7 +779,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         query: interpreted?.RawPrompt ?? settings.Prompt,
                         limit: perSourceLimit,
                         vibe: vibe,
-                        config: config,
+                        config: boot.Config,
                         rawPrompt: interpreted?.RawPrompt ?? settings.Prompt);
 
                     var plugin = pluginRegistry.FindByKey(fetchCtx.SourceKey);
@@ -879,7 +853,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 RawPrompt = fallbackQuery,
                                 Limit = perSourceLimit * 2,
                                 Vibe = vibe,
-                                Config = config
+                                Config = boot.Config
                             };
                             fallbackSources.Add(Task.Run(async () =>
                                 await searchPlugin.FetchAsync(searchCtx, cancellationToken)));
@@ -899,7 +873,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         var searchPlugin = pluginRegistry.FindByKey("search");
                         if (searchPlugin != null)
                         {
-                            if (apiKeys.IsAvailable("newsapi"))
+                            if (boot.ApiKeys!.IsAvailable("newsapi"))
                             {
                                 var newsCtx = new SourceFetchContext
                                 {
@@ -909,13 +883,13 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                     Query = fallbackQuery,
                                     Limit = perSourceLimit,
                                     Vibe = vibe,
-                                    Config = config
+                                    Config = boot.Config
                                 };
                                 fallbackSources.Add(Task.Run(async () =>
                                     await searchPlugin.FetchAsync(newsCtx, cancellationToken)));
                             }
 
-                            if (apiKeys.IsAvailable("currents"))
+                            if (boot.ApiKeys!.IsAvailable("currents"))
                             {
                                 var currentsCtx = new SourceFetchContext
                                 {
@@ -925,14 +899,14 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                     Query = fallbackQuery,
                                     Limit = perSourceLimit,
                                     Vibe = vibe,
-                                    Config = config
+                                    Config = boot.Config
                                 };
                                 fallbackSources.Add(Task.Run(async () =>
                                     await searchPlugin.FetchAsync(currentsCtx, cancellationToken)));
                             }
 
                             // GNews RSS as final news fallback if no API keys
-                            if (!apiKeys.IsAvailable("newsapi") && !apiKeys.IsAvailable("currents"))
+                            if (!boot.ApiKeys!.IsAvailable("newsapi") && !boot.ApiKeys!.IsAvailable("currents"))
                             {
                                 var gnewsPlugin = pluginRegistry.FindByKey("gnews");
                                 if (gnewsPlugin != null)
@@ -945,7 +919,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                         Query = fallbackQuery,
                                         Limit = perSourceLimit,
                                         Vibe = vibe,
-                                        Config = config
+                                        Config = boot.Config
                                     };
                                     fallbackSources.Add(Task.Run(async () =>
                                         await gnewsPlugin.FetchAsync(gnewsCtx, cancellationToken)));
@@ -1104,7 +1078,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 // Load recent stored items to combine with fresh content (skip with --force)
-                var storedItems = settings.Force ? [] : await storage.GetRecentItemsAsync(days: 1);
+                var storedItems = settings.Force ? [] : await boot.Storage.GetRecentItemsAsync(days: 1);
                 var storedContentItems = storedItems
                     .Where(s => !string.IsNullOrEmpty(s.Summary)) // Only include analyzed items
                     .Select(s => s.ToContentItem() with { Score = 0 }) // Lower priority than fresh items
@@ -1166,10 +1140,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 dedupeTask.Description = $"[green]Found {uniqueItems.Count} unique items[/]";
 
                 // Stage 2.1: Source domain filtering (allow/block lists)
-                if (config.SourceFilter.AllowedDomains.Count > 0 || config.SourceFilter.BlockedDomains.Count > 0)
+                if (boot.Config.SourceFilter.AllowedDomains.Count > 0 || boot.Config.SourceFilter.BlockedDomains.Count > 0)
                 {
                     var preFilterCount = uniqueItems.Count;
-                    uniqueItems = ApplySourceDomainFilter(uniqueItems, config.SourceFilter);
+                    uniqueItems = ApplySourceDomainFilter(uniqueItems, boot.Config.SourceFilter);
 
                     if (uniqueItems.Count < preFilterCount)
                         fetchTask.Description = $"[cyan]Source filter: {uniqueItems.Count} items[/]";
@@ -1191,12 +1165,12 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         // Layer 1: Lucene search (sentinel-generated query for salience)
                         try
                         {
-                            var luceneIndexPath = Path.Combine(storage.DataPath, "lucene", "enrichment");
+                            var luceneIndexPath = Path.Combine(boot.Storage.DataPath, "lucene", "enrichment");
                             using var lucene = new LuceneSearchService(luceneIndexPath);
                             lucene.Open();
 
                             // Ensure KB items are indexed (incremental)
-                            var recentItems = await storage.GetRecentItemsAsync(days: 90);
+                            var recentItems = await boot.Storage.GetRecentItemsAsync(days: 90);
                             var itemsToIndex = recentItems
                                 .Where(s => !lucene.ContainsDocument(s.Id))
                                 .Select(s => s.ToContentItem())
@@ -1225,8 +1199,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         // Layer 2: Embedding search for semantic coverage (catches related content)
                         try
                         {
-                            var queryEmbed = embedding.Embed(enrichQuery);
-                            var embeddingResults = await storage.FindSimilarAsync(queryEmbed, limit: 10, threshold: 0.25);
+                            var queryEmbed = await boot.Embedding.EmbedAsync(enrichQuery, cancellationToken);
+                            var embeddingResults = await boot.Storage.FindSimilarAsync(queryEmbed, limit: 10, threshold: 0.25);
                             foreach (var r in embeddingResults) candidateIds.Add(r.Id);
                             embedCount = embeddingResults.Count;
                         }
@@ -1238,28 +1212,28 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                         // Layer 3: Entity profile HNSW search (when entity profiles exist)
                         var entityCount = 0;
-                        if (vectorStore != null && interpreted?.SentinelIntent?.Entities?.Count >= 2)
+                        if (boot.EntityStore != null && interpreted?.SentinelIntent?.Entities?.Count >= 2)
                         {
                             try
                             {
-                                var hasProfiles = await vectorStore.HasEntityProfilesAsync();
+                                var hasProfiles = await boot.EntityStore!.HasEntityProfilesAsync();
                                 if (hasProfiles)
                                 {
-                                    var entityProfileService = new EntityProfileService(embedding);
-                                    var entityDocCounts = await vectorStore.GetEntityDocCountsAsync();
-                                    var totalDocs = await vectorStore.GetTotalDocsWithEntitiesAsync();
+                                    var entityProfileService = new EntityProfileService(boot.Embedding);
+                                    var entityDocCounts = await boot.EntityStore!.GetEntityDocCountsAsync();
+                                    var totalDocs = await boot.EntityStore!.GetTotalDocsWithEntitiesAsync();
 
                                     // Infer entity types using heuristics (ORG, PER, LOC, MISC)
                                     var queryEntities = interpreted.SentinelIntent.Entities
                                         .Select(e => (name: e, type: EntityProfileService.InferEntityType(e), confidence: 0.8f))
                                         .ToList();
 
-                                    var queryEntityProfile = entityProfileService.ComputeQueryProfile(
+                                    var queryEntityProfile = await entityProfileService.ComputeQueryProfileAsync(
                                         queryEntities, entityDocCounts, totalDocs);
 
                                     if (queryEntityProfile.Length > 0)
                                     {
-                                        var entityResults = await vectorStore.FindRelatedByEntityProfileAsync(
+                                        var entityResults = await boot.EntityStore!.FindRelatedByEntityProfileAsync(
                                             queryEntityProfile, topK: 8, minSimilarity: 0.25f);
                                         foreach (var (itemId, _, _) in entityResults)
                                             candidateIds.Add(itemId);
@@ -1278,7 +1252,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         // Only keep KB items that are genuinely relevant to THIS query
                         if (candidateIds.Count > 0)
                         {
-                            var storedItems = await storage.LoadItemsByIdsAsync(candidateIds.ToList());
+                            var storedItems = await boot.Storage.LoadItemsByIdsAsync(candidateIds.ToList());
                             var existingIds = new HashSet<string>(uniqueItems.Select(i => i.Id));
                             var existingUrls2 = new HashSet<string>(
                                 uniqueItems.Where(i => !string.IsNullOrEmpty(i.Url))
@@ -1290,12 +1264,12 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 .ToList();
 
                             // Salience gate: score KB candidates against query, keep only salient items
-                            var enrichQueryEmbed = embedding.Embed(enrichQuery);
+                            var enrichQueryEmbed = await boot.Embedding.EmbedAsync(enrichQuery, cancellationToken);
                             var preGateCount = newFromKb.Count;
                             newFromKb = newFromKb.Where(item =>
                             {
                                 if (item.Embedding == null) return false;
-                                var sim = EmbeddingService.CosineSimilarity(enrichQueryEmbed, item.Embedding);
+                                var sim = VectorMath.CosineSimilarity(enrichQueryEmbed, item.Embedding);
                                 return sim >= 0.30f;
                             }).ToList();
 
@@ -1357,38 +1331,37 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 List<float[]>? subqueryEmbeddings = null; // For composite queries: embeddings for each subquery
                 if (!string.IsNullOrWhiteSpace(queryText))
                 {
-                    // ONNX InferenceSession.Run() is thread-safe — parallelize embedding computation
+                    // Compute embeddings for items that need them
                     var itemsNeedingEmbedding = uniqueItems.Where(i => i.Embedding == null).ToList();
                     if (itemsNeedingEmbedding.Count > 0)
                     {
-                        Parallel.ForEach(itemsNeedingEmbedding,
-                            new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 2, 4) },
-                            item =>
-                            {
-                                var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
-                                item.Embedding = embedding.Embed(textToEmbed);
-                            });
+                        var textsToEmbed = itemsNeedingEmbedding
+                            .Select(item => $"{item.Title} {item.Content ?? ""}".Trim())
+                            .ToList();
+                        var embeddings = await boot.Embedding.EmbedBatchAsync(textsToEmbed, cancellationToken);
+                        for (var i = 0; i < itemsNeedingEmbedding.Count; i++)
+                            itemsNeedingEmbedding[i].Embedding = embeddings[i];
                     }
 
-                    queryEmbedding = embedding.Embed(queryText);
+                    queryEmbedding = await boot.Embedding.EmbedAsync(queryText, cancellationToken);
 
                     // Composite query handling: embed each subquery for multi-query retrieval
                     // Items are scored against the BEST matching subquery (max similarity)
                     if (interpreted?.SentinelIntent?.HasSubqueries == true)
                     {
-                        subqueryEmbeddings = interpreted.SentinelIntent.Subqueries!
-                            .Select(sq => embedding.Embed(sq))
-                            .ToList();
+                        var subqueryTexts = interpreted.SentinelIntent.Subqueries!;
+                        var sqEmbeddings = await boot.Embedding.EmbedBatchAsync(subqueryTexts, cancellationToken);
+                        subqueryEmbeddings = sqEmbeddings.ToList();
                         if (settings.DebugPipeline)
                             AnsiConsole.MarkupLine($"[grey]Multi-query: {subqueryEmbeddings.Count} subquery embeddings[/]");
                     }
 
                     var vibeText = GetVibeRepresentativeText(vibe);
-                    vibeEmbedding = vibe != "neutral" ? embedding.Embed(vibeText) : null;
+                    vibeEmbedding = vibe != "neutral" ? await boot.Embedding.EmbedAsync(vibeText, cancellationToken) : null;
 
                     // Quality anchors: detect clickbait vs substantive content
-                    var highQualityAnchor = embedding.Embed(RelevanceScorer.HighQualityAnchorText);
-                    var lowQualityAnchor = embedding.Embed(RelevanceScorer.LowQualityAnchorText);
+                    var highQualityAnchor = await boot.Embedding.EmbedAsync(RelevanceScorer.HighQualityAnchorText, cancellationToken);
+                    var lowQualityAnchor = await boot.Embedding.EmbedAsync(RelevanceScorer.LowQualityAnchorText, cancellationToken);
                     scorer = scorer.WithQualityAnchors(highQualityAnchor, lowQualityAnchor);
                 }
 
@@ -1398,10 +1371,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 int? globalCorpusSize = null;
                 try
                 {
-                    globalCorpus = await storage.GetKeywordCorpusAsync();
+                    globalCorpus = await boot.Storage.GetKeywordCorpusAsync();
                     if (globalCorpus.Count > 0)
                     {
-                        globalCorpusSize = await storage.GetKeywordCorpusSizeAsync();
+                        globalCorpusSize = await boot.Storage.GetKeywordCorpusSizeAsync();
                         fetchTask.Description = $"[cyan]IDF: {globalCorpus.Count} terms[/]";
                         if (settings.DebugPipeline)
                             AnsiConsole.MarkupLine($"[grey]Global IDF: {globalCorpus.Count} terms, {globalCorpusSize} docs[/]");
@@ -1533,7 +1506,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             // Multi-query: use max similarity across subqueries for composite queries
                             var qSim = ComputeMaxQuerySimilarity(item.Embedding, refinedQueryEmbedding, subqueryEmbeddings);
                             var vSim = vibeEmbedding != null && item.Embedding != null
-                                ? EmbeddingService.CosineSimilarity(item.Embedding, vibeEmbedding) : 0f;
+                                ? VectorMath.CosineSimilarity(item.Embedding, vibeEmbedding) : 0f;
 
                             table.AddRow(
                                 $"{rank++}",
@@ -1595,9 +1568,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 // Stage 2.5a: Apply source reliability weights (RRF score multipliers)
-                if (config.SourceFilter.Weights.Count > 0)
+                if (boot.Config.SourceFilter.Weights.Count > 0)
                 {
-                    var weightedCount = ApplySourceWeights(uniqueItems, config.SourceFilter);
+                    var weightedCount = ApplySourceWeights(uniqueItems, boot.Config.SourceFilter);
                     if (weightedCount > 0)
                         fetchTask.Description = $"[cyan]Src weights: {weightedCount} adjusted[/]";
                     if (settings.DebugPipeline && weightedCount > 0)
@@ -1613,7 +1586,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 if (uniqueItems.Count > 0)
                 {
                     var itemIds = uniqueItems.Select(i => i.Id).ToList();
-                    var usageStats = await storage.GetItemUsageAsync(itemIds);
+                    var usageStats = await boot.Storage.GetItemUsageAsync(itemIds);
                     if (usageStats.Count > 0)
                     {
                         var lfuAdjusted = 0;
@@ -1646,14 +1619,14 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // Stage 2.5c: One-hop link following for richer context
                 linkCacheHits = 0;
                 linksSkippedByRelevance = 0;
-                if (config.LinkFollowing.Enabled && !settings.NoLinks)
+                if (boot.Config.LinkFollowing.Enabled && !settings.NoLinks)
                 {
                     var itemsToFollow = uniqueItems.Take(settings.Limit).ToList();
                     var linkTask = ctx.AddTask("[cyan]Following links[/]", maxValue: itemsToFollow.Count);
 
                     var linkService = new LinkFollowingService(
-                        httpClient, config.LinkFollowing, storage,
-                        embedder: embedding.Embed,
+                        httpClient, boot.Config.LinkFollowing, boot.Storage,
+                        embedder: text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(),
                         queryEmbedding: queryEmbedding);
                     var activityLog = new List<string>();
 
@@ -1687,7 +1660,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         foreach (var item in itemsToFollow.Where(i => i.IsEnriched))
                         {
                             var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
-                            item.Embedding = embedding.Embed(textToEmbed);
+                            item.Embedding = await boot.Embedding.EmbedAsync(textToEmbed, cancellationToken);
                         }
                     }
 
@@ -1748,21 +1721,21 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             var reSearchResults = new List<ContentItem>();
                             var reSearchTasks = new List<Task<List<ContentItem>>>();
 
-                            if (apiKeys.IsAvailable("brave_search"))
+                            if (boot.ApiKeys!.IsAvailable("brave_search"))
                                 reSearchTasks.Add(Task.Run(async () =>
-                                    await new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                                    await new BraveSearchService(httpClient, boot.ApiKeys!, boot.ApiBudget!, circuitBreaker)
                                         .SearchAsync(reSearchQuery, 10)));
-                            if (apiKeys.IsAvailable("serper"))
+                            if (boot.ApiKeys!.IsAvailable("serper"))
                                 reSearchTasks.Add(Task.Run(async () =>
-                                    await new SerperSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                                    await new SerperSearchService(httpClient, boot.ApiKeys!, boot.ApiBudget!, circuitBreaker)
                                         .SearchAsync(reSearchQuery, 10)));
-                            if (apiKeys.IsAvailable("tavily"))
+                            if (boot.ApiKeys!.IsAvailable("tavily"))
                                 reSearchTasks.Add(Task.Run(async () =>
-                                    await new TavilySearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                                    await new TavilySearchService(httpClient, boot.ApiKeys!, boot.ApiBudget!, circuitBreaker)
                                         .SearchAsync(reSearchQuery, 10)));
-                            if (apiKeys.IsAvailable("jina"))
+                            if (boot.ApiKeys!.IsAvailable("jina"))
                                 reSearchTasks.Add(Task.Run(async () =>
-                                    await new JinaSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                                    await new JinaSearchService(httpClient, boot.ApiKeys!, boot.ApiBudget!, circuitBreaker)
                                         .SearchAsync(reSearchQuery, 5)));
                             if (reSearchTasks.Count == 0)
                                 reSearchTasks.Add(Task.Run(async () =>
@@ -1790,14 +1763,13 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                     !existingTitles.Contains(i.Title.ToLowerInvariant().Trim()))
                                     .ToList();
 
-                                // ONNX InferenceSession.Run() is thread-safe — parallelize
-                                Parallel.ForEach(newItems,
-                                    new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 2, 4) },
-                                    item =>
-                                    {
-                                        var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
-                                        item.Embedding = embedding.Embed(textToEmbed);
-                                    });
+                                // Compute embeddings for new items
+                                var newTexts = newItems
+                                    .Select(item => $"{item.Title} {item.Content ?? ""}".Trim())
+                                    .ToList();
+                                var newEmbeddings = await boot.Embedding.EmbedBatchAsync(newTexts, cancellationToken);
+                                for (var ei = 0; ei < newItems.Count; ei++)
+                                    newItems[ei].Embedding = newEmbeddings[ei];
 
                                 // Merge and re-score
                                 uniqueItems.AddRange(newItems);
@@ -1819,7 +1791,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 analyzedItems = new List<(string title, string summary, string topic, float sentiment, string url, double relevance)>();
 
                 // Pre-compute anchor embeddings once for sentiment and topic inference
-                var processor = new ItemProcessor(embedding, storage);
+                var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, cancellationToken);
 
                 {
                     var itemsToAnalyze = uniqueItems.Take(settings.Limit).ToList();
@@ -2036,7 +2008,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // Uses entity profile HNSW when available (semantic entity matching),
                 // falls back to SQL entity count when entity profiles don't exist yet.
                 // Enabled when: (a) --entities flag is set, OR (b) entity profiles exist in KB
-                var hasEntityProfiles = vectorStore != null && await vectorStore.HasEntityProfilesAsync();
+                var hasEntityProfiles = boot.EntityStore != null && await boot.EntityStore.HasEntityProfilesAsync();
                 if ((extractEntities || hasEntityProfiles) && uniqueItems.Count >= 3)
                 {
                     var topItemIds = uniqueItems
@@ -2050,10 +2022,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     var enrichmentMethod = "entities";
 
                     // Prefer entity profile HNSW when available (O(log N) semantic matching)
-                    if (hasEntityProfiles && vectorStore != null)
+                    if (hasEntityProfiles && boot.VectorStore != null && boot.EntityStore != null)
                     {
-                        var entityProfileService = new EntityProfileService(embedding);
-                        var graphService = new KnowledgeGraphService(vectorStore, entityProfileService);
+                        var entityProfileService = new EntityProfileService(boot.Embedding, boot.EntityStore!);
+                        var graphService = new KnowledgeGraphService(boot.VectorStore, boot.EntityStore, entityProfileService);
                         var related = await graphService.FindRelatedByEntityProfileAsync(
                             topItemIds, topK: 3, minSimilarity: 0.3f);
                         relatedIds = related
@@ -2075,13 +2047,13 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     else
                     {
                         // Fallback: SQL-based shared entity count (legacy O(N²) approach)
-                        relatedIds = await storage.FindRelatedByEntitiesAsync(
+                        relatedIds = await boot.Storage.FindRelatedByEntitiesAsync(
                             topItemIds, excludeIds: existingIds.ToList(), limit: 3);
                     }
 
                     if (relatedIds.Count > 0)
                     {
-                        var relatedItems = await storage.LoadItemsByIdsAsync(relatedIds);
+                        var relatedItems = await boot.Storage.LoadItemsByIdsAsync(relatedIds);
                         // Assign slightly lower relevance so they appear after scored items
                         var lowestScore = uniqueItems.Count > 0
                             ? uniqueItems.Min(i => i.RelevanceScore)
@@ -2105,10 +2077,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 // Index item embeddings into DuckDB for HNSW similarity search (skip in --no-llm fast mode)
-                if (settings.Graph && vectorStore != null)
+                if (settings.Graph && boot.VectorStore != null && boot.EntityStore != null)
                 {
                     var indexTask = ctx.AddTask("[cyan]Indexing embeddings[/]", maxValue: 100);
-                    var graphService = new KnowledgeGraphService(vectorStore);
+                    var graphService = new KnowledgeGraphService(boot.VectorStore, boot.EntityStore);
                     var itemsWithEmbeddings = uniqueItems
                         .Where(i => i.Embedding != null)
                         .Take(settings.Limit)
@@ -2119,11 +2091,11 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 // Ingest entities into knowledge graph (with entity profiles for HNSW search)
-                if (settings.Graph && vectorStore != null && articleEntityMap.Count > 0)
+                if (settings.Graph && boot.VectorStore != null && boot.EntityStore != null && articleEntityMap.Count > 0)
                 {
                     var graphTask = ctx.AddTask("[cyan]Building knowledge graph[/]", maxValue: 100);
-                    var entityProfileService = new EntityProfileService(embedding);
-                    var graphService = new KnowledgeGraphService(vectorStore, entityProfileService);
+                    var entityProfileService = new EntityProfileService(boot.Embedding, boot.EntityStore!);
+                    var graphService = new KnowledgeGraphService(boot.VectorStore, boot.EntityStore, entityProfileService);
                     await graphService.IngestEntitiesAsync(articleEntityMap);
 
                     // Ingest linked page entities with lower confidence
@@ -2150,7 +2122,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     }
 
                     graphTask.Value = 100;
-                    var (ec, rc, mc, ic) = await vectorStore.GetStatsAsync();
+                    var (ec, rc, mc, ic) = await boot.EntityStore!.GetStatsAsync();
                     graphTask.Description = $"[green]Graph: {ec} entities, {rc} relationships, {ic} items[/]";
                 }
 
@@ -2284,7 +2256,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         var newsletterResult = await ollama.SynthesizeNewsletterAsync(
                             analyzedItems, vibe, vibePrompt,
                             userQuery,
-                            uniqueItems, embedding.Embed, cancellationToken);
+                            uniqueItems, text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(), cancellationToken);
 
                         templateData = new DigestData
                         {
@@ -2331,7 +2303,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                             var disambiguator = new EntityDisambiguationService();
                             var disambiguation = await disambiguator.DisambiguateFastAsync(
-                                topForDisambig, userQuery, embedding, storage);
+                                topForDisambig, userQuery, boot.Embedding, boot.Storage);
 
                             // Filter out clusters irrelevant to the query — prevents e.g.
                             // "Artificial Intelligence" clusters appearing in "strawberry prices" queries
@@ -2369,7 +2341,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                         finalSummary = await ollama.SynthesizeSummaryAsync(
                             analyzedItems, vibe, vibePrompt, userQuery, uniqueItems,
-                            embedder: embedding.Embed);
+                            embedder: text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult());
                     }
                 }
                 else
@@ -2383,20 +2355,22 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     : "[green]Summary generated[/]";
 
                 // Save summary
-                await storage.SaveSummaryAsync(vibe, finalSummary, analyzedItems.Count);
+                await boot.Storage.SaveSummaryAsync(vibe, finalSummary, analyzedItems.Count);
 
                 // Log query for segment reuse (LFU tracking + similar query matching)
                 if (!string.IsNullOrWhiteSpace(queryText))
                 {
                     var returnedIds = uniqueItems.Take(settings.Limit).Select(i => i.Id).ToList();
-                    var logEmbedding = earlyQueryEmbedding ?? (queryText.Length > 0 ? embedding.Embed(queryText) : null);
-                    await storage.LogQueryAsync(queryText, logEmbedding, vibe, returnedIds);
+                    var logEmbedding = earlyQueryEmbedding ?? (queryText.Length > 0 ? await boot.Embedding.EmbedAsync(queryText, cancellationToken) : null);
+                    await boot.Storage.LogQueryAsync(queryText, logEmbedding, vibe, returnedIds);
                 }
 
                 // Cleanup old data (before Progress ends)
-                await storage.CleanupOldDataAsync(config.Storage.RetentionDays);
-                if (vectorStore != null)
-                    await vectorStore.CleanupAsync(config.Storage.RetentionDays);
+                await boot.Storage.CleanupOldDataAsync(boot.Config.Storage.RetentionDays);
+                if (boot.VectorStore != null)
+                    await boot.VectorStore.CleanupAsync(boot.Config.Storage.RetentionDays);
+                if (boot.EntityStore != null)
+                    await boot.EntityStore.CleanupAsync(boot.Config.Storage.RetentionDays);
             });
 
         // === Output (outside Progress block — no more progress bar overlap) ===
@@ -2422,7 +2396,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     {
                         var excerpt = StripMarkdownForLlm(
                             TextRankExtractor.ExtractKeySentences(
-                                content, embedding.Embed, maxChars: 400));
+                                content, text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(), maxChars: 400));
                         itemExcerpts[item.Id] = excerpt;
 
                         // Top-relevance articles contribute their lead fact
@@ -2595,7 +2569,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 {
                     // Query stored entities from previous runs (knowledge graph)
                     var itemIds = uniqueItems.Select(u => u.Id).ToList();
-                    itemEntities = await storage.GetEntitiesForItemsAsync(itemIds);
+                    itemEntities = await boot.Storage.GetEntitiesForItemsAsync(itemIds);
                 }
 
                 var briefing = ExtractThemeBriefing(analyzedItems, uniqueItems, itemEntities);
@@ -2733,9 +2707,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             }
 
             // Display knowledge graph (skip in --no-llm fast mode)
-            if (settings.Graph && vectorStore != null)
+            if (settings.Graph && boot.VectorStore != null && boot.EntityStore != null)
             {
-                var graphService = new KnowledgeGraphService(vectorStore);
+                var graphService = new KnowledgeGraphService(boot.VectorStore, boot.EntityStore);
                 await graphService.DisplayGraphAsync(topN: 15, daysBack: 7);
             }
 
@@ -2796,7 +2770,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             if (templateData != null)
             {
                 // Use full template rendering (blog/newsletter paths)
-                emailHtml = outputTemplates.Render(templateData, config.Email.Template);
+                emailHtml = outputTemplates.Render(templateData, boot.Config.Email.Template);
             }
             else
             {
@@ -2818,18 +2792,15 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         Sentiment = a.sentiment
                     }).ToList()
                 };
-                emailHtml = outputTemplates.Render(templateData, config.Email.Template);
+                emailHtml = outputTemplates.Render(templateData, boot.Config.Email.Template);
             }
 
-            var emailService = new EmailService(config.Email, apiKeys);
-            var subject = config.Email.SubjectTemplate
+            var emailService = new EmailService(boot.Config.Email, boot.ApiKeys!);
+            var subject = boot.Config.Email.SubjectTemplate
                 .Replace("{{DATE}}", DateTime.Now.ToString("MMMM d, yyyy"))
                 .Replace("{{QUERY}}", interpreted?.RawPrompt ?? settings.Prompt ?? "");
             await emailService.SendAsync(emailHtml, subject, settings.EmailTo, cancellationToken);
         }
-
-        if (vectorStore != null)
-            await vectorStore.DisposeAsync();
 
         return 0;
     }

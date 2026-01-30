@@ -1,4 +1,5 @@
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Services;
@@ -20,7 +21,7 @@ public class QueryPreprocessor
     /// </summary>
     public static async Task<QueryNerContext> PreprocessAsync(
         string query,
-        EmbeddingService embedding,
+        IEmbeddingService embedding,
         StorageService storage,
         string locale = "en-us",
         CancellationToken ct = default)
@@ -78,7 +79,7 @@ public class QueryPreprocessor
         {
             foreach (var entity in context.Entities)
             {
-                var entityEmbedding = embedding.Embed(entity.Text);
+                var entityEmbedding = await embedding.EmbedAsync(entity.Text, ct);
 
                 // Search storage for similar items (previously fetched content about this entity)
                 var matches = await storage.FindSimilarAsync(entityEmbedding, limit: 5, threshold: 0.70);

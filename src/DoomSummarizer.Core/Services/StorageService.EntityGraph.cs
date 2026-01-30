@@ -29,7 +29,7 @@ public partial class StorageService
         cmd.Parameters.AddWithValue("@name", name);
         cmd.Parameters.AddWithValue("@type", type);
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
-        cmd.Parameters.AddWithValue("@embedding", embedding != null ? EmbeddingService.ToBytes(embedding) : DBNull.Value);
+        cmd.Parameters.AddWithValue("@embedding", embedding != null ? EmbeddingCompat.ToBytes(embedding) : DBNull.Value);
         await cmd.ExecuteNonQueryAsync();
     }
 

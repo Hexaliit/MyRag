@@ -3,7 +3,7 @@ using System.Text;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
-using Mostlylucid.DocSummarizer.Resilience;
+using Mostlylucid.DocSummarizer.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -50,28 +50,9 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
-        var config = await ConfigService.LoadAsync();
-        var dbPath = ConfigService.GetDbPath(config);
-
-        await using var storage = new StorageService(dbPath);
-        await storage.InitializeAsync();
-
-        using var embedding = new EmbeddingService();
-        var ollama = new OllamaService(config.Ollama);
-
-        // Initialize API key service, resilience pipeline, and budget tracker
-        var apiKeys = ApiKeyService.Load(config);
-        ApiRateLimiter.Configure(apiKeys);
-        await using var apiBudget = new ApiBudgetService(config.ApiBudget, apiKeys, dbPath);
-        await apiBudget.InitializeAsync();
-
-        // Wire cloud LLM providers through the router
-        var llmRouter = await LlmRouter.BuildAsync(config.Ollama, apiKeys, apiBudget, ct: cancellationToken);
-        ollama.Router = llmRouter;
-
-        // Auto-setup
-        await embedding.EnsureReadyAsync(msg =>
-            AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(msg)}[/]"));
+        await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
+        var ollama = boot.CreateOllama();
+        var llmRouter = await boot.InitializeLlmStackAsync(ct: cancellationToken);
 
         var ollamaAvailable = await ollama.IsAvailableAsync();
         var hasCloudLlm = llmRouter.HasCloudProvider;
@@ -148,7 +129,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
 
             // Search and answer — cloud LLM counts as available
             var llmAvailable = ollamaAvailable || hasCloudLlm;
-            await AnswerQuestion(question, settings, effectiveSource, config, storage, embedding, ollama,
+            await AnswerQuestion(question, settings, effectiveSource, boot.Config, boot.Storage, boot.Embedding, ollama,
                 llmAvailable, searchDays, history, cancellationToken);
 
             if (settings.Once) break;
@@ -167,15 +148,15 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         string? effectiveSource,
         DoomConfig config,
         StorageService storage,
-        EmbeddingService embedding,
-        OllamaService ollama,
+        IEmbeddingService embedding,
+        DoomSummarizer.Services.OllamaService ollama,
         bool ollamaAvailable,
         int searchDays,
         List<(string question, string answer, List<string> sourceIds)> history,
         CancellationToken ct)
     {
         // 1. Check for cached similar query
-        var queryEmbedding = embedding.Embed(question);
+        var queryEmbedding = await embedding.EmbedAsync(question, ct);
         var cached = await storage.FindSimilarQueryAsync(queryEmbedding, threshold: 0.92);
 
         List<ContentItem> evidence;
@@ -347,7 +328,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         Settings settings,
         string? effectiveSource,
         StorageService storage,
-        EmbeddingService embedding,
+        IEmbeddingService embedding,
         int searchDays,
         CancellationToken ct)
     {
@@ -382,7 +363,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         {
             if (item.Embedding != null)
             {
-                var sim = EmbeddingService.CosineSimilarity(queryEmbedding, item.Embedding);
+                var sim = VectorMath.CosineSimilarity(queryEmbedding, item.Embedding);
                 item.RelevanceScore = Math.Max(sim, 0);
             }
         }
@@ -401,7 +382,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         string question,
         List<ContentItem> evidence,
         List<(string question, string answer, List<string> sourceIds)> history,
-        OllamaService ollama,
+        DoomSummarizer.Services.OllamaService ollama,
         CancellationToken ct)
     {
         var evidenceBlock = new StringBuilder();

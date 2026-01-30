@@ -241,7 +241,7 @@ public static partial class SectionGenerator
             if (plan.ThemeEmbedding != null)
             {
                 var sectionEmbedding = embedder(content.Length > 1000 ? content[..1000] : content);
-                var driftScore = EmbeddingService.CosineSimilarity(sectionEmbedding, plan.ThemeEmbedding);
+                var driftScore = VectorMath.CosineSimilarity(sectionEmbedding, plan.ThemeEmbedding);
 
                 if (driftScore < DriftThreshold)
                 {

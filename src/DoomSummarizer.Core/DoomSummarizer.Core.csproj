@@ -96,6 +96,11 @@
         </PackageReference>
     </ItemGroup>
 
+    <!-- Shared LLM routing (LlmRouter, ApiKeyService, ApiRateLimiter) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
+        <ProjectReference Include="..\LucidRAG.LLM\LucidRAG.LLM.csproj" />
+    </ItemGroup>
+
     <!-- DocSummarizer + backend packages (conditional: ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />

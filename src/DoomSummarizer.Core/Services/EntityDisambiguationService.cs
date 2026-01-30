@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomSummarizer.Services;
 
@@ -40,7 +41,7 @@ public class EntityDisambiguationService
     public async Task<DisambiguationResult> DisambiguateAsync(
         List<ContentItem> evidence,
         string query,
-        EmbeddingService embedding,
+        IEmbeddingService embedding,
         StorageService storage,
         OllamaService? ollama,
         bool ollamaAvailable,
@@ -65,7 +66,7 @@ public class EntityDisambiguationService
     public async Task<DisambiguationResult> DisambiguateFastAsync(
         List<ContentItem> evidence,
         string query,
-        EmbeddingService embedding,
+        IEmbeddingService embedding,
         StorageService storage)
     {
         if (TrySkip(evidence, query) is { } skip)
@@ -109,7 +110,7 @@ public class EntityDisambiguationService
         List<ContentItem> evidence,
         List<EntityFeatures> features,
         string method,
-        EmbeddingService embedding,
+        IEmbeddingService embedding,
         StorageService storage)
     {
         var featureEmbeddings = await EmbedFeaturesAsync(features, embedding, storage);
@@ -316,7 +317,7 @@ public class EntityDisambiguationService
 
     private static async Task<float[][]> EmbedFeaturesAsync(
         List<EntityFeatures> features,
-        EmbeddingService embedding,
+        IEmbeddingService embedding,
         StorageService storage)
     {
         var embeddings = new float[features.Count][];
@@ -335,13 +336,13 @@ public class EntityDisambiguationService
             var cached = await storage.GetCachedFeatureEmbeddingAsync(fingerprint);
             if (cached.HasValue)
             {
-                embeddings[i] = EmbeddingService.FromBytes(cached.Value.embedding);
+                embeddings[i] = EmbeddingCompat.FromBytes(cached.Value.embedding);
             }
             else
             {
-                embeddings[i] = embedding.Embed(fingerprint);
+                embeddings[i] = await embedding.EmbedAsync(fingerprint);
                 await storage.UpsertFeatureCacheAsync(fingerprint, null,
-                    EmbeddingService.ToBytes(embeddings[i]));
+                    EmbeddingCompat.ToBytes(embeddings[i]));
             }
 
             // Collect individual terms for batch caching
@@ -360,8 +361,8 @@ public class EntityDisambiguationService
             if (!seen.Add(term)) continue;
             var existing = await storage.GetCachedFeatureEmbeddingAsync(term);
             if (existing.HasValue) continue;
-            var emb = embedding.Embed(term);
-            await storage.UpsertFeatureCacheAsync(term, category, EmbeddingService.ToBytes(emb));
+            var emb = await embedding.EmbedAsync(term);
+            await storage.UpsertFeatureCacheAsync(term, category, EmbeddingCompat.ToBytes(emb));
         }
 
         return embeddings;
@@ -402,7 +403,7 @@ public class EntityDisambiguationService
             var bestCluster = -1;
             for (var c = 0; c < clusterCentroids.Count; c++)
             {
-                var sim = EmbeddingService.CosineSimilarity(emb, clusterCentroids[c]);
+                var sim = VectorMath.CosineSimilarity(emb, clusterCentroids[c]);
                 if (sim > bestSim)
                 {
                     bestSim = sim;
@@ -457,7 +458,7 @@ public class EntityDisambiguationService
                 for (var c = 0; c < clusterCentroids.Count; c++)
                 {
                     var sim = IsZeroVector(emb) ? 0f
-                        : EmbeddingService.CosineSimilarity(emb, clusterCentroids[c]);
+                        : VectorMath.CosineSimilarity(emb, clusterCentroids[c]);
                     if (sim > bestSim)
                     {
                         bestSim = sim;

@@ -153,7 +153,7 @@ await vectorStore.RemoveStaleDocumentsAsync("documents", parentId: "doc1", valid
 ## Architecture
 
 ```
-IVectorStore (unified interface)
+IMultiVectorStore : IVectorStore (unified interface)
 ├── InMemoryVectorStore     (ephemeral, fastest)
 ├── DuckDBVectorStore       (persistent, embedded, HNSW indexes)
 └── QdrantVectorStore       (persistent, server-based, production)
@@ -161,6 +161,7 @@ IVectorStore (unified interface)
 Used by:
 ├── DocSummarizer.Core      (text embeddings)
 ├── ImageSummarizer.Core    (OCR + CLIP embeddings)
+├── AudioSummarizer.Core    (voice embeddings via EmbeddingStorageWave)
 ├── DataSummarizer.Core     (data profile embeddings)
 └── LucidRAG                (all of the above)
 ```
@@ -281,28 +282,70 @@ var schema = new VectorStoreSchema
 
 Search results will only return IDs and scores, not text content.
 
-## Future: Multi-Vector Support
+## Multi-Vector Support
 
-Phase 3 will add `IMultiVectorStore` for image pipeline:
+`IMultiVectorStore` extends `IVectorStore` with named vector support for multi-modal embeddings. All three backends (InMemory, DuckDB, Qdrant) implement it.
 
 ```csharp
 public interface IMultiVectorStore : IVectorStore
 {
+    Task InitializeMultiVectorAsync(
+        string collectionName,
+        VectorStoreSchema primarySchema,
+        IEnumerable<NamedVectorConfig> namedVectors,
+        CancellationToken ct = default);
+
     Task UpsertMultiVectorDocumentsAsync(
         string collectionName,
-        IEnumerable<MultiVectorDocument> documents);
+        IEnumerable<MultiVectorDocument> documents,
+        CancellationToken ct = default);
 
-    Task<List<VectorSearchResult>> SearchMultiVectorAsync(
+    Task<List<VectorSearchResult>> SearchByNamedVectorAsync(
         string collectionName,
-        MultiVectorSearchQuery query);
+        string vectorName,
+        VectorSearchQuery query,
+        CancellationToken ct = default);
 }
 ```
+
+### Usage
+
+```csharp
+var store = serviceProvider.GetRequiredService<IMultiVectorStore>();
+
+// Initialize with primary + named vectors
+await store.InitializeMultiVectorAsync("images", primarySchema, new[]
+{
+    new NamedVectorConfig { Name = "visual", Dimension = 512 },
+    new NamedVectorConfig { Name = "color", Dimension = 128 },
+});
+
+// Upsert documents with named vectors
+var doc = new MultiVectorDocument
+{
+    Id = "img1", Embedding = primaryEmbedding,
+    NamedVectors = { ["visual"] = clipVector, ["color"] = colorVector }
+};
+await store.UpsertMultiVectorDocumentsAsync("images", [doc]);
+
+// Search by named vector
+var results = await store.SearchByNamedVectorAsync("images", "visual", query);
+```
+
+### Backend Implementation Details
+
+| Backend | Named Vector Strategy |
+|---------|----------------------|
+| **InMemory** | Stored in `MultiVectorDocument.NamedVectors` dictionary, cosine search in-memory |
+| **DuckDB** | Side table `{collection}_named_vectors` with `(document_id, vector_name)` PK, cosine search in-memory |
+| **Qdrant** | Native `VectorParamsMap` with per-vector HNSW indexes, native search via `vectorName` parameter |
 
 Enables separate embeddings for:
 - **Text** (OCR from image)
 - **Visual** (CLIP embedding)
 - **Color** (color histogram)
 - **Motion** (optical flow)
+- **Voice** (ECAPA-TDNN speaker embedding)
 
 ## Implementation Status
 
@@ -336,7 +379,7 @@ Enables separate embeddings for:
 ### Phase 3: Remaining Implementations ✅ COMPLETE
 - [x] Port `InMemoryVectorStore` from DocSummarizer.Core
 - [x] Port `QdrantVectorStore` from DocSummarizer.Core
-- [ ] Add `IMultiVectorStore` for image pipeline (future enhancement)
+- [x] Add `IMultiVectorStore` for multi-modal pipelines (image, audio)
 
 **InMemoryVectorStore Features**:
 - ✅ ConcurrentDictionary-based storage for thread-safety

@@ -1,5 +1,6 @@
 using System.Reflection;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -14,7 +15,7 @@ public class SourceRouter
 {
     private readonly SourceRoutingConfig _config;
     private Dictionary<string, float[]>? _topicEmbeddings;
-    private EmbeddingService? _embedding;
+    private IEmbeddingService? _embedding;
     private const float SemanticThreshold = 0.35f;
 
     public SourceRouter(SourceRoutingConfig config)
@@ -51,7 +52,7 @@ public class SourceRouter
     /// Initialize semantic embeddings for all topic keywords.
     /// Call this once after embedding service is available to enable fuzzy topic matching.
     /// </summary>
-    public void InitializeEmbeddings(EmbeddingService embedding)
+    public async Task InitializeEmbeddingsAsync(IEmbeddingService embedding)
     {
         _embedding = embedding;
         _topicEmbeddings = new Dictionary<string, float[]>();
@@ -60,7 +61,7 @@ public class SourceRouter
         {
             // Create representative text from all keywords for this topic
             var representativeText = string.Join(" ", keywords);
-            _topicEmbeddings[topic] = embedding.Embed(representativeText);
+            _topicEmbeddings[topic] = await embedding.EmbedAsync(representativeText);
         }
     }
 
@@ -69,12 +70,12 @@ public class SourceRouter
     /// Uses semantic embedding similarity when available, falls back to keyword matching.
     /// Returns the category name (e.g., "health", "technology") or "default".
     /// </summary>
-    public string DetectTopic(string query)
+    public async Task<string> DetectTopicAsync(string query)
     {
         // Try semantic matching first (fuzzy, handles synonyms)
         if (_topicEmbeddings != null && _embedding != null)
         {
-            var semanticTopic = DetectTopicSemantic(query);
+            var semanticTopic = await DetectTopicSemanticAsync(query);
             if (semanticTopic != "default")
                 return semanticTopic;
         }
@@ -87,19 +88,19 @@ public class SourceRouter
     /// Detect topic using semantic embedding similarity.
     /// Embeds the query and finds the topic with highest cosine similarity.
     /// </summary>
-    internal string DetectTopicSemantic(string query)
+    internal async Task<string> DetectTopicSemanticAsync(string query)
     {
         if (_topicEmbeddings == null || _embedding == null || _topicEmbeddings.Count == 0)
             return "default";
 
-        var queryEmbedding = _embedding.Embed(query);
+        var queryEmbedding = await _embedding.EmbedAsync(query);
 
         var bestTopic = "default";
         var bestScore = SemanticThreshold;
 
         foreach (var (topic, topicEmbedding) in _topicEmbeddings)
         {
-            var similarity = EmbeddingService.CosineSimilarity(queryEmbedding, topicEmbedding);
+            var similarity = VectorMath.CosineSimilarity(queryEmbedding, topicEmbedding);
             if (similarity > bestScore)
             {
                 bestScore = similarity;
@@ -146,9 +147,9 @@ public class SourceRouter
     /// <summary>
     /// Get the routing result for a query: which sources to use, BBC category, Google News topic.
     /// </summary>
-    public RoutingResult Route(string query)
+    public async Task<RoutingResult> RouteAsync(string query)
     {
-        var topic = DetectTopic(query);
+        var topic = await DetectTopicAsync(query);
         return RouteByTopic(topic, query);
     }
 

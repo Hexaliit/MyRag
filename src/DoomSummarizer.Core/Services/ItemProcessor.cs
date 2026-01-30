@@ -1,4 +1,5 @@
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Services;
@@ -13,18 +14,28 @@ public sealed class ItemProcessor
     private readonly float[] _negativeAnchor;
     private readonly Dictionary<string, float[]> _topicAnchors;
     private readonly StorageService _storage;
+    private readonly IEntityGraphStore? _entityStore;
 
     /// <summary>
-    /// Pre-computes sentiment and topic anchor embeddings once.
+    /// Async factory: pre-computes sentiment and topic anchor embeddings once.
     /// </summary>
-    public ItemProcessor(EmbeddingService embedding, StorageService storage)
+    public static async Task<ItemProcessor> CreateAsync(IEmbeddingService embedding, StorageService storage, IEntityGraphStore? entityStore = null, CancellationToken ct = default)
+    {
+        var positiveAnchor = await embedding.EmbedAsync(RelevanceScorer.PositiveAnchorText, ct);
+        var negativeAnchor = await embedding.EmbedAsync(RelevanceScorer.NegativeAnchorText, ct);
+        var topicAnchors = new Dictionary<string, float[]>();
+        foreach (var kv in RelevanceScorer.TopicAnchorTexts)
+            topicAnchors[kv.Key] = await embedding.EmbedAsync(kv.Value, ct);
+        return new ItemProcessor(positiveAnchor, negativeAnchor, topicAnchors, storage, entityStore);
+    }
+
+    private ItemProcessor(float[] positiveAnchor, float[] negativeAnchor, Dictionary<string, float[]> topicAnchors, StorageService storage, IEntityGraphStore? entityStore = null)
     {
         _storage = storage;
-        _positiveAnchor = embedding.Embed(RelevanceScorer.PositiveAnchorText);
-        _negativeAnchor = embedding.Embed(RelevanceScorer.NegativeAnchorText);
-        _topicAnchors = RelevanceScorer.TopicAnchorTexts.ToDictionary(
-            kv => kv.Key,
-            kv => embedding.Embed(kv.Value));
+        _entityStore = entityStore;
+        _positiveAnchor = positiveAnchor;
+        _negativeAnchor = negativeAnchor;
+        _topicAnchors = topicAnchors;
     }
 
     /// <summary>
@@ -96,8 +107,8 @@ public sealed class ItemProcessor
         {
             var entityId = KnowledgeGraphService.GenerateEntityId(entity.Text, entity.Type);
             entityIds.Add(entityId);
-            await _storage.UpsertEntityAsync(entityId, entity.Text, entity.Type, entity.Confidence);
-            await _storage.UpsertEntityMentionAsync(entityId, item.Id, entity.Confidence, item.Title);
+            await _entityStore!.UpsertEntityAsync(entityId, entity.Text, entity.Type, entity.Confidence);
+            await _entityStore!.UpsertEntityMentionAsync(entityId, item.Id, entity.Confidence, item.Title);
         }
 
         // Build co-occurrence edges
@@ -105,7 +116,7 @@ public sealed class ItemProcessor
         {
             for (var j = i + 1; j < entityIds.Count; j++)
             {
-                await _storage.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
+                await _entityStore!.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
             }
         }
     }

@@ -83,18 +83,9 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         // Derive KB name from domain if not provided
         var kbName = settings.Name ?? seedUri.Host.Replace("www.", "").Split('.')[0];
 
-        var config = await ConfigService.LoadAsync();
-        var dbPath = ConfigService.GetDbPath(config);
-
-        await using var storage = new StorageService(dbPath);
-        await storage.InitializeAsync();
-
-        using var embedding = new EmbeddingService();
-        await embedding.EnsureReadyAsync(msg =>
-        {
-            if (!settings.Quiet)
-                AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(msg)}[/]");
-        });
+        await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
+        if (settings.Entities)
+            await boot.InitializeEntityGraphStoreAsync();
 
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
@@ -117,7 +108,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         {
             // Build lookup from all cached URLs — the crawler will use this
             // to send If-None-Match / If-Modified-Since headers
-            var allCached = await storage.GetAllUrlCacheEntriesAsync();
+            var allCached = await boot.Storage.GetAllUrlCacheEntriesAsync();
             foreach (var entry in allCached)
             {
                 if (!string.IsNullOrEmpty(entry.ETag) || !string.IsNullOrEmpty(entry.LastModified))
@@ -186,7 +177,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                         httpNotModifiedCount++;
                         // Bump hit count in URL cache
                         if (!string.IsNullOrEmpty(result.Url))
-                            await storage.UpdateUrlCacheAsync(result.Url, null, result.ETag, result.LastModified, 0);
+                            await boot.Storage.UpdateUrlCacheAsync(result.Url, null, result.ETag, result.LastModified, 0);
                         continue;
                     }
 
@@ -197,12 +188,12 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                     if (!settings.Force && !string.IsNullOrEmpty(item.Url) && !string.IsNullOrEmpty(item.Content))
                     {
                         var contentHash = ComputeContentHash(item.Content);
-                        if (await storage.IsContentUnchangedAsync(item.Url, contentHash))
+                        if (await boot.Storage.IsContentUnchangedAsync(item.Url, contentHash))
                         {
                             contentHashCachedCount++;
                             // Update cache: bump hit count + store any new ETags from this response
                             var (etag, lastMod) = capturedHeaders.TryGetValue(item.Url, out var h) ? h : (null, null);
-                            await storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
+                            await boot.Storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
                             continue;
                         }
                     }
@@ -230,13 +221,13 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                     var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
                     if (textToEmbed.Length > 1000)
                         textToEmbed = textToEmbed[..1000];
-                    item.Embedding = embedding.Embed(textToEmbed);
+                    item.Embedding = await boot.Embedding.EmbedAsync(textToEmbed, cancellationToken);
                     embedTask.Increment(1);
                 }
 
                 embedTask.Description = $"[green]Embedded {newItems.Count} pages[/]";
 
-                var processor = new ItemProcessor(embedding, storage);
+                var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, cancellationToken);
 
                 // Stage 3: NER entity extraction (optional)
                 // Entity persistence is deferred to after Stage 4 (item save) to avoid FK violations
@@ -288,7 +279,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                     {
                         var contentHash = ComputeContentHash(item.Content);
                         var (etag, lastMod) = capturedHeaders.TryGetValue(item.Url, out var h) ? h : (null, null);
-                        await storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
+                        await boot.Storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
                     }
 
                     storeTask.Increment(1);

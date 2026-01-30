@@ -1,3 +1,5 @@
+using Mostlylucid.DocSummarizer.Services;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
@@ -20,8 +22,8 @@ namespace DoomSummarizer.Services;
 /// </summary>
 public class EntityProfileService
 {
-    private readonly EmbeddingService _embedding;
-    private readonly DuckDbVectorStore? _vectorStore;
+    private readonly IEmbeddingService _embedding;
+    private readonly IEntityGraphStore? _vectorStore;
     private readonly int _dim;
 
     // Type weights: ORG and PER slightly more distinctive than LOC/MISC
@@ -33,13 +35,13 @@ public class EntityProfileService
         ["MISC"] = 0.9f
     };
 
-    public EntityProfileService(EmbeddingService embedding, int embeddingDimension = 384)
+    public EntityProfileService(IEmbeddingService embedding, int embeddingDimension = 384)
     {
         _embedding = embedding;
         _dim = embeddingDimension;
     }
 
-    public EntityProfileService(EmbeddingService embedding, DuckDbVectorStore vectorStore, int embeddingDimension = 384)
+    public EntityProfileService(IEmbeddingService embedding, IEntityGraphStore vectorStore, int embeddingDimension = 384)
     {
         _embedding = embedding;
         _vectorStore = vectorStore;
@@ -66,7 +68,7 @@ public class EntityProfileService
     /// Tuple of (L2-normalized 384-dim entity profile, top contributing entities for explain/debug).
     /// Returns (empty array, empty list) if no entities.
     /// </returns>
-    public (float[] profile, List<(string entityId, string name, float weight)> topEntities) ComputeProfileWithExplain(
+    public async Task<(float[] profile, List<(string entityId, string name, float weight)> topEntities)> ComputeProfileWithExplainAsync(
         List<(string entityId, string name, string type, float confidence, int mentions)> docEntities,
         Dictionary<string, int> entityDocCounts,
         int totalDocs,
@@ -91,7 +93,7 @@ public class EntityProfileService
             else
             {
                 // Fall back to on-demand embedding
-                entityEmbed = _embedding.Embed(name);
+                entityEmbed = await _embedding.EmbedAsync(name);
 
                 // Track newly computed embeddings for caching
                 if (newlyComputedEmbeddings != null && !wasCached)
@@ -140,7 +142,7 @@ public class EntityProfileService
     /// <summary>
     /// Simplified ComputeProfile that doesn't return explain data.
     /// </summary>
-    public float[] ComputeProfile(
+    public async Task<float[]> ComputeProfileAsync(
         List<(string entityId, string name, float confidence, int mentions)> docEntities,
         Dictionary<string, int> entityDocCounts,
         int totalDocs)
@@ -150,7 +152,7 @@ public class EntityProfileService
             .Select(e => (e.entityId, e.name, type: InferTypeFromId(e.entityId), e.confidence, e.mentions))
             .ToList();
 
-        var (profile, _) = ComputeProfileWithExplain(withType, entityDocCounts, totalDocs);
+        var (profile, _) = await ComputeProfileWithExplainAsync(withType, entityDocCounts, totalDocs);
         return profile;
     }
 
@@ -204,7 +206,7 @@ public class EntityProfileService
     /// <param name="entityDocCounts">Document count per entity for IDF computation</param>
     /// <param name="totalDocs">Total number of documents in corpus</param>
     /// <returns>L2-normalized query entity profile, or empty array if no entities</returns>
-    public float[] ComputeQueryProfile(
+    public async Task<float[]> ComputeQueryProfileAsync(
         List<(string name, string type, float confidence)> queryEntities,
         Dictionary<string, int> entityDocCounts,
         int totalDocs)
@@ -221,7 +223,7 @@ public class EntityProfileService
                 mentions: 1))
             .ToList();
 
-        var (profile, _) = ComputeProfileWithExplain(asDocEntities, entityDocCounts, totalDocs);
+        var (profile, _) = await ComputeProfileWithExplainAsync(asDocEntities, entityDocCounts, totalDocs);
         return profile;
     }
 

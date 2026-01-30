@@ -1,5 +1,6 @@
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Tests;
@@ -11,6 +12,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
 {
     private readonly string _dbPath;
     private DuckDbVectorStore _store = null!;
+    private IEntityGraphStore _entityStore = null!;
     private KnowledgeGraphService _graph = null!;
 
     public KnowledgeGraphServiceTests()
@@ -22,11 +24,14 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
     {
         _store = new DuckDbVectorStore(_dbPath);
         await _store.InitializeAsync();
-        _graph = new KnowledgeGraphService(_store);
+        _entityStore = new DuckDbEntityGraphStore(_dbPath);
+        await _entityStore.InitializeAsync();
+        _graph = new KnowledgeGraphService(_store, _entityStore);
     }
 
     public async Task DisposeAsync()
     {
+        await _entityStore.DisposeAsync();
         await _store.DisposeAsync();
         try
         {
@@ -49,7 +54,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
 
         await _graph.IngestEntitiesAsync([(item, entities)]);
 
-        var stats = await _store.GetStatsAsync();
+        var stats = await _entityStore.GetStatsAsync();
         stats.entities.Should().Be(2);
         stats.mentions.Should().Be(2);
     }
@@ -67,7 +72,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
 
         await _graph.IngestEntitiesAsync([(item, entities)]);
 
-        var stats = await _store.GetStatsAsync();
+        var stats = await _entityStore.GetStatsAsync();
         // 3 entities, C(3,2) = 3 co-occurrence edges
         stats.entities.Should().Be(3);
         stats.relationships.Should().Be(3);
@@ -86,7 +91,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
 
         await _graph.IngestEntitiesAsync([(item, entities)]);
 
-        var stats = await _store.GetStatsAsync();
+        var stats = await _entityStore.GetStatsAsync();
         stats.entities.Should().Be(1, "case-insensitive dedup should merge");
     }
 
@@ -99,7 +104,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
         await _graph.IngestEntitiesAsync([(item1, [new NerEntity { Text = "Alice", Type = "PER", Confidence = 0.9f }])]);
         await _graph.IngestEntitiesAsync([(item2, [new NerEntity { Text = "Alice", Type = "PER", Confidence = 0.85f }])]);
 
-        var topEntities = await _store.GetTopEntitiesAsync(10);
+        var topEntities = await _entityStore.GetTopEntitiesAsync(10);
         topEntities.Should().HaveCount(1);
         topEntities[0].MentionCount.Should().Be(2);
     }
@@ -115,7 +120,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
 
         await _graph.IngestLinkedPageEntitiesAsync(parentItem, linkedEntities, "https://linked.example.com");
 
-        var stats = await _store.GetStatsAsync();
+        var stats = await _entityStore.GetStatsAsync();
         stats.entities.Should().Be(1);
         // The entity should be stored with adjusted confidence (0.7x)
     }
@@ -135,7 +140,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
 
         await _graph.IndexItemEmbeddingsAsync(items);
 
-        var stats = await _store.GetStatsAsync();
+        var stats = await _entityStore.GetStatsAsync();
         stats.itemEmbeddings.Should().Be(2, "only items with embeddings should be indexed");
     }
 
@@ -201,10 +206,10 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
     public async Task IngestEntities_WithEntityProfileService_ComputesProfiles()
     {
         // Create service with EntityProfileService
-        using var embeddingService = new EmbeddingService();
-        await embeddingService.EnsureReadyAsync();
+        var embeddingService = await EmbeddingFactory.CreateAsync();
+        using var embeddingDisposable = embeddingService as IDisposable;
         var entityProfileService = new EntityProfileService(embeddingService);
-        var graphWithProfiles = new KnowledgeGraphService(_store, entityProfileService);
+        var graphWithProfiles = new KnowledgeGraphService(_store, _entityStore, entityProfileService);
 
         var item = CreateContentItem("item1", "OpenAI Launches GPT-5");
         item.Embedding = CreateRandomEmbedding();
@@ -217,7 +222,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
         await graphWithProfiles.IngestEntitiesAsync([(item, entities)]);
 
         // Verify entity profile was computed
-        var hasProfiles = await _store.HasEntityProfilesAsync();
+        var hasProfiles = await _entityStore.HasEntityProfilesAsync();
         hasProfiles.Should().BeTrue("entity profile should be computed and stored");
     }
 
@@ -226,10 +231,10 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
     public async Task FindRelatedByEntityProfile_FindsSimilarDocuments()
     {
         // Create service with EntityProfileService
-        using var embeddingService = new EmbeddingService();
-        await embeddingService.EnsureReadyAsync();
+        var embeddingService = await EmbeddingFactory.CreateAsync();
+        using var embeddingDisposable = embeddingService as IDisposable;
         var entityProfileService = new EntityProfileService(embeddingService);
-        var graphWithProfiles = new KnowledgeGraphService(_store, entityProfileService);
+        var graphWithProfiles = new KnowledgeGraphService(_store, _entityStore, entityProfileService);
 
         // Create multiple AI-related articles with similar entities
         var item1 = CreateContentItem("ai_article_1", "OpenAI Announces New AI Model");
@@ -278,10 +283,10 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
     [Trait("Category", "RequiresModel")]
     public async Task HasEntityProfiles_ReturnsTrueAfterIngestion()
     {
-        using var embeddingService = new EmbeddingService();
-        await embeddingService.EnsureReadyAsync();
+        var embeddingService = await EmbeddingFactory.CreateAsync();
+        using var embeddingDisposable = embeddingService as IDisposable;
         var entityProfileService = new EntityProfileService(embeddingService);
-        var graphWithProfiles = new KnowledgeGraphService(_store, entityProfileService);
+        var graphWithProfiles = new KnowledgeGraphService(_store, _entityStore, entityProfileService);
 
         // Before ingestion
         var hasBefore = await graphWithProfiles.HasEntityProfilesAsync();

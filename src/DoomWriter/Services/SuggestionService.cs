@@ -1,5 +1,6 @@
 using DoomSummarizer.Services;
 using DoomWriter.Models;
+using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomWriter.Services;
 
@@ -13,7 +14,7 @@ namespace DoomWriter.Services;
 public class SuggestionService
 {
     private readonly CorpusService _corpus;
-    private readonly EmbeddingService _embedding;
+    private readonly IEmbeddingService _embedding;
     private readonly WriterSettingsService _settings;
 
     private const float EntityMatchThreshold = 0.4f;
@@ -22,7 +23,7 @@ public class SuggestionService
 
     public SuggestionService(
         CorpusService corpus,
-        EmbeddingService embedding,
+        IEmbeddingService embedding,
         WriterSettingsService settings)
     {
         _corpus = corpus;
@@ -40,7 +41,7 @@ public class SuggestionService
     {
         var suggestions = new List<Suggestion>();
 
-        if (!_corpus.IsInitialized || !_embedding.IsSetup)
+        if (!_corpus.IsInitialized)
             return suggestions;
 
         // 1. Entity-based suggestions ("you have an article about this")

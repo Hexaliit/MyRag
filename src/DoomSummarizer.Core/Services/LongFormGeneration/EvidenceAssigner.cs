@@ -90,9 +90,9 @@ public static class EvidenceAssigner
                 {
                     Segment = s,
                     BaseScore = ComputeScore(section.ThemeEmbedding, s),
-                    ThemeSim = EmbeddingService.CosineSimilarity(section.ThemeEmbedding, s.Segment.Embedding!),
+                    ThemeSim = VectorMath.CosineSimilarity(section.ThemeEmbedding, s.Segment.Embedding!),
                     QuerySim = queryEmbedding != null
-                        ? EmbeddingService.CosineSimilarity(queryEmbedding, s.Segment.Embedding!)
+                        ? VectorMath.CosineSimilarity(queryEmbedding, s.Segment.Embedding!)
                         : 1.0f, // If no query embedding, skip this check
                     IsDeepContent = IsDetailedContent(s.Segment.Text)
                 })
@@ -248,7 +248,7 @@ public static class EvidenceAssigner
 
     private static double ComputeScore(float[] themeEmbedding, EvidenceSegment seg)
     {
-        var themeSim = EmbeddingService.CosineSimilarity(themeEmbedding, seg.Segment.Embedding!);
+        var themeSim = VectorMath.CosineSimilarity(themeEmbedding, seg.Segment.Embedding!);
         var salience = seg.Segment.SalienceScore;
         var relevance = seg.ArticleRelevance;
 
@@ -287,7 +287,7 @@ public static class EvidenceAssigner
         foreach (var existing in selected)
         {
             if (existing.Segment.Embedding == null) continue;
-            var sim = EmbeddingService.CosineSimilarity(candidate.Segment.Embedding, existing.Segment.Embedding);
+            var sim = VectorMath.CosineSimilarity(candidate.Segment.Embedding, existing.Segment.Embedding);
             if (sim > threshold)
                 return true;
         }
@@ -305,7 +305,7 @@ public static class EvidenceAssigner
             // Find best-matching section
             var bestSection = plan.Sections
                 .Where(s => s.ThemeEmbedding != null)
-                .OrderByDescending(s => EmbeddingService.CosineSimilarity(s.ThemeEmbedding!, orphan.Segment.Embedding!))
+                .OrderByDescending(s => VectorMath.CosineSimilarity(s.ThemeEmbedding!, orphan.Segment.Embedding!))
                 .FirstOrDefault();
 
             if (bestSection != null)

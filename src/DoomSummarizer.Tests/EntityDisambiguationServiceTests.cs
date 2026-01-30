@@ -1,5 +1,6 @@
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomSummarizer.Tests;
 
@@ -11,7 +12,7 @@ namespace DoomSummarizer.Tests;
 public class EntityDisambiguationServiceTests : IAsyncLifetime
 {
     private StorageService _storage = null!;
-    private EmbeddingService _embedding = null!;
+    private IEmbeddingService _embedding = null!;
     private string _dbPath = null!;
 
     public async Task InitializeAsync()
@@ -20,15 +21,12 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
         _storage = new StorageService(_dbPath);
         await _storage.InitializeAsync();
 
-        _embedding = new EmbeddingService();
-        if (!_embedding.IsSetup)
-            await _embedding.SetupAsync();
-        _embedding.Initialize();
+        _embedding = await EmbeddingFactory.CreateAsync();
     }
 
     public async Task DisposeAsync()
     {
-        _embedding.Dispose();
+        (_embedding as IDisposable)?.Dispose();
         await _storage.DisposeAsync();
         try { File.Delete(_dbPath); } catch { /* cleanup best-effort */ }
     }
@@ -202,7 +200,7 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
     {
         var embedding = new float[384];
         for (var i = 0; i < 384; i++) embedding[i] = i / 384f;
-        var bytes = EmbeddingService.ToBytes(embedding);
+        var bytes = EmbeddingCompat.ToBytes(embedding);
 
         await _storage.UpsertFeatureCacheAsync("Toronto, Canada", "LOC", bytes);
 
@@ -210,7 +208,7 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
         cached.Should().NotBeNull();
         cached!.Value.category.Should().Be("LOC");
 
-        var recovered = EmbeddingService.FromBytes(cached.Value.embedding);
+        var recovered = EmbeddingCompat.FromBytes(cached.Value.embedding);
         recovered.Should().HaveCount(384);
         recovered[0].Should().BeApproximately(0f, 0.001f);
         recovered[383].Should().BeApproximately(383f / 384f, 0.001f);

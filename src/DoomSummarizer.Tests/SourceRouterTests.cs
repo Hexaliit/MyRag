@@ -50,10 +50,10 @@ public class SourceRouterTests
     [InlineData("drug approval news", "health")]
     [InlineData("vaccine development", "health")]
     [InlineData("pharmaceutical research", "health")]
-    public void DetectTopic_HealthKeywords_ReturnsHealth(string query, string expected)
+    public async Task DetectTopic_HealthKeywords_ReturnsHealth(string query, string expected)
     {
         var router = CreateRouter();
-        router.DetectTopic(query).Should().Be(expected);
+        (await router.DetectTopicAsync(query)).Should().Be(expected);
     }
 
     [Theory]
@@ -61,24 +61,24 @@ public class SourceRouterTests
     [InlineData("ai developments", "technology")]
     [InlineData("programming languages", "technology")]
     [InlineData("software updates", "technology")]
-    public void DetectTopic_TechKeywords_ReturnsTechnology(string query, string expected)
+    public async Task DetectTopic_TechKeywords_ReturnsTechnology(string query, string expected)
     {
         var router = CreateRouter();
-        router.DetectTopic(query).Should().Be(expected);
+        (await router.DetectTopicAsync(query)).Should().Be(expected);
     }
 
     [Fact]
-    public void DetectTopic_NoMatch_ReturnsDefault()
+    public async Task DetectTopic_NoMatch_ReturnsDefault()
     {
         var router = CreateRouter();
-        router.DetectTopic("random gibberish foobar").Should().Be("default");
+        (await router.DetectTopicAsync("random gibberish foobar")).Should().Be("default");
     }
 
     [Fact]
-    public void Route_HealthQuery_ReturnsHealthSources()
+    public async Task Route_HealthQuery_ReturnsHealthSources()
     {
         var router = CreateRouter();
-        var result = router.Route("pharmaceutical news");
+        var result = await router.RouteAsync("pharmaceutical news");
 
         result.Topic.Should().Be("health");
         result.Sources.Should().Contain("google_news");
@@ -88,10 +88,10 @@ public class SourceRouterTests
     }
 
     [Fact]
-    public void Route_TechQuery_ReturnsTechSources()
+    public async Task Route_TechQuery_ReturnsTechSources()
     {
         var router = CreateRouter();
-        var result = router.Route("software engineering");
+        var result = await router.RouteAsync("software engineering");
 
         result.Topic.Should().Be("technology");
         result.Sources.Should().Contain("hn");
@@ -100,10 +100,10 @@ public class SourceRouterTests
     }
 
     [Fact]
-    public void Route_UnknownQuery_UsesDefaultRouting()
+    public async Task Route_UnknownQuery_UsesDefaultRouting()
     {
         var router = CreateRouter();
-        var result = router.Route("random topic xyz");
+        var result = await router.RouteAsync("random topic xyz");
 
         result.Topic.Should().Be("default");
         result.Sources.Should().Contain("google_news");
@@ -182,10 +182,10 @@ public class SourceRouterTests
     }
 
     [Fact]
-    public void Load_EmbeddedYaml_HealthRoutingWorks()
+    public async Task Load_EmbeddedYaml_HealthRoutingWorks()
     {
         var router = SourceRouter.Load();
-        var result = router.Route("pharmaceutical drug approval");
+        var result = await router.RouteAsync("pharmaceutical drug approval");
 
         // Should route to pharma or health topic
         result.Topic.Should().BeOneOf("health", "pharma");
@@ -195,7 +195,7 @@ public class SourceRouterTests
     }
 
     [Fact]
-    public void DetectTopic_MultiWordKeyword_MatchesSubstring()
+    public async Task DetectTopic_MultiWordKeyword_MatchesSubstring()
     {
         var config = new SourceRoutingConfig
         {
@@ -211,16 +211,16 @@ public class SourceRouterTests
         };
 
         var router = new SourceRouter(config);
-        router.DetectTopic("what's happening on wall street today").Should().Be("finance");
+        (await router.DetectTopicAsync("what's happening on wall street today")).Should().Be("finance");
     }
 
     [Fact]
-    public void DetectTopic_MultipleTopicMatches_ReturnsBestMatch()
+    public async Task DetectTopic_MultipleTopicMatches_ReturnsBestMatch()
     {
         var router = CreateRouter();
         // "pharmaceutical tech" has 1 health keyword and 1 tech keyword
         // both should score 1, but pharma is more specific
-        var topic = router.DetectTopic("pharmaceutical technology drug software");
+        var topic = await router.DetectTopicAsync("pharmaceutical technology drug software");
 
         // health has 2 matches (pharmaceutical, drug), technology has 2 (technology, software)
         // Either could win - both are valid

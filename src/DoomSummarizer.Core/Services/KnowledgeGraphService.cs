@@ -19,16 +19,19 @@ namespace DoomSummarizer.Services;
 public class KnowledgeGraphService
 {
     private readonly DuckDbVectorStore _vectorStore;
+    private readonly IEntityGraphStore _entityStore;
     private readonly EntityProfileService? _entityProfileService;
 
-    public KnowledgeGraphService(DuckDbVectorStore vectorStore)
+    public KnowledgeGraphService(DuckDbVectorStore vectorStore, IEntityGraphStore entityStore)
     {
         _vectorStore = vectorStore;
+        _entityStore = entityStore;
     }
 
-    public KnowledgeGraphService(DuckDbVectorStore vectorStore, EntityProfileService entityProfileService)
+    public KnowledgeGraphService(DuckDbVectorStore vectorStore, IEntityGraphStore entityStore, EntityProfileService entityProfileService)
     {
         _vectorStore = vectorStore;
+        _entityStore = entityStore;
         _entityProfileService = entityProfileService;
     }
 
@@ -108,8 +111,8 @@ public class KnowledgeGraphService
                 entityIds.Add(entityId);
                 newEntityIds.Add(entityId);
 
-                await _vectorStore.UpsertEntityAsync(entityId, entity.Text, entity.Type, entity.Confidence);
-                await _vectorStore.UpsertEntityMentionAsync(entityId, item.Id, entity.Confidence,
+                await _entityStore.UpsertEntityAsync(entityId, entity.Text, entity.Type, entity.Confidence);
+                await _entityStore.UpsertEntityMentionAsync(entityId, item.Id, entity.Confidence,
                     TruncateContext(item.Title, 200));
 
                 // Track entity data for profile computation (includes type for weighting)
@@ -121,7 +124,7 @@ public class KnowledgeGraphService
             {
                 for (var j = i + 1; j < entityIds.Count; j++)
                 {
-                    await _vectorStore.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
+                    await _entityStore.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
                 }
             }
 
@@ -152,8 +155,8 @@ public class KnowledgeGraphService
         CancellationToken ct)
     {
         // Get global entity document counts for IDF computation
-        var entityDocCounts = await _vectorStore.GetEntityDocCountsAsync();
-        var totalDocs = await _vectorStore.GetTotalDocsWithEntitiesAsync();
+        var entityDocCounts = await _entityStore.GetEntityDocCountsAsync();
+        var totalDocs = await _entityStore.GetTotalDocsWithEntitiesAsync();
         if (totalDocs == 0) totalDocs = itemEntityData.Count; // Fallback for first batch
 
         // Collect all entity IDs for batch embedding fetch
@@ -163,7 +166,7 @@ public class KnowledgeGraphService
             .ToList();
 
         // Fetch cached entity embeddings to avoid re-embedding
-        var entityEmbeddings = await _vectorStore.GetEntityEmbeddingsAsync(allEntityIds);
+        var entityEmbeddings = await _entityStore.GetEntityEmbeddingsAsync(allEntityIds);
 
         // Track newly computed embeddings for caching
         var newlyComputedEmbeddings = new Dictionary<string, float[]>();
@@ -172,12 +175,12 @@ public class KnowledgeGraphService
         {
             ct.ThrowIfCancellationRequested();
 
-            var (profile, topEntities) = _entityProfileService!.ComputeProfileWithExplain(
+            var (profile, topEntities) = await _entityProfileService!.ComputeProfileWithExplainAsync(
                 entityList, entityDocCounts, totalDocs, entityEmbeddings, newlyComputedEmbeddings);
 
             if (profile.Length > 0)
             {
-                await _vectorStore.UpsertItemEntityProfileAsync(itemId, profile);
+                await _entityStore.UpsertItemEntityProfileAsync(itemId, profile);
             }
 
             // Add newly computed embeddings to cache for subsequent items in this batch
@@ -190,7 +193,7 @@ public class KnowledgeGraphService
         // Store all newly computed entity embeddings back to the database
         if (newlyComputedEmbeddings.Count > 0)
         {
-            await _vectorStore.UpdateEntityEmbeddingsBatchAsync(newlyComputedEmbeddings);
+            await _entityStore.UpdateEntityEmbeddingsBatchAsync(newlyComputedEmbeddings);
         }
     }
 
@@ -214,8 +217,8 @@ public class KnowledgeGraphService
             var entityId = GenerateEntityId(entity.Text, entity.Type);
 
             var adjustedConfidence = entity.Confidence * 0.7;
-            await _vectorStore.UpsertEntityAsync(entityId, entity.Text, entity.Type, adjustedConfidence);
-            await _vectorStore.UpsertEntityMentionAsync(entityId, parentItem.Id, adjustedConfidence,
+            await _entityStore.UpsertEntityAsync(entityId, entity.Text, entity.Type, adjustedConfidence);
+            await _entityStore.UpsertEntityMentionAsync(entityId, parentItem.Id, adjustedConfidence,
                 $"[linked: {TruncateContext(linkedUrl, 100)}]");
         }
     }
@@ -240,7 +243,7 @@ public class KnowledgeGraphService
             return [];
 
         // Get entity profiles for the seed items
-        var profiles = await _vectorStore.GetEntityProfilesAsync(itemIds);
+        var profiles = await _entityStore.GetEntityProfilesAsync(itemIds);
         if (profiles.Count == 0)
             return [];
 
@@ -251,7 +254,7 @@ public class KnowledgeGraphService
             return [];
 
         // Find similar items via HNSW
-        var results = await _vectorStore.FindRelatedByEntityProfileAsync(
+        var results = await _entityStore.FindRelatedByEntityProfileAsync(
             aggregateProfile, topK + itemIds.Count, minSimilarity);
 
         // Exclude the seed items from results
@@ -267,7 +270,7 @@ public class KnowledgeGraphService
     /// </summary>
     public async Task<bool> HasEntityProfilesAsync()
     {
-        return await _vectorStore.HasEntityProfilesAsync();
+        return await _entityStore.HasEntityProfilesAsync();
     }
 
     /// <summary>
@@ -275,7 +278,7 @@ public class KnowledgeGraphService
     /// </summary>
     public async Task<Dictionary<string, int>> GetEntityDocCountsAsync()
     {
-        return await _vectorStore.GetEntityDocCountsAsync();
+        return await _entityStore.GetEntityDocCountsAsync();
     }
 
     /// <summary>
@@ -283,7 +286,7 @@ public class KnowledgeGraphService
     /// </summary>
     public async Task<int> GetTotalDocsWithEntitiesAsync()
     {
-        return await _vectorStore.GetTotalDocsWithEntitiesAsync();
+        return await _entityStore.GetTotalDocsWithEntitiesAsync();
     }
 
     /// <summary>
@@ -298,24 +301,24 @@ public class KnowledgeGraphService
         var totalProcessed = 0;
 
         // Get global stats for IDF computation
-        var entityDocCounts = await _vectorStore.GetEntityDocCountsAsync();
-        var totalDocs = await _vectorStore.GetTotalDocsWithEntitiesAsync();
+        var entityDocCounts = await _entityStore.GetEntityDocCountsAsync();
+        var totalDocs = await _entityStore.GetTotalDocsWithEntitiesAsync();
         if (totalDocs == 0) return 0;
 
         // Fetch cached entity embeddings
         var allEntityIds = entityDocCounts.Keys.ToList();
-        var entityEmbeddings = await _vectorStore.GetEntityEmbeddingsAsync(allEntityIds);
+        var entityEmbeddings = await _entityStore.GetEntityEmbeddingsAsync(allEntityIds);
 
         while (true)
         {
             ct.ThrowIfCancellationRequested();
 
             // Get items without entity profiles
-            var itemIds = await _vectorStore.GetItemsWithoutEntityProfilesAsync(batchSize);
+            var itemIds = await _entityStore.GetItemsWithoutEntityProfilesAsync(batchSize);
             if (itemIds.Count == 0) break;
 
             // Get all entities for these items
-            var itemEntities = await _vectorStore.GetEntitiesForItemsAsync(itemIds);
+            var itemEntities = await _entityStore.GetEntitiesForItemsAsync(itemIds);
 
             // Group by item_id
             var byItem = itemEntities
@@ -334,12 +337,12 @@ public class KnowledgeGraphService
                     .Select(e => (e.entityId, e.name, e.type, e.confidence, e.mentions))
                     .ToList();
 
-                var (profile, _) = _entityProfileService.ComputeProfileWithExplain(
+                var (profile, _) = await _entityProfileService.ComputeProfileWithExplainAsync(
                     entityList, entityDocCounts, totalDocs, entityEmbeddings);
 
                 if (profile.Length > 0)
                 {
-                    await _vectorStore.UpsertItemEntityProfileAsync(itemId, profile);
+                    await _entityStore.UpsertItemEntityProfileAsync(itemId, profile);
                     totalProcessed++;
                 }
             }
@@ -353,7 +356,7 @@ public class KnowledgeGraphService
     /// </summary>
     public async Task DisplayGraphAsync(int topN = 15, int? daysBack = null)
     {
-        var (entityCount, relCount, mentionCount, itemCount) = await _vectorStore.GetStatsAsync();
+        var (entityCount, relCount, mentionCount, itemCount) = await _entityStore.GetStatsAsync();
 
         if (entityCount == 0)
         {
@@ -361,7 +364,7 @@ public class KnowledgeGraphService
             return;
         }
 
-        var entities = await _vectorStore.GetTopEntitiesAsync(topN, daysBack: daysBack);
+        var entities = await _entityStore.GetTopEntitiesAsync(topN, daysBack: daysBack);
 
         var sb = new System.Text.StringBuilder();
         sb.AppendLine();
@@ -391,7 +394,7 @@ public class KnowledgeGraphService
                 sb.AppendLine($"    {entity.Name} ({entity.MentionCount} mentions, {entity.ArticleCount} articles)");
 
                 // Show relationships (deduplicated by related entity name)
-                var relationships = await _vectorStore.GetRelationshipsAsync(entity.Id);
+                var relationships = await _entityStore.GetRelationshipsAsync(entity.Id);
                 if (relationships.Count > 0)
                 {
                     sb.AppendLine("      Related:");
@@ -406,7 +409,7 @@ public class KnowledgeGraphService
                 }
 
                 // Show article provenance (deduplicated by title)
-                var articles = await _vectorStore.GetArticlesForEntityAsync(entity.Id);
+                var articles = await _entityStore.GetArticlesForEntityAsync(entity.Id);
                 var uniqueArticles = articles
                     .GroupBy(a => a.title.ToLowerInvariant().Trim())
                     .Select(g => g.First())

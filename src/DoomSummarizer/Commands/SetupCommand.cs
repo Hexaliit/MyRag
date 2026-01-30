@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -37,8 +38,9 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
 
                 // 2. Download ONNX models
                 ctx.Status("Setting up ONNX embedding model...");
-                using var embedding = new EmbeddingService();
-                await embedding.SetupAsync(new Progress<string>(msg => ctx.Status(msg)));
+                var embedding = await EmbeddingFactory.CreateAsync(
+                    onStatus: msg => ctx.Status(msg),
+                    ct: cancellationToken);
                 AnsiConsole.MarkupLine("[green]\u2713[/] ONNX model (all-MiniLM-L6-v2) ready");
 
                 // 3. Initialize database
@@ -49,7 +51,7 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
 
                 // 4. Check Ollama availability and models
                 ctx.Status("Checking Ollama availability...");
-                var ollama = new OllamaService(config.Ollama);
+                var ollama = new DoomSummarizer.Services.OllamaService(config.Ollama);
                 if (await ollama.IsAvailableAsync())
                 {
                     AnsiConsole.MarkupLine($"[green]\u2713[/] Ollama available at {config.Ollama.BaseUrl}");

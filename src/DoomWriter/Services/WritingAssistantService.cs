@@ -2,6 +2,7 @@ using System.Text;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using DoomWriter.Models;
+using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomWriter.Services;
 
@@ -12,8 +13,8 @@ namespace DoomWriter.Services;
 /// </summary>
 public class WritingAssistantService
 {
-    private readonly OllamaService _ollama;
-    private readonly EmbeddingService _embedding;
+    private readonly DoomSummarizer.Services.OllamaService _ollama;
+    private readonly IEmbeddingService _embedding;
     private readonly CorpusService _corpus;
     private readonly WriterSettingsService _settings;
 
@@ -22,8 +23,8 @@ public class WritingAssistantService
     public event EventHandler<string>? GenerationFailed;
 
     public WritingAssistantService(
-        OllamaService ollama,
-        EmbeddingService embedding,
+        DoomSummarizer.Services.OllamaService ollama,
+        IEmbeddingService embedding,
         CorpusService corpus,
         WriterSettingsService settings)
     {

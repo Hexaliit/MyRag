@@ -96,7 +96,7 @@ public static partial class PropositionExtractor
             .Select(p => new
             {
                 Proposition = p,
-                ThemeSim = EmbeddingService.CosineSimilarity(section.ThemeEmbedding, p.Embedding!)
+                ThemeSim = VectorMath.CosineSimilarity(section.ThemeEmbedding, p.Embedding!)
             })
             .OrderByDescending(x => x.ThemeSim)
             .Take(maxPropositions)
@@ -260,7 +260,7 @@ public static partial class PropositionExtractor
 
         return used.Any(u =>
             u.Embedding != null &&
-            EmbeddingService.CosineSimilarity(candidate.Embedding, u.Embedding) > threshold);
+            VectorMath.CosineSimilarity(candidate.Embedding, u.Embedding) > threshold);
     }
 
     private static float TextSimilarity(string a, string b)

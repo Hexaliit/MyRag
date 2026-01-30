@@ -53,9 +53,9 @@ doomsummarizer ask -s crawl:mydocs "how does authentication work?"
 ### Requirements
 
 - **.NET 10** SDK
-- **Ollama** (optional, recommended): `ollama serve` + pull models — see `doomsummarizer setup`
+- **Ollama** (recommended): `ollama serve` + pull models — see `doomsummarizer setup`
 - **First run**: downloads ONNX embedding model (~23 MB) to `~/.doomsummarizer/models/`
-- **No API keys** for default RSS/HTML sources. Optional: Brave/Serper/Tavily/NewsAPI + Anthropic/OpenAI
+- **No API keys required** — default sources are free RSS/HTML. Optional search APIs (Brave, Serper, Tavily, NewsAPI) and cloud LLMs (Anthropic, OpenAI) are disabled by default
 
 ## Commands
 
@@ -511,29 +511,35 @@ Without Ollama, the full signal pipeline still runs: ONNX embeddings, BM25, sent
 
 ## LLM Providers
 
-### Cloud LLMs (Recommended for best quality)
+### Local Models — Ollama (Default)
 
-| Provider | Default Models | Key | Docs |
-|----------|---------------|-----|------|
-| Anthropic | Claude Sonnet 4 (main), Claude 3.5 Haiku (sentinel) | `ANTHROPIC_API_KEY` | [CloudLLM.md](docs/CloudLLM.md) |
-| OpenAI | GPT-4o (main), GPT-4o-mini (sentinel) | `OPENAI_API_KEY` | [CloudLLM.md](docs/CloudLLM.md) |
+DoomSummarizer runs entirely on local Ollama models by default. No cloud API keys required.
 
-Quick setup:
+| Role | Default Model | Purpose |
+|------|---------------|---------|
+| **Main** (synthesis) | `gemma3:4b` | Digests, articles, evidence-grounded answers |
+| **Sentinel** (triage) | `qwen3:0.6b` | Query classification, JSON outlines, fast decisions |
+
+Use `benchmark` to find optimal models for your hardware:
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-export DOOM_ANTHROPIC_MODELS="claude-sonnet-4-20250514|claude-3-5-haiku-latest"
+doomsummarizer benchmark "qwen3:4b,gemma3:4b" --pull
 ```
 
-Cloud LLMs provide dramatically better results: larger context windows (200K tokens), superior temporal understanding ("since last week"), and higher-quality synthesis. Budget-controlled with per-service rate limits, retry with backoff, and circuit breakers. See [docs/CloudLLM.md](docs/CloudLLM.md) for model selection and configuration.
+### Cloud LLMs (Optional — Disabled by Default)
 
-### Local Models (Ollama)
+Cloud providers are **disabled by default**. To enable, set an API key **and** set `"enabled": true` in config or user secrets.
 
-| Role | Default | Purpose |
-|------|---------|---------|
-| Synthesis | `gemma3:4b` | Digests, articles, evidence-grounded answers |
-| Sentinel | `qwen3:0.6b` | Triage, JSON outlines, fast classification |
+| Provider | Models | Key | Docs |
+|----------|--------|-----|------|
+| Anthropic | Claude Sonnet 4 / Haiku 3.5 | `ANTHROPIC_API_KEY` | [CloudLLM.md](docs/CloudLLM.md) |
+| OpenAI | GPT-4o / GPT-4o-mini | `OPENAI_API_KEY` | [CloudLLM.md](docs/CloudLLM.md) |
 
-Use `benchmark` to find optimal models for your hardware. Ollama is always the free fallback when cloud providers are unavailable or over budget.
+To enable cloud fallback:
+```json
+{ "name": "anthropic", "apiKey": "sk-ant-...", "enabled": true }
+```
+
+Cloud LLMs offer larger context windows (200K tokens) and higher-quality synthesis. When enabled, they are used as **fallback** when Ollama fails — Ollama remains the primary provider. Budget-controlled with per-service rate limits, retry with backoff, and circuit breakers. See [docs/CloudLLM.md](docs/CloudLLM.md).
 
 ## Vibes
 
@@ -573,7 +579,8 @@ Config file: `~/.doomsummarizer/config.json` — Local override: `doomsummarizer
   "embedding": { "backend": "onnx", "model": "all-MiniLM-L6-v2" },
   "linkFollowing": { "enabled": true, "maxLinksPerArticle": 3, "maxTotalLinks": 15 },
   "keys": [
-    { "name": "anthropic", "apiKey": "", "enabled": true, "maxRequestsPerDay": 200, "rateLimitMs": 100 },
+    { "name": "anthropic", "apiKey": "", "enabled": false, "maxRequestsPerDay": 200, "rateLimitMs": 100 },
+    { "name": "openai", "apiKey": "", "enabled": false, "maxRequestsPerDay": 200, "rateLimitMs": 100 },
     { "name": "brave_search", "apiKey": "", "enabled": true, "maxRequestsPerDay": 60, "rateLimitMs": 1100 }
   ],
   "apiBudget": { "globalMaxRequestsPerDay": 500, "globalDailyBudgetUsd": 2.0 }

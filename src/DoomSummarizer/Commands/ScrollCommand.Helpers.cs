@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Resilience;
+using Mostlylucid.DocSummarizer.Services;
 using Spectre.Console;
 
 namespace DoomSummarizer.Commands;
@@ -61,7 +62,7 @@ public partial class ScrollCommand
             var maxSim = 0f;
             foreach (var sqEmbed in subqueryEmbeddings)
             {
-                var sim = EmbeddingService.CosineSimilarity(itemEmbedding, sqEmbed);
+                var sim = VectorMath.CosineSimilarity(itemEmbedding, sqEmbed);
                 if (sim > maxSim) maxSim = sim;
             }
             return maxSim;
@@ -69,7 +70,7 @@ public partial class ScrollCommand
 
         // Otherwise use the primary query embedding
         if (primaryQueryEmbedding != null)
-            return EmbeddingService.CosineSimilarity(itemEmbedding, primaryQueryEmbedding);
+            return VectorMath.CosineSimilarity(itemEmbedding, primaryQueryEmbedding);
 
         return 0f;
     }
@@ -412,7 +413,7 @@ public partial class ScrollCommand
         DoomConfig config,
         string? configPath,
         LlmRouter llmRouter,
-        EmbeddingService embedding,
+        IEmbeddingService embedding,
         ApiKeyService apiKeys,
         CircuitBreakerService circuitBreaker,
         string? prompt)
@@ -456,10 +457,8 @@ public partial class ScrollCommand
             searchStatus.Add(isOpen ? $"[red]{shortName}[/]" : $"[green]{shortName}[/]");
         }
 
-        // LLM info
-        var embeddingInfo = embedding.IsGpuAccelerated
-            ? $"[green]{Markup.Escape(embedding.ExecutionProvider)}[/]"
-            : $"[grey]{Markup.Escape(embedding.ExecutionProvider)}[/]";
+        // Embedding info from IEmbeddingService
+        var embeddingInfo = $"[green]ONNX ({embedding.EmbeddingDimension}d)[/]";
 
         // Build the grid
         var grid = new Grid();

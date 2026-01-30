@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using DoomWriter.Services;
+using Mostlylucid.DocSummarizer.Services;
 using DoomWriter.ViewModels;
 using DoomWriter.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,7 +53,10 @@ public class App : Application
         services.AddSingleton<WriterSettingsService>();
 
         // DoomSummarizer.Core services
-        services.AddSingleton<EmbeddingService>();
+        services.AddSingleton<IEmbeddingService>(sp =>
+        {
+            return EmbeddingFactory.CreateAsync().GetAwaiter().GetResult();
+        });
         services.AddSingleton<NerService>();
         services.AddSingleton(sp =>
         {
@@ -71,11 +75,19 @@ public class App : Application
             Directory.CreateDirectory(dbDir);
             return new DuckDbVectorStore(Path.Combine(dbDir, "vectors.duckdb"));
         });
+        services.AddSingleton<IEntityGraphStore>(sp =>
+        {
+            var dbDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "DoomWriter", "data");
+            Directory.CreateDirectory(dbDir);
+            return new DuckDbEntityGraphStore(Path.Combine(dbDir, "vectors.duckdb"));
+        });
         services.AddSingleton(sp =>
         {
-            var embedding = sp.GetRequiredService<EmbeddingService>();
-            var vectorStore = sp.GetRequiredService<DuckDbVectorStore>();
-            return new EntityProfileService(embedding, vectorStore);
+            var embedding = sp.GetRequiredService<IEmbeddingService>();
+            var entityStore = sp.GetRequiredService<IEntityGraphStore>();
+            return new EntityProfileService(embedding, entityStore);
         });
         services.AddSingleton(sp =>
         {
@@ -87,7 +99,7 @@ public class App : Application
                 SentinelModel = settings.Config.SentinelModel,
                 ContextSize = settings.Config.ContextWindow
             };
-            return new OllamaService(config);
+            return new DoomSummarizer.Services.OllamaService(config);
         });
 
         // DoomWriter services

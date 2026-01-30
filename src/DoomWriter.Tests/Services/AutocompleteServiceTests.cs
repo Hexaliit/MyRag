@@ -1,6 +1,7 @@
 using DoomSummarizer.Services;
 using DoomWriter.Models;
 using DoomWriter.Services;
+using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomWriter.Tests.Services;
 
@@ -21,17 +22,16 @@ public class AutocompleteServiceTests
 
         var settingsService = new WriterSettingsService();
 
-        // We can't easily mock CorpusService / EmbeddingService (no interface),
-        // so we test the pure logic portions via the public API with real instances.
-        // For tests requiring those, we focus on the completion type detection.
-        var embeddingService = new EmbeddingService();
+        // Use IEmbeddingService via EmbeddingFactory (sync-over-async in constructor)
+        var embeddingService = EmbeddingFactory.CreateAsync().GetAwaiter().GetResult();
         // CorpusService needs many deps — create minimal for test
         var storageService = new StorageService(Path.Combine(Path.GetTempPath(),
             $"doom_autocomplete_test_{Guid.NewGuid():N}.db"));
         var nerService = new NerService();
-        var vectorStore = new DuckDbVectorStore(Path.Combine(Path.GetTempPath(),
-            $"doom_ac_vec_{Guid.NewGuid():N}.duckdb"));
-        var entityProfiles = new EntityProfileService(embeddingService, vectorStore);
+        var vecPath = Path.Combine(Path.GetTempPath(), $"doom_ac_vec_{Guid.NewGuid():N}.duckdb");
+        var vectorStore = new DuckDbVectorStore(vecPath);
+        var entityGraphStore = new DuckDbEntityGraphStore(vecPath);
+        var entityProfiles = new EntityProfileService(embeddingService, entityGraphStore);
         var corpus = new CorpusService(embeddingService, storageService, nerService,
             entityProfiles, vectorStore, settingsService);
 

@@ -310,7 +310,7 @@ public partial class OllamaService
                     {
                         var itemText = $"{item.title} {item.summary}";
                         var itemEmb = embedder(itemText);
-                        var sim = (double)EmbeddingService.CosineSimilarity(queryEmb, itemEmb);
+                        var sim = (double)VectorMath.CosineSimilarity(queryEmb, itemEmb);
                         return (item, sim);
                     })
                     .OrderByDescending(x => x.sim)

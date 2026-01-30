@@ -172,8 +172,8 @@ public class SourcePluginRegistryTests
     private static SourcePluginServices CreateFakeServices() => new()
     {
         HttpClient = new HttpClient(),
-        ApiKeys = ApiKeyService.Load(new DoomConfig()),
-        ApiBudget = new ApiBudgetService(new ApiBudgetConfig(), ApiKeyService.Load(new DoomConfig()),
+        ApiKeys = ApiKeyService.Load(new DoomConfig().Keys),
+        ApiBudget = new ApiBudgetService(new ApiBudgetConfig(), ApiKeyService.Load(new DoomConfig().Keys),
             Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db")),
         CircuitBreaker = new CircuitBreakerService(
             Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db"))

@@ -1,6 +1,8 @@
 # Cloud LLM Providers (OpenAI & Anthropic)
 
-DoomSummarizer works with local Ollama, but cloud LLM providers deliver dramatically better results. Cloud LLMs have larger context windows, better reasoning, and produce higher-quality summaries and articles.
+> **Cloud providers are optional and disabled by default.** DoomSummarizer runs fully on local Ollama models (`gemma3:4b` + `qwen3:0.6b`). Cloud LLMs are only used when explicitly enabled in config with a valid API key.
+
+Cloud LLM providers can deliver improved results for complex queries. They offer larger context windows, stronger reasoning, and higher-quality synthesis. When enabled, they serve as **fallback** providers — Ollama remains the primary LLM.
 
 ## Quick Setup
 
@@ -24,7 +26,12 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 export DOOM_ANTHROPIC_MODELS="claude-sonnet-4-5-20251124|claude-haiku-4-5-20251124"
 ```
 
-Then run DoomSummarizer normally — cloud providers are automatically detected and used.
+Then enable the provider in your config (`~/.doomsummarizer/config.json`):
+```json
+{ "name": "anthropic", "apiKey": "sk-ant-...", "enabled": true }
+```
+
+Cloud providers must be explicitly enabled. Setting an API key alone is not sufficient.
 
 ## Model Selection
 

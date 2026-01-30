@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Content;
+using Mostlylucid.DocSummarizer.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -54,29 +55,17 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
-        var config = await ConfigService.LoadAsync();
-        var dbPath = ConfigService.GetDbPath(config);
+        await using var boot = await CommandBootstrap.CreateAsync(ct);
+        var ollama = boot.CreateOllama();
 
-        await using var storage = new StorageService(dbPath);
-        await storage.InitializeAsync();
-
-        using var embedding = new EmbeddingService();
-        var ollama = new OllamaService(config.Ollama);
-
-        await embedding.EnsureReadyAsync(msg =>
-        {
-            if (!settings.Quiet)
-                AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(msg)}[/]");
-        });
-
-        var processor = new ItemProcessor(embedding, storage);
+        var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, ct: ct);
 
         var ollamaAvailable = !settings.NoLlm && await ollama.IsAvailableAsync();
         if (!ollamaAvailable && !settings.NoLlm && !settings.Quiet)
             AnsiConsole.MarkupLine("[yellow]Ollama not available. Will show extracted content only.[/]");
 
         // Get vibe prompt
-        var vibePrompt = config.Vibes.TryGetValue(settings.Vibe, out var vp)
+        var vibePrompt = boot.Config.Vibes.TryGetValue(settings.Vibe, out var vp)
             ? vp
             : $"Apply this tone: {settings.Vibe}";
 
@@ -161,7 +150,7 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
 
                 // Compute embedding
                 var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
-                item.Embedding = embedding.Embed(textToEmbed);
+                item.Embedding = await boot.Embedding.EmbedAsync(textToEmbed, ct);
                 processTask.Value = 30;
 
                 // Process through article processor for segmentation
@@ -259,7 +248,7 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
                 var blogResult = await ollama.SynthesizeBlogArticleAsync(
                     analyzedItems, settings.Vibe, vibePrompt,
                     item.Title, queryType,
-                    [item], embedding.Embed, templateDef, ct);
+                    [item], text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(), templateDef, ct);
 
                 var digestData = new DigestData
                 {
@@ -303,7 +292,7 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
                 if (contentSnippet.Length > 3000)
                 {
                     contentSnippet = TextRankExtractor.ExtractKeySentences(
-                        contentSnippet, embedding.Embed, maxChars: 3000);
+                        contentSnippet, text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(), maxChars: 3000);
                 }
 
                 var prompt = $"""

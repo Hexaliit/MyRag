@@ -1,6 +1,7 @@
 using System.Text;
 using DoomSummarizer.Services;
 using DoomWriter.Models;
+using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomWriter.Services;
 
@@ -13,9 +14,9 @@ namespace DoomWriter.Services;
 /// </summary>
 public class AutocompleteService
 {
-    private readonly OllamaService _ollama;
+    private readonly DoomSummarizer.Services.OllamaService _ollama;
     private readonly CorpusService _corpus;
-    private readonly EmbeddingService _embedding;
+    private readonly IEmbeddingService _embedding;
     private readonly WriterSettingsService _settings;
 
     private CancellationTokenSource? _pendingCts;
@@ -23,9 +24,9 @@ public class AutocompleteService
     public event EventHandler<AutocompleteResult>? SuggestionReady;
 
     public AutocompleteService(
-        OllamaService ollama,
+        DoomSummarizer.Services.OllamaService ollama,
         CorpusService corpus,
-        EmbeddingService embedding,
+        IEmbeddingService embedding,
         WriterSettingsService settings)
     {
         _ollama = ollama;

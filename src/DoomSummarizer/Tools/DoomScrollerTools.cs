@@ -3,6 +3,7 @@ using System.Text.Json;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Content;
+using Mostlylucid.DocSummarizer.Services;
 using ModelContextProtocol.Server;
 
 namespace DoomSummarizer.Tools;
@@ -37,8 +38,9 @@ public static class DoomScrollerTools
 
     // Lazy-initialized shared services
     private static StorageService? _storage;
-    private static EmbeddingService? _embedding;
-    private static OllamaService? _ollama;
+    private static IEntityGraphStore? _entityStore;
+    private static IEmbeddingService? _embedding;
+    private static DoomSummarizer.Services.OllamaService? _ollama;
     private static DoomConfig? _config;
     private static bool _servicesInitialized;
     private static readonly SemaphoreSlim InitLock = new(1, 1);
@@ -58,12 +60,26 @@ public static class DoomScrollerTools
             _storage = new StorageService(dbPath);
             await _storage.InitializeAsync();
 
-            _embedding = new EmbeddingService();
-            if (_embedding.IsSetup)
-                _embedding.Initialize();
+            // Initialize entity graph store for knowledge graph queries
+            var vectorDbPath = ConfigService.GetVectorDbPath();
+            if (File.Exists(vectorDbPath))
+            {
+                _entityStore = new DuckDbEntityGraphStore(vectorDbPath);
+                await _entityStore.InitializeAsync();
+            }
+
+            try
+            {
+                _embedding = await EmbeddingFactory.CreateAsync();
+            }
+            catch
+            {
+                // Embedding model not available — tools will degrade gracefully
+                _embedding = null;
+            }
 
             // Initialize Ollama for LLM-based Lucene query generation
-            _ollama = new OllamaService(_config.Ollama);
+            _ollama = new DoomSummarizer.Services.OllamaService(_config.Ollama);
             if (!await _ollama.IsAvailableAsync())
                 _ollama = null; // Fall back to deterministic if Ollama unavailable
 
@@ -129,10 +145,10 @@ public static class DoomScrollerTools
             {
                 items = await _storage.LoadItemsByIdsAsync(candidateIds.ToList());
             }
-            else if (_embedding is { IsSetup: true })
+            else if (_embedding is not null)
             {
                 // Fallback: embedding search when Lucene misses
-                var queryEmbed = _embedding.Embed(query);
+                var queryEmbed = await _embedding.EmbedAsync(query);
                 var similar = await _storage.FindSimilarAsync(queryEmbed, limit: limit * 2, threshold: 0.20, source: source);
                 items = similar.Select(s => s.ToContentItem()).ToList();
             }
@@ -172,7 +188,7 @@ public static class DoomScrollerTools
             var globalCorpus = await _storage.GetKeywordCorpusAsync();
             var globalCorpusSize = await _storage.GetKeywordCorpusSizeAsync();
 
-            float[]? queryEmbedding = _embedding is { IsSetup: true } ? _embedding.Embed(query) : null;
+            float[]? queryEmbedding = _embedding is not null ? await _embedding.EmbedAsync(query) : null;
             var bm25Query = query;
 
             var scorer = new RelevanceScorer();
@@ -199,7 +215,7 @@ public static class DoomScrollerTools
             var results = rankedItems.Select((item, idx) =>
             {
                 var cosineSim = queryEmbedding != null && item.Embedding != null
-                    ? (double?)Math.Round(EmbeddingService.CosineSimilarity(item.Embedding, queryEmbedding), 3)
+                    ? (double?)Math.Round(VectorMath.CosineSimilarity(item.Embedding, queryEmbedding), 3)
                     : null;
 
                 return new
@@ -303,7 +319,7 @@ public static class DoomScrollerTools
         {
             await EnsureServicesAsync();
 
-            if (_embedding is not { IsSetup: true })
+            if (_embedding is null)
                 return Json(new {
                     success = false,
                     error = "Embedding model not available",
@@ -316,14 +332,14 @@ public static class DoomScrollerTools
                     diagnostics = GetDiagnostics()
                 });
 
-            var queryEmbed = _embedding.Embed(query);
+            var queryEmbed = await _embedding.EmbedAsync(query);
             var similar = await _storage!.FindSimilarAsync(queryEmbed, limit: limit,
                 threshold: threshold, source: source);
 
             var results = similar.Select((s, idx) =>
             {
                 var cosine = s.Embedding != null
-                    ? EmbeddingService.CosineSimilarity(EmbeddingService.FromBytes(s.Embedding), queryEmbed)
+                    ? VectorMath.CosineSimilarity(EmbeddingCompat.FromBytes(s.Embedding), queryEmbed)
                     : 0f;
                 return new
                 {
@@ -383,10 +399,15 @@ public static class DoomScrollerTools
             }
 
             // Get entities for this item
-            var entityMap = await _storage.GetEntitiesForItemsAsync([itemId]);
-            var entities = entityMap.GetValueOrDefault(itemId)?
-                .Select(e => new { name = e.name, type = e.type, confidence = Math.Round(e.confidence, 2) })
-                .ToList();
+            List<object>? entities = null;
+            if (_entityStore is not null)
+            {
+                var entityList = await _entityStore.GetEntitiesForItemsAsync([itemId]);
+                entities = entityList
+                    .Where(e => e.itemId == itemId)
+                    .Select(e => (object)new { name = e.name, type = e.type, confidence = Math.Round(e.confidence, 2) })
+                    .ToList();
+            }
 
             return Json(new
             {
@@ -473,9 +494,9 @@ public static class DoomScrollerTools
             double? cosineSim = null;
             if (item1.Embedding != null && item2.Embedding != null)
             {
-                var e1 = EmbeddingService.FromBytes(item1.Embedding);
-                var e2 = EmbeddingService.FromBytes(item2.Embedding);
-                cosineSim = Math.Round(EmbeddingService.CosineSimilarity(e1, e2), 4);
+                var e1 = EmbeddingCompat.FromBytes(item1.Embedding);
+                var e2 = EmbeddingCompat.FromBytes(item2.Embedding);
+                cosineSim = Math.Round(VectorMath.CosineSimilarity(e1, e2), 4);
             }
 
             // Keyword overlap
@@ -552,19 +573,20 @@ public static class DoomScrollerTools
             };
 
             // Embedding
-            if (_embedding is { IsSetup: true })
+            if (_embedding is not null)
             {
                 var textToEmbed = $"{item.Title} {item.Content}".Trim();
-                item.Embedding = _embedding.Embed(textToEmbed);
+                item.Embedding = await _embedding.EmbedAsync(textToEmbed);
 
                 // Sentiment + topic via embedding anchors
-                var positiveAnchor = _embedding.Embed(RelevanceScorer.PositiveAnchorText);
-                var negativeAnchor = _embedding.Embed(RelevanceScorer.NegativeAnchorText);
+                var positiveAnchor = await _embedding.EmbedAsync(RelevanceScorer.PositiveAnchorText);
+                var negativeAnchor = await _embedding.EmbedAsync(RelevanceScorer.NegativeAnchorText);
                 item.SentimentScore = RelevanceScorer.ComputeEmbeddingSentiment(
                     item.Embedding, positiveAnchor, negativeAnchor);
 
-                var topicAnchors = RelevanceScorer.TopicAnchorTexts.ToDictionary(
-                    kv => kv.Key, kv => _embedding.Embed(kv.Value));
+                var topicAnchors = new Dictionary<string, float[]>();
+                foreach (var kv in RelevanceScorer.TopicAnchorTexts)
+                    topicAnchors[kv.Key] = await _embedding.EmbedAsync(kv.Value);
                 item.DetectedTopic = RelevanceScorer.InferTopic(item.Embedding, topicAnchors);
             }
 
@@ -681,7 +703,7 @@ public static class DoomScrollerTools
         {
             await EnsureServicesAsync();
 
-            var entities = await _storage!.GetTopEntitiesAsync(limit, type, daysBack);
+            var entities = await _entityStore!.GetTopEntitiesAsync(limit, type, daysBack);
             var results = entities.Select(e => new
             {
                 id = e.Id, name = e.Name, type = e.Type,
@@ -709,8 +731,8 @@ public static class DoomScrollerTools
         {
             await EnsureServicesAsync();
 
-            var relationships = await _storage!.GetRelationshipsAsync(entityId);
-            var articles = await _storage.GetArticlesForEntityAsync(entityId);
+            var relationships = await _entityStore!.GetRelationshipsAsync(entityId);
+            var articles = await _entityStore!.GetArticlesForEntityAsync(entityId);
 
             return Json(new
             {
@@ -772,7 +794,7 @@ public static class DoomScrollerTools
                 {
                     if (entityHop.Count >= maxEntities) break;
 
-                    var rels = await _storage!.GetRelationshipsAsync(id);
+                    var rels = await _entityStore!.GetRelationshipsAsync(id);
                     allRelationships.AddRange(rels);
 
                     foreach (var r in rels)
@@ -802,7 +824,7 @@ public static class DoomScrollerTools
             var articlesPerEntity = new Dictionary<string, List<(string itemId, string title, string? url, double confidence)>>();
             foreach (var id in seedIds)
             {
-                var articles = await _storage!.GetArticlesForEntityAsync(id);
+                var articles = await _entityStore!.GetArticlesForEntityAsync(id);
                 articlesPerEntity[id] = articles;
             }
 
@@ -918,7 +940,7 @@ public static class DoomScrollerTools
                 lucene_indexed = !ftsEmpty,
                 keyword_corpus = new { terms = corpus.Count, docs = corpusSize },
                 embedding = new { model = "all-MiniLM-L6-v2", dimensions = 384,
-                    available = _embedding?.IsSetup ?? false },
+                    available = _embedding is not null },
                 available_tools = 15,
                 diagnostics = GetDiagnostics()
             });
@@ -997,7 +1019,7 @@ public static class DoomScrollerTools
         }
 
         // Embedding status
-        if (_embedding is not { IsSetup: true })
+        if (_embedding is null)
         {
             diag.Add(new
             {
@@ -1028,7 +1050,7 @@ public static class DoomScrollerTools
             ollama_model = _config?.Ollama.Model,
             ollama_sentinel = _config?.Ollama.SentinelModel,
             ollama_url = _config?.Ollama.BaseUrl,
-            embeddings_available = _embedding?.IsSetup ?? false,
+            embeddings_available = _embedding is not null,
             storage_path = _storage?.DataPath,
             issues = diag.Count > 0 ? diag : null
         };

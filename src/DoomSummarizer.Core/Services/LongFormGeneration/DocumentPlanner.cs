@@ -153,7 +153,7 @@ public static class DocumentPlanner
             {
                 // ComoRAG-style relevance gate: filter out sections that don't relate to query
                 if (s.ThemeEmbedding == null) return true;
-                var similarity = EmbeddingService.CosineSimilarity(s.ThemeEmbedding, queryEmbedding);
+                var similarity = VectorMath.CosineSimilarity(s.ThemeEmbedding, queryEmbedding);
                 return similarity >= SectionRelevanceThreshold;
             })
             .ToList();
@@ -172,7 +172,7 @@ public static class DocumentPlanner
                         TargetWords = s.TargetWords > 0 ? s.TargetWords : 300,
                         ThemeEmbedding = embedder($"{s.Heading} {query}")
                     },
-                    Relevance = EmbeddingService.CosineSimilarity(embedder(s.Heading), queryEmbedding)
+                    Relevance = VectorMath.CosineSimilarity(embedder(s.Heading), queryEmbedding)
                 })
                 .OrderByDescending(x => x.Relevance)
                 .Take(4)

@@ -66,7 +66,7 @@ public sealed class SourcesCommand : AsyncCommand<SourcesCommand.Settings>
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Rule("[bold cyan]API Status[/]").LeftJustified());
         var config = await ConfigService.LoadAsync();
-        var apiKeys = ApiKeyService.Load(config);
+        var apiKeys = ApiKeyService.Load(config.Keys);
         apiKeys.PrintStatus();
 
         return 0;

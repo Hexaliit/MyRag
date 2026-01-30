@@ -1,4 +1,5 @@
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomSummarizer.Tests;
 
@@ -9,30 +10,29 @@ namespace DoomSummarizer.Tests;
 [Trait("Category", "RequiresModel")]
 public class EntityProfileServiceTests : IAsyncLifetime
 {
-    private EmbeddingService _embedding = null!;
+    private IEmbeddingService _embedding = null!;
 
     public async Task InitializeAsync()
     {
-        _embedding = new EmbeddingService();
-        await _embedding.EnsureReadyAsync();
+        _embedding = await EmbeddingFactory.CreateAsync();
     }
 
     public Task DisposeAsync()
     {
-        _embedding.Dispose();
+        (_embedding as IDisposable)?.Dispose();
         return Task.CompletedTask;
     }
 
     [Fact]
-    public void ComputeProfile_EmptyEntities_ReturnsEmptyArray()
+    public async Task ComputeProfile_EmptyEntities_ReturnsEmptyArray()
     {
         var service = new EntityProfileService(_embedding);
-        var result = service.ComputeProfile([], new Dictionary<string, int>(), 100);
+        var result = await service.ComputeProfileAsync([], new Dictionary<string, int>(), 100);
         Assert.Empty(result);
     }
 
     [Fact]
-    public void ComputeProfile_SingleEntity_ReturnsNormalizedVector()
+    public async Task ComputeProfile_SingleEntity_ReturnsNormalizedVector()
     {
         var service = new EntityProfileService(_embedding);
         var entities = new List<(string entityId, string name, float confidence, int mentions)>
@@ -41,7 +41,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
         };
         var docCounts = new Dictionary<string, int> { ["org_test123"] = 5 };
 
-        var result = service.ComputeProfile(entities, docCounts, 100);
+        var result = await service.ComputeProfileAsync(entities, docCounts, 100);
 
         Assert.Equal(384, result.Length);
         // Verify L2 normalized (magnitude should be ~1)
@@ -50,7 +50,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ComputeProfile_RareEntityHasHigherWeight()
+    public async Task ComputeProfile_RareEntityHasHigherWeight()
     {
         var service = new EntityProfileService(_embedding);
 
@@ -67,8 +67,8 @@ public class EntityProfileServiceTests : IAsyncLifetime
         var docCountsRare = new Dictionary<string, int> { ["per_rare"] = 1 };
         var docCountsCommon = new Dictionary<string, int> { ["loc_common"] = 50 };
 
-        var rareProfile = service.ComputeProfile(rareEntity, docCountsRare, 100);
-        var commonProfile = service.ComputeProfile(commonEntity, docCountsCommon, 100);
+        var rareProfile = await service.ComputeProfileAsync(rareEntity, docCountsRare, 100);
+        var commonProfile = await service.ComputeProfileAsync(commonEntity, docCountsCommon, 100);
 
         // Both should be valid 384-dim vectors
         Assert.Equal(384, rareProfile.Length);
@@ -80,7 +80,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ComputeProfile_LowConfidenceEntityStillContributes()
+    public async Task ComputeProfile_LowConfidenceEntityStillContributes()
     {
         var service = new EntityProfileService(_embedding);
 
@@ -91,7 +91,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
         };
         var docCounts = new Dictionary<string, int> { ["org_lowconf"] = 10 };
 
-        var result = service.ComputeProfile(lowConfEntity, docCounts, 100);
+        var result = await service.ComputeProfileAsync(lowConfEntity, docCounts, 100);
 
         // Should still produce a valid profile (not zeroed out)
         Assert.Equal(384, result.Length);
@@ -99,7 +99,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ComputeProfile_SaturatingTF_PreventsDominance()
+    public async Task ComputeProfile_SaturatingTF_PreventsDominance()
     {
         var service = new EntityProfileService(_embedding);
 
@@ -114,8 +114,8 @@ public class EntityProfileServiceTests : IAsyncLifetime
         };
         var docCounts = new Dictionary<string, int> { ["loc_eu"] = 20 };
 
-        var profileMany = service.ComputeProfile(manyMentions, docCounts, 100);
-        var profileFew = service.ComputeProfile(fewMentions, docCounts, 100);
+        var profileMany = await service.ComputeProfileAsync(manyMentions, docCounts, 100);
+        var profileFew = await service.ComputeProfileAsync(fewMentions, docCounts, 100);
 
         // Both should be valid
         Assert.Equal(384, profileMany.Length);
@@ -127,7 +127,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ComputeProfileWithExplain_ReturnsTopEntities()
+    public async Task ComputeProfileWithExplain_ReturnsTopEntities()
     {
         var service = new EntityProfileService(_embedding);
         var entities = new List<(string entityId, string name, string type, float confidence, int mentions)>
@@ -143,7 +143,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
             ["loc_sf"] = 50
         };
 
-        var (profile, topEntities) = service.ComputeProfileWithExplain(entities, docCounts, 100);
+        var (profile, topEntities) = await service.ComputeProfileWithExplainAsync(entities, docCounts, 100);
 
         Assert.Equal(384, profile.Length);
         Assert.NotEmpty(topEntities);
@@ -153,7 +153,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ComputeAggregateProfile_MultipleProfiles_CombinesCorrectly()
+    public async Task ComputeAggregateProfile_MultipleProfiles_CombinesCorrectly()
     {
         var service = new EntityProfileService(_embedding);
 
@@ -172,8 +172,8 @@ public class EntityProfileServiceTests : IAsyncLifetime
             ["org_anthropic"] = 8
         };
 
-        var profile1 = service.ComputeProfile(entities1, docCounts, 100);
-        var profile2 = service.ComputeProfile(entities2, docCounts, 100);
+        var profile1 = await service.ComputeProfileAsync(entities1, docCounts, 100);
+        var profile2 = await service.ComputeProfileAsync(entities2, docCounts, 100);
 
         var aggregate = service.ComputeAggregateProfile([profile1, profile2]);
 
@@ -184,7 +184,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ComputeQueryProfile_ShortQuery_ReturnsValidProfile()
+    public async Task ComputeQueryProfile_ShortQuery_ReturnsValidProfile()
     {
         var service = new EntityProfileService(_embedding);
         var queryEntities = new List<(string name, string type, float confidence)>
@@ -198,7 +198,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
             [KnowledgeGraphService.GenerateEntityId("Sam Altman", "PER")] = 5
         };
 
-        var result = service.ComputeQueryProfile(queryEntities, docCounts, 100);
+        var result = await service.ComputeQueryProfileAsync(queryEntities, docCounts, 100);
 
         Assert.Equal(384, result.Length);
         var magnitude = Math.Sqrt(result.Sum(x => x * x));
@@ -206,7 +206,7 @@ public class EntityProfileServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public void TypeWeights_ORGAndPERGetBoost()
+    public async Task TypeWeights_ORGAndPERGetBoost()
     {
         var service = new EntityProfileService(_embedding);
 
@@ -225,8 +225,8 @@ public class EntityProfileServiceTests : IAsyncLifetime
             ["loc_apple"] = 10
         };
 
-        var (orgProfile, orgTopEntities) = service.ComputeProfileWithExplain(orgEntity, docCounts, 100);
-        var (locProfile, locTopEntities) = service.ComputeProfileWithExplain(locEntity, docCounts, 100);
+        var (orgProfile, orgTopEntities) = await service.ComputeProfileWithExplainAsync(orgEntity, docCounts, 100);
+        var (locProfile, locTopEntities) = await service.ComputeProfileWithExplainAsync(locEntity, docCounts, 100);
 
         // ORG should have higher weight than LOC (1.2 vs 1.0)
         Assert.True(orgTopEntities[0].weight > locTopEntities[0].weight);

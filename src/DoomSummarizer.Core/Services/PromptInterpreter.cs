@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomSummarizer.Services;
 
@@ -12,9 +13,9 @@ namespace DoomSummarizer.Services;
 public partial class PromptInterpreter
 {
     private readonly OllamaService _ollama;
-    private readonly EmbeddingService? _embedding;
+    private readonly IEmbeddingService? _embedding;
 
-    public PromptInterpreter(OllamaService ollama, EmbeddingService? embedding = null)
+    public PromptInterpreter(OllamaService ollama, IEmbeddingService? embedding = null)
     {
         _ollama = ollama;
         _embedding = embedding;
@@ -39,7 +40,7 @@ public partial class PromptInterpreter
         // If Ollama isn't available, use keyword-based fallback
         if (!await _ollama.IsAvailableAsync())
         {
-            var fallback = FallbackInterpret(prompt);
+            var fallback = await FallbackInterpretAsync(prompt);
             if (nerContext != null)
                 EnrichWithNerContext(fallback, nerContext);
             return fallback;
@@ -118,7 +119,7 @@ public partial class PromptInterpreter
                             System.Diagnostics.Debug.WriteLine($"  - {sq}");
                     }
 
-                    var router = GetRouter();
+                    var router = await GetRouterAsync();
                     var result = SentinelSourceMapper.ToInterpretedPrompt(intent, router, prompt, nerContext);
                     return result;
                 }
@@ -150,7 +151,7 @@ public partial class PromptInterpreter
                         RawPrompt = prompt
                     };
 
-                    EnrichWithYamlRouting(result, prompt);
+                    await EnrichWithYamlRoutingAsync(result, prompt);
                     if (nerContext != null)
                         EnrichWithNerContext(result, nerContext);
                     return result;
@@ -166,7 +167,7 @@ public partial class PromptInterpreter
                 System.Diagnostics.Debug.WriteLine($"  at {trace}");
         }
 
-        var fallbackResult = FallbackInterpret(prompt);
+        var fallbackResult = await FallbackInterpretAsync(prompt);
         if (nerContext != null)
             EnrichWithNerContext(fallbackResult, nerContext);
         return fallbackResult;
@@ -214,7 +215,7 @@ public partial class PromptInterpreter
     /// <summary>
     /// Keyword-based fallback when LLM isn't available
     /// </summary>
-    private InterpretedPrompt FallbackInterpret(string prompt)
+    private async Task<InterpretedPrompt> FallbackInterpretAsync(string prompt)
     {
         var lower = prompt.ToLowerInvariant();
         var result = new InterpretedPrompt
@@ -279,8 +280,8 @@ public partial class PromptInterpreter
         }
 
         // Use YAML-driven topic routing for category detection
-        var router = GetRouter();
-        var detectedTopic = router.DetectTopic(prompt);
+        var router = await GetRouterAsync();
+        var detectedTopic = await router.DetectTopicAsync(prompt);
         if (detectedTopic != "default")
         {
             var routing = router.RouteByTopic(detectedTopic);
@@ -377,7 +378,7 @@ public partial class PromptInterpreter
                 result.SearchQueries.Add(topicTerms);
 
                 // Use SourceRouter to get topic-appropriate sources
-                var routing = router.Route(topicTerms);
+                var routing = await router.RouteAsync(topicTerms);
                 foreach (var src in routing.Sources)
                 {
                     var mapped = MapYamlSourceToCliSource(src, routing, prompt);
@@ -477,12 +478,12 @@ public partial class PromptInterpreter
     /// </summary>
     private static readonly Lazy<SourceRouter> SharedRouter = new(() => SourceRouter.Load());
 
-    private SourceRouter GetRouter()
+    private async Task<SourceRouter> GetRouterAsync()
     {
         var router = SharedRouter.Value;
         // Initialize semantic embeddings if not yet done and embedding service is available
         if (!router.HasEmbeddings && _embedding != null)
-            router.InitializeEmbeddings(_embedding);
+            await router.InitializeEmbeddingsAsync(_embedding);
         return router;
     }
 
@@ -548,10 +549,10 @@ public partial class PromptInterpreter
     /// YAML routing ensures the correct source spread for the detected topic AND removes
     /// tech-only sources when the topic is non-tech.
     /// </summary>
-    private void EnrichWithYamlRouting(InterpretedPrompt result, string prompt)
+    private async Task EnrichWithYamlRoutingAsync(InterpretedPrompt result, string prompt)
     {
-        var router = GetRouter();
-        var detectedTopic = router.DetectTopic(prompt);
+        var router = await GetRouterAsync();
+        var detectedTopic = await router.DetectTopicAsync(prompt);
         if (detectedTopic == "default") return;
 
         var routing = router.RouteByTopic(detectedTopic, prompt);

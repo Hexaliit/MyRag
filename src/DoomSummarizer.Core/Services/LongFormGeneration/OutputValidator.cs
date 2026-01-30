@@ -281,7 +281,7 @@ public static partial class OutputValidator
 
                 foreach (var evidence in evidenceEmbeddings)
                 {
-                    var sim = EmbeddingService.CosineSimilarity(sentenceEmb, evidence.Segment.Embedding!);
+                    var sim = VectorMath.CosineSimilarity(sentenceEmb, evidence.Segment.Embedding!);
                     if (sim > bestSim) bestSim = sim;
                     if (bestSim > 0.6f) break; // Early exit — grounded
                 }

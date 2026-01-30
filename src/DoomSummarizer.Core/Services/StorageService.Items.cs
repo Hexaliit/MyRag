@@ -51,8 +51,8 @@ public partial class StorageService
             var item = ReadStoredItem(reader);
             if (item.Embedding == null) continue;
 
-            var storedEmbedding = EmbeddingService.FromBytes(item.Embedding);
-            var similarity = EmbeddingService.CosineSimilarity(embedding, storedEmbedding);
+            var storedEmbedding = EmbeddingCompat.FromBytes(item.Embedding);
+            var similarity = VectorMath.CosineSimilarity(embedding, storedEmbedding);
 
             if (similarity >= threshold)
             {

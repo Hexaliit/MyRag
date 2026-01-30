@@ -1,5 +1,6 @@
 using Xunit;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
+using AggregationStrategy = Mostlylucid.Summarizer.Core.Analysis.AggregationStrategy;
 
 namespace Mostlylucid.DocSummarizer.Images.Tests.Models.Dynamic;
 

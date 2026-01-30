@@ -96,7 +96,7 @@ public class VibeHelperTests
     public void CosineSimilarity_IdenticalVectors_ReturnsOne()
     {
         var v = new float[] { 1, 2, 3 };
-        var similarity = EmbeddingService.CosineSimilarity(v, v);
+        var similarity = VectorMath.CosineSimilarity(v, v);
 
         similarity.Should().BeApproximately(1.0f, 0.001f);
     }
@@ -106,7 +106,7 @@ public class VibeHelperTests
     {
         var v1 = new float[] { 1, 0, 0 };
         var v2 = new float[] { -1, 0, 0 };
-        var similarity = EmbeddingService.CosineSimilarity(v1, v2);
+        var similarity = VectorMath.CosineSimilarity(v1, v2);
 
         similarity.Should().BeApproximately(-1.0f, 0.001f);
     }
@@ -116,7 +116,7 @@ public class VibeHelperTests
     {
         var v1 = new float[] { 1, 0, 0 };
         var v2 = new float[] { 0, 1, 0 };
-        var similarity = EmbeddingService.CosineSimilarity(v1, v2);
+        var similarity = VectorMath.CosineSimilarity(v1, v2);
 
         similarity.Should().BeApproximately(0f, 0.001f);
     }
@@ -126,7 +126,7 @@ public class VibeHelperTests
     {
         var v1 = new float[] { 1, 2, 3 };
         var v2 = new float[] { 1, 2 };
-        var similarity = EmbeddingService.CosineSimilarity(v1, v2);
+        var similarity = VectorMath.CosineSimilarity(v1, v2);
 
         similarity.Should().Be(0f);
     }
@@ -135,8 +135,8 @@ public class VibeHelperTests
     public void EmbeddingRoundTrip_ToAndFromBytes()
     {
         var original = new float[] { 1.5f, -0.3f, 0.0f, 42.0f };
-        var bytes = EmbeddingService.ToBytes(original);
-        var restored = EmbeddingService.FromBytes(bytes);
+        var bytes = EmbeddingCompat.ToBytes(original);
+        var restored = EmbeddingCompat.FromBytes(bytes);
 
         restored.Should().BeEquivalentTo(original);
     }

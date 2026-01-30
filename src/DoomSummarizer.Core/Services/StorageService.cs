@@ -249,7 +249,7 @@ public partial class StorageService : IAsyncDisposable
         cmd.Parameters.AddWithValue("@score", item.Score);
         cmd.Parameters.AddWithValue("@created", item.CreatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@fetched", item.FetchedAt.ToString("O"));
-        cmd.Parameters.AddWithValue("@embedding", item.Embedding != null ? EmbeddingService.ToBytes(item.Embedding) : DBNull.Value);
+        cmd.Parameters.AddWithValue("@embedding", item.Embedding != null ? EmbeddingCompat.ToBytes(item.Embedding) : DBNull.Value);
         cmd.Parameters.AddWithValue("@keywords", (object?)item.Keywords ?? DBNull.Value);
 
         await cmd.ExecuteNonQueryAsync();

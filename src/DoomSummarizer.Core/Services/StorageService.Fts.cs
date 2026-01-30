@@ -387,7 +387,7 @@ public partial class StorageService
                 saveCmd.Parameters.AddWithValue("@score", item.Score);
                 saveCmd.Parameters.AddWithValue("@created", item.CreatedAt.ToString("O"));
                 saveCmd.Parameters.AddWithValue("@fetched", item.FetchedAt.ToString("O"));
-                saveCmd.Parameters.AddWithValue("@embedding", item.Embedding != null ? EmbeddingService.ToBytes(item.Embedding) : DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@embedding", item.Embedding != null ? EmbeddingCompat.ToBytes(item.Embedding) : DBNull.Value);
                 saveCmd.Parameters.AddWithValue("@keywords", (object?)item.Keywords ?? DBNull.Value);
                 await saveCmd.ExecuteNonQueryAsync();
 

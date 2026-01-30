@@ -65,9 +65,11 @@ doomsummarizer scroll "security updates" --vibe enterprise
 
 ## Optional API keys (search/news + cloud LLMs)
 
-Some integrations require API keys. DoomSummarizer loads keys in this priority order:
-1. Environment variables
-2. .NET user secrets (when running from source)
+> **Cloud LLM providers (OpenAI, Anthropic) are disabled by default.** DoomSummarizer uses local Ollama models exclusively unless you explicitly enable a cloud provider in config with `"enabled": true` and a valid API key. Search/news API keys work when set — they don't require an `enabled` flag.
+
+API keys are loaded in this priority order:
+1. .NET user secrets (when running from source — highest priority)
+2. Environment variables
 3. `config.json` `keys[]` entries
 
 ### Environment variables

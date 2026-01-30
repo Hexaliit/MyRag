@@ -32,7 +32,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Images\Mostlylucid.DocSummarizer.Images.csproj"/>
+        <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

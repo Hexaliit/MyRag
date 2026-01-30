@@ -22,7 +22,7 @@ public partial class StorageService
             VALUES (@query, @embedding, @vibe, @itemIds, @count, @now)
             """;
         cmd.Parameters.AddWithValue("@query", queryText);
-        cmd.Parameters.AddWithValue("@embedding", queryEmbedding != null ? EmbeddingService.ToBytes(queryEmbedding) : DBNull.Value);
+        cmd.Parameters.AddWithValue("@embedding", queryEmbedding != null ? EmbeddingCompat.ToBytes(queryEmbedding) : DBNull.Value);
         cmd.Parameters.AddWithValue("@vibe", (object?)vibe ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@itemIds", JsonSerializer.Serialize(itemIds));
         cmd.Parameters.AddWithValue("@count", itemIds.Count);
@@ -66,8 +66,8 @@ public partial class StorageService
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            var storedEmbedding = EmbeddingService.FromBytes((byte[])reader["query_embedding"]);
-            var similarity = EmbeddingService.CosineSimilarity(queryEmbedding, storedEmbedding);
+            var storedEmbedding = EmbeddingCompat.FromBytes((byte[])reader["query_embedding"]);
+            var similarity = VectorMath.CosineSimilarity(queryEmbedding, storedEmbedding);
 
             if (similarity >= threshold && similarity > bestSim)
             {

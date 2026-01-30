@@ -259,7 +259,7 @@ public partial class RelevanceScorer
         if (queryEmbedding != null)
         {
             querySimScores = items.Select(i => (item: i, score: i.Embedding != null
-                ? (double)EmbeddingService.CosineSimilarity(i.Embedding, queryEmbedding)
+                ? (double)VectorMath.CosineSimilarity(i.Embedding, queryEmbedding)
                 : 0.0)).ToList();
             signals.Add((querySimScores, _querySimWeight));
         }
@@ -341,7 +341,7 @@ public partial class RelevanceScorer
 
         // Phase 2 signals (embedding-based)
         var querySim = items.Select(i => (item: i, score: i.Embedding != null
-            ? (double)EmbeddingService.CosineSimilarity(i.Embedding, queryEmbedding)
+            ? (double)VectorMath.CosineSimilarity(i.Embedding, queryEmbedding)
             : 0.0)).ToList();
 
         var signals = new List<(List<(ContentItem item, double score)> scores, double weight)>
@@ -355,7 +355,7 @@ public partial class RelevanceScorer
         if (vibeEmbedding != null)
         {
             var vibeSim = items.Select(i => (item: i, score: i.Embedding != null
-                ? (double)EmbeddingService.CosineSimilarity(i.Embedding, vibeEmbedding)
+                ? (double)VectorMath.CosineSimilarity(i.Embedding, vibeEmbedding)
                 : 0.0)).ToList();
             signals.Add((vibeSim, _vibeWeight));
         }
@@ -826,8 +826,8 @@ public partial class RelevanceScorer
     /// </summary>
     public static float ComputeEmbeddingSentiment(float[] itemEmbedding, float[] positiveAnchor, float[] negativeAnchor)
     {
-        var posSim = EmbeddingService.CosineSimilarity(itemEmbedding, positiveAnchor);
-        var negSim = EmbeddingService.CosineSimilarity(itemEmbedding, negativeAnchor);
+        var posSim = VectorMath.CosineSimilarity(itemEmbedding, positiveAnchor);
+        var negSim = VectorMath.CosineSimilarity(itemEmbedding, negativeAnchor);
         return Math.Clamp(posSim - negSim, -1f, 1f);
     }
 
@@ -841,7 +841,7 @@ public partial class RelevanceScorer
         var bestSim = float.MinValue;
         foreach (var (topic, anchor) in topicAnchors)
         {
-            var sim = EmbeddingService.CosineSimilarity(itemEmbedding, anchor);
+            var sim = VectorMath.CosineSimilarity(itemEmbedding, anchor);
             if (sim > bestSim)
             {
                 bestSim = sim;
@@ -889,8 +889,8 @@ public partial class RelevanceScorer
     /// </summary>
     public static double ComputeQualityScore(float[] itemEmbedding, float[] highQualityAnchor, float[] lowQualityAnchor)
     {
-        var highSim = EmbeddingService.CosineSimilarity(itemEmbedding, highQualityAnchor);
-        var lowSim = EmbeddingService.CosineSimilarity(itemEmbedding, lowQualityAnchor);
+        var highSim = VectorMath.CosineSimilarity(itemEmbedding, highQualityAnchor);
+        var lowSim = VectorMath.CosineSimilarity(itemEmbedding, lowQualityAnchor);
         // Map from [-1, 1] difference to [0, 1] range
         return Math.Clamp((highSim - lowSim + 1.0) / 2.0, 0, 1);
     }
