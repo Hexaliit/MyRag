@@ -3,6 +3,10 @@ using System.Text;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using LucidRAG.Decomposer.Analysis;
+using LucidRAG.Decomposer.Models;
+using LucidRAG.Decomposer.Orchestration;
+using LucidRAG.Decomposer.Refinement;
 using Mostlylucid.DocSummarizer.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -157,13 +161,56 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         List<(string question, string answer, List<string> sourceIds)> history,
         CancellationToken ct)
     {
+        // ─── Decomposer: classify question complexity and concept ───
+        // Runs deterministic analysis (no LLM, no NER) to:
+        // - Classify concept type → drives retrieval budget
+        // - Extract references (URLs in questions)
+        // - Detect multi-topic questions for sub-query splitting
+        DecompositionResult? decomposition = null;
+        try
+        {
+            var decomposer = new DecompositionPipeline(
+                new ComplexityClassifier(embedding),
+                new ConceptClassifier(embedding),
+                new IQueryAnalyzer[]
+                {
+                    new ReferenceExtractor(),
+                    new StructuralAnalyzer(embedding),
+                    new TemporalAnalyzer(),
+                    new SemanticClusterAnalyzer(embedding),
+                    new ToolUseAnalyzer(embedding)
+                },
+                new DeterministicRefiner(),
+                embedding);
+
+            decomposition = await decomposer.DecomposeAsync(
+                question,
+                entities: null,
+                hasUrls: false,
+                hasDateTimes: false,
+                sentinelData: null,
+                ct: ct);
+        }
+        catch
+        {
+            // Decomposer failure is non-fatal
+        }
+
+        // Use concept policy to adjust retrieval budget
+        var conceptBudget = settings.TopK;
+        if (decomposition != null)
+        {
+            var policy = new ConceptRegistry().GetPolicy(decomposition.Concept);
+            conceptBudget = Math.Max(settings.TopK, policy.FetchBudget / 2);
+        }
+
         // 1. Full retrieval pipeline: Lucene FTS + embedding HNSW + entity profiles + 5-signal RRF (+ Lucene FTS signal)
         var collectionName = settings.Name ?? "default";
         var retrievalResult = await retrieval.SearchAsync(question, new RetrievalOptions
         {
             SourceFilter = effectiveSource,
             CollectionName = collectionName,
-            TopK = settings.TopK * 2, // Grab extras for disambiguation/diversity
+            TopK = conceptBudget * 2, // Grab extras for disambiguation/diversity
             MinRelevance = 0.15f,
             IsKnowledgeBase = true,
             UseEmbeddingDedup = true,

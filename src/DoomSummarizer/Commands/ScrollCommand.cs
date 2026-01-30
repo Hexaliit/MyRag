@@ -7,6 +7,11 @@ using DoomSummarizer.Plugins;
 using DoomSummarizer.Plugins.Runtime;
 using DoomSummarizer.Services;
 using DoomSummarizer.Services.LongFormGeneration;
+using LucidRAG.Decomposer.Analysis;
+using LucidRAG.Decomposer.Integration;
+using LucidRAG.Decomposer.Models;
+using LucidRAG.Decomposer.Orchestration;
+using LucidRAG.Decomposer.Refinement;
 using Mostlylucid.DocSummarizer.Content;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
@@ -399,6 +404,130 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             }
 
             WriteStatus($"[grey]Detected: sources=[[{Markup.Escape(sourcesStr)}]], vibe={vibe}{Markup.Escape(temporalInfo)}[/]");
+        }
+
+        // ─── Decomposer: classify, analyze, plan ───
+        // Runs AFTER PromptInterpreter, BEFORE cache check.
+        // Fast-path: simple queries get concept classification + sentinel enhancement only.
+        // Complex: multi-topic, tool-use, comparisons get full decomposition.
+        DecompositionResult? decomposition = null;
+        DecompositionEnrichment? decompositionEnrichment = null;
+
+        if (!string.IsNullOrEmpty(settings.Prompt))
+        {
+            try
+            {
+                var decomposer = new DecompositionPipeline(
+                    new ComplexityClassifier(boot.Embedding),
+                    new ConceptClassifier(boot.Embedding),
+                    new IQueryAnalyzer[]
+                    {
+                        new ReferenceExtractor(),
+                        new StructuralAnalyzer(boot.Embedding),
+                        new EntityRelationAnalyzer(boot.Embedding),
+                        new TemporalAnalyzer(),
+                        new SemanticClusterAnalyzer(boot.Embedding),
+                        new ToolUseAnalyzer(boot.Embedding)
+                    },
+                    new SentinelRefiner(),
+                    boot.Embedding);
+
+                // Build sentinel refinement input from PromptInterpreter output
+                object? sentinelInput = null;
+                if (interpreted?.SentinelIntent != null)
+                {
+                    var si = interpreted.SentinelIntent;
+                    sentinelInput = DoomSummarizerAdapter.ToRefinementInput(
+                        si.IsComposite,
+                        si.Subqueries?.ToList(),
+                        si.CorrectedQuery,
+                        si.FilterKeywords?.ToList(),
+                        si.SearchQueries?.ToList(),
+                        si.Entities?.ToList(),
+                        si.TimeSensitivity,
+                        si.RequiresFresh,
+                        si.Intent,
+                        si.Categories?.ToDictionary(k => k.Key, k => k.Value));
+                }
+
+                var hasUrls = nerContext?.RecognizerSignals?.Urls.Count > 0
+                              || (interpreted?.Websites.Count > 0);
+                var hasDateTimes = nerContext?.RecognizerSignals?.DateTimes.Count > 0;
+
+                decomposition = await decomposer.DecomposeAsync(
+                    settings.Prompt,
+                    nerContext?.Entities?.ToList(),
+                    hasUrls,
+                    hasDateTimes,
+                    sentinelInput,
+                    cancellationToken);
+
+                decompositionEnrichment = DoomSummarizerAdapter.GetEnrichment(decomposition);
+
+                if (settings.DebugPipeline)
+                {
+                    var conceptPolicy = new ConceptRegistry().GetPolicy(decomposition.Concept);
+                    WriteStatus($"[grey]Decomposer: complexity={decomposition.Complexity}, " +
+                                $"concept={decomposition.Concept} (budget={conceptPolicy.FetchBudget}), " +
+                                $"nodes={decomposition.Nodes.Count}, " +
+                                $"fastPath={decomposition.IsFastPath}, " +
+                                $"tools={decomposition.HasToolActions}[/]");
+
+                    if (decomposition.HasToolActions)
+                    {
+                        foreach (var tool in decompositionEnrichment.ToolActions)
+                        {
+                            var paramStr = string.Join(", ", tool.Parameters.Select(p => $"{p.Key}={p.Value}"));
+                            WriteStatus($"[grey]  Tool: {tool.Tool} → {Markup.Escape(tool.Intent)} ({Markup.Escape(paramStr)})[/]");
+                        }
+                    }
+
+                    if (!decomposition.IsFastPath && decomposition.Nodes.Count > 1)
+                    {
+                        foreach (var node in decomposition.Nodes)
+                        {
+                            WriteStatus($"[grey]  Node: {Markup.Escape($"[{node.Type}]")} {Markup.Escape(node.Query)}[/]");
+                        }
+                    }
+                }
+
+                // Feed decomposer content references back into interpreted prompt websites
+                if (interpreted != null && decompositionEnrichment.ContentReferences.Count > 0)
+                {
+                    foreach (var reference in decompositionEnrichment.ContentReferences)
+                    {
+                        if (reference.Kind == ContentReferenceKind.Url &&
+                            !interpreted.Websites.Contains(reference.Uri))
+                        {
+                            interpreted.Websites.Add(reference.Uri);
+                        }
+                    }
+                }
+
+                // Feed decomposer sub-query search terms back into interpreted prompt
+                if (interpreted != null && !decomposition.IsFastPath)
+                {
+                    foreach (var node in decomposition.Nodes.Where(n =>
+                        n.Type == QueryNodeType.Atomic && n.SearchQueries.Count > 0))
+                    {
+                        foreach (var sq in node.SearchQueries)
+                        {
+                            if (!interpreted.SearchQueries.Any(existing =>
+                                existing.Contains(sq, StringComparison.OrdinalIgnoreCase) ||
+                                sq.Contains(existing, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                interpreted.SearchQueries.Add(sq);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Decomposer failure is non-fatal — the existing pipeline works without it
+                if (settings.DebugPipeline)
+                    WriteStatus($"[yellow]Decomposer failed (non-fatal): {Markup.Escape(ex.Message)}[/]");
+            }
         }
 
         // Get vibe prompt - supports predefined vibes or arbitrary text

@@ -22,6 +22,7 @@
     <ItemGroup>
         <ProjectReference Include="..\DoomSummarizer\DoomSummarizer.csproj" />
         <ProjectReference Include="..\LucidRAG.LLM\LucidRAG.LLM.csproj" />
+        <ProjectReference Include="..\LucidRAG.Decomposer\LucidRAG.Decomposer.csproj" />
     </ItemGroup>
 
     <ItemGroup>
