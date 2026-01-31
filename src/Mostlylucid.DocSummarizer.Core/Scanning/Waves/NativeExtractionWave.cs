@@ -141,26 +141,43 @@ public class NativeExtractionWave : IDocumentWave
         return signals;
     }
 
+    /// <summary>Maximum pages to extract text from. Prevents OOM on very large PDFs.</summary>
+    private const int MaxPdfPages = 2000;
+
+    /// <summary>Maximum accumulated text size in characters (~10 MB of UTF-16).</summary>
+    private const int MaxTextChars = 5 * 1024 * 1024;
+
     private async Task<(string markdown, int pageCount, int textDensity, string title)> ExtractPdfAsync(
         string pdfPath, CancellationToken ct)
     {
         return await Task.Run(() =>
         {
-            var sb = new StringBuilder();
             var totalChars = 0;
-            var pageCount = 0;
             string? title = null;
 
             using var document = PdfDocument.Open(pdfPath);
-            pageCount = document.NumberOfPages;
+            var pageCount = document.NumberOfPages;
 
-            // Try to get title from metadata
             if (document.Information?.Title != null)
                 title = document.Information.Title;
 
+            // Pre-allocate StringBuilder: ~2 KB per page estimate
+            var estimatedChars = Math.Min(pageCount, MaxPdfPages) * 2048;
+            var sb = new StringBuilder(Math.Min(estimatedChars, MaxTextChars));
+
+            var pagesExtracted = 0;
             foreach (var page in document.GetPages())
             {
                 ct.ThrowIfCancellationRequested();
+
+                pagesExtracted++;
+                if (pagesExtracted > MaxPdfPages || sb.Length > MaxTextChars)
+                {
+                    _logger?.LogWarning(
+                        "PDF {File} truncated at page {Page}/{Total} (text limit reached)",
+                        Path.GetFileName(pdfPath), pagesExtracted - 1, pageCount);
+                    break;
+                }
 
                 var text = page.Text;
                 totalChars += text?.Length ?? 0;

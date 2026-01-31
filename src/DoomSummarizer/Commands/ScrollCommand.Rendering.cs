@@ -142,7 +142,7 @@ public sealed partial class ScrollCommand
     /// Word-wrap Spectre markup text to a max visible width.
     /// Uses token-based approach: markup tags are atomic (never split).
     /// </summary>
-    private static string WordWrapMarkup(string text, int maxWidth)
+    internal static string WordWrapMarkup(string text, int maxWidth)
     {
         if (maxWidth <= 0 || string.IsNullOrEmpty(text)) return text;
 

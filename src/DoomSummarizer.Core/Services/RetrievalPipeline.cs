@@ -97,8 +97,10 @@ public sealed class RetrievalPipeline
         }
 
         // Layer 2: Embedding HNSW semantic search
+        // Relaxed mode uses a lower threshold to retrieve more candidate segments
+        var embeddingThreshold = options.RelaxScoringGates ? 0.10 : 0.20;
         embeddingResults = await _storage.FindSimilarAsync(
-            queryEmbedding, limit: options.TopK * 2, threshold: 0.20, source: options.SourceFilter);
+            queryEmbedding, limit: options.TopK * 2, threshold: embeddingThreshold, source: options.SourceFilter);
 
         // Layer 3: Entity profile HNSW search (when entity profiles exist)
         if (options.UseEntityProfiles && _entityStore != null && options.QueryEntities?.Count >= 2)
@@ -183,8 +185,9 @@ public sealed class RetrievalPipeline
             IsKnowledgeBase = options.IsKnowledgeBase,
             QueryType = options.QueryType,
             TextRelevanceScores = luceneScoreLookup,
-            UseOutlierPenalty = true,
+            UseOutlierPenalty = !options.RelaxScoringGates,
             UseEmbeddingDedup = options.UseEmbeddingDedup,
+            RelaxScoringGates = options.RelaxScoringGates,
         }, ct);
 
         // Apply minimum relevance filter and take topK
@@ -255,20 +258,29 @@ public sealed class RetrievalPipeline
         if (!string.IsNullOrEmpty(options.VibeText))
             vibeEmbedding = await _embedding.EmbedAsync(options.VibeText, ct);
 
+        // Relaxed scoring for file collections: all segments are from the same document(s),
+        // so broad queries need lower gates to retrieve enough narrative content.
+        var relaxed = options.RelaxScoringGates;
+        var phase1Gate = relaxed ? 0.10f : 0.25f;
+        var phase1Discard = relaxed ? 0.10 : 0.25;
+        var phase2Gate = relaxed ? 0.05f : 0.20f;
+        var prfThreshold = relaxed ? 0.15 : 0.30;
+
         // Phase 1: Fast discard (freshness + authority + semantic + optional Lucene FTS)
         // Capture query-sim scores for PRF centroid filtering (avoids recomputing cosine similarities)
         Dictionary<string, double>? querySimScores = null;
         if (items.Count > 5)
         {
             querySimScores = new Dictionary<string, double>(items.Count);
-            items = scorer.ScoreFast(items, options.Query, discardRatio: 0.25,
+            items = scorer.ScoreFast(items, options.Query, discardRatio: phase1Discard,
                 queryEmbedding: options.QueryEmbedding,
                 textRelevanceScores: options.TextRelevanceScores,
-                querySimOut: querySimScores);
+                querySimOut: querySimScores,
+                gateThreshold: phase1Gate);
         }
 
         // PRF centroid refinement: blend query embedding with top-5 centroid.
-        // IMPORTANT: Only use items with decent semantic similarity (>= 0.30) to the
+        // IMPORTANT: Only use items with decent semantic similarity to the
         // ORIGINAL query for the centroid. Without this filter, off-topic items that score
         // high in Phase 1 (freshness/authority) poison the centroid, causing Phase 2's
         // QuerySim signal to show uniform similarity across all items — destroying
@@ -279,8 +291,8 @@ public sealed class RetrievalPipeline
             var prfCandidates = items
                 .Where(i => i.Embedding != null &&
                             (querySimScores != null
-                                ? querySimScores.GetValueOrDefault(i.Id) >= 0.30
-                                : VectorMath.CosineSimilarity(i.Embedding, options.QueryEmbedding) >= 0.30f))
+                                ? querySimScores.GetValueOrDefault(i.Id) >= prfThreshold
+                                : VectorMath.CosineSimilarity(i.Embedding, options.QueryEmbedding) >= (float)prfThreshold))
                 .ToList();
 
             refinedQueryEmbedding = prfCandidates.Count >= 3
@@ -294,11 +306,11 @@ public sealed class RetrievalPipeline
         items = scorer.ScoreFull(items, options.Query, refinedQueryEmbedding,
             vibeEmbedding: vibeEmbedding,
             gateEmbedding: options.QueryEmbedding,
-            textRelevanceScores: options.TextRelevanceScores);
+            textRelevanceScores: options.TextRelevanceScores,
+            gateThreshold: phase2Gate);
 
-        // Outlier penalty (skip for Roundup queries where diverse topics are expected)
-        // Use the ORIGINAL query embedding (not PRF-refined) to detect outliers relative
-        // to the actual query, preventing PRF centroid drift from masking off-topic items.
+        // Outlier penalty (skip for Roundup queries where diverse topics are expected,
+        // and skip for relaxed-gate file collections where all segments are from same source)
         if (options.UseOutlierPenalty && queryType != QueryType.Roundup && !string.IsNullOrWhiteSpace(options.Query))
         {
             var penalties = RelevanceScorer.ComputeQueryTermCoverage(
@@ -423,6 +435,13 @@ public record RetrievalOptions
     /// When at least 2 entities are present, entity profile HNSW search is enabled.
     /// </summary>
     public List<string>? QueryEntities { get; init; }
+
+    /// <summary>
+    /// Relax scoring gates for file collections where all segments come from the same
+    /// document(s). Lowers Phase 1/Phase 2 cosine similarity thresholds and disables
+    /// outlier penalty, allowing broad queries to retrieve more narrative content.
+    /// </summary>
+    public bool RelaxScoringGates { get; init; }
 }
 
 /// <summary>
@@ -475,6 +494,13 @@ public record ScoringOptions
 
     /// <summary>Whether to use embedding-based deduplication.</summary>
     public bool UseEmbeddingDedup { get; init; } = true;
+
+    /// <summary>
+    /// Relax scoring gates for file collections where all segments come from the same
+    /// document(s). Lowers Phase 1/Phase 2 cosine similarity thresholds, reduces discard
+    /// ratio, and disables outlier penalty for broad queries over narrative content.
+    /// </summary>
+    public bool RelaxScoringGates { get; init; }
 }
 
 /// <summary>

@@ -96,18 +96,30 @@
             </Grid>
         </Border>
 
-        <!-- Main Content: Signal Panel + Editor -->
-        <DockPanel Grid.Row="1">
+        <!-- Main Content: Signal Panel + Splitter + Editor -->
+        <Grid Grid.Row="1" Name="ContentGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" MinWidth="200" MaxWidth="500" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <!-- Signal Panel (Left) — docked left to avoid NativeControlHost airspace overlap -->
-            <Border DockPanel.Dock="Left"
-                    Width="{Binding SignalPanelWidth}"
+            <!-- Signal Panel (Left) -->
+            <Border Grid.Column="0"
                     IsVisible="{Binding IsSignalPanelVisible}">
                 <views:SignalPanel DataContext="{Binding SignalPanel}" />
             </Border>
 
+            <!-- Drag splitter -->
+            <GridSplitter Grid.Column="1"
+                          Width="4"
+                          Background="Transparent"
+                          IsVisible="{Binding IsSignalPanelVisible}"
+                          ResizeDirection="Columns" />
+
             <!-- Editor fills remaining space -->
-            <Border Background="#1e1e1e"
+            <Border Grid.Column="2"
+                    Background="#1e1e1e"
                     Name="EditorContainer">
                 <TextBlock Text="Loading editor..."
                            HorizontalAlignment="Center"
@@ -116,7 +128,7 @@
                            FontSize="14"
                            Name="EditorPlaceholder" />
             </Border>
-        </DockPanel>
+        </Grid>
 
         <!-- Status Bar -->
         <Border Grid.Row="2"

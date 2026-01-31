@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Security.Cryptography;
 using System.Text;
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
@@ -81,7 +82,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         }
 
         // Derive KB name from domain if not provided
-        var kbName = settings.Name ?? seedUri.Host.Replace("www.", "").Split('.')[0];
+        var kbName = settings.Name ?? CollectionNaming.FromUrl(settings.Url!);
 
         await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
         if (settings.Entities)

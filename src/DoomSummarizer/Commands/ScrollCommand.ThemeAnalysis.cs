@@ -86,12 +86,21 @@ public partial class ScrollCommand
 
     private static string GenerateFallbackSummary(
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> items,
-        string vibe)
+        string vibe,
+        IngestDocumentType docType = IngestDocumentType.Unknown)
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"# Doom Scroll Digest ({vibe})");
+        var heading = docType switch
+        {
+            IngestDocumentType.Fiction => "Document Analysis",
+            IngestDocumentType.NonFiction => "Book Summary",
+            IngestDocumentType.Academic => "Paper Summary",
+            IngestDocumentType.Technical => "Technical Overview",
+            _ => "Doom Scroll Digest"
+        };
+        sb.AppendLine($"# {heading} ({vibe})");
         sb.AppendLine();
-        sb.AppendLine($"*Generated {DateTimeOffset.Now:yyyy-MM-dd HH:mm} | {items.Count} items ranked by RRF (BM25 + embeddings + freshness)*");
+        sb.AppendLine($"*Generated {DateTimeOffset.Now:yyyy-MM-dd HH:mm} | {items.Count} items*");
         sb.AppendLine();
 
         // === TOP STORIES: Show the highest-confidence items first ===
@@ -102,7 +111,8 @@ public partial class ScrollCommand
 
         if (topItems.Count > 0)
         {
-            sb.AppendLine("## Top Stories");
+            var sectionTitle = docType is IngestDocumentType.Unknown ? "Top Stories" : "Key Sections";
+            sb.AppendLine($"## {sectionTitle}");
             sb.AppendLine();
 
             var maxRelevance = topItems.Max(i => i.relevance);

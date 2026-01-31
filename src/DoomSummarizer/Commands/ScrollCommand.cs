@@ -43,7 +43,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         public string Template { get; init; } = "default";
 
         [CommandOption("-s|--source")]
-        [Description("Override sources (hn, reddit, search:query, or URL)")]
+        [Description("Sources: hn, reddit, search:query, URL, or local file/directory path")]
         public string[]? Sources { get; init; }
 
         [CommandOption("-l|--limit")]
@@ -295,6 +295,49 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             return 0;
         }
 
+        // ── Local file ingestion: detect file paths in -s/--source or prompt ──
+        // When -s points to a file/directory, auto-ingest into a named collection
+        string? ingestedSourceFilter = null;
+        string? ingestedCollectionName = null;
+        var ingestedDocType = IngestDocumentType.Unknown;
+        var ingestedSegmentCount = 0;
+
+        var candidateSources = settings.Sources ?? [];
+        // Also check if the prompt itself is a file path (routed via CliApp smart routing)
+        if (candidateSources.Length == 0 && !string.IsNullOrEmpty(settings.Prompt) &&
+            (File.Exists(settings.Prompt) || Directory.Exists(settings.Prompt)))
+        {
+            candidateSources = [settings.Prompt];
+        }
+
+        if (candidateSources.Length > 0)
+        {
+            var (files, autoName) = ResolveLocalSources(candidateSources, settings.Name);
+            if (files.Count > 0)
+            {
+                ingestedCollectionName = autoName;
+
+                // Initialize entity store for NER extraction during file ingestion
+                // (character names, locations, etc. feed the knowledge graph for fiction queries)
+                if (boot.EntityStore == null)
+                    await boot.InitializeEntityStoresAsync();
+
+                AnsiConsole.MarkupLine($"[cyan]Ingesting {files.Count} file(s) into collection '{Markup.Escape(autoName)}'...[/]");
+
+                await AnsiConsole.Progress()
+                    .Columns(new TaskDescriptionColumn(), new ProgressBarColumn(), new PercentageColumn(), new SpinnerColumn())
+                    .StartAsync(async ctx =>
+                    {
+                        var task = ctx.AddTask("[cyan]Processing files[/]", maxValue: 100);
+                        var (sourceFilter, count, docType) = await IngestLocalFilesAsync(
+                            files, autoName, boot, task, settings.Force, cancellationToken);
+                        ingestedSourceFilter = sourceFilter;
+                        ingestedSegmentCount = count;
+                        ingestedDocType = docType;
+                    });
+            }
+        }
+
         // Initialize template service for output rendering
         var outputTemplates = new TemplateService();
         await outputTemplates.LoadCustomTemplatesAsync(Path.Combine(ConfigService.GetConfigDir(), "templates"));
@@ -355,7 +398,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         // Skip sentinel interpretation in --name mode (KB query doesn't need web source detection)
         InterpretedPrompt? interpreted = null;
         var vibe = settings.Vibe;
-        var isNamedKbQuery = !string.IsNullOrWhiteSpace(settings.Name);
+        var isNamedKbQuery = !string.IsNullOrWhiteSpace(settings.Name) || ingestedSourceFilter != null;
 
         if (!string.IsNullOrEmpty(settings.Prompt) && !isNamedKbQuery)
         {
@@ -608,8 +651,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             .StartAsync(async ctx =>
             {
                 // Stage 1: Fetch content (or load from knowledge base)
-                // --name implies --local mode (query a named KB collection)
-                var isLocalMode = settings.LocalOnly || !string.IsNullOrWhiteSpace(settings.Name);
+                // --name implies --local mode; file ingestion also forces local mode
+                var isLocalMode = settings.LocalOnly || !string.IsNullOrWhiteSpace(settings.Name)
+                                  || ingestedSourceFilter != null;
                 var fetchTask = ctx.AddTask(
                     isLocalMode ? "[cyan]Loading from knowledge base[/]" : "[cyan]Fetching content[/]",
                     maxValue: 100);
@@ -620,40 +664,121 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 {
                     var localQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
 
-                    // Derive source filter: --name takes priority, then --source crawl:xxx or page:xxx
-                    string? sourceFilter = null;
-                    if (!string.IsNullOrWhiteSpace(settings.Name))
+                    // Derive source filter: ingested files take priority, then --name, then --source
+                    string? sourceFilter = ingestedSourceFilter;
+                    if (sourceFilter == null && !string.IsNullOrWhiteSpace(settings.Name))
                     {
                         var collections = await boot.Storage.GetCollectionsAsync();
                         var matchingCollection = collections.FirstOrDefault(c =>
                             c.Source.Equals(settings.Name, StringComparison.OrdinalIgnoreCase) ||
                             c.Source.Equals($"crawl:{settings.Name}", StringComparison.OrdinalIgnoreCase) ||
-                            c.Source.Equals($"page:{settings.Name}", StringComparison.OrdinalIgnoreCase));
+                            c.Source.Equals($"page:{settings.Name}", StringComparison.OrdinalIgnoreCase) ||
+                            c.Source.Equals($"file:{settings.Name}", StringComparison.OrdinalIgnoreCase));
                         sourceFilter = matchingCollection?.Source ?? $"crawl:{settings.Name}";
                     }
-                    else
+                    else if (sourceFilter == null)
                     {
                         sourceFilter = settings.Sources?.FirstOrDefault(s =>
                             s.StartsWith("crawl:", StringComparison.OrdinalIgnoreCase) ||
-                            s.StartsWith("page:", StringComparison.OrdinalIgnoreCase));
+                            s.StartsWith("page:", StringComparison.OrdinalIgnoreCase) ||
+                            s.StartsWith("file:", StringComparison.OrdinalIgnoreCase));
+                    }
+
+                    // For file collections: detect document type from stored items if not already known
+                    var isFileSource = sourceFilter?.StartsWith("file:") == true;
+                    if (isFileSource && ingestedDocType == IngestDocumentType.Unknown)
+                    {
+                        var sampleItems = await boot.Storage.GetRecentItemsAsync(days: 36500, source: sourceFilter);
+                        ingestedSegmentCount = sampleItems.Count;
+                        if (sampleItems.Count > 0)
+                        {
+                            var sampleText = string.Join("\n", sampleItems.Take(5)
+                                .Select(i => $"{i.Title} {i.Content ?? i.Summary ?? ""}"));
+                            if (sampleText.Length > 5000) sampleText = sampleText[..5000];
+                            ingestedDocType = DetectDocumentType(sampleText);
+                        }
+                    }
+
+                    // Document-type-specific default prompts when no explicit query given
+                    if (string.IsNullOrWhiteSpace(localQuery) && (ingestedSourceFilter != null || isFileSource))
+                    {
+                        localQuery = ingestedDocType switch
+                        {
+                            IngestDocumentType.Fiction =>
+                                "Analyze this work of fiction: identify the main characters and their roles, the setting, plot summary, key themes, and significant events",
+                            IngestDocumentType.NonFiction =>
+                                "Summarize this book: identify the main arguments, key concepts, supporting evidence, and conclusions",
+                            IngestDocumentType.Academic =>
+                                "Summarize this paper: research questions, methodology, key findings, conclusions, and limitations",
+                            IngestDocumentType.Technical =>
+                                "Summarize the key concepts, architecture, setup instructions, and important features",
+                            _ => "Summarize the key themes, arguments, and important points of this document"
+                        };
                     }
 
                     var collectionLabel = sourceFilter ?? "all";
-                    var collectionName = settings.Name ?? "default";
+                    var collectionName = ingestedCollectionName ?? settings.Name ?? "default";
                     fetchTask.Value = 10;
 
                     if (!string.IsNullOrWhiteSpace(localQuery))
                     {
+                        // Adaptive retrieval: books need much broader coverage than news articles
+                        var adaptiveTopK = isFileSource
+                            ? ingestedDocType switch
+                            {
+                                IngestDocumentType.Fiction => Math.Clamp(ingestedSegmentCount / 3, 50, 200),
+                                IngestDocumentType.NonFiction => Math.Clamp(ingestedSegmentCount / 4, 40, 150),
+                                _ => Math.Clamp(ingestedSegmentCount / 5, 30, 100)
+                            }
+                            : settings.Limit * 2;
+                        var adaptiveMinRelevance = isFileSource ? 0.05f : 0.15f;
+
+                        // Fiction-aware entity expansion: when querying about "characters" in fiction,
+                        // look up PER entities from the knowledge graph to boost retrieval
+                        var queryEntities = interpreted?.SentinelIntent?.Entities ?? new List<string>();
+                        if (isFileSource && ingestedDocType == IngestDocumentType.Fiction
+                            && boot.EntityStore != null)
+                        {
+                            var lowerQuery = localQuery.ToLowerInvariant();
+                            var isCharacterQuery = lowerQuery.Contains("character") ||
+                                                   lowerQuery.Contains("protagonist") ||
+                                                   lowerQuery.Contains("people") ||
+                                                   lowerQuery.Contains("cast") ||
+                                                   lowerQuery.Contains("who ");
+                            if (isCharacterQuery)
+                            {
+                                try
+                                {
+                                    var topPeople = await boot.EntityStore.GetTopEntitiesAsync(
+                                        limit: 20, type: "PER");
+                                    var characterNames = topPeople
+                                        .Where(e => e.MentionCount >= 2)
+                                        .Select(e => e.Name)
+                                        .ToList();
+                                    if (characterNames.Count > 0)
+                                    {
+                                        queryEntities = queryEntities.Concat(characterNames)
+                                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                                            .ToList();
+                                        if (settings.DebugPipeline)
+                                            AnsiConsole.MarkupLine($"[grey]Fiction entity expansion: {string.Join(", ", characterNames)}[/]");
+                                    }
+                                }
+                                catch { /* entity store query is best-effort */ }
+                            }
+                        }
+
                         var retrieval = new RetrievalPipeline(boot.Embedding, boot.Storage, boot.EntityStore);
                         var retrievalResult = await retrieval.SearchAsync(localQuery, new RetrievalOptions
                         {
                             SourceFilter = sourceFilter,
                             CollectionName = collectionName,
-                            TopK = settings.Limit * 2,
-                            MinRelevance = 0.15f,
+                            TopK = adaptiveTopK,
+                            MinRelevance = adaptiveMinRelevance,
                             IsKnowledgeBase = true,
                             UseEmbeddingDedup = true,
-                            QueryEntities = interpreted?.SentinelIntent?.Entities,
+                            RelaxScoringGates = isFileSource,
+                            QueryEntities = queryEntities.Count > 0 ? queryEntities : null,
                         }, cancellationToken);
 
                         items.AddRange(retrievalResult.Items);
@@ -2017,6 +2142,14 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // Stage 4: Generate summary
                 var summaryTask = ctx.AddTask("[cyan]Generating summary[/]", maxValue: 100);
                 template = settings.Template.ToLowerInvariant();
+
+                // Auto-select template for file collections based on document type
+                // Only override if user hasn't explicitly chosen a template
+                if (template == "default" && ingestedDocType is not IngestDocumentType.Unknown)
+                {
+                    template = "blog-article";
+                }
+
                 isBlogTemplate = template is "blog-article" or "blog-timeline"
                     or "blog-newsletter" or "blog-newsletter-html";
 
@@ -2027,6 +2160,25 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 {
                     summaryTask.Value = 10;
                     var userQuery = interpreted?.RawPrompt ?? settings.Prompt;
+
+                    // For file collections with detected document type, enhance the query
+                    // with narrative/structural guidance for better LLM synthesis
+                    if (ingestedDocType != IngestDocumentType.Unknown
+                        && string.IsNullOrWhiteSpace(userQuery))
+                    {
+                        userQuery = ingestedDocType switch
+                        {
+                            IngestDocumentType.Fiction =>
+                                "Analyze this work of fiction: identify the main characters and their roles, the setting, plot summary, key themes, and significant events",
+                            IngestDocumentType.NonFiction =>
+                                "Summarize this book: identify the main arguments, key concepts, evidence, and conclusions",
+                            IngestDocumentType.Academic =>
+                                "Summarize this paper: research questions, methodology, key findings, and conclusions",
+                            IngestDocumentType.Technical =>
+                                "Summarize the key concepts, architecture, and important features",
+                            _ => userQuery
+                        };
+                    }
 
                     // Composite query handling: enhance userQuery to explicitly address each subquery
                     // This ensures the summarizer answers each part of the composite question
@@ -2084,7 +2236,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     summaryTask.Value = 20;
 
                     // Resolve YAML template definition (if any)
-                    var templateDef = outputTemplates.GetDefinition(template);
+                    // For file collections with detected document type, inject a structure-aware
+                    // template definition to guide the LLM synthesis
+                    var templateDef = outputTemplates.GetDefinition(template)
+                                     ?? GetDocTypeTemplateDef(ingestedDocType);
                     var effectiveBase = templateDef?.BaseTemplate ?? template;
                     var isBlogArticle = effectiveBase is "blog-article" or "blog-timeline"
                                         || template is "blog-article" or "blog-timeline";
@@ -2234,7 +2389,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
                 else
                 {
-                    finalSummary = GenerateFallbackSummary(analyzedItems, vibe);
+                    finalSummary = GenerateFallbackSummary(analyzedItems, vibe, ingestedDocType);
                 }
 
                 summaryTask.Value = 100;

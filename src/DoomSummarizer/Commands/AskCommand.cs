@@ -84,13 +84,14 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
 
         // Conversation history for multi-turn context
         var history = new List<(string question, string answer, List<string> sourceIds)>();
+        var collectionName = settings.Name ?? "default";
 
         // Show header
         if (!settings.Once)
         {
             AnsiConsole.Write(new Rule("[bold cyan]DoomSummarizer Ask Mode[/]").LeftJustified());
             AnsiConsole.MarkupLine("[grey]Interactive Q&A over your stored knowledge base.[/]");
-            AnsiConsole.MarkupLine("[grey]Type your questions. Use 'quit' to exit, 'sources' to list evidence.[/]");
+            AnsiConsole.MarkupLine("[grey]Commands: quit, sources, history, clear, suggest <prefix>[/]");
             AnsiConsole.WriteLine();
         }
 
@@ -129,6 +130,13 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             {
                 history.Clear();
                 AnsiConsole.MarkupLine("[grey]Conversation cleared.[/]");
+                question = null;
+                continue;
+            }
+            if (cmd.StartsWith("suggest "))
+            {
+                var prefix = question.Trim()[8..];
+                ShowLuceneSuggestions(prefix, collectionName, boot.Storage);
                 question = null;
                 continue;
             }
@@ -435,6 +443,30 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
             AnsiConsole.MarkupLine($"[green]A:[/] {Markup.Escape(preview)}");
             AnsiConsole.MarkupLine($"[grey]({ids.Count} sources)[/]");
         }
+    }
+
+    private static void ShowLuceneSuggestions(string prefix, string collectionName, StorageService storage)
+    {
+        var luceneIndexPath = Path.Combine(storage.DataPath, "lucene", collectionName);
+        if (!Directory.Exists(luceneIndexPath))
+        {
+            AnsiConsole.MarkupLine("[yellow]No Lucene index for this collection yet. Ask a question first.[/]");
+            return;
+        }
+
+        using var lucene = new LuceneSearchService(luceneIndexPath);
+        lucene.Open();
+
+        var suggestions = lucene.Suggest(prefix, limit: 10);
+        if (suggestions.Count == 0)
+        {
+            AnsiConsole.MarkupLine($"[grey]No suggestions for \"{Markup.Escape(prefix)}\"[/]");
+            return;
+        }
+
+        AnsiConsole.MarkupLine($"[bold]Suggestions for \"{Markup.Escape(prefix)}\":[/]");
+        foreach (var s in suggestions)
+            AnsiConsole.MarkupLine($"  [cyan]{Markup.Escape(s.Title ?? s.Id)}[/] [grey]({s.Score:F2})[/]");
     }
 
 }

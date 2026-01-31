@@ -252,6 +252,59 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
+    /// Suggest document titles matching a prefix query.
+    /// Uses PrefixQuery on title and keywords fields for fast autocomplete.
+    /// </summary>
+    public List<LuceneSearchResult> Suggest(string prefix, string? sourceFilter = null, int limit = 8)
+    {
+        if (_searcher == null || string.IsNullOrWhiteSpace(prefix))
+            return [];
+
+        var normalizedPrefix = prefix.Trim().ToLowerInvariant();
+        var terms = normalizedPrefix.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (terms.Length == 0) return [];
+
+        var boolQuery = new BooleanQuery();
+
+        // For each input term, add prefix queries on title and keywords
+        foreach (var term in terms)
+        {
+            var termBool = new BooleanQuery();
+            termBool.Add(new PrefixQuery(new Term(FieldTitle, term)) { Boost = 3.0f }, Occur.SHOULD);
+            termBool.Add(new PrefixQuery(new Term(FieldKeywords, term)) { Boost = 2.0f }, Occur.SHOULD);
+            termBool.Add(new PrefixQuery(new Term(FieldContent, term)), Occur.SHOULD);
+            boolQuery.Add(termBool, Occur.MUST);
+        }
+
+        if (!string.IsNullOrEmpty(sourceFilter))
+            boolQuery.Add(new TermQuery(new Term(FieldSource, sourceFilter)), Occur.MUST);
+
+        var topDocs = _searcher.Search(boolQuery, limit);
+
+        // Deduplicate by title
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var results = new List<LuceneSearchResult>();
+
+        foreach (var sd in topDocs.ScoreDocs)
+        {
+            var doc = _searcher.Doc(sd.Doc);
+            var title = doc.Get(FieldTitle) ?? "";
+            if (!seen.Add(title)) continue;
+
+            results.Add(new LuceneSearchResult
+            {
+                Id = doc.Get(FieldId),
+                Title = title,
+                Source = doc.Get(FieldSource),
+                Url = doc.Get(FieldUrl),
+                Score = sd.Score
+            });
+        }
+
+        return results;
+    }
+
+    /// <summary>
     /// Get document count in the index.
     /// </summary>
     public int DocumentCount => _reader?.NumDocs ?? 0;

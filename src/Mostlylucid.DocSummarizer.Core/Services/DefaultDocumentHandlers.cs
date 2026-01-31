@@ -120,6 +120,12 @@ public class HtmlDocumentHandler : IDocumentHandler
 /// </summary>
 public class PdfDocumentHandler : IDocumentHandler
 {
+    /// <summary>Maximum pages to extract text from. Prevents OOM on very large PDFs.</summary>
+    private const int MaxPdfPages = 2000;
+
+    /// <summary>Maximum accumulated text size in characters (~10 MB of UTF-16). Caps memory usage.</summary>
+    private const int MaxTextChars = 5 * 1024 * 1024;
+
     public IReadOnlyList<string> SupportedExtensions => [".pdf"];
     public int Priority => 0;
     public string HandlerName => "PDF";
@@ -131,32 +137,42 @@ public class PdfDocumentHandler : IDocumentHandler
 
     public Task<DocumentContent> ProcessAsync(string filePath, DocumentHandlerOptions options)
     {
-        var sb = new StringBuilder();
         string? title = null;
+        var truncated = false;
 
-        using (var doc = PdfDocument.Open(filePath))
+        using var doc = PdfDocument.Open(filePath);
+
+        if (doc.Information?.Title != null)
+            title = doc.Information.Title;
+
+        // Pre-allocate StringBuilder: ~2 KB per page is a reasonable estimate
+        var estimatedChars = Math.Min(doc.NumberOfPages, MaxPdfPages) * 2048;
+        var sb = new StringBuilder(Math.Min(estimatedChars, MaxTextChars));
+
+        var pageNum = 0;
+        foreach (var page in doc.GetPages())
         {
-            // Try to get title from metadata
-            if (doc.Information?.Title != null)
-                title = doc.Information.Title;
-
-            var pageNum = 0;
-            foreach (var page in doc.GetPages())
+            pageNum++;
+            if (pageNum > MaxPdfPages || sb.Length > MaxTextChars)
             {
-                pageNum++;
-                var text = page.Text;
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    // Add page marker for page-aware chunking
-                    sb.AppendLine($"<!-- PAGE:{pageNum} -->");
-
-                    // Split text into natural paragraphs
-                    // PDFs often have text as continuous lines - try to detect paragraph breaks
-                    var normalized = NormalizePdfText(text);
-                    sb.AppendLine(normalized);
-                    sb.AppendLine();
-                }
+                truncated = true;
+                break;
             }
+
+            var text = page.Text;
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                sb.AppendLine($"<!-- PAGE:{pageNum} -->");
+                var normalized = NormalizePdfText(text);
+                sb.AppendLine(normalized);
+                sb.AppendLine();
+            }
+        }
+
+        if (truncated)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"<!-- TRUNCATED: extracted {pageNum - 1} of {doc.NumberOfPages} pages -->");
         }
 
         return Task.FromResult(new DocumentContent

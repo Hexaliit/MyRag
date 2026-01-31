@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text;
 using System.Text.RegularExpressions;
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Content;
@@ -102,10 +103,10 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
 
                     var title = ExtractTitle(html) ?? new Uri(settings.Url).Host;
 
-                    // Use named collection if specified, otherwise default to "page"
+                    // Use named collection if specified, otherwise derive from URL
                     var source = !string.IsNullOrWhiteSpace(settings.Name)
                         ? $"page:{settings.Name}"
-                        : "page";
+                        : $"page:{CollectionNaming.FromUrl(settings.Url!)}";
 
                     item = new ContentItem
                     {
@@ -379,7 +380,10 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
         else
         {
             AnsiConsole.WriteLine();
-            AnsiConsole.Write(new Panel(ScrollCommand.MarkdownToSpectre(finalOutput))
+            var renderedMarkup = ScrollCommand.MarkdownToSpectre(finalOutput);
+            var maxContentWidth = Math.Min(AnsiConsole.Profile.Width - 6, 94);
+            var wrappedMarkup = ScrollCommand.WordWrapMarkup(renderedMarkup, maxContentWidth);
+            AnsiConsole.Write(new Panel(wrappedMarkup)
                 .Header($"[bold cyan]Page Summary ({settings.Vibe})[/]")
                 .Border(BoxBorder.Rounded)
                 .Padding(1, 1));

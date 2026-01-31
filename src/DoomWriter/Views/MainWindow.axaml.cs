@@ -37,6 +37,9 @@ public partial class MainWindow : Window
         // Wire toolbar buttons directly (avoids broken compiled binding for StorageProvider)
         WireToolbarButtons();
 
+        // Restore signal panel width from config
+        RestoreSignalPanelWidth();
+
         // Initialize the WebView2 editor
         InitializeEditor();
     }
@@ -256,6 +259,31 @@ public partial class MainWindow : Window
         }
     }
 #pragma warning restore CS0618
+
+    private void RestoreSignalPanelWidth()
+    {
+        var grid = this.FindControl<Grid>("ContentGrid");
+        if (grid == null || Vm == null || grid.ColumnDefinitions.Count == 0) return;
+
+        var col = grid.ColumnDefinitions[0];
+        var saved = Vm.Config.SignalPanelWidth;
+        if (saved is > 200 and < 500)
+            col.Width = new GridLength(saved);
+
+        // Save width back when the splitter is dragged
+        col.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == ColumnDefinition.WidthProperty && Vm != null)
+            {
+                var w = col.Width.Value;
+                if (col.Width.GridUnitType == GridUnitType.Pixel && w is > 200 and < 500)
+                {
+                    Vm.Config.SignalPanelWidth = w;
+                    Vm.SignalPanelWidth = w;
+                }
+            }
+        };
+    }
 
     private static bool IsMarkdownFile(string path)
     {

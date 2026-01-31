@@ -47,10 +47,16 @@ public static class CliApp
         {
             args = ["--help"];
         }
-        else if (args.Length > 0 && !args[0].StartsWith('-') && !IsKnownCommand(args[0]))
+        else if (args.Length > 0 && !IsKnownCommand(args[0]))
         {
-            if (IsUrl(args[0]))
+            if (args[0].StartsWith('-'))
+                // Flags without a command: default to scroll (e.g., -s file.pdf --name x)
+                args = ["scroll", .. args];
+            else if (IsUrl(args[0]))
                 args = ["page", .. args];
+            else if (IsLocalFile(args[0]))
+                // File path as prompt: route to scroll with -s (source) so it auto-ingests
+                args = ["scroll", "-s", args[0], .. args.Skip(1)];
             else
                 args = ["scroll", .. args];
         }
@@ -68,7 +74,9 @@ public static class CliApp
                 .WithExample("scroll", "snarky take on AI news")
                 .WithExample("scroll", "--vibe", "doom")
                 .WithExample("scroll", "-s", "search:rust programming")
-                .WithExample("scroll", "https://techcrunch.com", "-o", "digest.md");
+                .WithExample("scroll", "https://techcrunch.com", "-o", "digest.md")
+                .WithExample("scroll", "-s", "C:\\Books\\novel.pdf", "--name", "novel")
+                .WithExample("scroll", "Who is the protagonist?", "-s", "C:\\Books\\novel.pdf");
 
             config.AddCommand<SetupCommand>("setup")
                 .WithDescription("Download required models and setup Playwright")
@@ -164,6 +172,9 @@ public static class CliApp
     private static bool IsUrl(string arg) =>
         arg.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
         arg.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsLocalFile(string arg) =>
+        !arg.StartsWith('-') && (File.Exists(arg) || Directory.Exists(arg));
 
     private static bool IsKnownCommand(string arg) =>
         arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "benchmark" or "page" or "plugin" or "list";

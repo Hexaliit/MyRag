@@ -8,7 +8,7 @@
 
     <Border BorderBrush="{DynamicResource SemiColorBorder}"
             BorderThickness="0,0,1,0">
-        <Grid RowDefinitions="Auto,*">
+        <Grid RowDefinitions="Auto,Auto,*">
 
             <!-- Panel header -->
             <Border Grid.Row="0" Padding="10,8"
@@ -17,8 +17,46 @@
                 <TextBlock Text="Signals" FontWeight="SemiBold" FontSize="13" />
             </Border>
 
+            <!-- Search/Ask bar -->
+            <Border Grid.Row="1" Padding="6,4"
+                    BorderBrush="{DynamicResource SemiColorBorder}"
+                    BorderThickness="0,0,0,1">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <!-- Mode dropdown -->
+                    <ComboBox Grid.Column="0"
+                              ItemsSource="{Binding SearchModes}"
+                              SelectedItem="{Binding SearchMode, Converter={x:Static local:SignalPanel.SearchModeConverter}}"
+                              FontSize="11" Padding="4,3"
+                              MinWidth="60" MaxHeight="26"
+                              VerticalAlignment="Center" />
+                    <!-- Query input -->
+                    <TextBox Grid.Column="1"
+                             Text="{Binding SearchQuery, Mode=TwoWay}"
+                             Watermark="Search or ask..."
+                             FontSize="11" Padding="4,3"
+                             Margin="4,0"
+                             MaxHeight="26"
+                             VerticalAlignment="Center"
+                             Name="SearchBox" />
+                    <!-- Search button / spinner -->
+                    <Panel Grid.Column="2" VerticalAlignment="Center">
+                        <Button Classes="toolbar-icon-btn"
+                                Command="{Binding SubmitSearchCommand}"
+                                IsVisible="{Binding !IsSearching}"
+                                Padding="4,3" MinWidth="26" MinHeight="26">
+                            <TextBlock Text="&#x2192;" FontSize="13" />
+                        </Button>
+                        <TextBlock Text="..." FontSize="11"
+                                   Foreground="#8899AA"
+                                   IsVisible="{Binding IsSearching}"
+                                   VerticalAlignment="Center"
+                                   Margin="4,0" />
+                    </Panel>
+                </Grid>
+            </Border>
+
             <!-- Tabbed content -->
-            <TabControl Grid.Row="1" Classes="signal-tabs"
+            <TabControl Grid.Row="2" Classes="signal-tabs"
                         SelectedIndex="{Binding SelectedTabIndex}">
 
                 <!-- TOC Tab -->
@@ -155,6 +193,71 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+                    </Grid>
+                </TabItem>
+                <!-- Search/Ask Results Tab -->
+                <TabItem Header="Search">
+                    <Grid>
+                        <!-- Ask response (shown for Ask mode) -->
+                        <Border IsVisible="{Binding HasAskResponse}"
+                                Padding="8" Margin="4">
+                            <ScrollViewer>
+                                <TextBlock Text="{Binding AskResponse}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+                            </ScrollViewer>
+                        </Border>
+                        <!-- Search results list (shown for Corpus/Web mode) -->
+                        <ListBox ItemsSource="{Binding SearchResults}"
+                                 BorderThickness="0"
+                                 IsVisible="{Binding !HasAskResponse}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SearchResultItem">
+                                    <Button Classes="toolbar-btn"
+                                            Command="{Binding $parent[UserControl].((vm:SignalPanelViewModel)DataContext).SelectSearchResultCommand}"
+                                            CommandParameter="{Binding}"
+                                            HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Left"
+                                            Padding="6,4">
+                                        <StackPanel Spacing="2">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding Title}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding Score, StringFormat='{}{0:F2}'}"
+                                                           FontSize="10"
+                                                           Foreground="#8899AA"
+                                                           Margin="4,0,0,0" />
+                                            </Grid>
+                                            <TextBlock Text="{Binding Snippet}"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       MaxLines="3"
+                                                       Foreground="#8899AA" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <!-- Empty state -->
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+                            <StackPanel.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="!HasAskResponse" />
+                                    <Binding Path="!SearchResults.Count" />
+                                </MultiBinding>
+                            </StackPanel.IsVisible>
+                            <TextBlock Text="Search your corpus or ask a question"
+                                       FontSize="11"
+                                       Foreground="#667788"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
                     </Grid>
                 </TabItem>
             </TabControl>

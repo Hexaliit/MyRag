@@ -28,6 +28,9 @@ public class PdfTableExtractor : ITableExtractor
         return Task.FromResult(true);
     }
 
+    /// <summary>Maximum pages to scan for tables. Large PDFs rarely have useful tables past this point.</summary>
+    private const int MaxTableExtractionPages = 100;
+
     public async Task<TableExtractionResult> ExtractTablesAsync(
         string filePath,
         TableExtractionOptions? options = null,
@@ -44,7 +47,19 @@ public class PdfTableExtractor : ITableExtractor
             {
                 using var document = PdfDocument.Open(filePath);
 
-                var pagesToProcess = options.Pages ?? Enumerable.Range(1, document.NumberOfPages).ToList();
+                var allPages = options.Pages ?? Enumerable.Range(1, document.NumberOfPages).ToList();
+
+                // Cap table extraction pages for large PDFs
+                var pagesToProcess = allPages.Count > MaxTableExtractionPages
+                    ? allPages.Take(MaxTableExtractionPages).ToList()
+                    : allPages;
+
+                if (allPages.Count > MaxTableExtractionPages)
+                {
+                    _logger.LogInformation(
+                        "Table extraction limited to first {Max} of {Total} pages for {File}",
+                        MaxTableExtractionPages, document.NumberOfPages, Path.GetFileName(filePath));
+                }
 
                 var globalTableNumber = 1;
 

@@ -225,7 +225,8 @@ public partial class RelevanceScorer
     public List<ContentItem> ScoreFast(List<ContentItem> items, string query, double discardRatio = 0.25,
         float[]? queryEmbedding = null,
         Dictionary<string, double>? textRelevanceScores = null,
-        Dictionary<string, double>? querySimOut = null)
+        Dictionary<string, double>? querySimOut = null,
+        float gateThreshold = 0.25f)
     {
         if (items.Count == 0) return items;
 
@@ -301,7 +302,7 @@ public partial class RelevanceScorer
         {
             var simLookup = querySimScores.ToDictionary(x => x.item.Id, x => x.score);
             sorted = sorted
-                .Where(i => simLookup.GetValueOrDefault(i.Id, 0) >= 0.25 ||
+                .Where(i => simLookup.GetValueOrDefault(i.Id, 0) >= gateThreshold ||
                             i.Embedding == null)
                 .ToList();
         }
@@ -337,7 +338,8 @@ public partial class RelevanceScorer
         float[] queryEmbedding,
         float[]? vibeEmbedding = null,
         float[]? gateEmbedding = null,
-        Dictionary<string, double>? textRelevanceScores = null)
+        Dictionary<string, double>? textRelevanceScores = null,
+        float gateThreshold = 0.20f)
     {
         if (items.Count == 0) return items;
 
@@ -417,7 +419,7 @@ public partial class RelevanceScorer
         }
 
         var gated = rrfScores
-            .Where(x => gateSim.GetValueOrDefault(x.item.Id, 0) >= 0.20
+            .Where(x => gateSim.GetValueOrDefault(x.item.Id, 0) >= gateThreshold
                         || x.item.Embedding == null) // keep items without embeddings (can't gate)
             .OrderByDescending(x => x.score)
             .Select(x => x.item)

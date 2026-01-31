@@ -99,6 +99,10 @@ public partial class MainWindowViewModel : ObservableObject
                 await _bridge.ScrollToTextAsync(s.Title);
         };
 
+        // Wire search/ask
+        SignalPanel.SearchSubmitted += OnSearchSubmitted;
+        SignalPanel.SearchResultClicked += OnSearchResultClicked;
+
         // Wire autocomplete
         _bridge.AutocompleteRequested += OnAutocompleteRequested;
         _autocomplete.SuggestionReady += OnAutocompleteSuggestionReady;
@@ -414,6 +418,136 @@ public partial class MainWindowViewModel : ObservableObject
             is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
             return desktop.MainWindow;
         return null;
+    }
+
+    // --- Search / Ask ---
+
+    private async void OnSearchSubmitted(object? sender, (string query, SearchMode mode) e)
+    {
+        var (query, mode) = e;
+        SignalPanel.IsSearching = true;
+
+        try
+        {
+            switch (mode)
+            {
+                case SearchMode.Corpus:
+                    await SearchCorpusAsync(query);
+                    break;
+                case SearchMode.Web:
+                    // Web search placeholder - show corpus results with note
+                    await SearchCorpusAsync(query);
+                    break;
+                case SearchMode.Ask:
+                    await AskAsync(query);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Search/Ask failed: {ex.Message}");
+            SignalPanel.ShowAskResponse($"Error: {ex.Message}");
+        }
+        finally
+        {
+            SignalPanel.IsSearching = false;
+        }
+    }
+
+    private async Task SearchCorpusAsync(string query)
+    {
+        if (!_corpus.IsInitialized) return;
+
+        // Hybrid search: fast Lucene keyword matches + slower embedding similarity
+        var keywordMatches = _corpus.KeywordSearch(query, limit: 5);
+        var embeddingMatches = await _corpus.SearchAsync(query, topK: 10);
+
+        // Merge results, preferring keyword matches for exact hits
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var merged = new List<SearchResultItem>();
+
+        foreach (var m in keywordMatches)
+        {
+            if (seen.Add(m.Id))
+                merged.Add(new SearchResultItem
+                {
+                    Title = m.Title,
+                    Snippet = m.Text.Length > 0 ? m.Text : m.Source,
+                    Score = m.Score,
+                    Source = m.Source,
+                    InsertText = null
+                });
+        }
+
+        foreach (var m in embeddingMatches)
+        {
+            if (seen.Add(m.Id))
+                merged.Add(new SearchResultItem
+                {
+                    Title = m.Title,
+                    Snippet = m.Text.Length > 0 ? m.Text : m.Source,
+                    Score = m.Score,
+                    Source = m.Source,
+                    InsertText = null
+                });
+        }
+
+        SignalPanel.ShowSearchResults(merged);
+    }
+
+    private async Task AskAsync(string query)
+    {
+        if (!IsOllamaConnected)
+        {
+            SignalPanel.ShowAskResponse("Ollama is not connected. Check settings.");
+            return;
+        }
+
+        var context = BuildAskContext(query);
+        var systemPrompt =
+            "You are a helpful writing assistant. Answer the user's question concisely based on " +
+            "their document context. Keep responses brief and actionable.";
+
+        var response = await _ollama.GenerateAsync(context, systemPrompt, temperature: 0.4);
+        SignalPanel.ShowAskResponse(response.Trim());
+    }
+
+    private string BuildAskContext(string query)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Question: {query}");
+        sb.AppendLine();
+
+        // Include document summary context
+        if (_lastSignals != null)
+        {
+            if (!string.IsNullOrEmpty(_lastSignals.DominantTopic))
+                sb.AppendLine($"Document topic: {_lastSignals.DominantTopic}");
+            if (_lastSignals.Entities.Count > 0)
+                sb.AppendLine($"Key entities: {string.Join(", ", _lastSignals.Entities.Take(5).Select(e => e.Name))}");
+        }
+
+        // Include relevant content around cursor (max 600 chars)
+        var content = Editor.Content;
+        if (!string.IsNullOrEmpty(content))
+        {
+            var snippet = content.Length > 600
+                ? content[..600] + "..."
+                : content;
+            sb.AppendLine();
+            sb.AppendLine("Document excerpt:");
+            sb.AppendLine(snippet);
+        }
+
+        return sb.ToString();
+    }
+
+    private async void OnSearchResultClicked(object? sender, SearchResultItem result)
+    {
+        if (!string.IsNullOrEmpty(result.InsertText))
+            await _bridge.InsertAtCursorAsync(result.InsertText);
+        else if (!string.IsNullOrEmpty(result.Source))
+            await _bridge.ScrollToTextAsync(result.Title);
     }
 
     // --- Auto-save ---

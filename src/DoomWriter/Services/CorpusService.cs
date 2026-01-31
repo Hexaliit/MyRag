@@ -22,6 +22,7 @@ public class CorpusService : IDisposable
     private readonly ConcurrentDictionary<string, string> _fileHashes = new();
     private readonly SemaphoreSlim _indexLock = new(1, 1);
     private CancellationTokenSource? _watcherDebounceCts;
+    private LuceneSearchService? _lucene;
 
     public event EventHandler<CorpusIndexProgress>? IndexProgress;
     public event EventHandler? IndexCompleted;
@@ -47,12 +48,18 @@ public class CorpusService : IDisposable
     }
 
     /// <summary>
-    /// Initialize storage backends (SQLite + DuckDB).
+    /// Initialize storage backends (SQLite + DuckDB + Lucene FTS).
     /// </summary>
     public async Task InitializeAsync()
     {
         await _storage.InitializeAsync();
         await _vectorStore.InitializeAsync();
+
+        // Initialize Lucene FTS index for fast keyword search and autocomplete
+        var lucenePath = Path.Combine(_storage.DataPath, "lucene", "corpus");
+        Directory.CreateDirectory(lucenePath);
+        _lucene = new LuceneSearchService(lucenePath);
+        _lucene.Open();
 
         IsInitialized = true;
     }
@@ -95,6 +102,9 @@ public class CorpusService : IDisposable
                 System.Diagnostics.Debug.WriteLine($"Failed to ingest {file}: {ex.Message}");
             }
         }
+
+        // Commit Lucene index after batch ingestion
+        _lucene?.Commit();
 
         TotalDocuments = processed;
         IndexCompleted?.Invoke(this, EventArgs.Empty);
@@ -165,6 +175,11 @@ public class CorpusService : IDisposable
 
         // Store item in SQLite
         await _storage.SaveItemAsync(item);
+
+        // Index in Lucene FTS for keyword search and autocomplete
+        item.Keywords = metadata.GetValueOrDefault("tags") ?? metadata.GetValueOrDefault("categories");
+        _lucene?.IndexItem(item);
+
         TotalSegments += segments.Count;
     }
 
@@ -192,6 +207,48 @@ public class CorpusService : IDisposable
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// Fast keyword-based suggestions using Lucene prefix matching.
+    /// Ideal for autocomplete as it avoids embedding computation.
+    /// </summary>
+    public List<CorpusMatch> Suggest(string prefix, int limit = 8)
+    {
+        if (_lucene == null || string.IsNullOrWhiteSpace(prefix))
+            return [];
+
+        return _lucene.Suggest(prefix, limit: limit)
+            .Select(r => new CorpusMatch
+            {
+                Id = r.Id,
+                Score = r.Score,
+                Title = r.Title ?? r.Id,
+                Text = "",
+                Source = r.Source ?? "corpus"
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Full-text keyword search using Lucene FTS.
+    /// Complements the embedding-based SeachAsync with exact keyword matching.
+    /// </summary>
+    public List<CorpusMatch> KeywordSearch(string query, int limit = 10)
+    {
+        if (_lucene == null || string.IsNullOrWhiteSpace(query))
+            return [];
+
+        return _lucene.Search(query, limit: limit)
+            .Select(r => new CorpusMatch
+            {
+                Id = r.Id,
+                Score = r.Score,
+                Title = r.Title ?? r.Id,
+                Text = "",
+                Source = r.Source ?? "corpus"
+            })
+            .ToList();
     }
 
     /// <summary>
@@ -254,6 +311,7 @@ public class CorpusService : IDisposable
             try
             {
                 await IngestFileAsync(e.FullPath, ct);
+                _lucene?.Commit();
             }
             finally
             {
@@ -343,6 +401,7 @@ public class CorpusService : IDisposable
 
     public void Dispose()
     {
+        _lucene?.Dispose();
         foreach (var (_, watcher) in _watchers)
         {
             watcher.EnableRaisingEvents = false;
