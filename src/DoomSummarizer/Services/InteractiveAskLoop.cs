@@ -85,6 +85,7 @@ public sealed class InteractiveAskLoop
                 {
                     Console.Write("> ");
                     question = Console.ReadLine();
+                    if (question == null) break; // End of input stream
                 }
                 else
                 {
