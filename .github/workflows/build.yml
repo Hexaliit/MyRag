@@ -46,6 +46,9 @@ jobs:
       - name: Build DoomSummarizer.Tests
         run: dotnet build src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj --configuration Release
 
+      - name: Build Plugin.Books.Tests
+        run: dotnet build src/Mostlylucid.DoomSummarizer.Plugin.Books.Tests/Mostlylucid.DoomSummarizer.Plugin.Books.Tests.csproj --configuration Release
+
       # LucidRAG tests temporarily disabled - ImageSummarizer.Core has broken StyloFlow reference
       # - name: Run LucidRAG tests
       #   env:
@@ -63,4 +66,11 @@ jobs:
             --configuration Release \
             --no-build \
             --filter 'Category!=Network&Category!=Smoke&Category!=RequiresModel' \
+            --logger "console;verbosity=normal"
+
+      - name: Run Plugin.Books tests
+        run: |
+          dotnet test src/Mostlylucid.DoomSummarizer.Plugin.Books.Tests/Mostlylucid.DoomSummarizer.Plugin.Books.Tests.csproj \
+            --configuration Release \
+            --no-build \
             --logger "console;verbosity=normal"

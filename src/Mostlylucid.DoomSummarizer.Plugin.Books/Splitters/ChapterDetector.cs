@@ -115,14 +115,16 @@ public static class ChapterDetector
         return -1;
     }
 
+    private static readonly Dictionary<char, int> RomanNumerals = new()
+    {
+        ['I'] = 1, ['V'] = 5, ['X'] = 10,
+        ['L'] = 50, ['C'] = 100, ['D'] = 500, ['M'] = 1000
+    };
+
     private static int TryParseRoman(string text)
     {
         var upper = text.ToUpperInvariant();
-        var values = new Dictionary<char, int>
-        {
-            ['I'] = 1, ['V'] = 5, ['X'] = 10,
-            ['L'] = 50, ['C'] = 100, ['D'] = 500, ['M'] = 1000
-        };
+        var values = RomanNumerals;
 
         if (upper.Any(c => !values.ContainsKey(c)))
             return 0;

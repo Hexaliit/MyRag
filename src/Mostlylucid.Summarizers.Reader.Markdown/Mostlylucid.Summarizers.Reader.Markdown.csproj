@@ -1,31 +1,80 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks Condition="'$(UseNuGetDependency)' == 'true'">net8.0;net9.0;net10.0</TargetFrameworks>
+        <TargetFramework Condition="'$(UseNuGetDependency)' != 'true'">net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>Mostlylucid.Summarizers.Reader.Markdown</RootNamespace>
 
+        <!-- NuGet -->
         <IsPackable>true</IsPackable>
         <PackageId>Mostlylucid.Summarizers.Reader.Markdown</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
-        <Description>Markdown and plain text reader for the Summarizers pipeline. Heading-aware extraction with front matter parsing.</Description>
+        <Description>Markdown and plain text reader for the Summarizers pipeline. Heading-aware extraction with YAML front matter parsing.</Description>
         <PackageTags>markdown;text;reader;summarizer;document-processing</PackageTags>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/release-notes.txt"))</PackageReleaseNotes>
+
+        <!-- Symbols -->
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591</NoWarn>
+
+        <!-- Deterministic builds -->
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     </PropertyGroup>
+
+    <!-- MinVer -->
+    <PropertyGroup>
+        <MinVerTagPrefix>rdrmdv</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <!-- Release config -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugSymbols>false</DebugSymbols>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <!-- MinVer package -->
+    <ItemGroup>
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
     </ItemGroup>
 
+    <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <ItemGroup>
         <EmbeddedResource Include="reader.yaml" />
+    </ItemGroup>
+
+    <!-- Package files -->
+    <ItemGroup>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
+        <None Include=".\release-notes.txt" Pack="true" PackagePath="">
+            <Link>Properties\release-notes.txt</Link>
+        </None>
     </ItemGroup>
 
 </Project>

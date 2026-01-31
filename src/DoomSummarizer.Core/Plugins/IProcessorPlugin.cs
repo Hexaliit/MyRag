@@ -166,29 +166,22 @@ public record StructuralWeights
     };
 
     /// <summary>
-    /// Get the structural weight for a node at the given position.
+    /// Get the structural weight for a node. Checks explicit NodeWeights first,
+    /// then falls back to position-based defaults from PositionWeights.
+    /// Title-based detection is done at ingestion time by the plugin's ComputeStructuralWeights.
     /// </summary>
-    public double GetWeight(int sequence, int siblingCount, string levelLabel, string? title = null)
+    public double GetWeight(int sequence, int siblingCount, string? title = null)
     {
-        // Check explicit node weight first
-        if (title != null && NodeWeights.TryGetValue(title, out var explicit_))
-            return explicit_;
+        // Check explicit node weight first (populated by plugin during processing)
+        if (title != null && NodeWeights.TryGetValue(title, out var explicitWeight))
+            return explicitWeight;
 
-        // Position-based weights
+        // Position-based fallbacks
         if (sequence == 0)
             return PositionWeights.GetValueOrDefault("opening", 1.0);
 
-        if (sequence == siblingCount - 1)
+        if (siblingCount > 0 && sequence == siblingCount - 1)
             return PositionWeights.GetValueOrDefault("closing", 1.0);
-
-        // Title-based detection
-        var lower = title?.ToLowerInvariant() ?? "";
-        if (lower.Contains("abstract"))
-            return PositionWeights.GetValueOrDefault("abstract", 1.0);
-        if (lower.Contains("introduction"))
-            return PositionWeights.GetValueOrDefault("introduction", 1.0);
-        if (lower.Contains("conclusion"))
-            return PositionWeights.GetValueOrDefault("conclusion", 1.0);
 
         // Climax heuristic: ~70-80% through the narrative
         if (siblingCount >= 5)

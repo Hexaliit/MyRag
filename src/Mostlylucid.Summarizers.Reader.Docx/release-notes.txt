@@ -1,0 +1,2 @@
+Initial release.
+DOCX extraction with heading-aware structure, lists, tables, and formatting.

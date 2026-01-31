@@ -302,4 +302,7 @@ public static partial class BookTypeDetector
 
     [GeneratedRegex(@"^[A-Z]{2,}[\.\:]\s", RegexOptions.Multiline)]
     private static partial Regex SpeakerLabelRegex();
+
+    [GeneratedRegex(@"^pg\d+")]
+    private static partial Regex GutenbergIdRegex();
 }

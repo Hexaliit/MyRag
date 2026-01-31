@@ -1,4 +1,5 @@
 using System.Reflection;
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Plugins;
 using Microsoft.Extensions.Logging;
@@ -39,7 +40,7 @@ public class BookProcessorPlugin : IProcessorPlugin
     public IReadOnlyList<IDocumentSplitter> Splitters => _splitter != null ? [_splitter] : [];
     public IReadOnlyList<TemplateDefinition> Templates => _templates;
 
-    public async Task InitializeAsync(ProcessorPluginServices services, CancellationToken ct = default)
+    public Task InitializeAsync(ProcessorPluginServices services, CancellationToken ct = default)
     {
         _logger = services.LoggerFactory.CreateLogger<BookProcessorPlugin>();
         _splitter = new HierarchicalBookSplitter(
@@ -51,7 +52,7 @@ public class BookProcessorPlugin : IProcessorPlugin
         _logger.LogInformation("Book Summarizer plugin initialized with {TemplateCount} templates",
             _templates.Count);
 
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public bool CanProcess(string markdown, ProcessingContext context)
@@ -76,8 +77,8 @@ public class BookProcessorPlugin : IProcessorPlugin
         if (_splitter == null)
             throw new InvalidOperationException("Plugin not initialized. Call InitializeAsync first.");
 
-        // Pre-compute word count once to avoid repeated full-text splits
-        var wordCount = markdown.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        // Pre-compute word count once (zero-allocation)
+        var wordCount = WordCounter.Count(markdown);
 
         // Detect type with all available signals
         long? fileSize = null;

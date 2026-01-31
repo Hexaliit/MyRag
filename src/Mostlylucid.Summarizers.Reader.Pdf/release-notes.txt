@@ -1,0 +1,2 @@
+Initial release.
+PDF text extraction with page markers, metadata, and paragraph normalization.

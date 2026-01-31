@@ -1,0 +1,2 @@
+Initial release.
+Markdown and plain text reading with YAML front matter parsing and heading detection.

@@ -1,0 +1,2 @@
+Initial release.
+Project Gutenberg ZIP/HTML archive reading with boilerplate stripping and metadata extraction.

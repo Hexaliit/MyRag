@@ -1,0 +1,2 @@
+Initial release.
+Hierarchical book splitting, book type detection, and chapter-aware summarization strategies.

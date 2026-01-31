@@ -1,3 +1,4 @@
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Plugins;
 using Microsoft.Extensions.Logging;
@@ -24,7 +25,7 @@ public class HierarchicalBookSplitter : IDocumentSplitter
     {
         var wordCount = context.WordCount > 0
             ? context.WordCount
-            : markdown.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+            : WordCounter.Count(markdown);
 
         if (wordCount < 5_000) return 0;     // No split needed
         if (wordCount < 20_000) return 1;    // Section-level only
@@ -112,7 +113,7 @@ public class HierarchicalBookSplitter : IDocumentSplitter
             var preamble = text[..boundaries[0].CharOffset].Trim();
             if (preamble.Length > 0)
             {
-                var preambleWords = preamble.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+                var preambleWords = WordCounter.Count(preamble);
                 if (preambleWords > options.MinLeafWords)
                 {
                     children.Add(CreateLeafNode(preamble, "preamble", 0, currentLevelIndex + 1));
@@ -133,7 +134,7 @@ public class HierarchicalBookSplitter : IDocumentSplitter
             var segment = text[start..end].Trim();
             if (string.IsNullOrWhiteSpace(segment)) continue;
 
-            var segmentWords = segment.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+            var segmentWords = WordCounter.Count(segment);
             var title = boundaries[i].MarkerText;
             var sequence = boundaries[i].SequenceNumber > 0
                 ? boundaries[i].SequenceNumber

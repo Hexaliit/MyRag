@@ -161,6 +161,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.Summarizers.Rea
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.DoomSummarizer.Plugin.Books", "src\Mostlylucid.DoomSummarizer.Plugin.Books\Mostlylucid.DoomSummarizer.Plugin.Books.csproj", "{FA2435D4-E54E-4BBA-9F37-DA4044DE4A5D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.DoomSummarizer.Plugin.Books.Tests", "src\Mostlylucid.DoomSummarizer.Plugin.Books.Tests\Mostlylucid.DoomSummarizer.Plugin.Books.Tests.csproj", "{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -927,6 +929,18 @@ Global
 		{FA2435D4-E54E-4BBA-9F37-DA4044DE4A5D}.Release|x64.Build.0 = Release|Any CPU
 		{FA2435D4-E54E-4BBA-9F37-DA4044DE4A5D}.Release|x86.ActiveCfg = Release|Any CPU
 		{FA2435D4-E54E-4BBA-9F37-DA4044DE4A5D}.Release|x86.Build.0 = Release|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Debug|x64.Build.0 = Debug|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Debug|x86.Build.0 = Debug|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Release|x64.ActiveCfg = Release|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Release|x64.Build.0 = Release|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Release|x86.ActiveCfg = Release|Any CPU
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -996,5 +1010,6 @@ Global
 		{2086DCCB-FCD9-4CEE-BE5C-00549468CD80} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{E296B63E-1127-4F51-BC5C-E5B77EAB494A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{FA2435D4-E54E-4BBA-9F37-DA4044DE4A5D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{1DF7CD12-DD28-470F-ABC2-03CF8707F7B0} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

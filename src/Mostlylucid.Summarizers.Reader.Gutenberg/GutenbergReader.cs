@@ -85,7 +85,9 @@ public partial class GutenbergReader : IDocumentReader
         using (var archive = ZipFile.OpenRead(zipPath))
         {
             foreach (var entry in archive.Entries
-                .Where(e => e.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                .Where(e => e.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
+                          || e.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+                          || e.Name.EndsWith(".htm", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(e => e.Name))
             {
                 ct.ThrowIfCancellationRequested();
@@ -109,9 +111,13 @@ public partial class GutenbergReader : IDocumentReader
             };
         }
 
-        // Process the largest text file (the main work) or combine all
+        // Process the largest text/HTML file (the main work)
         var mainText = allTexts.OrderByDescending(t => t.content.Length).First();
-        return ProcessGutenbergText(mainText.content, Path.GetFileNameWithoutExtension(zipPath));
+        var content = mainText.name.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+                      || mainText.name.EndsWith(".htm", StringComparison.OrdinalIgnoreCase)
+            ? StripHtmlTags(mainText.content)
+            : mainText.content;
+        return ProcessGutenbergText(content, Path.GetFileNameWithoutExtension(zipPath));
     }
 
     private ReaderResult ProcessGutenbergText(string content, string fallbackTitle)
@@ -134,7 +140,7 @@ public partial class GutenbergReader : IDocumentReader
     /// Extract metadata from the Project Gutenberg header.
     /// Parses Title:, Author:, Release Date:, Language:, etc.
     /// </summary>
-    internal static Dictionary<string, string> ExtractMetadata(string content)
+    public static Dictionary<string, string> ExtractMetadata(string content)
     {
         var metadata = new Dictionary<string, string>();
 
@@ -176,7 +182,7 @@ public partial class GutenbergReader : IDocumentReader
     /// <summary>
     /// Strip Project Gutenberg header and footer boilerplate.
     /// </summary>
-    internal static string StripBoilerplate(string content)
+    public static string StripBoilerplate(string content)
     {
         // Find start of actual content
         var startMarker = StartMarkerRegex().Match(content);
@@ -202,7 +208,7 @@ public partial class GutenbergReader : IDocumentReader
     /// <summary>
     /// Check if a text file looks like a Project Gutenberg text.
     /// </summary>
-    internal static bool IsGutenbergText(string content)
+    public static bool IsGutenbergText(string content)
     {
         var header = content.Length > 2000 ? content[..2000] : content;
         return header.Contains("Project Gutenberg", StringComparison.OrdinalIgnoreCase)
@@ -230,4 +236,42 @@ public partial class GutenbergReader : IDocumentReader
 
     [GeneratedRegex(@"\*\*\*\s*END OF.*?\*\*\*", RegexOptions.IgnoreCase)]
     private static partial Regex EndMarkerRegex();
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    /// <summary>
+    /// Strip HTML tags from Gutenberg HTML content, preserving text.
+    /// </summary>
+    internal static string StripHtmlTags(string html)
+    {
+        // Replace block-level tags with newlines for paragraph preservation
+        var text = html
+            .Replace("<br>", "\n", StringComparison.OrdinalIgnoreCase)
+            .Replace("<br/>", "\n", StringComparison.OrdinalIgnoreCase)
+            .Replace("<br />", "\n", StringComparison.OrdinalIgnoreCase)
+            .Replace("</p>", "\n\n", StringComparison.OrdinalIgnoreCase)
+            .Replace("</div>", "\n", StringComparison.OrdinalIgnoreCase)
+            .Replace("</h1>", "\n\n", StringComparison.OrdinalIgnoreCase)
+            .Replace("</h2>", "\n\n", StringComparison.OrdinalIgnoreCase)
+            .Replace("</h3>", "\n\n", StringComparison.OrdinalIgnoreCase);
+
+        // Strip remaining tags
+        text = HtmlTagRegex().Replace(text, "");
+
+        // Decode common HTML entities
+        text = text
+            .Replace("&amp;", "&")
+            .Replace("&lt;", "<")
+            .Replace("&gt;", ">")
+            .Replace("&quot;", "\"")
+            .Replace("&apos;", "'")
+            .Replace("&#39;", "'")
+            .Replace("&nbsp;", " ")
+            .Replace("&mdash;", "—")
+            .Replace("&ndash;", "–")
+            .Replace("&hellip;", "…");
+
+        return text.Trim();
+    }
 }
