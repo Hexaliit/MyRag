@@ -28,8 +28,8 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
-        [CommandArgument(0, "<url>")]
-        [Description("Seed URL to start crawling from")]
+        [CommandArgument(0, "<source>")]
+        [Description("Seed URL or local file/directory path")]
         public string Url { get; init; } = "";
 
         [CommandOption("-n|--name")]
@@ -80,18 +80,27 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
     public override async Task<int> ExecuteAsync(
         CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(settings.Url) || !Uri.TryCreate(settings.Url, UriKind.Absolute, out var seedUri))
+        var isUrl = Uri.TryCreate(settings.Url, UriKind.Absolute, out _) &&
+                    (settings.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                     settings.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+        var isLocalPath = File.Exists(settings.Url) || Directory.Exists(settings.Url);
+
+        if (!isUrl && !isLocalPath)
         {
-            AnsiConsole.MarkupLine("[red]Error: Please provide a valid URL to crawl.[/]");
+            AnsiConsole.MarkupLine("[red]Error: Please provide a valid URL or local file/directory path.[/]");
             return 1;
         }
 
-        // Derive KB name from domain if not provided
-        var kbName = settings.Name ?? CollectionNaming.FromUrl(settings.Url!);
+        // Derive KB name from source
+        var kbName = settings.Name ?? (isUrl ? CollectionNaming.FromUrl(settings.Url!) : CollectionNaming.Auto(settings.Url!));
 
         await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
         if (settings.Entities)
             await boot.InitializeEntityGraphStoreAsync();
+
+        // Local path: ingest files directly (fast, no background crawl needed)
+        if (isLocalPath)
+            return await ExecuteLocalAsync(boot, settings, kbName, cancellationToken);
 
         // --ask: background crawl + interactive ask loop
         if (settings.Ask)
@@ -354,6 +363,82 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         }
 
         AnsiConsole.MarkupLine($"\n[grey]Query this KB with:[/] doomsummarizer scroll \"your question\" --name {Markup.Escape(kbName)}");
+        AnsiConsole.MarkupLine($"[grey]Browse contents:[/] doomsummarizer show {Markup.Escape(kbName)}");
+
+        return 0;
+    }
+
+    private async Task<int> ExecuteLocalAsync(
+        CommandBootstrap boot, Settings settings, string kbName, CancellationToken ct)
+    {
+        // Resolve files using ScrollCommand's shared helper
+        var (files, collectionName) = ScrollCommand.ResolveLocalSources(
+            new[] { settings.Url }, settings.Name);
+
+        if (files.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No supported files found in the specified path.[/]");
+            return 1;
+        }
+
+        // Use the resolved collection name (or the one we already derived)
+        if (!string.IsNullOrEmpty(collectionName))
+            kbName = collectionName;
+
+        AnsiConsole.MarkupLine($"[bold cyan]Ingesting:[/] {Markup.Escape(settings.Url)}");
+        AnsiConsole.MarkupLine($"[grey]KB name: {Markup.Escape(kbName)} | {files.Count} file(s)[/]");
+        AnsiConsole.WriteLine();
+
+        // Ingest via shared pipeline
+        string sourceFilter;
+        int itemCount;
+        IngestDocumentType docType;
+
+        await AnsiConsole.Progress()
+            .Columns(
+                new TaskDescriptionColumn(),
+                new ProgressBarColumn(),
+                new PercentageColumn(),
+                new SpinnerColumn())
+            .StartAsync(async ctx =>
+            {
+                var progressTask = ctx.AddTask("[cyan]Ingesting files[/]", maxValue: 100);
+                (sourceFilter, itemCount, docType) = await ScrollCommand.IngestLocalFilesAsync(
+                    files, kbName, boot, progressTask, settings.Force, ct);
+            });
+
+        // If --ask: enter interactive ask loop against the newly-ingested collection
+        if (settings.Ask)
+        {
+            var ollama = boot.CreateOllama();
+            var llmRouter = await boot.InitializeLlmStackAsync(ct: ct);
+            var ollamaAvailable = await ollama.IsAvailableAsync();
+
+            try { await boot.InitializeEntityGraphStoreAsync(); }
+            catch { /* Entity store is optional */ }
+
+            var hasCloudLlm = llmRouter.HasCloudProvider;
+            if (!ollamaAvailable && !hasCloudLlm)
+            {
+                AnsiConsole.MarkupLine("[yellow]No LLM available (Ollama down, no cloud keys).[/] Answers will be limited to evidence listing.");
+            }
+
+            var askOptions = new InteractiveAskOptions(
+                Source: $"file:{kbName}",
+                Name: kbName,
+                Days: 0,
+                TopK: 10,
+                Once: false,
+                Quiet: settings.Quiet,
+                InitialQuestion: null);
+
+            var loop = new InteractiveAskLoop(boot, ollama, llmRouter, ollamaAvailable, askOptions);
+            return await loop.RunAsync(ct);
+        }
+
+        // Summary
+        AnsiConsole.MarkupLine($"\n[grey]Query this KB with:[/] doomsummarizer scroll \"your question\" --name {Markup.Escape(kbName)}");
+        AnsiConsole.MarkupLine($"[grey]Ask interactively:[/] doomsummarizer crawl {Markup.Escape(settings.Url)} --ask");
         AnsiConsole.MarkupLine($"[grey]Browse contents:[/] doomsummarizer show {Markup.Escape(kbName)}");
 
         return 0;

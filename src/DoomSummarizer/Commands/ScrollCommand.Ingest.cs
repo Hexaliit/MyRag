@@ -94,7 +94,7 @@ public sealed partial class ScrollCommand
     /// Detect whether any of the given paths are local files or directories.
     /// Returns the list of resolved file paths and a suggested collection name.
     /// </summary>
-    private static (List<string> files, string collectionName) ResolveLocalSources(
+    internal static (List<string> files, string collectionName) ResolveLocalSources(
         string[] sources, string? explicitName)
     {
         var files = new List<string>();
@@ -140,7 +140,7 @@ public sealed partial class ScrollCommand
     /// Extracts text, chunks by page/section, computes embeddings, stores in SQLite + Lucene FTS.
     /// Returns the source filter string, item count, and detected document type.
     /// </summary>
-    private static async Task<(string sourceFilter, int itemCount, IngestDocumentType docType)> IngestLocalFilesAsync(
+    internal static async Task<(string sourceFilter, int itemCount, IngestDocumentType docType)> IngestLocalFilesAsync(
         List<string> files,
         string collectionName,
         CommandBootstrap boot,

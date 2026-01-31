@@ -304,7 +304,6 @@ public sealed class InteractiveAskLoop
                 .Border(TableBorder.Simple)
                 .AddColumn(new TableColumn("#").RightAligned())
                 .AddColumn("Title")
-                .AddColumn(new TableColumn("Score").RightAligned())
                 .AddColumn("Source")
                 .AddColumn("Fetched");
 
@@ -316,7 +315,6 @@ public sealed class InteractiveAskLoop
                 evidenceTable.AddRow(
                     $"[grey]{rank}[/]",
                     Markup.Escape(title),
-                    $"[cyan]{item.RelevanceScore:F2}[/]",
                     $"[grey]{item.Source}[/]",
                     $"[grey]{fetchedAge}[/]");
                 rank++;
@@ -332,7 +330,38 @@ public sealed class InteractiveAskLoop
 
         if (ollamaAvailable)
         {
-            answer = await GenerateAnswer(question, topEvidence, history, ollama, ct);
+            // Build analyzed items in the format SynthesizeSummaryAsync expects
+            var analyzedItems = topEvidence.Select(e => (
+                title: e.Title,
+                summary: e.Summary ?? "",
+                topic: e.DetectedTopic ?? "general",
+                sentiment: e.SentimentScore,
+                url: e.Url ?? "",
+                relevance: (double)e.RelevanceScore
+            )).ToList();
+
+            // Fold conversation history into the query for context
+            var effectiveQuery = question;
+            if (history.Count > 0)
+            {
+                var ctx = new StringBuilder("Context from prior conversation:\n");
+                foreach (var (q, a, _) in history.TakeLast(3))
+                {
+                    ctx.AppendLine($"Q: {q}");
+                    var truncA = a.Length > 200 ? a[..200] + "..." : a;
+                    ctx.AppendLine($"A: {truncA}");
+                }
+                effectiveQuery = $"{ctx}\n\nCurrent question: {question}";
+            }
+
+            answer = await ollama.SynthesizeSummaryAsync(
+                analyzedItems,
+                "neutral",
+                "",
+                effectiveQuery,
+                topEvidence,
+                embedder: text => embedding.EmbedAsync(text).GetAwaiter().GetResult(),
+                ct: ct);
         }
         else
         {
@@ -340,7 +369,7 @@ public sealed class InteractiveAskLoop
             sb.AppendLine($"Found {topEvidence.Count} relevant items:\n");
             foreach (var item in topEvidence)
             {
-                sb.AppendLine($"- **{item.Title}** ({item.RelevanceScore:F2})");
+                sb.AppendLine($"- **{item.Title}**");
                 if (!string.IsNullOrEmpty(item.Summary))
                     sb.AppendLine($"  {item.Summary}");
                 if (!string.IsNullOrEmpty(item.Url))
@@ -363,57 +392,6 @@ public sealed class InteractiveAskLoop
         history.Add((question, answer, sourceIds));
         var logEmbedding = await embedding.EmbedAsync(question, ct);
         await storage.LogQueryAsync(question, logEmbedding, null, sourceIds);
-    }
-
-    private static async Task<string> GenerateAnswer(
-        string question,
-        List<ContentItem> evidence,
-        List<(string question, string answer, List<string> sourceIds)> history,
-        OllamaService ollama,
-        CancellationToken ct)
-    {
-        var evidenceBlock = new StringBuilder();
-        var citableEvidence = evidence
-            .Where(e => !string.IsNullOrEmpty(e.Url) &&
-                        !e.Url.Contains("news.google.com/rss/articles/", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        for (var ei = 0; ei < citableEvidence.Count; ei++)
-        {
-            var item = citableEvidence[ei];
-            evidenceBlock.AppendLine($"\n[E{ei + 1}] ### {item.Title}");
-            evidenceBlock.AppendLine($"URL: {item.Url}");
-            evidenceBlock.AppendLine($"Source: {item.Source} | Relevance: {item.RelevanceScore:F2} | Fetched: {item.FetchedAt:yyyy-MM-dd HH:mm} UTC");
-
-            var content = item.Content ?? item.Summary ?? "";
-            if (content.Length > 600)
-                content = content[..600] + "...";
-            if (!string.IsNullOrEmpty(content))
-                evidenceBlock.AppendLine($"CONTENT: {content}");
-        }
-
-        var conversationContext = new StringBuilder();
-        if (history.Count > 0)
-        {
-            conversationContext.AppendLine("PRIOR CONVERSATION (for context on follow-up questions):");
-            foreach (var (q, a, _) in history.TakeLast(3))
-            {
-                conversationContext.AppendLine($"Q: {q}");
-                var truncAnswer = a.Length > 300 ? a[..300] + "..." : a;
-                conversationContext.AppendLine($"A: {truncAnswer}");
-            }
-            conversationContext.AppendLine();
-        }
-
-        var prompt = PromptTemplateService.Render("ask-answer", new Dictionary<string, object?>
-        {
-            ["CONVERSATION_CONTEXT"] = conversationContext.ToString(),
-            ["QUESTION"] = question,
-            ["TODAY"] = DateTime.Now.ToString("MMMM d, yyyy"),
-            ["EVIDENCE"] = evidenceBlock.ToString()
-        });
-
-        return await ollama.GenerateAsync(prompt, null, 0.4, ct);
     }
 
     private static void ShowSources(List<(string question, string answer, List<string> sourceIds)> history)
