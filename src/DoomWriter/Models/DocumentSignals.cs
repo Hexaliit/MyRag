@@ -46,6 +46,22 @@ public record AnalyzedSegment
     public List<string> EntityNames { get; init; } = [];
     public string? Topic { get; init; }
     public string? ContentHash { get; init; }
+    public SegmentKind Kind { get; init; } = SegmentKind.Prose;
+}
+
+/// <summary>
+/// Classification of a segment for display and scoring purposes.
+/// </summary>
+public enum SegmentKind
+{
+    /// <summary>Regular prose paragraph.</summary>
+    Prose,
+    /// <summary>Fenced code block.</summary>
+    Code,
+    /// <summary>Mermaid or other diagram.</summary>
+    Diagram,
+    /// <summary>Section heading.</summary>
+    Heading
 }
 
 /// <summary>

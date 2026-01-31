@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using CodeSummarizer.Parsing;
+using CodeSummarizer.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services.Onnx;
@@ -20,6 +23,7 @@ public class SegmentExtractor : IDisposable
     private readonly OnnxEmbeddingService _embeddingService;
     private readonly MarkdigDocumentParser _parser;
     private readonly bool _verbose;
+    private readonly CodeSummarizerService _codeSummarizer;
 
     public SegmentExtractor(OnnxConfig onnxConfig, ExtractionConfig? config = null, bool verbose = false)
     {
@@ -27,11 +31,13 @@ public class SegmentExtractor : IDisposable
         _parser = new MarkdigDocumentParser();
         _config = config ?? new ExtractionConfig();
         _verbose = verbose;
+        _codeSummarizer = new CodeSummarizerService(NullLogger<CodeSummarizerService>.Instance);
     }
 
     public void Dispose()
     {
         _embeddingService.Dispose();
+        _codeSummarizer.Dispose();
     }
 
     /// <summary>
@@ -317,30 +323,42 @@ public class SegmentExtractor : IDisposable
                     charOffset += item.Length + 1;
                 }
 
-            // Add code blocks as segments
+            // Add code blocks as segments (summarized via CodeSummarizer)
             if (_config.IncludeCodeBlocks)
                 foreach (var codeBlock in section.CodeBlocks)
                 {
-                    // Only include if code has meaningful content
-                    var codeText = $"[{codeBlock.Language}] {codeBlock.Code}";
-                    if (codeBlock.Code.Length < 10)
-                        continue;
+                    if (codeBlock.Code.Length < 10) continue;
 
-                    // Truncate very long code blocks
-                    if (codeText.Length > 500)
-                        codeText = codeText[..500] + "...";
+                    string segmentText;
+                    SegmentType segType;
 
-                    var segment = new Segment(docId, codeText, SegmentType.CodeBlock, segments.Count, charOffset,
-                        charOffset + codeText.Length)
+                    if (codeBlock.Language.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Mermaid → parse diagram structure → text description
+                        var summary = MermaidParser.Parse(codeBlock.Code);
+                        segmentText = $"[diagram:{summary.DiagramType}] {summary.Description}";
+                        segType = SegmentType.Diagram;
+                    }
+                    else
+                    {
+                        // Code → structural summary from tree-sitter (sync, no LLM)
+                        var summary = _codeSummarizer.SummarizeCodeSync(
+                            codeBlock.Code, codeBlock.Language);
+                        segmentText = $"[{codeBlock.Language}] {summary.Description}";
+                        segType = SegmentType.CodeBlock;
+                    }
+
+                    var segment = new Segment(docId, segmentText, segType, segments.Count,
+                        charOffset, charOffset + segmentText.Length)
                     {
                         SectionTitle = section.Heading,
                         HeadingPath = currentHeadingPath,
                         HeadingLevel = section.Level,
-                        // Code blocks are important for technical docs
+                        // Summarized code/diagrams carry more signal than raw code
                         PositionWeight = contentType == ContentType.Expository ? 1.15 : 0.9
                     };
                     segments.Add(segment);
-                    charOffset += codeText.Length + 1;
+                    charOffset += segmentText.Length + 1;
                 }
 
             // Add quotes as segments
@@ -587,7 +605,8 @@ public class SegmentExtractor : IDisposable
             SegmentType.Quote => 2.0, // Quotes are highlighted for importance
             SegmentType.Sentence => 1.5, // Core content - don't underweight!
             SegmentType.ListItem => 1.2, // Often key points
-            SegmentType.CodeBlock => 0.8, // Important for technical, but verbose
+            SegmentType.Diagram => 1.5, // Diagrams describe architecture/flow
+            SegmentType.CodeBlock => 1.0, // Summarized code carries real signal
             _ => 0.5
         };
 
@@ -1321,8 +1340,10 @@ public class SegmentExtractor : IDisposable
             var heading = segment.HeadingPath.ToLowerInvariant();
             var sectionTitle = segment.SectionTitle.ToLowerInvariant();
 
-            // 1. HEAVILY DE-WEIGHT CODE BLOCKS (usually appendix/implementation details)
-            if (segment.Type == SegmentType.CodeBlock) weight *= 0.2; // Code is rarely summary-worthy
+            // 1. Code blocks now contain summaries, not raw code — moderate weight
+            if (segment.Type == SegmentType.CodeBlock) weight *= 0.4;
+            // Diagrams describe architecture/flow — higher weight
+            if (segment.Type == SegmentType.Diagram) weight *= 0.5;
 
             // 2. DE-WEIGHT REFERENCE/BIBLIOGRAPHY SECTIONS
             if (heading.Contains("reference") || heading.Contains("bibliograph") ||

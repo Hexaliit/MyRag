@@ -143,6 +143,7 @@ public class Segment
         SegmentType.CodeBlock => "code",
         SegmentType.Quote => "q",
         SegmentType.Heading => "h",
+        SegmentType.Diagram => "diag",
         _ => "x"
     };
 
@@ -210,7 +211,10 @@ public enum SegmentType
     Heading,
 
     /// <summary>Figure/image caption</summary>
-    Caption
+    Caption,
+
+    /// <summary>Diagram (mermaid, plantuml, graphviz, etc.)</summary>
+    Diagram
 }
 
 /// <summary>

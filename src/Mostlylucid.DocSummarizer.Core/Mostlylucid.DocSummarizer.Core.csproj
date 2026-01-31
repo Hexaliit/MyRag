@@ -47,9 +47,11 @@
     <!-- Summarizer.Core dependency (conditional: ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
+        <ProjectReference Include="..\CodeSummarizer.Core\CodeSummarizer.Core.csproj" />
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
         <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.CodeSummarizer" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <!-- MinVer for automatic versioning -->

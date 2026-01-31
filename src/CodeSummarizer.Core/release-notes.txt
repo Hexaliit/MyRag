@@ -1,0 +1,5 @@
+v0.1.0 - Initial release
+- Tree-sitter AST parsing for 28+ languages (function/class/import extraction)
+- Regex-based Mermaid diagram parsing (flowchart, sequence, class, state, ER, gantt, pie)
+- LLM sentinel integration for semantic code descriptions
+- Heuristic fallback when no LLM available

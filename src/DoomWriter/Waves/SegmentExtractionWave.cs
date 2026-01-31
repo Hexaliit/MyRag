@@ -27,10 +27,28 @@ public sealed partial class SegmentExtractionWave : ITypedAnalysisWave<string>
         var charOffset = 0;
         var position = 0;
 
+        var inCodeBlock = false;
+
         foreach (var para in paragraphs)
         {
             var trimmed = para.Trim();
             if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                charOffset += para.Length;
+                continue;
+            }
+
+            // Track fenced code block state — code lines within fences
+            // get high vocabulary uniqueness (identifiers) and would dominate
+            // the signal panel if scored as prose.
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                charOffset += para.Length;
+                continue;
+            }
+
+            if (inCodeBlock)
             {
                 charOffset += para.Length;
                 continue;
@@ -62,7 +80,8 @@ public sealed partial class SegmentExtractionWave : ITypedAnalysisWave<string>
                 Salience = salience,
                 Position = position,
                 CharOffset = charOffset,
-                EntityNames = ExtractInlineEntities(trimmed)
+                EntityNames = ExtractInlineEntities(trimmed),
+                Kind = SegmentKind.Prose
             });
 
             position++;
