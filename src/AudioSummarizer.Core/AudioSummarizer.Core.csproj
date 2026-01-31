@@ -1,25 +1,50 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks Condition="'$(UseNuGetDependency)' == 'true'">net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFramework Condition="'$(UseNuGetDependency)' != 'true'">net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>AudioSummarizer.Core</RootNamespace>
-    <Version>1.0.0</Version>
     <Authors>Scott Galloway</Authors>
     <Description>AudioSummarizer - Forensic audio characterization library with speech-to-text and speaker analysis</Description>
     <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+    <PackageId>Mostlylucid.LucidRAG.AudioSummarizer</PackageId>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>audio;whisper;speech-to-text;transcription;diarization</PackageTags>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
-  <!-- Core library references -->
+  <!-- MinVer -->
+  <PropertyGroup>
+    <MinVerTagPrefix>audiosumv</MinVerTagPrefix>
+    <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+  </PropertyGroup>
+
   <ItemGroup>
+    <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- GraphRag (always ProjectRef — not yet a NuGet package) -->
+  <ItemGroup>
+    <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" />
+  </ItemGroup>
+
+  <!-- Core dependencies (ProjectRef local, PackageRef CI) -->
+  <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
     <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
     <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
-    <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" />
     <ProjectReference Include="..\Mostlylucid.Storage.Core\Mostlylucid.Storage.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+    <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)" />
+    <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)" />
+    <PackageReference Include="Mostlylucid.LucidRAG.Storage.Core" Version="$(CorePackageVersion)" />
   </ItemGroup>
 
   <!-- Audio processing -->

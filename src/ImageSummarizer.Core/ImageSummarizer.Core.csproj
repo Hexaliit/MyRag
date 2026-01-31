@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks Condition="'$(UseNuGetDependency)' == 'true'">net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFramework Condition="'$(UseNuGetDependency)' != 'true'">net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -42,8 +43,14 @@
 
     <!-- StyloFlow.Retrieval.Core - Universal retrieval infrastructure -->
     <PackageReference Include="Mostlylucid.StyloFlow.Retrieval.Core" Version="2.4.0" />
-    <!-- Common pipeline abstractions -->
+  </ItemGroup>
+
+  <!-- Pipeline dependencies (ProjectRef local, PackageRef CI) -->
+  <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
     <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+    <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -78,9 +85,14 @@
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!-- DocSummarizer + DataSummarizer (ProjectRef local, PackageRef CI) -->
+  <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
     <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
     <ProjectReference Include="..\DataSummarizer.Core\DataSummarizer.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+    <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)" />
+    <PackageReference Include="Mostlylucid.LucidRAG.DataSummarizer" Version="$(CorePackageVersion)" />
   </ItemGroup>
 
   <ItemGroup>

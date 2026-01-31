@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks Condition="'$(UseNuGetDependency)' == 'true'">net8.0;net9.0;net10.0</TargetFrameworks>
+        <TargetFramework Condition="'$(UseNuGetDependency)' != 'true'">net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
@@ -50,11 +51,16 @@
         <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.2" />
     </ItemGroup>
 
-    <ItemGroup>
-        <!-- Reference existing LLM service implementations -->
+    <!-- LLM service implementations (ProjectRef local, PackageRef CI) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Anthropic\Mostlylucid.DocSummarizer.Anthropic.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.OpenAI\Mostlylucid.DocSummarizer.OpenAI.csproj" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.Anthropic" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.OpenAI" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <!-- Allow test and consumer projects to access internal members -->

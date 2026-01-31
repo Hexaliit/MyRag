@@ -43,15 +43,18 @@
         </PackageReference>
     </ItemGroup>
 
-    <!-- Slim CLI project (shares CliApp, commands, resources, all CLI dependencies) -->
-    <ItemGroup>
+    <!-- Slim CLI (ProjectRef local, PackageRef CI) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\DoomSummarizer\DoomSummarizer.csproj">
             <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
         </ProjectReference>
     </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer" Version="$(CorePackageVersion)" />
+    </ItemGroup>
 
-    <!-- All source plugin packages (statically linked, no runtime loading needed) -->
-    <ItemGroup>
+    <!-- Source plugins (ProjectRef local, PackageRef CI) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.HackerNews\Mostlylucid.DoomSummarizer.Source.HackerNews.csproj" />
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Reddit\Mostlylucid.DoomSummarizer.Source.Reddit.csproj" />
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Google\Mostlylucid.DoomSummarizer.Source.Google.csproj" />
@@ -61,19 +64,39 @@
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Science\Mostlylucid.DoomSummarizer.Source.Science.csproj" />
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Reference\Mostlylucid.DoomSummarizer.Source.Reference.csproj" />
     </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.HackerNews" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Reddit" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Google" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.News" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Web" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Academic" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Science" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Reference" Version="$(CorePackageVersion)" />
+    </ItemGroup>
 
-    <!-- All reader packages (statically linked for plugin discovery) -->
-    <ItemGroup>
+    <!-- Reader packages (ProjectRef local, PackageRef CI) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Pdf\Mostlylucid.Summarizers.Reader.Pdf.csproj" />
         <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Docx\Mostlylucid.Summarizers.Reader.Docx.csproj" />
         <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Gutenberg\Mostlylucid.Summarizers.Reader.Gutenberg.csproj" />
         <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Markdown\Mostlylucid.Summarizers.Reader.Markdown.csproj" />
         <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Docling\Mostlylucid.Summarizers.Reader.Docling.csproj" />
     </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Pdf" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Docx" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Gutenberg" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Markdown" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Docling" Version="$(CorePackageVersion)" />
+    </ItemGroup>
 
-    <!-- Processor plugins (statically linked for plugin discovery) -->
-    <ItemGroup>
+    <!-- Processor plugins (ProjectRef local, PackageRef CI) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Books\Mostlylucid.DoomSummarizer.Plugin.Books.csproj" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Books" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
 </Project>

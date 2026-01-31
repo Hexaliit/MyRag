@@ -40,9 +40,12 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Reference to unified pipeline core for ContentHasher -->
+  <!-- Summarizer.Core (ProjectRef local, PackageRef CI) -->
+  <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
     <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+    <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)" />
   </ItemGroup>
 
 </Project>

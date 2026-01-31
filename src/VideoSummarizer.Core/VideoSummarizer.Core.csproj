@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks Condition="'$(UseNuGetDependency)' == 'true'">net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFramework Condition="'$(UseNuGetDependency)' != 'true'">net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -38,13 +39,18 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+  </ItemGroup>
 
-    <!-- Common pipeline abstractions -->
+  <!-- Pipeline dependencies (ProjectRef local, PackageRef CI) -->
+  <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
     <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
-    <!-- Image analysis for keyframe processing (CLIP, OCR, vision) -->
     <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj" />
-    <!-- Audio analysis for transcription (Whisper, diarization) -->
     <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+    <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)" />
+    <PackageReference Include="Mostlylucid.LucidRAG.ImageSummarizer" Version="$(CorePackageVersion)" />
+    <PackageReference Include="Mostlylucid.LucidRAG.AudioSummarizer" Version="$(CorePackageVersion)" />
   </ItemGroup>
 
   <ItemGroup>
