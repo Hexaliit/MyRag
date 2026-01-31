@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Security.Cryptography;
 using System.Text;
 using DoomSummarizer.Helpers;
+using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
@@ -70,6 +71,10 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         [CommandOption("-q|--quiet")]
         [Description("Minimal output")]
         public bool Quiet { get; init; }
+
+        [CommandOption("--ask")]
+        [Description("Drop to interactive ask mode while crawling in background")]
+        public bool Ask { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(
@@ -87,6 +92,10 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
         if (settings.Entities)
             await boot.InitializeEntityGraphStoreAsync();
+
+        // --ask: background crawl + interactive ask loop
+        if (settings.Ask)
+            return await ExecuteWithAskAsync(boot, settings, kbName, cancellationToken);
 
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
@@ -348,6 +357,103 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         AnsiConsole.MarkupLine($"[grey]Browse contents:[/] doomsummarizer show {Markup.Escape(kbName)}");
 
         return 0;
+    }
+
+    private async Task<int> ExecuteWithAskAsync(
+        CommandBootstrap boot, Settings settings, string kbName, CancellationToken ct)
+    {
+        // Initialize LLM stack for ask mode
+        var ollama = boot.CreateOllama();
+        var llmRouter = await boot.InitializeLlmStackAsync(ct: ct);
+
+        try { await boot.InitializeEntityGraphStoreAsync(); }
+        catch { /* Entity store is optional */ }
+
+        var ollamaAvailable = await ollama.IsAvailableAsync();
+        var hasCloudLlm = llmRouter.HasCloudProvider;
+        if (!ollamaAvailable && !hasCloudLlm)
+        {
+            AnsiConsole.MarkupLine("[yellow]No LLM available (Ollama down, no cloud keys).[/] Answers will be limited to evidence listing.");
+            AnsiConsole.MarkupLine("[grey]Start Ollama: ollama serve  —or—  set OPENAI_API_KEY / ANTHROPIC_API_KEY[/]");
+        }
+        else if (!ollamaAvailable && hasCloudLlm)
+        {
+            AnsiConsole.MarkupLine("[cyan]Ollama not available — using cloud LLM provider[/]");
+        }
+
+        AnsiConsole.MarkupLine($"[bold cyan]Crawling:[/] {Markup.Escape(settings.Url)}");
+        AnsiConsole.MarkupLine($"[grey]KB name: {Markup.Escape(kbName)} | depth: {settings.Depth} | max: {settings.MaxPages} pages | background mode[/]");
+        AnsiConsole.WriteLine();
+
+        // Start background crawl
+        await using var crawlSession = BackgroundCrawlSession.Start(boot, settings, kbName, ct);
+
+        // Start interactive ask loop with crawl progress channel
+        var askOptions = new InteractiveAskOptions(
+            Source: $"crawl:{kbName}",
+            Name: kbName,
+            Days: 0,
+            TopK: 10,
+            Once: false,
+            Quiet: settings.Quiet,
+            InitialQuestion: null,
+            CrawlProgress: crawlSession.Progress,
+            IsCrawlRunning: () => crawlSession.IsRunning);
+
+        var loop = new InteractiveAskLoop(boot, ollama, llmRouter, ollamaAvailable, askOptions);
+        var result = await loop.RunAsync(ct);
+
+        // User exited ask loop — stop crawl if still running
+        if (crawlSession.IsRunning)
+        {
+            AnsiConsole.MarkupLine("[grey]Stopping background crawl...[/]");
+            crawlSession.RequestStop();
+        }
+
+        // Wait for crawl to finish and display summary
+        try
+        {
+            var crawlResult = await crawlSession.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+            DisplayCrawlSummary(crawlResult);
+        }
+        catch (OperationCanceledException)
+        {
+            AnsiConsole.MarkupLine("[grey]Crawl stopped.[/]");
+        }
+        catch (TimeoutException)
+        {
+            AnsiConsole.MarkupLine("[grey]Crawl shutdown timed out.[/]");
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Crawl ended with error: {Markup.Escape(ex.Message)}[/]");
+        }
+
+        return result;
+    }
+
+    private static void DisplayCrawlSummary(CrawlSessionResult r)
+    {
+        AnsiConsole.WriteLine();
+        var table = new Table()
+            .Title($"[bold cyan]Crawl Summary: {Markup.Escape(r.KbName)}[/]")
+            .Border(TableBorder.Rounded)
+            .AddColumn("Metric")
+            .AddColumn("Value");
+
+        table.AddRow("Pages crawled", $"{r.PagesVisited}");
+        table.AddRow("Pages extracted", $"{r.PagesExtracted}");
+        table.AddRow("New/changed", $"{r.NewChanged}");
+        if (r.HttpNotModified > 0)
+            table.AddRow("HTTP 304 (not modified)", $"{r.HttpNotModified}");
+        if (r.ContentHashCached > 0)
+            table.AddRow("Content hash match", $"{r.ContentHashCached}");
+        table.AddRow("Skipped", $"{r.PagesSkipped}");
+        if (r.RetryCount > 0)
+            table.AddRow("Rate-limit retries", $"{r.RetryCount}");
+        table.AddRow("Final adaptive delay", $"{r.FinalAdaptiveDelayMs}ms");
+
+        AnsiConsole.Write(table);
     }
 
     /// <summary>

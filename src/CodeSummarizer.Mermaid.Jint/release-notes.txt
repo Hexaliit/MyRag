@@ -1,0 +1,5 @@
+Initial release: Jint-based mermaid.js parser for 100% spec-conformant diagram parsing.
+- Runs mermaid.js in-process via Jint (pure .NET JavaScript interpreter)
+- Thread-safe engine pooling for concurrent parsing
+- Automatic fallback to regex parser on failure
+- Drop-in replacement: call AddMermaidJintParser() after AddCodeSummarizer()

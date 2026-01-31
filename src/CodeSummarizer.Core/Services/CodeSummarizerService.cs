@@ -11,6 +11,7 @@ namespace CodeSummarizer.Services;
 public sealed class CodeSummarizerService : ICodeSummarizer, IDisposable
 {
     private readonly ILogger<CodeSummarizerService> _logger;
+    private readonly IMermaidParser _mermaidParser;
     private readonly TreeSitterParser _treeSitterParser;
 
     /// <summary>
@@ -20,9 +21,10 @@ public sealed class CodeSummarizerService : ICodeSummarizer, IDisposable
     /// </summary>
     public Func<string, string, CancellationToken, Task<string?>>? SentinelGenerate { get; set; }
 
-    public CodeSummarizerService(ILogger<CodeSummarizerService> logger)
+    public CodeSummarizerService(ILogger<CodeSummarizerService> logger, IMermaidParser? mermaidParser = null)
     {
         _logger = logger;
+        _mermaidParser = mermaidParser ?? new RegexMermaidParser();
         _treeSitterParser = new TreeSitterParser(null);
     }
 
@@ -100,8 +102,8 @@ public sealed class CodeSummarizerService : ICodeSummarizer, IDisposable
                 OriginalCode = mermaidCode ?? ""
             };
 
-        // 1. Parse with regex-based parser
-        var parsed = MermaidParser.Parse(mermaidCode);
+        // 1. Parse with injected mermaid parser (regex by default, Jint if registered)
+        var parsed = _mermaidParser.Parse(mermaidCode);
 
         // 2. Try LLM for semantic description if available
         if (SentinelGenerate != null)

@@ -1,5 +1,7 @@
+using CodeSummarizer.Parsing;
 using CodeSummarizer.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CodeSummarizer.Extensions;
 
@@ -14,6 +16,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCodeSummarizer(this IServiceCollection services)
     {
+        services.TryAddSingleton<IMermaidParser, RegexMermaidParser>();
         services.AddSingleton<ICodeSummarizer, CodeSummarizerService>();
         return services;
     }

@@ -101,7 +101,8 @@ public static class CliApp
                 .WithExample("crawl", "https://docs.example.com", "--force")
                 .WithExample("crawl", "https://blog.example.com", "-g", "/blog/*", "--entities")
                 .WithExample("crawl", "https://intranet.company.com", "--name", "intranet", "--depth", "5")
-                .WithExample("crawl", "https://wiki.local", "-n", "wiki", "-m", "500", "--delay", "1000");
+                .WithExample("crawl", "https://wiki.local", "-n", "wiki", "-m", "500", "--delay", "1000")
+                .WithExample("crawl", "https://docs.example.com", "--name", "docs", "--ask");
 
             config.AddCommand<ShowCommand>("show")
                 .WithDescription("List knowledge base collections and their contents")

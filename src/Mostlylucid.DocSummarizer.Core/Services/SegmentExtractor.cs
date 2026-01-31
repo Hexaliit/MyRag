@@ -24,14 +24,17 @@ public class SegmentExtractor : IDisposable
     private readonly MarkdigDocumentParser _parser;
     private readonly bool _verbose;
     private readonly CodeSummarizerService _codeSummarizer;
+    private readonly IMermaidParser _mermaidParser;
 
-    public SegmentExtractor(OnnxConfig onnxConfig, ExtractionConfig? config = null, bool verbose = false)
+    public SegmentExtractor(OnnxConfig onnxConfig, ExtractionConfig? config = null, bool verbose = false,
+        IMermaidParser? mermaidParser = null)
     {
         _embeddingService = new OnnxEmbeddingService(onnxConfig, verbose);
         _parser = new MarkdigDocumentParser();
         _config = config ?? new ExtractionConfig();
         _verbose = verbose;
-        _codeSummarizer = new CodeSummarizerService(NullLogger<CodeSummarizerService>.Instance);
+        _mermaidParser = mermaidParser ?? new RegexMermaidParser();
+        _codeSummarizer = new CodeSummarizerService(NullLogger<CodeSummarizerService>.Instance, _mermaidParser);
     }
 
     public void Dispose()
@@ -335,7 +338,7 @@ public class SegmentExtractor : IDisposable
                     if (codeBlock.Language.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
                     {
                         // Mermaid → parse diagram structure → text description
-                        var summary = MermaidParser.Parse(codeBlock.Code);
+                        var summary = _mermaidParser.Parse(codeBlock.Code);
                         segmentText = $"[diagram:{summary.DiagramType}] {summary.Description}";
                         segType = SegmentType.Diagram;
                     }

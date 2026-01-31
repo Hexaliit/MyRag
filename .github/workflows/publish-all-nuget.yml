@@ -94,9 +94,72 @@ jobs:
           done
           echo "Timeout — continuing anyway"
 
+  # ── Tier 0.5: CodeSummarizer.Core ─────────────────────────────────────
+  publish-codesummarizer:
+    needs: [publish-summarizer-core, wait-for-summarizer-core]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Create version tag for MinVer
+        run: |
+          TAG="codesumv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+
+      - name: Build & Pack
+        run: |
+          dotnet restore src/CodeSummarizer.Core/CodeSummarizer.Core.csproj
+          dotnet pack src/CodeSummarizer.Core/CodeSummarizer.Core.csproj \
+            -c Release -o ./artifacts
+
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with:
+          user: 'mostlylucid'
+
+      - name: Publish to NuGet.org
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push ./artifacts/*.snupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+
+      - name: Publish to GitHub Packages
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --skip-duplicate
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: codesummarizer-pkg
+          path: ./artifacts/*
+
+  # ── Wait for CodeSummarizer ──────────────────────────────────────────
+  wait-for-codesummarizer:
+    needs: [publish-summarizer-core, publish-codesummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet
+        run: |
+          VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://api.nuget.org/v3-flatcontainer/mostlylucid.lucidrag.codesummarizer/${VERSION}/mostlylucid.lucidrag.codesummarizer.${VERSION}.nupkg")
+            echo "Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then exit 0; fi
+            sleep 30
+          done
+          echo "Timeout — continuing anyway"
+
   # ── Tier 1: DocSummarizer ──────────────────────────────────────────────
   publish-docsummarizer:
-    needs: [publish-summarizer-core, wait-for-summarizer-core]
+    needs: [publish-summarizer-core, wait-for-summarizer-core, wait-for-codesummarizer]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -674,10 +737,42 @@ jobs:
       - uses: actions/upload-artifact@v6
         with: { name: plugin-books-pkg, path: './artifacts/*' }
 
+  publish-codesummarizer-mermaid-jint:
+    needs: [publish-summarizer-core, wait-for-doomsummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="codemermaidv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/CodeSummarizer.Mermaid.Jint/CodeSummarizer.Mermaid.Jint.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/CodeSummarizer.Mermaid.Jint/CodeSummarizer.Mermaid.Jint.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push ./artifacts/*.snupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: codesummarizer-mermaid-jint-pkg, path: './artifacts/*' }
+
   # ── Tier 5: Complete meta-package (fat CLI with everything) ────────────
   publish-doomsummarizer-complete:
     needs:
       - publish-summarizer-core
+      - publish-codesummarizer
       - publish-source-hackernews
       - publish-source-reddit
       - publish-source-google
@@ -692,6 +787,7 @@ jobs:
       - publish-reader-markdown
       - publish-reader-docling
       - publish-plugin-books
+      - publish-codesummarizer-mermaid-jint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -738,11 +834,13 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - publish-summarizer-core
+      - publish-codesummarizer
       - publish-docsummarizer
       - publish-rdbms-sqlite
       - publish-fts-lucene
       - publish-fts-sqlite
       - publish-doomsummarizer
+      - publish-codesummarizer-mermaid-jint
       - publish-source-hackernews
       - publish-source-reddit
       - publish-source-google
@@ -768,6 +866,7 @@ jobs:
           echo "| Tier | Package | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------|---------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| 0 | \`Mostlylucid.LucidRAG.Summarizer.Core\` | ${{ needs.publish-summarizer-core.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 0.5 | \`Mostlylucid.LucidRAG.CodeSummarizer\` | ${{ needs.publish-codesummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 1 | \`Mostlylucid.LucidRAG.DocSummarizer\` | ${{ needs.publish-docsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.Rdbms.Sqlite\` | ${{ needs.publish-rdbms-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.FullText.Lucene\` | ${{ needs.publish-fts-lucene.result }} |" >> $GITHUB_STEP_SUMMARY
@@ -787,4 +886,5 @@ jobs:
           echo "| 4 | \`Mostlylucid.LucidRAG.Readers.Markdown\` | ${{ needs.publish-reader-markdown.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Readers.Docling\` | ${{ needs.publish-reader-docling.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Plugins.Books\` | ${{ needs.publish-plugin-books.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.CodeSummarizer.Mermaid.Jint\` | ${{ needs.publish-codesummarizer-mermaid-jint.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 5 | \`Mostlylucid.LucidRAG.DoomSummarizer.Complete\` | ${{ needs.publish-doomsummarizer-complete.result }} |" >> $GITHUB_STEP_SUMMARY
