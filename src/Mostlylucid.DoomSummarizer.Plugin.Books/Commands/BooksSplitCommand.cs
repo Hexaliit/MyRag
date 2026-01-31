@@ -45,45 +45,35 @@ public sealed class BooksSplitCommand : AsyncCommand<BooksSplitCommand.Settings>
 
         var markdown = await File.ReadAllTextAsync(settings.FilePath, ct);
         var wordCount = WordCounter.Count(markdown);
+        var fileName = Path.GetFileName(settings.FilePath);
 
-        AnsiConsole.MarkupLine($"[cyan]File:[/] {Markup.Escape(Path.GetFileName(settings.FilePath))}");
+        AnsiConsole.MarkupLine($"[cyan]File:[/] {Markup.Escape(fileName)}");
         AnsiConsole.MarkupLine($"[cyan]Words:[/] {wordCount:N0}");
 
         // Detect book type (heuristic)
         var detection = BookTypeDetector.Detect(
-            markdown,
-            Path.GetFileName(settings.FilePath),
+            markdown, fileName,
             new FileInfo(settings.FilePath).Length,
             wordCount);
 
-        // Determine effective type — use sentinel if confidence is low
-        var effectiveType = detection.Type;
-        var source = "heuristic";
+        // Classify with sentinel fallback — detector owns the threshold decision.
+        // Skip sentinel entirely if the user explicitly chose a pattern.
+        var noLlm = settings.NoLlm || settings.Pattern != null;
+        var result = await AnsiConsole.Status()
+            .Spinner(Spinner.Known.Dots)
+            .StartAsync("[dim]Detecting type...[/]", async _ =>
+                await SentinelHelper.ClassifyAsync(
+                    markdown, detection, wordCount, fileName, noLlm, ct));
 
-        if (!settings.NoLlm && settings.Pattern == null && detection.Confidence < 0.45)
+        var pattern = settings.Pattern ?? result.Type switch
         {
-            var sentinelResult = await TrySentinelClassifyAsync(
-                markdown, detection, wordCount,
-                Path.GetFileName(settings.FilePath), ct);
-
-            if (sentinelResult is { Source: "sentinel" })
-            {
-                effectiveType = sentinelResult.Type;
-                source = "sentinel";
-            }
-        }
-
-        var pattern = settings.Pattern ?? effectiveType switch
-        {
-            BookTypeDetector.Play or "play" => "play",
-            BookTypeDetector.Anthology or BookTypeDetector.Collection
-                or "anthology" or "collection" => "anthology",
-            BookTypeDetector.Academic or BookTypeDetector.Technical
-                or "academic" or "technical" => "academic",
+            "play" => "play",
+            "anthology" or "collection" => "anthology",
+            "academic" or "technical" => "academic",
             _ => "novel"
         };
 
-        AnsiConsole.MarkupLine($"[cyan]Type:[/] {effectiveType} ({detection.Confidence:P0} confidence) [dim]\\[{source}][/]");
+        AnsiConsole.MarkupLine($"[cyan]Type:[/] {result.Type} ({result.Confidence:P0} confidence) [dim]\\[{result.Source}][/]");
         AnsiConsole.MarkupLine($"[cyan]Pattern:[/] {pattern}");
         AnsiConsole.WriteLine();
 
@@ -103,38 +93,6 @@ public sealed class BooksSplitCommand : AsyncCommand<BooksSplitCommand.Settings>
 
         AnsiConsole.Write(root);
         return 0;
-    }
-
-    private static async Task<DocumentTypeResult?> TrySentinelClassifyAsync(
-        string content,
-        BookTypeResult heuristic,
-        int wordCount,
-        string fileName,
-        CancellationToken ct)
-    {
-        try
-        {
-            var config = await ConfigService.LoadAsync();
-            var ollama = new OllamaService(config.Ollama);
-
-            var detector = new DocumentTypeDetector(ollama);
-            var signals = heuristic.Signals
-                .Select(s => $"{s.Name}→{s.VotedType}")
-                .ToList();
-
-            return await detector.ClassifyAsync(
-                content,
-                heuristic.Type,
-                heuristic.Confidence,
-                signals,
-                fileName,
-                wordCount,
-                ct);
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private static void RenderNode(IHasTreeNodes parent, DocumentNode node)

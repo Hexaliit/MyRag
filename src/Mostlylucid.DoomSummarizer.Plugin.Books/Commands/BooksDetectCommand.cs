@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using DoomSummarizer.Helpers;
-using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Mostlylucid.DoomSummarizer.Plugin.Books.Detection;
 using Spectre.Console;
@@ -36,36 +35,34 @@ public sealed class BooksDetectCommand : AsyncCommand<BooksDetectCommand.Setting
 
         var content = await File.ReadAllTextAsync(settings.FilePath, ct);
         var wordCount = WordCounter.Count(content);
+        var fileName = Path.GetFileName(settings.FilePath);
 
         var detection = BookTypeDetector.Detect(
-            content,
-            Path.GetFileName(settings.FilePath),
+            content, fileName,
             new FileInfo(settings.FilePath).Length,
             wordCount);
 
         // Header
-        AnsiConsole.MarkupLine($"[bold cyan]Book Type Detection[/]");
-        AnsiConsole.MarkupLine($"[cyan]File:[/] {Markup.Escape(Path.GetFileName(settings.FilePath))}");
+        AnsiConsole.MarkupLine("[bold cyan]Book Type Detection[/]");
+        AnsiConsole.MarkupLine($"[cyan]File:[/] {Markup.Escape(fileName)}");
         AnsiConsole.MarkupLine($"[cyan]Words:[/] {wordCount:N0}");
         AnsiConsole.WriteLine();
 
-        // Primary heuristic result
+        // Heuristic result
         var typeColor = GetTypeColor(detection.Type);
         AnsiConsole.MarkupLine($"[bold {typeColor}]{detection.Type.ToUpperInvariant()}[/] ({detection.Confidence:P0} confidence) [dim]\\[heuristic][/]");
 
-        // Sentinel fallback when confidence is low
-        DocumentTypeResult? sentinelResult = null;
-        if (!settings.NoLlm && detection.Confidence < 0.45)
-        {
-            sentinelResult = await TrySentinelClassifyAsync(
-                content, detection, wordCount,
-                Path.GetFileName(settings.FilePath), ct);
+        // Classify with sentinel fallback (detector owns the threshold decision)
+        var result = await AnsiConsole.Status()
+            .Spinner(Spinner.Known.Dots)
+            .StartAsync("[dim]Checking sentinel...[/]", async _ =>
+                await SentinelHelper.ClassifyAsync(
+                    content, detection, wordCount, fileName, settings.NoLlm, ct));
 
-            if (sentinelResult is { Source: "sentinel" })
-            {
-                var sentinelColor = GetTypeColor(sentinelResult.Type);
-                AnsiConsole.MarkupLine($"[bold {sentinelColor}]{sentinelResult.Type.ToUpperInvariant()}[/] ({sentinelResult.Confidence:P0} confidence) [dim]\\[sentinel][/]");
-            }
+        if (result.Source == "sentinel")
+        {
+            var sentinelColor = GetTypeColor(result.Type);
+            AnsiConsole.MarkupLine($"[bold {sentinelColor}]{result.Type.ToUpperInvariant()}[/] ({result.Confidence:P0} confidence) [dim]\\[sentinel][/]");
         }
         AnsiConsole.WriteLine();
 
@@ -114,48 +111,14 @@ public sealed class BooksDetectCommand : AsyncCommand<BooksDetectCommand.Setting
         return 0;
     }
 
-    private static async Task<DocumentTypeResult?> TrySentinelClassifyAsync(
-        string content,
-        BookTypeResult heuristic,
-        int wordCount,
-        string fileName,
-        CancellationToken ct)
-    {
-        try
-        {
-            var config = await ConfigService.LoadAsync();
-            var ollama = new OllamaService(config.Ollama);
-
-            var detector = new DocumentTypeDetector(ollama);
-            var signals = heuristic.Signals
-                .Select(s => $"{s.Name}→{s.VotedType}")
-                .ToList();
-
-            return await detector.ClassifyAsync(
-                content,
-                heuristic.Type,
-                heuristic.Confidence,
-                signals,
-                fileName,
-                wordCount,
-                ct);
-        }
-        catch
-        {
-            // Config missing or Ollama unreachable — no sentinel available
-            return null;
-        }
-    }
-
     private static string GetTypeColor(string type) => type switch
     {
-        BookTypeDetector.Fiction or "fiction" => "green",
-        BookTypeDetector.NonFiction or "nonfiction" => "blue",
-        BookTypeDetector.Academic or "academic" => "yellow",
-        BookTypeDetector.Technical or "technical" => "magenta",
-        BookTypeDetector.Play or "play" => "cyan",
-        BookTypeDetector.Anthology or "anthology" => "orange1",
-        BookTypeDetector.Collection or "collection" => "orange1",
+        "fiction" => "green",
+        "nonfiction" => "blue",
+        "academic" => "yellow",
+        "technical" => "magenta",
+        "play" => "cyan",
+        "anthology" or "collection" => "orange1",
         _ => "grey"
     };
 }

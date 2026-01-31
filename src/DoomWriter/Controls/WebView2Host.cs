@@ -146,13 +146,14 @@ public class WebView2Host : NativeControlHost, IDisposable
         _webView?.ExecuteScriptAsync(script);
     }
 
-    private void UpdateBounds()
+    private void UpdateBounds(Size? arrangedSize = null)
     {
         if (_controller == null) return;
 
         var scaling = VisualRoot?.RenderScaling ?? 1.0;
-        var w = (int)(Bounds.Width * scaling);
-        var h = (int)(Bounds.Height * scaling);
+        var size = arrangedSize ?? new Size(Bounds.Width, Bounds.Height);
+        var w = (int)(size.Width * scaling);
+        var h = (int)(size.Height * scaling);
 
         if (w > 0 && h > 0)
         {
@@ -164,7 +165,7 @@ public class WebView2Host : NativeControlHost, IDisposable
     protected override Size ArrangeOverride(Size finalSize)
     {
         var result = base.ArrangeOverride(finalSize);
-        UpdateBounds();
+        UpdateBounds(result);
         return result;
     }
 

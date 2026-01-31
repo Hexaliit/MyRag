@@ -231,6 +231,8 @@ public class DocumentTypeDetector
 
     /// <summary>
     /// Detect lines that look like front matter / cover page content.
+    /// Uses specific phrases to avoid false positives on prose that
+    /// merely mentions these topics.
     /// </summary>
     private static bool IsFrontMatterLine(string line)
     {
@@ -243,19 +245,19 @@ public class DocumentTypeDetector
             lower.Contains("first published"))
             return true;
 
-        // Dedication, acknowledgments, TOC
+        // Dedication, acknowledgments, TOC (exact-match headings only)
         if (lower is "dedication" or "acknowledgments" or "acknowledgements"
                    or "table of contents" or "contents" or "foreword" or "preface")
             return true;
 
-        // Project Gutenberg boilerplate
-        if (lower.Contains("project gutenberg") || lower.Contains("ebook") ||
-            lower.StartsWith("***"))
+        // Project Gutenberg boilerplate (specific phrases, not bare "ebook")
+        if (lower.Contains("project gutenberg") || lower.StartsWith("***"))
             return true;
 
-        // Licensing boilerplate
+        // eBook licensing boilerplate (specific multi-word phrases)
         if (lower.Contains("this ebook") || lower.Contains("free distribution") ||
-            lower.Contains("terms of use") || lower.Contains("license"))
+            lower.Contains("terms of use") || lower.Contains("use of this ebook") ||
+            lower.Contains("gutenberg license"))
             return true;
 
         return false;

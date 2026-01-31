@@ -168,4 +168,31 @@ public class DocumentTypeDetectorTests
         // Should return something, not throw
         chunk.Should().NotBeEmpty();
     }
+
+    [Fact]
+    public void FindSubstantialChunk_HandlesEmptyContent()
+    {
+        DocumentTypeDetector.FindSubstantialChunk("").Should().BeEmpty();
+        DocumentTypeDetector.FindSubstantialChunk("   ").Should().Be("   ");
+    }
+
+    [Fact]
+    public void FindSubstantialChunk_DoesNotFlagProseAboutEbooks()
+    {
+        // Content discussing ebooks should NOT be treated as front matter
+        var content = """
+            The rise of the ebook market has transformed publishing in ways that were unimaginable
+            just two decades ago. Traditional publishers have had to adapt their business models to
+            accommodate digital distribution, while independent authors have found new opportunities
+            to reach readers directly through platforms like Amazon Kindle and Apple Books.
+
+            This shift has also raised important questions about digital rights management, pricing
+            strategies, and the future of physical bookstores in an increasingly digital world.
+            """;
+
+        var chunk = DocumentTypeDetector.FindSubstantialChunk(content);
+
+        // Should find this content as prose, not skip it as front matter
+        chunk.Should().Contain("publishing");
+    }
 }
