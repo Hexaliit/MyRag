@@ -1,0 +1,10 @@
+name: whole-document
+description: "Short documents: single-pass summary without hierarchical splitting"
+min_words: 0
+max_words: 20000
+steps:
+  - name: summarize
+    prompt: book-synthesis
+    template: book-report-fiction
+    inputs:
+      - full_content

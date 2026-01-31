@@ -1,0 +1,24 @@
+name: novel
+description: "Chapter detection patterns for novels and prose fiction"
+markers:
+  chapter:
+    - "^Chapter\\s+(\\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|Eleven|Twelve|Thirteen|Fourteen|Fifteen|Sixteen|Seventeen|Eighteen|Nineteen|Twenty)"
+    - "^CHAPTER\\s+"
+    - "^\\d+\\.\\s+[A-Z]"                     # "1. The Beginning"
+    - "^\\d+$"                                  # Bare number chapter markers
+  part:
+    - "^Part\\s+(\\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)"
+    - "^PART\\s+"
+    - "^Book\\s+(\\d+|[IVXLC]+)"
+  section_break:
+    - "^\\*\\s*\\*\\s*\\*"                     # "* * *" scene breaks
+    - "^---$"                                   # Horizontal rules
+    - "^\\*{3,}$"                               # "***" or "****"
+  epilogue:
+    - "^Epilogue"
+    - "^EPILOGUE"
+    - "^Afterword"
+  prologue:
+    - "^Prologue"
+    - "^PROLOGUE"
+    - "^Preface"

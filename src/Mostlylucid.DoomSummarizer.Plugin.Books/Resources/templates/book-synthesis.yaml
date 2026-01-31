@@ -1,0 +1,30 @@
+name: book-synthesis
+description: "Cross-chapter synthesis template for whole-book analysis"
+base_template: blog-article
+
+introduction:
+  prompt: "Introduce the work and its significance. Set up the analysis based on evidence from across the entire work."
+  target_words: 200
+
+sections:
+  - heading: "Narrative Overview"
+    prompt: "Trace the overall narrative arc or argument from beginning to end, drawing on chapter summaries."
+    target_words: 400
+    evidence_strategy: highest_relevance
+
+  - heading: "Key Themes & Patterns"
+    prompt: "Identify themes and patterns that span the work. Show how they develop from early chapters through to the conclusion."
+    target_words: 350
+    evidence_strategy: highest_relevance
+
+  - heading: "Character & Voice"
+    prompt: "Analyze the main characters or voices in the work. Discuss their arcs, relationships, and transformations."
+    target_words: 300
+
+  - heading: "Structure & Craft"
+    prompt: "Comment on how the work is structured and what that structure achieves. Note pacing, perspective shifts, and organizational choices."
+    target_words: 200
+
+conclusion:
+  prompt: "Assess the work's overall significance, impact, and who would find it valuable."
+  target_words: 150

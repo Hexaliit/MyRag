@@ -1,0 +1,13 @@
+name: book-chapter-summary
+description: "Per-chapter summary template for incremental chapter processing"
+base_template: blog-article
+
+sections:
+  - heading: "Summary"
+    prompt: "Provide a concise summary of this chapter's key events, arguments, or developments."
+    target_words: 200
+    evidence_strategy: highest_relevance
+
+  - heading: "Key Points"
+    prompt: "List the most important points, revelations, or turning points in this chapter."
+    target_words: 100

@@ -1,0 +1,16 @@
+name: play
+description: "Act/Scene detection patterns for dramatic works"
+markers:
+  work:
+    - "^(THE\\s+)?\\w+.*(?:A\\s+(?:Comedy|Tragedy|History|Romance|Play))"
+  act:
+    - "^ACT\\s+(\\d+|[IVXLC]+)"
+    - "^Act\\s+(\\d+|[IVXLC]+)"
+    - "^Actus\\s+(\\d+|[IVXLC]+|Primus|Secundus|Tertius|Quartus|Quintus)"
+  scene:
+    - "^SCENE\\s+(\\d+|[IVXLC]+)"
+    - "^Scene\\s+(\\d+|[IVXLC]+)"
+    - "^Scena\\s+(\\d+|[IVXLC]+|Prima|Secunda|Tertia)"
+  stage_direction:
+    - "^\\[.*\\]$"                             # [Enter HAMLET]
+    - "^\\(.*\\)$"                             # (Exit all)

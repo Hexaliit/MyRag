@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Mostlylucid.Summarizers.Reader.Pdf</RootNamespace>
+
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.Summarizers.Reader.Pdf</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <Company>Mostlylucid</Company>
+        <Description>PDF document reader for the Summarizers pipeline. Extracts text with page markers, metadata, and paragraph normalization using PdfPig.</Description>
+        <PackageTags>pdf;reader;summarizer;pdfpig;document-processing</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="PdfPig" Version="0.1.14-alpha-20251224-7c4f5" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
+        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="reader.yaml" />
+    </ItemGroup>
+
+</Project>

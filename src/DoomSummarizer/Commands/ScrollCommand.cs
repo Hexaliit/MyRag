@@ -2236,10 +2236,20 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     summaryTask.Value = 20;
 
                     // Resolve YAML template definition (if any)
-                    // For file collections with detected document type, inject a structure-aware
-                    // template definition to guide the LLM synthesis
+                    // For file collections with detected document type, look up the matching
+                    // embedded YAML template definition to guide the LLM synthesis
+                    var docTypeTemplateName = ingestedDocType switch
+                    {
+                        IngestDocumentType.Fiction => "book-report-fiction",
+                        IngestDocumentType.NonFiction => "book-report-nonfiction",
+                        IngestDocumentType.Academic => "paper-summary",
+                        IngestDocumentType.Technical => "technical-overview",
+                        _ => null
+                    };
                     var templateDef = outputTemplates.GetDefinition(template)
-                                     ?? GetDocTypeTemplateDef(ingestedDocType);
+                                     ?? (docTypeTemplateName != null
+                                         ? outputTemplates.GetDefinition(docTypeTemplateName)
+                                         : null);
                     var effectiveBase = templateDef?.BaseTemplate ?? template;
                     var isBlogArticle = effectiveBase is "blog-article" or "blog-timeline"
                                         || template is "blog-article" or "blog-timeline";

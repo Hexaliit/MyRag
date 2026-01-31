@@ -1,0 +1,27 @@
+name: technical-overview
+description: "Technical documentation overview — architecture, features, and usage"
+base_template: blog-article
+
+introduction:
+  prompt: "Introduce what this technology does and the problem it solves."
+  target_words: 100
+
+sections:
+  - heading: "Overview & Architecture"
+    prompt: "Explain the system architecture, key components, and design decisions."
+    target_words: 300
+    evidence_strategy: highest_relevance
+
+  - heading: "Key Features"
+    prompt: "Describe the most important features and capabilities with specific details from the documentation."
+    target_words: 300
+    evidence_strategy: highest_relevance
+
+  - heading: "Setup & Usage"
+    prompt: "Summarize how to get started, configuration options, and common usage patterns."
+    target_words: 250
+    evidence_strategy: newest
+
+conclusion:
+  prompt: "Summarize the technology's value proposition and who should use it."
+  target_words: 80

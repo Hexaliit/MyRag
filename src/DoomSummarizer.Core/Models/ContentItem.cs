@@ -42,6 +42,25 @@ public record ContentItem
 
     // Structured metadata from API sources (Places, etc.)
     public Dictionary<string, string>? Metadata { get; init; }
+
+    // === Hierarchical document fields (for chapter/section-aware ingestion) ===
+
+    /// <summary>
+    /// Parent document ID for hierarchical grouping.
+    /// Null = top-level item (or legacy item without hierarchy).
+    /// </summary>
+    public string? ParentDocumentId { get; set; }
+
+    /// <summary>
+    /// Position within parent (0-based). Enables ordered reconstruction of reading order.
+    /// </summary>
+    public int ChunkSequence { get; set; }
+
+    /// <summary>
+    /// Hierarchy level label: "work", "part", "chapter", "act", "section", "scene", "passage".
+    /// Null for legacy items without hierarchy.
+    /// </summary>
+    public string? UnitLevel { get; set; }
 }
 
 /// <summary>
@@ -73,6 +92,11 @@ public record StoredItem
     public byte[]? Embedding { get; init; }
     public string? Keywords { get; init; }
 
+    // Hierarchical document fields
+    public string? ParentDocumentId { get; init; }
+    public int ChunkSequence { get; init; }
+    public string? UnitLevel { get; init; }
+
     /// <summary>
     /// Convert a stored item back to a ContentItem for ranking/display.
     /// </summary>
@@ -91,7 +115,10 @@ public record StoredItem
         FetchedAt = FetchedAt,
         Embedding = Embedding != null ? EmbeddingCompat.FromBytes(Embedding) : null,
         Keywords = Keywords,
-        Tags = DeserializeTags(Tags)
+        Tags = DeserializeTags(Tags),
+        ParentDocumentId = ParentDocumentId,
+        ChunkSequence = ChunkSequence,
+        UnitLevel = UnitLevel
     };
 
     private static List<string> DeserializeTags(string? tagsJson)

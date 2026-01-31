@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Mostlylucid.DoomSummarizer.Plugin.Books</RootNamespace>
+
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.DoomSummarizer.Plugin.Books</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <Company>Mostlylucid</Company>
+        <Description>Book summarizer plugin for DoomSummarizer. Provides hierarchical splitting (chapters, acts, sections), book type detection, and chapter-aware summarization strategies for novels, plays, anthologies, and academic works.</Description>
+        <PackageTags>books;summarizer;plugin;chapters;splitting;fiction;nonfiction;academic</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+        <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
+        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
+    </ItemGroup>
+
+    <!-- Embed all resource files -->
+    <ItemGroup>
+        <EmbeddedResource Include="Resources\plugin.yaml" />
+        <EmbeddedResource Include="Resources\prompts\*.txt" />
+        <EmbeddedResource Include="Resources\templates\*.yaml" />
+        <EmbeddedResource Include="Resources\strategies\*.yaml" />
+        <EmbeddedResource Include="Resources\patterns\*.yaml" />
+        <EmbeddedResource Include="Resources\examples\*.json" />
+    </ItemGroup>
+
+</Project>

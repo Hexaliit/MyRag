@@ -1,0 +1,31 @@
+name: paper-summary
+description: "Academic paper analysis — methodology, findings, and implications"
+base_template: blog-article
+
+introduction:
+  prompt: "State the research question and why it matters to the field."
+  target_words: 100
+
+sections:
+  - heading: "Research Questions & Background"
+    prompt: "Describe the research questions, hypotheses, and how this work relates to prior literature."
+    target_words: 250
+    evidence_strategy: oldest
+
+  - heading: "Methodology"
+    prompt: "Explain the research methodology, data sources, and analytical approach."
+    target_words: 250
+    evidence_strategy: highest_relevance
+
+  - heading: "Key Findings"
+    prompt: "Present the main results and discoveries. Be specific with data and comparisons."
+    target_words: 300
+    evidence_strategy: highest_relevance
+
+  - heading: "Implications & Limitations"
+    prompt: "Discuss what the findings mean for the field, practical applications, and acknowledged limitations."
+    target_words: 250
+
+conclusion:
+  prompt: "Summarize the paper's contribution and significance."
+  target_words: 80

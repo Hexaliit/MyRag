@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -47,6 +48,52 @@ public partial class TemplateService
             if (_parser.TryParse(source, out var template, out var error))
             {
                 _compiledTemplates[name] = template;
+            }
+        }
+
+        // Load YAML template definitions from embedded resources
+        LoadEmbeddedTemplateDefinitions();
+    }
+
+    /// <summary>
+    /// Load YAML template definitions shipped as embedded resources.
+    /// These provide document-type-specific templates (fiction, nonfiction, academic, technical)
+    /// and structural templates (deep-dive, problem-solution, pros-cons).
+    /// Custom templates loaded later via LoadCustomTemplatesAsync override these.
+    /// </summary>
+    private void LoadEmbeddedTemplateDefinitions()
+    {
+        var assembly = typeof(TemplateService).Assembly;
+        var prefix = "DoomSummarizer.Resources.templates.";
+
+        foreach (var resourceName in assembly.GetManifestResourceNames()
+                     .Where(n => n.StartsWith(prefix, StringComparison.Ordinal)
+                                 && n.EndsWith(".yaml", StringComparison.Ordinal)))
+        {
+            try
+            {
+                using var stream = assembly.GetManifestResourceStream(resourceName);
+                if (stream == null) continue;
+                using var reader = new StreamReader(stream);
+                var yaml = reader.ReadToEnd();
+
+                var def = YamlDeserializer.Deserialize<TemplateDefinition>(yaml);
+                if (def == null) continue;
+
+                if (string.IsNullOrEmpty(def.Name))
+                {
+                    // Extract name from resource: "DoomSummarizer.Resources.templates.book-report-fiction.yaml"
+                    var fileName = resourceName[prefix.Length..];
+                    def.Name = fileName.EndsWith(".yaml", StringComparison.Ordinal)
+                        ? fileName[..^5]
+                        : fileName;
+                }
+
+                _definitions[def.Name] = def;
+            }
+            catch
+            {
+                // Skip invalid embedded templates
             }
         }
     }

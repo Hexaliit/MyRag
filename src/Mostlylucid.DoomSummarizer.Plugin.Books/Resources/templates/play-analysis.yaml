@@ -1,0 +1,30 @@
+name: play-analysis
+description: "Drama and play-specific analysis template"
+base_template: blog-article
+
+introduction:
+  prompt: "Introduce the play, its genre (comedy, tragedy, history), and its dramatic context."
+  target_words: 150
+
+sections:
+  - heading: "Plot & Dramatic Arc"
+    prompt: "Summarize the dramatic arc across acts: the exposition, rising action, climax, falling action, and resolution."
+    target_words: 400
+    evidence_strategy: highest_relevance
+
+  - heading: "Characters & Relationships"
+    prompt: "Analyze the principal characters, their motivations, and key relationships. Discuss the protagonist, antagonist, and supporting roles."
+    target_words: 350
+    evidence_strategy: highest_relevance
+
+  - heading: "Themes & Dramatic Devices"
+    prompt: "Identify major themes (power, love, fate, identity) and how they are developed through dialogue, soliloquy, and dramatic irony."
+    target_words: 300
+
+  - heading: "Language & Performance"
+    prompt: "Comment on the playwright's use of language: verse vs. prose, notable speeches, wordplay, and how the text serves performance."
+    target_words: 200
+
+conclusion:
+  prompt: "Assess the play's dramatic effectiveness, historical significance, and enduring relevance."
+  target_words: 120

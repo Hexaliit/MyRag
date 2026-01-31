@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Mostlylucid.Summarizers.Reader.Markdown</RootNamespace>
+
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.Summarizers.Reader.Markdown</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <Company>Mostlylucid</Company>
+        <Description>Markdown and plain text reader for the Summarizers pipeline. Heading-aware extraction with front matter parsing.</Description>
+        <PackageTags>markdown;text;reader;summarizer;document-processing</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
+        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="reader.yaml" />
+    </ItemGroup>
+
+</Project>

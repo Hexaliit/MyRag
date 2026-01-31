@@ -1,0 +1,29 @@
+name: docx
+display_name: "DOCX Reader"
+description: "Extracts text from Word documents with heading awareness, list handling, and table extraction using DocumentFormat.OpenXml."
+version: "1.0.0"
+
+extensions:
+  - ".docx"
+
+mime_types:
+  - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+priority: 100
+
+dependencies:
+  - "DocumentFormat.OpenXml >= 3.4.1"
+
+capabilities:
+  tables: true           # Extracts tables as markdown
+  images: false
+  structure: true        # Preserves heading hierarchy
+  streaming: true
+  metadata: true         # Extracts document properties
+  ocr: false
+  pages: false           # DOCX is flow-based, not page-based
+
+defaults:
+  extract_tables: "true"
+  extract_headers: "true"
+  extract_lists: "true"

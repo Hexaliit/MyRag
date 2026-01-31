@@ -1,0 +1,21 @@
+{
+  "description": "Expected split output for Pride and Prejudice",
+  "pattern": "novel",
+  "source": "Project Gutenberg #1342",
+  "tree": {
+    "title": "Pride and Prejudice",
+    "level": 0,
+    "levelLabel": "root",
+    "children": [
+      { "title": "Chapter 1", "sequence": 1, "level": 1, "levelLabel": "chapter", "wordCount": 1200 },
+      { "title": "Chapter 2", "sequence": 2, "level": 1, "levelLabel": "chapter", "wordCount": 950 },
+      { "title": "Chapter 3", "sequence": 3, "level": 1, "levelLabel": "chapter", "wordCount": 1100 },
+      { "title": "...", "sequence": 4, "level": 1, "levelLabel": "chapter", "note": "chapters 4-60" },
+      { "title": "Chapter 61", "sequence": 61, "level": 1, "levelLabel": "chapter", "wordCount": 1800 }
+    ],
+    "totalChapters": 61,
+    "totalWordCount": 122000,
+    "detectedType": "fiction",
+    "strategy": "chapter-by-chapter"
+  }
+}

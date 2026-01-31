@@ -1,0 +1,25 @@
+name: chapter-by-chapter
+description: "Split into chapters, summarize each, then synthesize the whole"
+min_words: 20000
+steps:
+  - name: split
+    splitter: hierarchical-book
+    min_depth: 2            # At least chapter-level
+
+  - name: per-chapter-summary
+    prompt: chapter-summary
+    template: book-chapter-summary
+    target_words_per_chapter: 300
+    parallel: true          # Run chapter summaries in parallel
+
+  - name: character-extraction
+    prompt: chapter-characters
+    parallel: true          # Per-chapter character extraction
+
+  - name: synthesis
+    prompt: book-synthesis
+    template: book-report-fiction   # or auto-detected type
+    inputs:
+      - chapter_summaries
+      - character_profiles
+      - top_chunks

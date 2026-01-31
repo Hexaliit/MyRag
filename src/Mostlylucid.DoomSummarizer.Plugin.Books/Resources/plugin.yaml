@@ -1,0 +1,40 @@
+name: books
+display_name: "Book Summarizer"
+description: "Hierarchical splitting and chapter-aware summarization for books, plays, and long documents"
+version: "1.0.0"
+type: processor
+
+# What file types this plugin handles
+supported_extensions:
+  - .pdf
+  - .docx
+  - .txt
+  - .md
+  - .zip       # Gutenberg archives
+
+# Reader packages this plugin depends on
+readers:
+  - Mostlylucid.Summarizers.Reader.Pdf
+  - Mostlylucid.Summarizers.Reader.Docx
+  - Mostlylucid.Summarizers.Reader.Gutenberg
+  - Mostlylucid.Summarizers.Reader.Markdown
+
+# Detection: when does this plugin activate?
+activation:
+  min_words: 5000
+  document_types:
+    - fiction
+    - nonfiction
+    - academic
+    - technical
+    - anthology
+    - play
+    - collection
+
+# Exported resources
+resources:
+  prompts: Resources/prompts/*.txt
+  templates: Resources/templates/*.yaml
+  strategies: Resources/strategies/*.yaml
+  patterns: Resources/patterns/*.yaml
+  examples: Resources/examples/*.json

@@ -1,0 +1,16 @@
+name: anthology
+description: "Multi-work collection patterns (complete works, anthologies, short story collections)"
+markers:
+  work:
+    - "^(THE\\s+)?[A-Z][A-Z\\s]{5,}$"         # ALL CAPS title (new work in anthology)
+    - "^#{1}\\s+.{10,}$"                       # H1 headings for new works
+  part:
+    - "^Part\\s+(\\d+|[IVXLC]+)"
+    - "^Book\\s+(\\d+|[IVXLC]+)"
+    - "^Volume\\s+(\\d+|[IVXLC]+)"
+  chapter:
+    - "^Chapter\\s+(\\d+|[IVXLC]+)"
+    - "^CHAPTER\\s+"
+    - "^#{2}\\s+.{5,}$"                       # H2 headings for chapters
+  section:
+    - "^#{3}\\s+.{5,}$"                       # H3 headings for sections

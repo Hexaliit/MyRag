@@ -1,0 +1,29 @@
+name: pdf
+display_name: "PDF Reader"
+description: "Extracts text from PDF files with page markers, paragraph normalization, and metadata extraction using PdfPig."
+version: "1.0.0"
+
+extensions:
+  - ".pdf"
+
+mime_types:
+  - "application/pdf"
+
+priority: 100
+
+dependencies:
+  - "PdfPig >= 0.1.14"
+
+capabilities:
+  tables: false          # Basic text extraction only; table extraction requires DocSummarizer.Core
+  images: false
+  structure: true        # Preserves page boundaries
+  streaming: true
+  metadata: true         # Extracts PDF metadata (title, author, etc.)
+  ocr: false             # No OCR; use Docling reader for OCR
+  pages: true            # Page-based document
+
+defaults:
+  max_pages: "2000"
+  max_text_chars: "5242880"   # 5 MB
+  include_page_markers: "true"

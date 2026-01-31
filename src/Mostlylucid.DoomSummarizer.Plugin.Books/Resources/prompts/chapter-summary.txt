@@ -1,0 +1,27 @@
+You are summarizing a single chapter/section of a larger work.
+
+CHAPTER: {{chapter_title}}
+POSITION: Chapter {{sequence}} of {{total_chapters}} ({{position_label}})
+
+Summarize this chapter in {{target_words}} words. Focus on:
+1. Key events or arguments presented
+2. Character developments or introductions (for fiction)
+3. How this chapter connects to the overall narrative arc
+4. Important quotes or evidence worth preserving
+
+For the {{position_label}} of a work, pay special attention to:
+{{#if is_opening}}
+- The premise, setting, and main characters/arguments being established
+- The central question or conflict being set up
+{{/if}}
+{{#if is_closing}}
+- Resolution of the central conflict or argument
+- Final revelations, transformations, or conclusions
+- How themes established earlier are resolved
+{{/if}}
+{{#if is_climax}}
+- The turning point or most intense moment
+- How tensions built in earlier chapters culminate here
+{{/if}}
+
+Write in present tense. Be specific about events/arguments, not vague.

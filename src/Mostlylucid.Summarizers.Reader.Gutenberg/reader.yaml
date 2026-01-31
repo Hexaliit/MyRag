@@ -1,0 +1,27 @@
+name: gutenberg
+display_name: "Project Gutenberg Reader"
+description: "Reads Project Gutenberg ZIP and TXT archives. Strips PG header/footer boilerplate and extracts metadata (title, author, language, release date)."
+version: "1.0.0"
+
+extensions:
+  - ".zip"
+
+mime_types:
+  - "application/zip"
+
+priority: 50    # Only handles Gutenberg ZIP archives; .txt files go to MarkdownReader
+
+dependencies: []
+
+capabilities:
+  tables: false
+  images: false
+  structure: true        # Preserves chapter/section structure from the source text
+  streaming: true
+  metadata: true         # Extracts PG metadata (title, author, language, release date)
+  ocr: false
+  pages: false
+
+defaults:
+  strip_boilerplate: "true"
+  detect_encoding: "true"

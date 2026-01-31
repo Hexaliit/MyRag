@@ -1,0 +1,17 @@
+Extract character information from this chapter/section.
+
+CHAPTER: {{chapter_title}}
+
+For each significant character appearing in this chapter, provide:
+- Name (and any aliases/titles)
+- Role in this chapter (protagonist, antagonist, supporting, mentioned)
+- Key actions or dialogue
+- Relationships to other characters
+- Any character development or change observed
+
+Also note:
+- New characters introduced in this chapter
+- Characters absent who were present earlier (if this is not the first chapter)
+- Character dynamics and power shifts
+
+Format as structured data.

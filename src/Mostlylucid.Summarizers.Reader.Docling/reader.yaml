@@ -1,0 +1,41 @@
+name: docling
+display_name: "Docling Reader"
+description: "Enhanced document reader using Docling service for OCR, layout analysis, and structured extraction. Supports scanned PDFs, complex DOCX, and image-heavy documents."
+version: "1.0.0"
+
+extensions:
+  - ".pdf"
+  - ".docx"
+  - ".png"
+  - ".jpg"
+  - ".jpeg"
+  - ".tiff"
+  - ".bmp"
+
+mime_types:
+  - "application/pdf"
+  - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  - "image/png"
+  - "image/jpeg"
+  - "image/tiff"
+  - "image/bmp"
+
+priority: 200    # Higher priority than basic PDF/DOCX readers when Docling is available
+
+dependencies:
+  - "Docling service (Python, external)"
+
+capabilities:
+  tables: true           # Docling excels at table extraction
+  images: true           # Extracts and describes figures
+  structure: true        # Deep layout analysis
+  streaming: false       # Requires file upload to Docling service
+  metadata: true
+  ocr: true              # Docling provides OCR for scanned content
+  pages: true
+
+defaults:
+  base_url: "http://localhost:5001"
+  timeout_seconds: "120"
+  ocr_enabled: "true"
+  table_extraction: "true"

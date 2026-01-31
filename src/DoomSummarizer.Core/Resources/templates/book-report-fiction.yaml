@@ -1,0 +1,35 @@
+name: book-report-fiction
+description: "Fiction analysis — characters, plot, themes, setting, and writing style"
+base_template: blog-article
+
+introduction:
+  prompt: "Open with the book's premise and what makes it distinctive. Set up the analysis without spoiling the ending."
+  target_words: 150
+
+sections:
+  - heading: "Plot Summary"
+    prompt: "Summarize the narrative arc: the setup, rising action, central conflict, climax, and resolution. Be specific about events from the evidence but avoid unnecessary detail."
+    target_words: 400
+    evidence_strategy: highest_relevance
+
+  - heading: "Characters"
+    prompt: "Analyze the main characters: their roles, motivations, relationships, and development throughout the story. Quote or reference specific moments from the evidence that reveal character."
+    target_words: 350
+    evidence_strategy: highest_relevance
+
+  - heading: "Themes & Motifs"
+    prompt: "Identify the major themes explored in the work (e.g., love, class, identity, morality). Explain how these themes are developed through plot events and character actions, citing evidence."
+    target_words: 300
+    evidence_strategy: highest_relevance
+
+  - heading: "Setting & Atmosphere"
+    prompt: "Describe the setting (time, place, social context) and how it shapes the story. Note how the author creates atmosphere and what role the environment plays in the narrative."
+    target_words: 200
+
+  - heading: "Writing Style & Narrative Voice"
+    prompt: "Comment on the author's writing style, narrative perspective, use of dialogue, pacing, and any notable literary devices. Ground observations in specific evidence from the text."
+    target_words: 200
+
+conclusion:
+  prompt: "Offer an overall assessment of the work's significance, its strengths, and who would enjoy reading it."
+  target_words: 120

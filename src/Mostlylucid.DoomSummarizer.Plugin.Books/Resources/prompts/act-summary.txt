@@ -1,0 +1,19 @@
+You are summarizing an act of a dramatic work.
+
+PLAY: {{work_title}}
+ACT: {{act_title}} (Act {{sequence}} of {{total_acts}})
+
+Summarize this act in {{target_words}} words. Focus on:
+1. Key plot developments and revelations
+2. Character entrances, exits, and transformations
+3. The dramatic tension: what conflict drives this act?
+4. Important soliloquies, dialogues, or speeches
+5. How this act advances the overall dramatic arc
+
+For dramatic works, also note:
+- Setting changes between scenes
+- The emotional arc of the act (comedy, tension, tragedy)
+- Dramatic irony the audience perceives
+- Foreshadowing elements
+
+Write in present tense. Reference specific scenes where relevant.

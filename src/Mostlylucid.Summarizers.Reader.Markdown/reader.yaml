@@ -1,0 +1,32 @@
+name: markdown
+display_name: "Markdown & Text Reader"
+description: "Reads Markdown (.md, .mdx, .markdown) and plain text (.txt) files with heading-aware extraction, YAML front matter parsing, and structure preservation."
+version: "1.0.0"
+
+extensions:
+  - ".md"
+  - ".mdx"
+  - ".markdown"
+  - ".txt"
+
+mime_types:
+  - "text/markdown"
+  - "text/plain"
+  - "text/x-markdown"
+
+priority: 100
+
+dependencies: []
+
+capabilities:
+  tables: false          # Passes through markdown tables as-is
+  images: false
+  structure: true        # Preserves heading hierarchy
+  streaming: true
+  metadata: true         # Extracts YAML front matter
+  ocr: false
+  pages: false
+
+defaults:
+  parse_front_matter: "true"
+  strip_front_matter: "true"

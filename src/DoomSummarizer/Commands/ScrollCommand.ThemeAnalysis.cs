@@ -711,4 +711,5 @@ public partial class ScrollCommand
 
         return (topics, terms);
     }
+
 }

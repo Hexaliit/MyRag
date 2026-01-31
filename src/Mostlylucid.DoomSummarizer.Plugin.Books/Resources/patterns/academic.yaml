@@ -1,0 +1,16 @@
+name: academic
+description: "Section detection patterns for academic papers and theses"
+markers:
+  section:
+    - "^#{1,2}\\s+(Abstract|Introduction|Background|Related Work|Methodology|Methods|Materials|Results|Discussion|Conclusion|Conclusions|References|Bibliography|Acknowledgements|Appendix)"
+    - "^\\d+\\.\\s+(Abstract|Introduction|Background|Related Work|Methodology|Methods|Results|Discussion|Conclusion)"
+    - "^(Abstract|Introduction|Background|Related Work|Methodology|Methods|Materials and Methods|Results|Discussion|Conclusion|Conclusions|References|Bibliography)$"
+  subsection:
+    - "^#{3}\\s+.{5,}$"
+    - "^\\d+\\.\\d+\\s+[A-Z]"
+  appendix:
+    - "^Appendix\\s+[A-Z]"
+    - "^APPENDIX"
+  abstract:
+    - "^Abstract$"
+    - "^ABSTRACT$"

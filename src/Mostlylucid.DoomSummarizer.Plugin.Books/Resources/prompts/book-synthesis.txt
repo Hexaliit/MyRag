@@ -1,0 +1,23 @@
+You are writing a comprehensive synthesis of an entire work based on individual chapter summaries and extracted character profiles.
+
+WORK TITLE: {{title}}
+AUTHOR: {{author}}
+DOCUMENT TYPE: {{document_type}}
+TOTAL CHAPTERS: {{total_chapters}}
+
+You have been given:
+1. Chapter-by-chapter summaries (in reading order)
+2. Character profiles extracted from each chapter
+3. Top evidence chunks from the most relevant passages
+
+Using ALL of this information, write a coherent, well-structured analysis of the complete work. Your synthesis should:
+
+1. **Narrative Arc**: Trace the overall story/argument from beginning to end
+2. **Key Themes**: Identify and analyze the major themes with specific evidence
+3. **Character Analysis**: Discuss main characters' arcs and transformations
+4. **Structure**: Comment on how the author organized the work and why
+5. **Significance**: What makes this work notable or important
+
+Do NOT simply concatenate chapter summaries. Instead, find the through-lines, identify patterns that span chapters, and create a unified analysis.
+
+Use the template section structure provided.

@@ -1,0 +1,19 @@
+name: hierarchical
+description: "Multi-level splitting for anthologies, collected works, or very long documents"
+min_words: 100000
+steps:
+  - name: split
+    splitter: hierarchical-book
+    min_depth: 3            # Work → Chapter → Section
+
+  - name: per-work-summary
+    prompt: book-synthesis
+    scope: work             # Summarize each work separately
+    parallel: true
+
+  - name: collection-synthesis
+    prompt: book-synthesis
+    template: book-report-fiction
+    inputs:
+      - work_summaries
+      - top_chunks

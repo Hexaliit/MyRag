@@ -1,0 +1,30 @@
+name: book-report-nonfiction
+description: "Non-fiction analysis — argument, evidence, concepts, and assessment"
+base_template: blog-article
+
+introduction:
+  prompt: "Introduce the book's central thesis and why the topic matters. Set up the analysis."
+  target_words: 120
+
+sections:
+  - heading: "Central Argument"
+    prompt: "Explain the author's main thesis and how it is structured. What claims are being made?"
+    target_words: 300
+    evidence_strategy: highest_relevance
+
+  - heading: "Key Evidence & Examples"
+    prompt: "Summarize the strongest evidence, case studies, data, or examples the author uses to support their argument."
+    target_words: 350
+    evidence_strategy: highest_relevance
+
+  - heading: "Key Concepts & Insights"
+    prompt: "Identify the most important ideas, frameworks, or insights introduced. Explain them clearly."
+    target_words: 300
+
+  - heading: "Strengths & Limitations"
+    prompt: "Assess the work's strengths and any gaps, biases, or limitations in the argument or evidence."
+    target_words: 250
+
+conclusion:
+  prompt: "Summarize the book's contribution and who would benefit from reading it."
+  target_words: 100
