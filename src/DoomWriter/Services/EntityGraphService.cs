@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using DoomWriter.Models;
@@ -8,7 +9,7 @@ public class EntityGraphService
 {
     private readonly IEntityGraphStore _entityGraph;
     private readonly NerService _ner;
-    private readonly HashSet<string> _expandedNodeIds = new();
+    private readonly ConcurrentDictionary<string, byte> _expandedNodeIds = new();
     private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     public EntityGraphService(IEntityGraphStore entityGraph, NerService ner)
@@ -33,13 +34,13 @@ public class EntityGraphService
             EntityType: null,
             Weight: 1,
             IsCurrentDocument: true));
-        _expandedNodeIds.Add(documentId);
+        _expandedNodeIds.TryAdd(documentId, 0);
 
         // Entity nodes from current document analysis
         foreach (var entity in entities)
         {
             var entityId = KnowledgeGraphService.GenerateEntityId(entity.Name, entity.Type);
-            if (_expandedNodeIds.Add(entityId))
+            if (_expandedNodeIds.TryAdd(entityId, 0))
             {
                 nodes.Add(new GraphNode(
                     Id: entityId,
@@ -86,7 +87,7 @@ public class EntityGraphService
         var articles = await _entityGraph.GetArticlesForEntityAsync(entityId);
         foreach (var (itemId, title, url, confidence) in articles)
         {
-            if (_expandedNodeIds.Add(itemId))
+            if (_expandedNodeIds.TryAdd(itemId, 0))
             {
                 nodes.Add(new GraphNode(
                     Id: itemId,
@@ -111,7 +112,7 @@ public class EntityGraphService
             var neighborId = rel.SourceId == entityId ? rel.TargetId : rel.SourceId;
             var neighborName = rel.SourceId == entityId ? rel.TargetName : rel.SourceName;
 
-            if (_expandedNodeIds.Add(neighborId))
+            if (_expandedNodeIds.TryAdd(neighborId, 0))
             {
                 // Determine entity type from the ID prefix
                 var entityType = neighborId.Split('_')[0].ToUpperInvariant() switch
@@ -149,7 +150,7 @@ public class EntityGraphService
         var entityItems = await _entityGraph.GetEntitiesForItemAsync(documentId);
         foreach (var (entityId, name, confidence, mentions) in entityItems)
         {
-            if (_expandedNodeIds.Add(entityId))
+            if (_expandedNodeIds.TryAdd(entityId, 0))
             {
                 var entityType = entityId.Split('_')[0].ToUpperInvariant() switch
                 {

@@ -18,6 +18,9 @@ public sealed class CommandBootstrap : IAsyncDisposable
     public StorageService Storage { get; }
     public IEmbeddingService Embedding { get; }
 
+    // Vibe resolver (lens-aware, loaded eagerly)
+    public VibeResolver VibeResolver { get; }
+
     // Opt-in services (initialized via methods below)
     public DoomSummarizer.Services.OllamaService? Ollama { get; private set; }
     public ApiKeyService? ApiKeys { get; private set; }
@@ -27,12 +30,13 @@ public sealed class CommandBootstrap : IAsyncDisposable
     public DuckDbVectorStore? VectorStore { get; private set; }
     public IEntityGraphStore? EntityStore { get; private set; }
 
-    private CommandBootstrap(DoomConfig config, string dbPath, StorageService storage, IEmbeddingService embedding)
+    private CommandBootstrap(DoomConfig config, string dbPath, StorageService storage, IEmbeddingService embedding, VibeResolver vibeResolver)
     {
         Config = config;
         DbPath = dbPath;
         Storage = storage;
         Embedding = embedding;
+        VibeResolver = vibeResolver;
     }
 
     /// <summary>
@@ -48,7 +52,10 @@ public sealed class CommandBootstrap : IAsyncDisposable
 
         var embedding = await EmbeddingFactory.CreateAsync(ct: ct);
 
-        return new CommandBootstrap(config, dbPath, storage, embedding);
+        var vibeResolver = new VibeResolver(config);
+        vibeResolver.LoadLenses(typeof(CommandBootstrap).Assembly);
+
+        return new CommandBootstrap(config, dbPath, storage, embedding, vibeResolver);
     }
 
     /// <summary>

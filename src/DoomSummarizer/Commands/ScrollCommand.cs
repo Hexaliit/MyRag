@@ -573,21 +573,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             }
         }
 
-        // Get vibe prompt - supports predefined vibes or arbitrary text
-        string vibePrompt;
-        if (boot.Config.Vibes.TryGetValue(vibe, out var configuredPrompt))
-        {
-            vibePrompt = configuredPrompt;
-        }
-        else if (IsCustomVibe(vibe))
-        {
-            // Arbitrary vibe text - use it directly as the instruction
-            vibePrompt = $"Apply this tone/perspective: {vibe}. Filter and present content through this lens.";
-        }
-        else
-        {
-            vibePrompt = boot.Config.Vibes.GetValueOrDefault("neutral", "Objective, balanced summary.");
-        }
+        // Resolve vibe via VibeResolver (checks lens YAML files, then config vibes, then custom text)
+        var resolvedVibe = boot.VibeResolver.Resolve(vibe);
+        var vibePrompt = resolvedVibe.Prompt;
 
         var ollamaAvailable = !settings.NoLlm && await ollama.IsAvailableAsync();
         if (!ollamaAvailable)
@@ -1454,7 +1442,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     }
                 }
 
-                var scoringVibeText = vibe != "neutral" ? GetVibeRepresentativeText(vibe) : null;
+                var scoringVibeText = vibe != "neutral" ? GetVibeRepresentativeText(resolvedVibe) : null;
 
                 // Construct pipeline once — reused for scoring and potential re-search
                 var scoringPipeline = new RetrievalPipeline(boot.Embedding, boot.Storage, boot.EntityStore);

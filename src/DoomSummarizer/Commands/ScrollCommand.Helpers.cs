@@ -26,6 +26,26 @@ public partial class ScrollCommand
     internal static bool IsCustomVibe(string vibe) =>
         !PredefinedVibes.Contains(vibe);
 
+    /// <summary>
+    /// Qualify a search query using a resolved <see cref="Models.Vibe"/>.
+    /// Uses the vibe's SearchQualifier when available, falling back to the name-based lookup.
+    /// </summary>
+    internal static string QualifySearchQuery(string query, Models.Vibe resolvedVibe)
+    {
+        if (!string.IsNullOrEmpty(resolvedVibe.SearchQualifier))
+            return $"{resolvedVibe.SearchQualifier} {query}";
+        return QualifySearchQuery(query, resolvedVibe.Name);
+    }
+
+    /// <summary>
+    /// Get representative text from a resolved <see cref="Models.Vibe"/>.
+    /// Uses the vibe's RepresentativeText when available, falling back to the name-based lookup.
+    /// </summary>
+    internal static string GetVibeRepresentativeText(Models.Vibe resolvedVibe)
+    {
+        return resolvedVibe.RepresentativeText ?? GetVibeRepresentativeText(resolvedVibe.Name);
+    }
+
     internal static string QualifySearchQuery(string query, string vibe)
     {
         var qualifier = vibe.ToLowerInvariant() switch

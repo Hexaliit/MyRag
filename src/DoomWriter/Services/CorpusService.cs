@@ -31,6 +31,7 @@ public class CorpusService : IDisposable
     public bool IsInitialized { get; private set; }
     public int TotalDocuments { get; private set; }
     public int TotalSegments { get; private set; }
+    public LuceneSearchService? Lucene => _lucene;
 
     public CorpusService(
         IEmbeddingService embedding,

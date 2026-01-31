@@ -199,6 +199,7 @@ public partial class SignalPanelViewModel : ObservableObject
     {
         _currentDocumentId = documentId;
         _currentDocumentTitle = title;
+        _pendingGraphSignals = null;
     }
 
     public async Task UpdateGraphFromSignalsAsync(DocumentSignals signals)

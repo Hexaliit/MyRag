@@ -35,12 +35,17 @@ public class App : Application
             if (Program.Args.Length > 0)
                 _ = vm.OpenFileAsync(Program.Args[0]);
 
-            // Initialize corpus in background
+            // Initialize corpus in background, then wire Lucene to CrawlService
             _ = Task.Run(async () =>
             {
                 var corpus = Services.GetRequiredService<CorpusService>();
                 await corpus.InitializeAsync();
                 corpus.StartWatchingAll();
+
+                // Share Lucene FTS index with CrawlService so crawled content is searchable
+                var crawl = Services.GetRequiredService<CrawlService>();
+                if (corpus.Lucene != null)
+                    crawl.SetLucene(corpus.Lucene);
             });
         }
 

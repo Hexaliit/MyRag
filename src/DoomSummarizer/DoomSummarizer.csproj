@@ -74,11 +74,12 @@
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
     </ItemGroup>
 
-    <!-- Embed default config and prompt templates -->
+    <!-- Embed default config, prompt templates, and starter lens files -->
     <ItemGroup>
         <EmbeddedResource Include="Resources\default-config.json" />
         <EmbeddedResource Include="Resources\sources.yaml" />
         <EmbeddedResource Include="Resources\prompts\*.txt" />
+        <EmbeddedResource Include="Resources\lenses\*.lens.yaml" />
     </ItemGroup>
 
 </Project>

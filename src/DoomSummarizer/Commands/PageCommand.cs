@@ -65,10 +65,9 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
         if (!ollamaAvailable && !settings.NoLlm && !settings.Quiet)
             AnsiConsole.MarkupLine("[yellow]Ollama not available. Will show extracted content only.[/]");
 
-        // Get vibe prompt
-        var vibePrompt = boot.Config.Vibes.TryGetValue(settings.Vibe, out var vp)
-            ? vp
-            : $"Apply this tone: {settings.Vibe}";
+        // Resolve vibe via VibeResolver (checks lens YAML files, then config vibes, then custom text)
+        var resolvedVibe = boot.VibeResolver.Resolve(settings.Vibe);
+        var vibePrompt = resolvedVibe.Prompt;
 
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         httpClient.DefaultRequestHeaders.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
