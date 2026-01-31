@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
+using DoomSummarizer.Plugins.Runtime;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
@@ -106,8 +107,19 @@ public sealed partial class ScrollCommand
             }
             else if (Directory.Exists(source))
             {
-                // Grab supported file types from the directory
-                var extensions = new[] { "*.pdf", "*.docx", "*.md", "*.txt", "*.html", "*.pptx" };
+                // Base extensions (always available, even slim CLI)
+                var baseExtensions = new[] { ".pdf", ".docx", ".md", ".txt", ".html", ".pptx" };
+
+                // Plugin extensions (from all registered processor plugins)
+                var pluginExtensions = PluginDiscovery.DiscoverAllProcessorPlugins()
+                    .SelectMany(p => p.Metadata.SupportedExtensions);
+
+                // Union for directory scanning
+                var extensions = baseExtensions
+                    .Union(pluginExtensions, StringComparer.OrdinalIgnoreCase)
+                    .Select(e => e.StartsWith('.') ? $"*{e}" : e)
+                    .ToArray();
+
                 foreach (var ext in extensions)
                     files.AddRange(Directory.EnumerateFiles(source, ext, SearchOption.AllDirectories));
             }

@@ -104,4 +104,86 @@ public static class PluginDiscovery
         }
         return plugins;
     }
+
+    /// <summary>
+    /// Discover all <see cref="IProcessorPlugin"/> implementations across all loaded assemblies.
+    /// </summary>
+    public static IReadOnlyList<IProcessorPlugin> DiscoverAllProcessorPlugins()
+    {
+        var plugins = new List<IProcessorPlugin>();
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (assembly.IsDynamic) continue;
+            try
+            {
+                foreach (var type in assembly.GetExportedTypes())
+                {
+                    if (type.IsAbstract || type.IsInterface) continue;
+                    if (!typeof(IProcessorPlugin).IsAssignableFrom(type)) continue;
+
+                    try
+                    {
+                        if (Activator.CreateInstance(type) is IProcessorPlugin plugin)
+                            plugins.Add(plugin);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[PluginDiscovery] Failed to create processor plugin {type.FullName}: {ex.Message}");
+                    }
+                }
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                Debug.WriteLine($"[PluginDiscovery] Type load errors in {assembly.GetName().Name}:");
+                foreach (var le in ex.LoaderExceptions.Where(e => e != null))
+                    Debug.WriteLine($"  - {le!.Message}");
+            }
+            catch
+            {
+                // Skip assemblies that can't be scanned
+            }
+        }
+        return plugins;
+    }
+
+    /// <summary>
+    /// Discover all <see cref="ICliPlugin"/> implementations across all loaded assemblies.
+    /// </summary>
+    public static IReadOnlyList<ICliPlugin> DiscoverAllCliPlugins()
+    {
+        var plugins = new List<ICliPlugin>();
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (assembly.IsDynamic) continue;
+            try
+            {
+                foreach (var type in assembly.GetExportedTypes())
+                {
+                    if (type.IsAbstract || type.IsInterface) continue;
+                    if (!typeof(ICliPlugin).IsAssignableFrom(type)) continue;
+
+                    try
+                    {
+                        if (Activator.CreateInstance(type) is ICliPlugin plugin)
+                            plugins.Add(plugin);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[PluginDiscovery] Failed to create CLI plugin {type.FullName}: {ex.Message}");
+                    }
+                }
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                Debug.WriteLine($"[PluginDiscovery] Type load errors in {assembly.GetName().Name}:");
+                foreach (var le in ex.LoaderExceptions.Where(e => e != null))
+                    Debug.WriteLine($"  - {le!.Message}");
+            }
+            catch
+            {
+                // Skip assemblies that can't be scanned
+            }
+        }
+        return plugins;
+    }
 }

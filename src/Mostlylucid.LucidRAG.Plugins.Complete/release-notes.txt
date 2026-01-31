@@ -1,0 +1,1 @@
+Initial release of the Plugins.Complete meta-package for DoomSummarizer.

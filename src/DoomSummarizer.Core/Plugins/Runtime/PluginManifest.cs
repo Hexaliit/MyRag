@@ -46,6 +46,14 @@ public sealed class PluginManifest
         ["source-data"] = "Mostlylucid.DoomSummarizer.Source.Data",
         ["output-smtp"] = "Mostlylucid.DoomSummarizer.Output.Smtp",
         ["output-sendgrid"] = "Mostlylucid.DoomSummarizer.Output.SendGrid",
+
+        // Processor plugins
+        ["plugin-books"] = "Mostlylucid.LucidRAG.Plugins.Books",
+        ["plugin-video"] = "Mostlylucid.LucidRAG.Plugins.Video",
+        ["plugin-image"] = "Mostlylucid.LucidRAG.Plugins.Image",
+        ["plugin-audio"] = "Mostlylucid.LucidRAG.Plugins.Audio",
+        ["plugin-data"] = "Mostlylucid.LucidRAG.Plugins.Data",
+        ["plugins-complete"] = "Mostlylucid.LucidRAG.Plugins.Complete",
     };
 
     /// <summary>

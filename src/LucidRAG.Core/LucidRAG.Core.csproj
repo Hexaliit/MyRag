@@ -10,21 +10,21 @@
 
     <!-- Entity Framework Core + PostgreSQL + SQLite -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.1" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.1" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.2" />
         <PackageReference Include="Pgvector" Version="0.3.2" />
         <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.3.0" />
     </ItemGroup>
 
     <!-- Identity (for ApplicationUser, no ASP.NET-specific) -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.1" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.2" />
     </ItemGroup>
 
     <!-- Resilience (Polly) -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.4.0" />
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.2.0" />
     </ItemGroup>
 
     <!-- Microsoft Extensions (logging, config, DI) -->
@@ -40,7 +40,7 @@
 
     <!-- Liquid templates for lens system -->
     <ItemGroup>
-        <PackageReference Include="DotLiquid" Version="2.2.692" />
+        <PackageReference Include="DotLiquid" Version="2.3.197" />
         <PackageReference Include="YamlDotNet" Version="16.3.0" />
     </ItemGroup>
 

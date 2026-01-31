@@ -1,5 +1,7 @@
 using ConsoleImage.Core;
 using DoomSummarizer.Commands;
+using DoomSummarizer.Plugins;
+using DoomSummarizer.Plugins.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -164,6 +166,12 @@ public static class CliApp
                     .WithExample("list", "entities", "--type", "ORG")
                     .WithExample("list", "entities", "--type", "PER", "--articles");
             });
+
+            // Plugin-contributed CLI commands (discovered from loaded assemblies)
+            foreach (var cliPlugin in PluginDiscovery.DiscoverAllCliPlugins())
+            {
+                cliPlugin.ConfigureCommands(config);
+            }
         });
 
         return await app.RunAsync(args);
@@ -176,8 +184,15 @@ public static class CliApp
     private static bool IsLocalFile(string arg) =>
         !arg.StartsWith('-') && (File.Exists(arg) || Directory.Exists(arg));
 
-    private static bool IsKnownCommand(string arg) =>
-        arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "benchmark" or "page" or "plugin" or "list";
+    private static bool IsKnownCommand(string arg)
+    {
+        if (arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "benchmark" or "page" or "plugin" or "list")
+            return true;
+
+        // Check plugin-contributed commands
+        return PluginDiscovery.DiscoverAllCliPlugins()
+            .Any(p => p.CliMetadata.CommandName.Equals(arg, StringComparison.OrdinalIgnoreCase));
+    }
 
     private static async Task PlayEasterEggAsync(CancellationToken ct)
     {

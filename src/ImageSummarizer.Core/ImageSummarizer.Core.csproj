@@ -73,10 +73,10 @@
     <PackageReference Include="WeCantSpell.Hunspell" Version="7.0.1" />
 
     <!-- SQLite for signal storage -->
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
 
     <!-- Override vulnerable transitive dependencies -->
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.2" />
     <PackageReference Include="Npgsql" Version="10.0.1" />
 
     <!-- OpenCV for motion analysis -->

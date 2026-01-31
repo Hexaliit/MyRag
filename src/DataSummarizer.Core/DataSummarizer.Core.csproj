@@ -48,10 +48,10 @@
     <PackageReference Include="CsvHelper" Version="33.1.0" />
 
     <!-- Excel support -->
-    <PackageReference Include="ClosedXML" Version="0.104.2" />
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
 
     <!-- Parquet support -->
-    <PackageReference Include="Parquet.Net" Version="5.1.0" />
+    <PackageReference Include="Parquet.Net" Version="5.4.0" />
 
     <!-- DuckDB for ephemeral streaming analytics -->
     <PackageReference Include="DuckDB.NET.Data" Version="1.4.4-alpha.2" />
@@ -60,7 +60,7 @@
     <PackageReference Include="MathNet.Numerics" Version="6.0.0-beta2" />
 
     <!-- SQLite database support -->
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
 
     <!-- Access database support - commented out until MMKiwi.MdbReader API stabilizes
     <PackageReference Include="MMKiwi.MdbReader" Version="0.1.0-beta1" />

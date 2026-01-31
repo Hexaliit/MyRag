@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using DoomSummarizer.Plugins;
 using DoomSummarizer.Plugins.Runtime;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -44,12 +45,45 @@ public sealed class PluginCommand : AsyncCommand<PluginCommand.Settings>
 
     private static int ListPlugins()
     {
+        // Show statically-linked processor/CLI plugins (discovered from loaded assemblies)
+        var processorPlugins = PluginDiscovery.DiscoverAllProcessorPlugins();
+        var cliPlugins = PluginDiscovery.DiscoverAllCliPlugins();
+
+        if (processorPlugins.Count > 0)
+        {
+            AnsiConsole.MarkupLine("[bold cyan]Processor Plugins[/]");
+            var procTable = new Table()
+                .Border(TableBorder.Rounded)
+                .AddColumn("[cyan]Name[/]")
+                .AddColumn("[cyan]Display Name[/]")
+                .AddColumn("[cyan]Extensions[/]")
+                .AddColumn("[cyan]CLI[/]");
+
+            foreach (var p in processorPlugins)
+            {
+                var extensions = string.Join(", ", p.Metadata.SupportedExtensions);
+                var hasCli = cliPlugins.Any(c =>
+                    c.GetType() == p.GetType() ||
+                    c.CliMetadata.CommandName.Equals(p.Metadata.Name, StringComparison.OrdinalIgnoreCase));
+                procTable.AddRow(
+                    Markup.Escape(p.Metadata.Name),
+                    Markup.Escape(p.Metadata.DisplayName),
+                    $"[dim]{Markup.Escape(extensions)}[/]",
+                    hasCli ? "[green]yes[/]" : "[grey]no[/]");
+            }
+
+            AnsiConsole.Write(procTable);
+            AnsiConsole.WriteLine();
+        }
+
+        // Show runtime-installed plugins (source/output)
         var manager = new PluginManager();
         var plugins = manager.List();
 
+        AnsiConsole.MarkupLine("[bold cyan]Runtime Plugins[/]");
         if (plugins.Count == 0)
         {
-            AnsiConsole.MarkupLine("[grey]No plugins installed.[/]");
+            AnsiConsole.MarkupLine("[grey]No runtime plugins installed.[/]");
             AnsiConsole.MarkupLine("Install with: [cyan]doomsummarizer plugin install source-imap[/]");
             AnsiConsole.MarkupLine("Or any NuGet package: [cyan]doomsummarizer plugin install Acme.CustomSource --version 1.0.0[/]");
             return 0;

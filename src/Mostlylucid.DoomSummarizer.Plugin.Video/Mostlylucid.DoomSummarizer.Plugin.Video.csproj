@@ -5,15 +5,15 @@
         <TargetFramework Condition="'$(UseNuGetDependency)' != 'true'">net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <RootNamespace>Mostlylucid.DoomSummarizer.Plugin.Books</RootNamespace>
+        <RootNamespace>Mostlylucid.DoomSummarizer.Plugin.Video</RootNamespace>
 
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
-        <PackageId>Mostlylucid.LucidRAG.Plugins.Books</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.Plugins.Video</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
-        <Description>Book summarizer plugin for DoomSummarizer. Provides hierarchical splitting (chapters, acts, sections), book type detection, and chapter-aware summarization strategies for novels, plays, anthologies, and academic works.</Description>
-        <PackageTags>books;summarizer;plugin;chapters;splitting;fiction;nonfiction;academic</PackageTags>
+        <Description>Video analysis plugin for DoomSummarizer. Shot detection, scene segmentation, and transcription support.</Description>
+        <PackageTags>video;analyzer;plugin;shot-detection;scenes;transcription</PackageTags>
         <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -32,7 +32,7 @@
 
     <!-- MinVer -->
     <PropertyGroup>
-        <MinVerTagPrefix>plgbooksv</MinVerTagPrefix>
+        <MinVerTagPrefix>plgvideov</MinVerTagPrefix>
         <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
     </PropertyGroup>
 
@@ -41,11 +41,6 @@
         <DebugSymbols>false</DebugSymbols>
         <DebugType>none</DebugType>
     </PropertyGroup>
-
-    <!-- Enable test access to internal members -->
-    <ItemGroup>
-        <InternalsVisibleTo Include="Mostlylucid.DoomSummarizer.Plugin.Books.Tests" />
-    </ItemGroup>
 
     <!-- MinVer package -->
     <ItemGroup>
@@ -59,7 +54,6 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
         <PackageReference Include="Spectre.Console" Version="0.54.0" />
         <PackageReference Include="Spectre.Console.Cli" Version="0.53.1" />
-        <PackageReference Include="YamlDotNet" Version="16.3.0" />
     </ItemGroup>
 
     <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->
@@ -68,16 +62,6 @@
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
         <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
-    </ItemGroup>
-
-    <!-- Embed all resource files -->
-    <ItemGroup>
-        <EmbeddedResource Include="Resources\plugin.yaml" />
-        <EmbeddedResource Include="Resources\prompts\*.txt" />
-        <EmbeddedResource Include="Resources\templates\*.yaml" />
-        <EmbeddedResource Include="Resources\strategies\*.yaml" />
-        <EmbeddedResource Include="Resources\patterns\*.yaml" />
-        <EmbeddedResource Include="Resources\examples\*.json" />
     </ItemGroup>
 
     <!-- Package files -->

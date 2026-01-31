@@ -139,4 +139,11 @@ public sealed class ProcessorPluginRegistry
             .Where(r => r.SupportedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
             .OrderByDescending(r => r.Priority)
             .FirstOrDefault();
+
+    /// <summary>
+    /// All file extensions across all registered processor plugins.
+    /// </summary>
+    public IReadOnlySet<string> GetAllSupportedExtensions()
+        => _all.SelectMany(p => p.Metadata.SupportedExtensions)
+               .ToHashSet(StringComparer.OrdinalIgnoreCase);
 }

@@ -1,0 +1,1 @@
+Initial release of the Data plugin for DoomSummarizer.

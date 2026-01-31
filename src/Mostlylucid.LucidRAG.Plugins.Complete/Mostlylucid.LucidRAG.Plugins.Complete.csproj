@@ -5,15 +5,15 @@
         <TargetFramework Condition="'$(UseNuGetDependency)' != 'true'">net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <RootNamespace>Mostlylucid.DoomSummarizer.Plugin.Books</RootNamespace>
+        <RootNamespace>Mostlylucid.LucidRAG.Plugins.Complete</RootNamespace>
 
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
-        <PackageId>Mostlylucid.LucidRAG.Plugins.Books</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.Plugins.Complete</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
-        <Description>Book summarizer plugin for DoomSummarizer. Provides hierarchical splitting (chapters, acts, sections), book type detection, and chapter-aware summarization strategies for novels, plays, anthologies, and academic works.</Description>
-        <PackageTags>books;summarizer;plugin;chapters;splitting;fiction;nonfiction;academic</PackageTags>
+        <Description>Meta-package bundling all DoomSummarizer processor plugins: Books, Video, Image, Audio, and Data. Install this for the full plugin experience.</Description>
+        <PackageTags>doomsummarizer;plugins;complete;books;video;image;audio;data</PackageTags>
         <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -32,7 +32,7 @@
 
     <!-- MinVer -->
     <PropertyGroup>
-        <MinVerTagPrefix>plgbooksv</MinVerTagPrefix>
+        <MinVerTagPrefix>plgcompv</MinVerTagPrefix>
         <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
     </PropertyGroup>
 
@@ -42,11 +42,6 @@
         <DebugType>none</DebugType>
     </PropertyGroup>
 
-    <!-- Enable test access to internal members -->
-    <ItemGroup>
-        <InternalsVisibleTo Include="Mostlylucid.DoomSummarizer.Plugin.Books.Tests" />
-    </ItemGroup>
-
     <!-- MinVer package -->
     <ItemGroup>
         <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
@@ -55,29 +50,20 @@
         </PackageReference>
     </ItemGroup>
 
-    <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
-        <PackageReference Include="Spectre.Console" Version="0.54.0" />
-        <PackageReference Include="Spectre.Console.Cli" Version="0.53.1" />
-        <PackageReference Include="YamlDotNet" Version="16.3.0" />
-    </ItemGroup>
-
-    <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->
+    <!-- All processor plugins (ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Books\Mostlylucid.DoomSummarizer.Plugin.Books.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Video\Mostlylucid.DoomSummarizer.Plugin.Video.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Image\Mostlylucid.DoomSummarizer.Plugin.Image.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Audio\Mostlylucid.DoomSummarizer.Plugin.Audio.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Data\Mostlylucid.DoomSummarizer.Plugin.Data.csproj" />
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
-    </ItemGroup>
-
-    <!-- Embed all resource files -->
-    <ItemGroup>
-        <EmbeddedResource Include="Resources\plugin.yaml" />
-        <EmbeddedResource Include="Resources\prompts\*.txt" />
-        <EmbeddedResource Include="Resources\templates\*.yaml" />
-        <EmbeddedResource Include="Resources\strategies\*.yaml" />
-        <EmbeddedResource Include="Resources\patterns\*.yaml" />
-        <EmbeddedResource Include="Resources\examples\*.json" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Books" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Video" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Image" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Audio" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Data" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <!-- Package files -->

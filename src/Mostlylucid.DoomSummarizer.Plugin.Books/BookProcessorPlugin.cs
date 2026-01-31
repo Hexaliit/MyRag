@@ -3,8 +3,10 @@ using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Plugins;
 using Microsoft.Extensions.Logging;
+using Mostlylucid.DoomSummarizer.Plugin.Books.Commands;
 using Mostlylucid.DoomSummarizer.Plugin.Books.Detection;
 using Mostlylucid.DoomSummarizer.Plugin.Books.Splitters;
+using Spectre.Console.Cli;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -13,8 +15,9 @@ namespace Mostlylucid.DoomSummarizer.Plugin.Books;
 /// <summary>
 /// Book Summarizer plugin — provides hierarchical splitting and chapter-aware
 /// summarization for novels, plays, anthologies, and long documents.
+/// Also contributes CLI commands: books split, books detect.
 /// </summary>
-public class BookProcessorPlugin : IProcessorPlugin
+public class BookProcessorPlugin : IProcessorPlugin, ICliPlugin
 {
     private ILogger<BookProcessorPlugin>? _logger;
     private HierarchicalBookSplitter? _splitter;
@@ -36,6 +39,34 @@ public class BookProcessorPlugin : IProcessorPlugin
         ]
     };
 
+    // ICliPlugin
+    public PluginCliMetadata CliMetadata { get; } = new()
+    {
+        CommandName = "books",
+        Description = "Book analysis: type detection, chapter splitting, structure visualization",
+        Examples = [
+            "books split novel.pdf",
+            "books detect manuscript.docx",
+            "books split --pattern play hamlet.txt"
+        ]
+    };
+
+    public void ConfigureCommands(IConfigurator config)
+    {
+        config.AddBranch("books", books =>
+        {
+            books.SetDescription(CliMetadata.Description);
+            books.AddCommand<BooksSplitCommand>("split")
+                .WithDescription("Show the chapter/section structure as a tree")
+                .WithExample("books", "split", "novel.pdf")
+                .WithExample("books", "split", "--pattern", "play", "hamlet.txt");
+            books.AddCommand<BooksDetectCommand>("detect")
+                .WithDescription("Detect book type (Fiction, NonFiction, Academic, Play, ...)")
+                .WithExample("books", "detect", "manuscript.pdf");
+        });
+    }
+
+    // IProcessorPlugin
     public IReadOnlyList<IDocumentReader> Readers { get; } = [];
     public IReadOnlyList<IDocumentSplitter> Splitters => _splitter != null ? [_splitter] : [];
     public IReadOnlyList<TemplateDefinition> Templates => _templates;
