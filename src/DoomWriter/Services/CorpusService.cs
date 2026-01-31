@@ -16,6 +16,7 @@ public class CorpusService : IDisposable
     private readonly NerService _ner;
     private readonly EntityProfileService _entityProfiles;
     private readonly DuckDbVectorStore _vectorStore;
+    private readonly IEntityGraphStore _entityGraph;
     private readonly WriterSettingsService _settings;
 
     private readonly ConcurrentDictionary<string, FileSystemWatcher> _watchers = new();
@@ -37,6 +38,7 @@ public class CorpusService : IDisposable
         NerService ner,
         EntityProfileService entityProfiles,
         DuckDbVectorStore vectorStore,
+        IEntityGraphStore entityGraph,
         WriterSettingsService settings)
     {
         _embedding = embedding;
@@ -44,6 +46,7 @@ public class CorpusService : IDisposable
         _ner = ner;
         _entityProfiles = entityProfiles;
         _vectorStore = vectorStore;
+        _entityGraph = entityGraph;
         _settings = settings;
     }
 
@@ -180,7 +183,54 @@ public class CorpusService : IDisposable
         item.Keywords = metadata.GetValueOrDefault("tags") ?? metadata.GetValueOrDefault("categories");
         _lucene?.IndexItem(item);
 
+        // Extract entities and persist into knowledge graph
+        await PersistEntitiesForItemAsync(itemId, title, body, ct);
+
         TotalSegments += segments.Count;
+    }
+
+    private async Task PersistEntitiesForItemAsync(string itemId, string title, string body, CancellationToken ct)
+    {
+        try
+        {
+            if (!_ner.IsAvailable) return;
+
+            var entities = await _ner.ExtractEntitiesAsync(body, ct);
+            if (entities.Count == 0) return;
+
+            // Deduplicate by name, keep highest confidence
+            var deduped = entities
+                .GroupBy(e => e.Text.ToLowerInvariant())
+                .Select(g => g.MaxBy(e => e.Confidence)!)
+                .ToList();
+
+            var entityIds = new List<string>();
+
+            foreach (var entity in deduped)
+            {
+                var entityId = KnowledgeGraphService.GenerateEntityId(entity.Text, entity.Type);
+                entityIds.Add(entityId);
+
+                await _entityGraph.UpsertEntityAsync(
+                    entityId, entity.Text, entity.Type, (float)entity.Confidence);
+                await _entityGraph.UpsertEntityMentionAsync(
+                    entityId, itemId, (float)entity.Confidence, title);
+            }
+
+            // Build co-occurrence edges (all pairs)
+            for (int i = 0; i < entityIds.Count; i++)
+            {
+                for (int j = i + 1; j < entityIds.Count; j++)
+                {
+                    await _entityGraph.UpsertRelationshipAsync(
+                        entityIds[i], entityIds[j], "co_occurs");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Entity persistence failed for {itemId}: {ex.Message}");
+        }
     }
 
     /// <summary>

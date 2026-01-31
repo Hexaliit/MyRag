@@ -4,7 +4,10 @@ using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Media;
+using DoomWriter.Controls;
+using DoomWriter.Services;
 using DoomWriter.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DoomWriter.Views;
 
@@ -27,6 +30,9 @@ public partial class SignalPanel : UserControl
     /// </summary>
     public static readonly SearchModeStringConverter SearchModeConverter = new();
 
+    private WebView2Host? _graphWebView;
+    private bool _graphInitialized;
+
     public SignalPanel()
     {
         InitializeComponent();
@@ -47,6 +53,61 @@ public partial class SignalPanel : UserControl
                 }
             };
         }
+
+        InitializeGraphWebView();
+    }
+
+    private void InitializeGraphWebView()
+    {
+        if (_graphInitialized) return;
+        _graphInitialized = true;
+
+        var container = this.FindControl<Border>("GraphContainer");
+        if (container == null) return;
+
+        var bridge = App.Services.GetRequiredService<GraphBridge>();
+
+        _graphWebView = new WebView2Host();
+
+        _graphWebView.WebMessageReceived += (_, json) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => bridge.HandleWebMessage(json));
+        };
+
+        _graphWebView.WebViewReady += async (_, _) =>
+        {
+            bridge.SetInvokeScript(async script => await _graphWebView.ExecuteScriptAsync(script));
+            var graphPath = await ExtractGraphHtmlAsync();
+            _graphWebView.Navigate($"file:///{graphPath.Replace('\\', '/')}");
+        };
+
+        _graphWebView.NavigationCompleted += (_, _) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                // Set theme to match app
+                if (DataContext is SignalPanelViewModel vm)
+                    vm.OnGraphWebViewReady();
+            });
+        };
+
+        container.Child = _graphWebView;
+    }
+
+    private static async Task<string> ExtractGraphHtmlAsync()
+    {
+        var editorDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "DoomWriter", "editor");
+        Directory.CreateDirectory(editorDir);
+        var graphPath = Path.Combine(editorDir, "graph.html");
+
+        await using var stream = Avalonia.Platform.AssetLoader.Open(
+            new Uri("avares://DoomWriter/Resources/graph.html"));
+        await using var fileStream = File.Create(graphPath);
+        await stream.CopyToAsync(fileStream);
+
+        return graphPath;
     }
 }
 

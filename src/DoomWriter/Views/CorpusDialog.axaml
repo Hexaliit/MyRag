@@ -4,17 +4,18 @@
         x:Class="DoomWriter.Views.CorpusDialog"
         x:DataType="vm:CorpusViewModel"
         Title="Manage Corpus"
-        Width="600" Height="450"
+        Width="680" Height="680"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
         ShowInTaskbar="False">
 
-    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="16">
+    <ScrollViewer>
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" Margin="16">
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
             <TextBlock Text="Corpus Knowledge Base" FontWeight="SemiBold" FontSize="16" />
-            <TextBlock Text="Add markdown directories to build your searchable knowledge base for writing assistance."
+            <TextBlock Text="Add markdown directories and web sources to build your searchable knowledge base."
                        FontSize="12"
                        Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
                        TextWrapping="Wrap" />
@@ -23,7 +24,8 @@
         <!-- Directory list -->
         <Border Grid.Row="1"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                BorderThickness="1" CornerRadius="4">
+                BorderThickness="1" CornerRadius="4"
+                MaxHeight="160">
             <Grid RowDefinitions="*,Auto">
                 <ListBox Grid.Row="0"
                          ItemsSource="{Binding Directories}"
@@ -56,8 +58,137 @@
             </Grid>
         </Border>
 
+        <!-- Web Sources Section -->
+        <StackPanel Grid.Row="2" Spacing="4" Margin="0,16,0,0">
+            <TextBlock Text="Web Sources" FontWeight="SemiBold" FontSize="14" />
+            <TextBlock Text="Add URLs to crawl and index for your knowledge base."
+                       FontSize="11"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+
+            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="1" CornerRadius="4"
+                    MaxHeight="140" Margin="0,4,0,0">
+                <Grid RowDefinitions="*,Auto">
+                    <ListBox Grid.Row="0"
+                             ItemsSource="{Binding CrawlSources}"
+                             SelectedItem="{Binding SelectedCrawlSource}"
+                             Background="Transparent"
+                             BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CrawlSourceItem">
+                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                    <StackPanel Grid.Column="0" Spacing="1">
+                                        <TextBlock Text="{Binding Url}"
+                                                   FontSize="12"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock FontSize="10"
+                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}">
+                                            <Run Text="{Binding StatusText}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Content="Crawl"
+                                            Command="{Binding $parent[Window].((vm:CorpusViewModel)DataContext).CrawlSourceCommand}"
+                                            CommandParameter="{Binding}"
+                                            FontSize="11" Padding="6,2"
+                                            Margin="4,0"
+                                            VerticalAlignment="Center" />
+                                    <Button Grid.Column="2"
+                                            Content="X"
+                                            Command="{Binding $parent[Window].((vm:CorpusViewModel)DataContext).RemoveCrawlSourceCommand}"
+                                            CommandParameter="{Binding}"
+                                            FontSize="11" Padding="4,2"
+                                            VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" Margin="4">
+                        <Button Content="Add URL..."
+                                Command="{Binding AddCrawlSourceCommand}"
+                                FontSize="12" Padding="8,4" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Crawl config for new/selected source -->
+            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="1" CornerRadius="4"
+                    Padding="8" Margin="0,4,0,0"
+                    IsVisible="{Binding HasCrawlSourceSelected}">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Crawl Settings" FontWeight="SemiBold" FontSize="12" />
+
+                    <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
+                        <!-- URL -->
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="URL:" FontSize="11" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="0" Grid.Column="1"
+                                   Text="{Binding SelectedCrawlSource.Url}"
+                                   FontSize="11" TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center" />
+
+                        <!-- Glob filter -->
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Path Filter:" FontSize="11" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="1" Grid.Column="1"
+                                 Text="{Binding SelectedCrawlSource.PathFilter, Mode=TwoWay}"
+                                 Watermark="/blog/*, /docs/*"
+                                 FontSize="11" Padding="4,2"
+                                 MaxHeight="24" />
+
+                        <!-- Max depth -->
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Max Depth:" FontSize="11" VerticalAlignment="Center" />
+                        <NumericUpDown Grid.Row="2" Grid.Column="1"
+                                       Value="{Binding SelectedCrawlSource.MaxDepth}"
+                                       Minimum="1" Maximum="10"
+                                       FontSize="11" Padding="4,2"
+                                       Width="80" HorizontalAlignment="Left" />
+
+                        <!-- Max pages -->
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Max Pages:" FontSize="11" VerticalAlignment="Center" />
+                        <NumericUpDown Grid.Row="3" Grid.Column="1"
+                                       Value="{Binding SelectedCrawlSource.MaxPages}"
+                                       Minimum="1" Maximum="500"
+                                       FontSize="11" Padding="4,2"
+                                       Width="80" HorizontalAlignment="Left" />
+
+                        <!-- Recurse toggle -->
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Recurse:" FontSize="11" VerticalAlignment="Center" />
+                        <CheckBox Grid.Row="4" Grid.Column="1"
+                                  IsChecked="{Binding SelectedCrawlSource.Recurse}"
+                                  Content="Follow links within domain"
+                                  FontSize="11" />
+                    </Grid>
+
+                    <!-- Target corpora selection -->
+                    <StackPanel Spacing="2" Margin="0,4,0,0">
+                        <TextBlock Text="Index into corpora:" FontSize="11" />
+                        <ItemsControl ItemsSource="{Binding CorpusCheckItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CorpusCheckItem">
+                                    <CheckBox Content="{Binding Name}"
+                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                              FontSize="11" Padding="4,1" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Crawl progress -->
+            <StackPanel Spacing="2" Margin="0,4,0,0"
+                        IsVisible="{Binding IsCrawling}">
+                <TextBlock Text="{Binding CrawlStatus}" FontSize="11"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                <ProgressBar Value="{Binding CrawlProgress}"
+                             Minimum="0" Maximum="100"
+                             Height="4" />
+            </StackPanel>
+        </StackPanel>
+
         <!-- Indexing status -->
-        <StackPanel Grid.Row="2" Spacing="4" Margin="0,12,0,0">
+        <StackPanel Grid.Row="3" Spacing="4" Margin="0,12,0,0">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Grid.Column="0" Spacing="2">
                     <TextBlock FontSize="12">
@@ -86,8 +217,9 @@
         </StackPanel>
 
         <!-- Close button -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Close" Command="{Binding CloseCommand}" Width="80" />
         </StackPanel>
     </Grid>
+    </ScrollViewer>
 </Window>

@@ -23,6 +23,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly SpellCheckService _spellCheck;
     private readonly EditorBridge _bridge;
     private readonly OllamaService _ollama;
+    private readonly EntityGraphService _entityGraphService;
     private System.Timers.Timer? _autoSaveTimer;
     private DocumentSignals? _lastSignals;
     private CancellationTokenSource? _generationCts;
@@ -61,7 +62,8 @@ public partial class MainWindowViewModel : ObservableObject
         CorpusService corpus,
         SpellCheckService spellCheck,
         EditorBridge bridge,
-        OllamaService ollama)
+        OllamaService ollama,
+        EntityGraphService entityGraphService)
     {
         Editor = editor;
         SignalPanel = signalPanel;
@@ -74,6 +76,7 @@ public partial class MainWindowViewModel : ObservableObject
         _spellCheck = spellCheck;
         _bridge = bridge;
         _ollama = ollama;
+        _entityGraphService = entityGraphService;
 
         IsSignalPanelVisible = Config.SignalPanelVisible;
         SignalPanelWidth = Config.SignalPanelWidth;
@@ -102,6 +105,9 @@ public partial class MainWindowViewModel : ObservableObject
         // Wire search/ask
         SignalPanel.SearchSubmitted += OnSearchSubmitted;
         SignalPanel.SearchResultClicked += OnSearchResultClicked;
+
+        // Wire graph document navigation
+        SignalPanel.GraphDocumentOpened += OnGraphDocumentOpened;
 
         // Wire autocomplete
         _bridge.AutocompleteRequested += OnAutocompleteRequested;
@@ -290,6 +296,58 @@ public partial class MainWindowViewModel : ObservableObject
 
         // Generate suggestions in background after analysis
         _ = GenerateSuggestionsAsync(signals, CancellationToken.None);
+
+        // Persist entities and update graph
+        if (signals.Entities.Count > 0 && !string.IsNullOrEmpty(Editor.FilePath))
+        {
+            var docId = $"corpus:{Path.GetFileNameWithoutExtension(Editor.FilePath)}";
+            SignalPanel.SetCurrentDocument(docId, Editor.FileName);
+            _ = PersistAndUpdateGraphAsync(docId, signals);
+        }
+    }
+
+    private async Task PersistAndUpdateGraphAsync(string docId, DocumentSignals signals)
+    {
+        try
+        {
+            await _entityGraphService.PersistDocumentEntitiesAsync(
+                docId, Editor.FileName, signals.Entities.ToList());
+            await SignalPanel.UpdateGraphFromSignalsAsync(signals);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Entity graph persist failed: {ex.Message}");
+        }
+    }
+
+    private async void OnGraphDocumentOpened(object? sender, string documentId)
+    {
+        // documentId is like "corpus:filename" — resolve to file path
+        if (documentId.StartsWith("corpus:"))
+        {
+            var slug = documentId["corpus:".Length..];
+            // Search corpus directories for matching file
+            foreach (var dir in Config.CorpusDirectories)
+            {
+                if (!Directory.Exists(dir)) continue;
+                var files = Directory.GetFiles(dir, $"{slug}.md", SearchOption.AllDirectories);
+                if (files.Length > 0)
+                {
+                    await OpenFileAsync(files[0]);
+                    return;
+                }
+                // Try other extensions
+                foreach (var ext in new[] { ".markdown", ".mdx", ".txt" })
+                {
+                    files = Directory.GetFiles(dir, $"{slug}{ext}", SearchOption.AllDirectories);
+                    if (files.Length > 0)
+                    {
+                        await OpenFileAsync(files[0]);
+                        return;
+                    }
+                }
+            }
+        }
     }
 
     private async void OnSpellCheckRequested(object? sender, string content)

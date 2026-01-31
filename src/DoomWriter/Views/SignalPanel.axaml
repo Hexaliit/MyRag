@@ -195,6 +195,11 @@
                         </ListBox>
                     </Grid>
                 </TabItem>
+                <!-- Graph Tab -->
+                <TabItem Header="Graph">
+                    <Border Name="GraphContainer" Background="{DynamicResource SemiColorBackground}" />
+                </TabItem>
+
                 <!-- Search/Ask Results Tab -->
                 <TabItem Header="Search">
                     <Grid>

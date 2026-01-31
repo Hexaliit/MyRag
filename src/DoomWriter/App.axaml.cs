@@ -108,6 +108,9 @@ public class App : Application
         services.AddSingleton<SuggestionService>();
         services.AddSingleton<WritingAssistantService>();
         services.AddSingleton<AutocompleteService>();
+        services.AddSingleton<GraphBridge>();
+        services.AddSingleton<EntityGraphService>();
+        services.AddSingleton<CrawlService>();
 
         // ViewModels
         services.AddSingleton<MainWindowViewModel>();

@@ -31,6 +31,9 @@ public class WriterConfig
     public List<string> CorpusDirectories { get; set; } = [];
     public bool AutoIndexOnChange { get; set; } = true;
 
+    // Web crawl sources
+    public List<CrawlSource> CrawlSources { get; set; } = [];
+
     // Spell check
     public string SpellCheckLanguage { get; set; } = "en_US";
     public bool EnableSpellCheck { get; set; } = true;

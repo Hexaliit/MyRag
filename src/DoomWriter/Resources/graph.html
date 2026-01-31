@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entity Graph</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --fg: #cdd6f4;
+    --fg-muted: #6c7086;
+    --border: #313244;
+    --entity-per: #3B82F6;
+    --entity-org: #10B981;
+    --entity-loc: #F59E0B;
+    --entity-misc: #8B5CF6;
+    --document: #6366F1;
+    --current-doc: #F59E0B;
+    --edge-mention: #585b70;
+    --edge-cooccur: #45475a;
+    --tooltip-bg: #313244;
+    --tooltip-fg: #cdd6f4;
+  }
+  .theme-light {
+    --bg: #eff1f5;
+    --fg: #4c4f69;
+    --fg-muted: #9ca0b0;
+    --border: #ccd0da;
+    --edge-mention: #9ca0b0;
+    --edge-cooccur: #bcc0cc;
+    --tooltip-bg: #e6e9ef;
+    --tooltip-fg: #4c4f69;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+  svg { width: 100%; height: 100%; }
+  .node-label {
+    font-size: 10px;
+    fill: var(--fg);
+    pointer-events: none;
+    text-anchor: middle;
+  }
+  .edge-mention { stroke: var(--edge-mention); stroke-width: 1; }
+  .edge-co_occurs { stroke: var(--edge-cooccur); stroke-width: 1; stroke-dasharray: 4,3; }
+  .tooltip {
+    position: absolute;
+    background: var(--tooltip-bg);
+    color: var(--tooltip-fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    max-width: 200px;
+    z-index: 10;
+  }
+  .tooltip.visible { opacity: 1; }
+  .empty-state {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--fg-muted);
+    font-size: 12px;
+  }
+  .empty-state .title { font-size: 14px; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="empty-state" id="emptyState">
+  <div class="title">Entity Graph</div>
+  <div>Open a document to visualize its entity relationships</div>
+</div>
+<div class="tooltip" id="tooltip"></div>
+<svg id="graph"></svg>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+(function() {
+  const svg = d3.select('#graph');
+  const tooltip = document.getElementById('tooltip');
+  const emptyState = document.getElementById('emptyState');
+  let width = window.innerWidth;
+  let height = window.innerHeight;
+
+  const g = svg.append('g');
+
+  // Zoom/pan
+  const zoom = d3.zoom()
+    .scaleExtent([0.2, 5])
+    .on('zoom', (e) => g.attr('transform', e.transform));
+  svg.call(zoom);
+
+  let simulation = null;
+  let nodes = [];
+  let edges = [];
+  let nodeMap = new Map();
+  let linkGroup = g.append('g').attr('class', 'links');
+  let nodeGroup = g.append('g').attr('class', 'nodes');
+  let labelGroup = g.append('g').attr('class', 'labels');
+  let activeFilter = null;
+
+  function entityColor(type) {
+    switch ((type || '').toUpperCase()) {
+      case 'PER': return 'var(--entity-per)';
+      case 'ORG': return 'var(--entity-org)';
+      case 'LOC': return 'var(--entity-loc)';
+      case 'MISC': return 'var(--entity-misc)';
+      default: return 'var(--entity-misc)';
+    }
+  }
+
+  function nodeRadius(d) {
+    if (d.nodeType === 'document') return 16;
+    return Math.max(6, Math.min(18, 4 + d.weight * 1.5));
+  }
+
+  function truncLabel(text, maxLen) {
+    if (!text) return '';
+    return text.length > maxLen ? text.substring(0, maxLen - 1) + '\u2026' : text;
+  }
+
+  function postMsg(type, data) {
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage(JSON.stringify(Object.assign({ type }, data)));
+    }
+  }
+
+  function updateSimulation() {
+    if (nodes.length === 0) {
+      emptyState.style.display = 'block';
+      return;
+    }
+    emptyState.style.display = 'none';
+
+    // Rebuild link references
+    const edgeData = edges.map(e => ({
+      source: nodeMap.get(e.source) || e.source,
+      target: nodeMap.get(e.target) || e.target,
+      edgeType: e.edgeType,
+      weight: e.weight
+    })).filter(e => e.source && e.target && typeof e.source === 'object');
+
+    // Links
+    const link = linkGroup.selectAll('line').data(edgeData, d =>
+      (d.source.id || d.source) + '-' + (d.target.id || d.target));
+    link.exit().remove();
+    const linkEnter = link.enter().append('line')
+      .attr('class', d => 'edge-' + d.edgeType)
+      .attr('stroke-opacity', 0.6);
+    const allLinks = linkEnter.merge(link);
+
+    // Filtered nodes
+    const visibleNodes = activeFilter
+      ? nodes.filter(n => n.nodeType === 'document' || n.entityType === activeFilter)
+      : nodes;
+    const visibleIds = new Set(visibleNodes.map(n => n.id));
+
+    // Nodes
+    const node = nodeGroup.selectAll('.node').data(visibleNodes, d => d.id);
+    node.exit().remove();
+    const nodeEnter = node.enter().append('g').attr('class', 'node');
+
+    // Entity nodes: circle
+    nodeEnter.filter(d => d.nodeType === 'entity').append('circle')
+      .attr('r', d => nodeRadius(d))
+      .attr('fill', d => entityColor(d.entityType))
+      .attr('stroke', 'none')
+      .attr('opacity', 0.85);
+
+    // Document nodes: rounded rect
+    nodeEnter.filter(d => d.nodeType === 'document').append('rect')
+      .attr('width', 32).attr('height', 20)
+      .attr('x', -16).attr('y', -10)
+      .attr('rx', 4).attr('ry', 4)
+      .attr('fill', d => d.isCurrentDocument ? 'var(--current-doc)' : 'var(--document)')
+      .attr('opacity', 0.85);
+
+    // Current document highlight ring
+    nodeEnter.filter(d => d.isCurrentDocument).append('rect')
+      .attr('width', 36).attr('height', 24)
+      .attr('x', -18).attr('y', -12)
+      .attr('rx', 6).attr('ry', 6)
+      .attr('fill', 'none')
+      .attr('stroke', 'var(--current-doc)')
+      .attr('stroke-width', 2)
+      .attr('stroke-dasharray', '3,2');
+
+    const allNodes = nodeEnter.merge(node);
+
+    // Interaction handlers
+    allNodes
+      .on('click', (e, d) => { e.stopPropagation(); postMsg('nodeClicked', { nodeId: d.id }); })
+      .on('dblclick', (e, d) => { e.stopPropagation(); postMsg('nodeDoubleClicked', { nodeId: d.id }); })
+      .on('contextmenu', (e, d) => { e.preventDefault(); postMsg('nodeExpanded', { nodeId: d.id }); })
+      .on('mouseover', (e, d) => {
+        const lines = [d.label];
+        if (d.entityType) lines.push('Type: ' + d.entityType);
+        if (d.weight > 0) lines.push('Weight: ' + d.weight);
+        if (d.nodeType === 'document') lines.push('[dbl-click to open]');
+        lines.push('[right-click to expand]');
+        tooltip.innerHTML = lines.join('<br>');
+        tooltip.classList.add('visible');
+      })
+      .on('mousemove', (e) => {
+        tooltip.style.left = (e.pageX + 12) + 'px';
+        tooltip.style.top = (e.pageY - 10) + 'px';
+      })
+      .on('mouseout', () => { tooltip.classList.remove('visible'); })
+      .call(d3.drag()
+        .on('start', (e, d) => {
+          if (!e.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x; d.fy = d.y;
+        })
+        .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+        .on('end', (e, d) => {
+          if (!e.active) simulation.alphaTarget(0);
+          d.fx = null; d.fy = null;
+        })
+      );
+
+    // Labels
+    const label = labelGroup.selectAll('text').data(visibleNodes, d => d.id);
+    label.exit().remove();
+    const labelEnter = label.enter().append('text')
+      .attr('class', 'node-label')
+      .attr('dy', d => d.nodeType === 'document' ? 22 : nodeRadius(d) + 12)
+      .text(d => truncLabel(d.label, 20));
+    const allLabels = labelEnter.merge(label);
+
+    // Force simulation
+    if (simulation) simulation.stop();
+    simulation = d3.forceSimulation(visibleNodes)
+      .force('link', d3.forceLink(edgeData.filter(e =>
+        visibleIds.has(e.source.id) && visibleIds.has(e.target.id)))
+        .id(d => d.id).distance(80))
+      .force('charge', d3.forceManyBody().strength(-200))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collide', d3.forceCollide().radius(d => nodeRadius(d) + 5))
+      .on('tick', () => {
+        allLinks
+          .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+        allNodes.attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
+        allLabels.attr('x', d => d.x).attr('y', d => d.y);
+      });
+  }
+
+  // --- API called from C# ---
+
+  window.setGraphData = function(data) {
+    nodes = [];
+    edges = [];
+    nodeMap.clear();
+    linkGroup.selectAll('*').remove();
+    nodeGroup.selectAll('*').remove();
+    labelGroup.selectAll('*').remove();
+
+    if (data && data.nodes) {
+      data.nodes.forEach(n => {
+        n.x = width / 2 + (Math.random() - 0.5) * 100;
+        n.y = height / 2 + (Math.random() - 0.5) * 100;
+        nodes.push(n);
+        nodeMap.set(n.id, n);
+      });
+    }
+    if (data && data.edges) {
+      edges = data.edges.slice();
+    }
+    updateSimulation();
+  };
+
+  window.addNodes = function(newNodes) {
+    if (!newNodes || newNodes.length === 0) return;
+    newNodes.forEach(n => {
+      if (!nodeMap.has(n.id)) {
+        n.x = width / 2 + (Math.random() - 0.5) * 100;
+        n.y = height / 2 + (Math.random() - 0.5) * 100;
+        nodes.push(n);
+        nodeMap.set(n.id, n);
+      }
+    });
+    updateSimulation();
+  };
+
+  window.addEdges = function(newEdges) {
+    if (!newEdges || newEdges.length === 0) return;
+    newEdges.forEach(e => edges.push(e));
+    updateSimulation();
+  };
+
+  window.focusNode = function(nodeId) {
+    const node = nodeMap.get(nodeId);
+    if (!node || node.x == null) return;
+    const transform = d3.zoomIdentity
+      .translate(width / 2, height / 2)
+      .scale(1.5)
+      .translate(-node.x, -node.y);
+    svg.transition().duration(500).call(zoom.transform, transform);
+  };
+
+  window.setFilter = function(entityType) {
+    activeFilter = entityType;
+    updateSimulation();
+  };
+
+  window.setTheme = function(theme) {
+    if (theme === 'light') {
+      document.body.classList.add('theme-light');
+    } else {
+      document.body.classList.remove('theme-light');
+    }
+  };
+
+  window.clearGraph = function() {
+    nodes = [];
+    edges = [];
+    nodeMap.clear();
+    linkGroup.selectAll('*').remove();
+    nodeGroup.selectAll('*').remove();
+    labelGroup.selectAll('*').remove();
+    if (simulation) simulation.stop();
+    emptyState.style.display = 'block';
+  };
+
+  // Handle resize
+  window.addEventListener('resize', () => {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    if (simulation) simulation.force('center', d3.forceCenter(width / 2, height / 2));
+  });
+
+  // Signal ready
+  postMsg('graphReady', {});
+})();
+</script>
+</body>
+</html>

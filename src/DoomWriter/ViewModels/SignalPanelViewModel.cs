@@ -7,10 +7,17 @@ using DoomWriter.Services;
 namespace DoomWriter.ViewModels;
 
 /// <summary>
-/// ViewModel for the left signal panel (TOC, Segments, Entities, Warnings, Search/Ask).
+/// ViewModel for the left signal panel (TOC, Segments, Entities, Warnings, Graph, Search/Ask).
 /// </summary>
 public partial class SignalPanelViewModel : ObservableObject
 {
+    private readonly EntityGraphService _entityGraph;
+    private readonly GraphBridge _graphBridge;
+    private string? _currentDocumentId;
+    private string? _currentDocumentTitle;
+    private bool _graphReady;
+    private DocumentSignals? _pendingGraphSignals;
+
     [ObservableProperty] private int _selectedTabIndex;
     [ObservableProperty] private int _activeHeadingIndex = -1;
 
@@ -26,6 +33,25 @@ public partial class SignalPanelViewModel : ObservableObject
     public ObservableCollection<TrackedEntity> Entities { get; } = [];
     public ObservableCollection<Suggestion> Warnings { get; } = [];
     public ObservableCollection<SearchResultItem> SearchResults { get; } = [];
+
+    public SignalPanelViewModel(EntityGraphService entityGraph, GraphBridge graphBridge)
+    {
+        _entityGraph = entityGraph;
+        _graphBridge = graphBridge;
+
+        _graphBridge.NodeClicked += OnGraphNodeClicked;
+        _graphBridge.NodeDoubleClicked += OnGraphNodeDoubleClicked;
+        _graphBridge.NodeExpanded += OnGraphNodeExpanded;
+        _graphBridge.GraphReady += (_, _) =>
+        {
+            _graphReady = true;
+            if (_pendingGraphSignals != null)
+            {
+                _ = UpdateGraphFromSignalsAsync(_pendingGraphSignals);
+                _pendingGraphSignals = null;
+            }
+        };
+    }
 
     public string[] SearchModes { get; } = ["Corpus", "Web", "Ask"];
 
@@ -153,8 +179,8 @@ public partial class SignalPanelViewModel : ObservableObject
         HasAskResponse = false;
         AskResponse = "";
         foreach (var r in results) SearchResults.Add(r);
-        // Switch to Search tab (index 4)
-        SelectedTabIndex = 4;
+        // Switch to Search tab (index 6 - after Graph tab)
+        SelectedTabIndex = 6;
     }
 
     public void ShowAskResponse(string response)
@@ -162,7 +188,85 @@ public partial class SignalPanelViewModel : ObservableObject
         SearchResults.Clear();
         AskResponse = response;
         HasAskResponse = true;
-        SelectedTabIndex = 4;
+        SelectedTabIndex = 6;
+    }
+
+    // --- Graph ---
+
+    public event EventHandler<string>? GraphDocumentOpened;
+
+    public void SetCurrentDocument(string documentId, string title)
+    {
+        _currentDocumentId = documentId;
+        _currentDocumentTitle = title;
+    }
+
+    public async Task UpdateGraphFromSignalsAsync(DocumentSignals signals)
+    {
+        if (!_graphReady)
+        {
+            _pendingGraphSignals = signals;
+            return;
+        }
+
+        if (_currentDocumentId == null || signals.Entities.Count == 0)
+            return;
+
+        try
+        {
+            var graphData = await _entityGraph.BuildDocumentGraphAsync(
+                _currentDocumentId, _currentDocumentTitle ?? "Untitled", signals.Entities.ToList());
+            await _graphBridge.SetGraphDataAsync(graphData);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Graph update failed: {ex.Message}");
+        }
+    }
+
+    public void OnGraphWebViewReady()
+    {
+        // Theme is set via GraphReady event handler
+    }
+
+    private async void OnGraphNodeClicked(object? sender, string nodeId)
+    {
+        // Show info - could highlight in entities list
+        System.Diagnostics.Debug.WriteLine($"Graph node clicked: {nodeId}");
+    }
+
+    private void OnGraphNodeDoubleClicked(object? sender, string nodeId)
+    {
+        // Open document in editor if it's a document node
+        if (nodeId.StartsWith("corpus:") || nodeId.Contains('/') || nodeId.Contains('\\'))
+        {
+            GraphDocumentOpened?.Invoke(this, nodeId);
+        }
+    }
+
+    private async void OnGraphNodeExpanded(object? sender, string nodeId)
+    {
+        try
+        {
+            GraphData expandData;
+            if (nodeId.StartsWith("corpus:") || nodeId.Contains('/') || nodeId.Contains('\\'))
+            {
+                expandData = await _entityGraph.ExpandDocumentAsync(nodeId);
+            }
+            else
+            {
+                expandData = await _entityGraph.ExpandEntityAsync(nodeId);
+            }
+
+            if (expandData.Nodes.Count > 0)
+                await _graphBridge.AddNodesAsync(expandData.Nodes);
+            if (expandData.Edges.Count > 0)
+                await _graphBridge.AddEdgesAsync(expandData.Edges);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Graph expand failed: {ex.Message}");
+        }
     }
 }
 
