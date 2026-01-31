@@ -9,7 +9,7 @@
 
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
-        <PackageId>Mostlylucid.Summarizers.Reader.Markdown</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.Readers.Markdown</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Markdown and plain text reader for the Summarizers pipeline. Heading-aware extraction with YAML front matter parsing.</Description>
@@ -60,7 +60,7 @@
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <ItemGroup>

@@ -7,7 +7,7 @@
     <LangVersion>latest</LangVersion>
 
     <!-- NuGet package metadata -->
-    <PackageId>Mostlylucid.Storage.Core</PackageId>
+    <PackageId>Mostlylucid.LucidRAG.Storage.Core</PackageId>
     <Version>1.0.0</Version>
     <Authors>LucidRAG</Authors>
     <Description>Unified vector storage library with support for InMemory, DuckDB, and Qdrant backends. Used by all LucidRAG pipelines for consistent embedding storage.</Description>
@@ -15,7 +15,19 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
+  <!-- MinVer -->
+  <PropertyGroup>
+    <MinVerTagPrefix>storcorev</MinVerTagPrefix>
+    <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+  </PropertyGroup>
+
   <ItemGroup>
+    <!-- MinVer -->
+    <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
     <!-- DuckDB for embedded vector storage -->
     <PackageReference Include="DuckDB.NET.Data.Full" Version="1.1.3" />
 

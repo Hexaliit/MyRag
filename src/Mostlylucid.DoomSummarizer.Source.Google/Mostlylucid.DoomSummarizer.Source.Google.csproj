@@ -9,7 +9,7 @@
 
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
-        <PackageId>Mostlylucid.DoomSummarizer.Source.Google</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.Sources.Google</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Google News and Places source plugin for DoomSummarizer.</Description>
@@ -30,7 +30,7 @@
 
     <!-- MinVer -->
     <PropertyGroup>
-        <MinVerTagPrefix>doomsrcgooglev</MinVerTagPrefix>
+        <MinVerTagPrefix>srcgooglev</MinVerTagPrefix>
         <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
     </PropertyGroup>
 
@@ -53,7 +53,7 @@
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
 </Project>

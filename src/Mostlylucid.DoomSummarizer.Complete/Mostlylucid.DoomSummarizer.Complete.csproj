@@ -18,7 +18,7 @@
         <!-- Global tool packaging -->
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>doomsummarizer-complete</ToolCommandName>
-        <PackageId>Mostlylucid.DoomSummarizer.Complete</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.DoomSummarizer.Complete</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>DoomSummarizer fat CLI with all source and output plugins statically included. No runtime plugin loading needed.</Description>
@@ -32,7 +32,7 @@
 
     <!-- MinVer -->
     <PropertyGroup>
-        <MinVerTagPrefix>doomsumcompletev</MinVerTagPrefix>
+        <MinVerTagPrefix>doomcompv</MinVerTagPrefix>
         <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
     </PropertyGroup>
 
@@ -60,6 +60,20 @@
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Academic\Mostlylucid.DoomSummarizer.Source.Academic.csproj" />
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Science\Mostlylucid.DoomSummarizer.Source.Science.csproj" />
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Reference\Mostlylucid.DoomSummarizer.Source.Reference.csproj" />
+    </ItemGroup>
+
+    <!-- All reader packages (statically linked for plugin discovery) -->
+    <ItemGroup>
+        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Pdf\Mostlylucid.Summarizers.Reader.Pdf.csproj" />
+        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Docx\Mostlylucid.Summarizers.Reader.Docx.csproj" />
+        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Gutenberg\Mostlylucid.Summarizers.Reader.Gutenberg.csproj" />
+        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Markdown\Mostlylucid.Summarizers.Reader.Markdown.csproj" />
+        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Docling\Mostlylucid.Summarizers.Reader.Docling.csproj" />
+    </ItemGroup>
+
+    <!-- Processor plugins (statically linked for plugin discovery) -->
+    <ItemGroup>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Books\Mostlylucid.DoomSummarizer.Plugin.Books.csproj" />
     </ItemGroup>
 
 </Project>

@@ -8,7 +8,7 @@
 
         <!-- NuGet Package Metadata -->
         <IsPackable>true</IsPackable>
-        <PackageId>Mostlylucid.DoomSummarizer.Core</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.DoomSummarizer.Core</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Core signal extraction pipeline: embeddings, entities, knowledge graphs, ranking, LLM routing with budget enforcement and circuit-breaking. Builds on Mostlylucid.DocSummarizer for shared NER, content extraction, and RRF scoring.</Description>
@@ -37,7 +37,7 @@
 
     <!-- MinVer for automatic versioning -->
     <PropertyGroup>
-        <MinVerTagPrefix>doomsumv</MinVerTagPrefix>
+        <MinVerTagPrefix>doomcorev</MinVerTagPrefix>
     </PropertyGroup>
     <PropertyGroup>
         <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
@@ -116,12 +116,12 @@
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.FullText.Sqlite\Mostlylucid.DocSummarizer.FullText.Sqlite.csproj" />
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.DocSummarizer" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.DocSummarizer.Anthropic" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.DocSummarizer.OpenAI" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.DocSummarizer.Rdbms.Sqlite" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.DocSummarizer.FullText.Lucene" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.DocSummarizer.FullText.Sqlite" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.Anthropic" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.OpenAI" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.Rdbms.Sqlite" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.FullText.Lucene" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.FullText.Sqlite" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <!-- Playwright for WebsiteFetcher (JS-rendered sites) -->

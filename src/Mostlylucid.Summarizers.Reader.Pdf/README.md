@@ -1,4 +1,4 @@
-# Mostlylucid.Summarizers.Reader.Pdf
+# Mostlylucid.LucidRAG.Readers.Pdf
 
 PDF document reader for the Summarizers pipeline.
 
@@ -31,7 +31,7 @@ Console.WriteLine(result.Markdown);
 ## Dependencies
 
 - [PdfPig](https://github.com/UglyToad/PdfPig) - PDF text extraction
-- [Mostlylucid.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.DoomSummarizer.Core) - IDocumentReader interface
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - IDocumentReader interface
 
 ## License
 

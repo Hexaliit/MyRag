@@ -23,12 +23,26 @@
         <!-- Global tool packaging -->
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>doomsummarizer</ToolCommandName>
+        <PackageId>Mostlylucid.LucidRAG.DoomSummarizer</PackageId>
 
         <!-- Allow unsafe for ONNX -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <UserSecretsId>bc19ab4d-717e-4cf3-bdd3-a5ee817de654</UserSecretsId>
 
     </PropertyGroup>
+
+    <!-- MinVer -->
+    <PropertyGroup>
+        <MinVerTagPrefix>doomsumcliv</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
 
     <!-- Enable test access to internal members -->
     <ItemGroup>

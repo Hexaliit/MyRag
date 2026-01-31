@@ -1,4 +1,4 @@
-# Mostlylucid.DoomSummarizer.Plugin.Books
+# Mostlylucid.LucidRAG.Plugins.Books
 
 Book summarizer plugin for DoomSummarizer. Provides hierarchical document splitting and book type detection for long-form documents.
 
@@ -48,7 +48,7 @@ foreach (var chapter in tree.Children)
 
 ## Dependencies
 
-- [Mostlylucid.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.DoomSummarizer.Core) - Plugin interfaces and document model
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - Plugin interfaces and document model
 - [YamlDotNet](https://github.com/aaubry/YamlDotNet) - Pattern and strategy YAML parsing
 
 ## License

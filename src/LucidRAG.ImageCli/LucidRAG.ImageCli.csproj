@@ -13,7 +13,7 @@
         <ToolCommandName>lucidrag-image</ToolCommandName>
 
         <!-- NuGet Package Metadata -->
-        <PackageId>LucidRAG.ImageCli</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.ImageCli</PackageId>
         <Version>1.0.0</Version>
         <Authors>LucidRAG</Authors>
         <Company>LucidRAG</Company>
@@ -28,6 +28,22 @@
 
         <!-- Local testing -->
         <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\nupkg</PackageOutputPath>
+    </PropertyGroup>
+
+    <!-- MinVer -->
+    <PropertyGroup>
+        <MinVerTagPrefix>imgcli2v</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <PropertyGroup>
         <UserSecretsId>80a118e1-f649-4d05-b4ef-7d4b2dbadcbd</UserSecretsId>
     </PropertyGroup>
 

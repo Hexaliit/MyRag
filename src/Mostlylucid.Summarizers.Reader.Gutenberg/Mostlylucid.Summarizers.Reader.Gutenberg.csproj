@@ -9,7 +9,7 @@
 
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
-        <PackageId>Mostlylucid.Summarizers.Reader.Gutenberg</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.Readers.Gutenberg</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Project Gutenberg archive reader for the Summarizers pipeline. Handles ZIP archives with HTML/TXT content, header/footer boilerplate stripping, and metadata extraction (title, author, language).</Description>
@@ -60,7 +60,7 @@
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <ItemGroup>

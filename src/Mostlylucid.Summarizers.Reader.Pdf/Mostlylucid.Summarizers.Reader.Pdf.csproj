@@ -9,7 +9,7 @@
 
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
-        <PackageId>Mostlylucid.Summarizers.Reader.Pdf</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.Readers.Pdf</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>PDF document reader for the Summarizers pipeline. Extracts text with page markers, metadata, and paragraph normalization using PdfPig.</Description>
@@ -61,7 +61,7 @@
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <ItemGroup>

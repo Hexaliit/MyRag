@@ -1,4 +1,4 @@
-# Mostlylucid.Summarizers.Reader.Docx
+# Mostlylucid.LucidRAG.Readers.Docx
 
 DOCX document reader for the Summarizers pipeline.
 
@@ -27,7 +27,7 @@ var result = await reader.ReadAsync("document.docx");
 ## Dependencies
 
 - [DocumentFormat.OpenXml](https://github.com/dotnet/Open-XML-SDK) - DOCX parsing
-- [Mostlylucid.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.DoomSummarizer.Core) - IDocumentReader interface
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - IDocumentReader interface
 
 ## License
 

@@ -9,7 +9,7 @@
 
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
-        <PackageId>Mostlylucid.DoomSummarizer.Source.News</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.Sources.News</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>RSS news feeds source plugin for DoomSummarizer. BBC, Guardian, Ars Technica, and 20+ more.</Description>
@@ -30,7 +30,7 @@
 
     <!-- MinVer -->
     <PropertyGroup>
-        <MinVerTagPrefix>doomsrcnewsv</MinVerTagPrefix>
+        <MinVerTagPrefix>srcnewsv</MinVerTagPrefix>
         <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
     </PropertyGroup>
 
@@ -53,7 +53,7 @@
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
 </Project>

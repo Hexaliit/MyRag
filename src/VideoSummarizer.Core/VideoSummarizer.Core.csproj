@@ -11,13 +11,19 @@
     <AssemblyName>VideoSummarizer.Core</AssemblyName>
 
     <!-- Package metadata -->
-    <PackageId>VideoSummarizer.Core</PackageId>
+    <PackageId>Mostlylucid.LucidRAG.VideoSummarizer</PackageId>
     <Description>Core video analysis pipeline with shot detection, scene segmentation, OCR tracking, and speech transcription</Description>
     <Authors>Scott Galloway</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
     <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
     <PackageTags>video;shot-detection;scene-segmentation;ocr;whisper;clip;onnx;ffmpeg</PackageTags>
+  </PropertyGroup>
+
+  <!-- MinVer -->
+  <PropertyGroup>
+    <MinVerTagPrefix>vidsumv</MinVerTagPrefix>
+    <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
   </PropertyGroup>
 
   <!-- Release configuration: no PDB files -->
@@ -27,6 +33,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- MinVer -->
+    <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
     <!-- Common pipeline abstractions -->
     <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
     <!-- Image analysis for keyframe processing (CLIP, OCR, vision) -->

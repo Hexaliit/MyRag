@@ -7,7 +7,7 @@
         <LangVersion>latest</LangVersion>
 
         <!-- Package metadata -->
-        <PackageId>LucidRAG.LLM</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.LLM</PackageId>
         <Description>Unified LLM provider infrastructure for LucidRAG with YAML-based configuration</Description>
         <Authors>Scott Galloway</Authors>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -15,6 +15,19 @@
         <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageTags>llm;ai;openai;anthropic;ollama;lmstudio;yaml;configuration</PackageTags>
     </PropertyGroup>
+
+    <!-- MinVer -->
+    <PropertyGroup>
+        <MinVerTagPrefix>llmv</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
 
     <!-- Release configuration: no PDB files -->
     <PropertyGroup Condition="'$(Configuration)' == 'Release'">

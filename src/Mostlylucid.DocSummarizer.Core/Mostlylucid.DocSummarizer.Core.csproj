@@ -9,7 +9,7 @@
 
         <!-- NuGet Package Metadata -->
         <IsPackable>true</IsPackable>
-        <PackageId>Mostlylucid.DocSummarizer</PackageId>
+        <PackageId>Mostlylucid.LucidRAG.DocSummarizer</PackageId>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Local-first document summarization library using BERT embeddings, RAG, and optional LLM synthesis. Supports markdown, PDF, DOCX, and URLs. Every claim is grounded with citations. Runs entirely offline with ONNX models, or optionally uses Ollama/Docling for enhanced features.</Description>
@@ -49,7 +49,7 @@
         <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.Summarizer.Core" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <!-- MinVer for automatic versioning -->

@@ -1,4 +1,4 @@
-# Mostlylucid.Summarizers.Reader.Docling
+# Mostlylucid.LucidRAG.Readers.Docling
 
 Docling-based document reader for the Summarizers pipeline.
 
@@ -36,7 +36,7 @@ var result = await reader.ReadAsync("scanned-document.pdf");
 ## Dependencies
 
 - Docling service (external)
-- [Mostlylucid.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.DoomSummarizer.Core) - IDocumentReader interface
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - IDocumentReader interface
 
 ## License
 

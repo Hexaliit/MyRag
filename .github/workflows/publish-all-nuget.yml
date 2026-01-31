@@ -43,7 +43,7 @@ jobs:
 
       - name: Create version tag for MinVer
         run: |
-          TAG="sumcv${{ github.event.inputs.version }}"
+          TAG="sumcorev${{ github.event.inputs.version }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists, skipping"
           else
@@ -87,7 +87,7 @@ jobs:
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
           for i in $(seq 1 30); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://api.nuget.org/v3-flatcontainer/mostlylucid.summarizer.core/${VERSION}/mostlylucid.summarizer.core.${VERSION}.nupkg")
+              "https://api.nuget.org/v3-flatcontainer/mostlylucid.lucidrag.summarizer.core/${VERSION}/mostlylucid.lucidrag.summarizer.core.${VERSION}.nupkg")
             echo "Attempt $i: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then exit 0; fi
             sleep 30
@@ -154,7 +154,7 @@ jobs:
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
           for i in $(seq 1 30); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://api.nuget.org/v3-flatcontainer/mostlylucid.docsummarizer/${VERSION}/mostlylucid.docsummarizer.${VERSION}.nupkg")
+              "https://api.nuget.org/v3-flatcontainer/mostlylucid.lucidrag.docsummarizer/${VERSION}/mostlylucid.lucidrag.docsummarizer.${VERSION}.nupkg")
             echo "Attempt $i: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then exit 0; fi
             sleep 30
@@ -245,7 +245,7 @@ jobs:
       - name: Poll NuGet for backend packages
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
-          for pkg in mostlylucid.docsummarizer.rdbms.sqlite mostlylucid.docsummarizer.fulltext.lucene mostlylucid.docsummarizer.fulltext.sqlite; do
+          for pkg in mostlylucid.lucidrag.docsummarizer.rdbms.sqlite mostlylucid.lucidrag.docsummarizer.fulltext.lucene mostlylucid.lucidrag.docsummarizer.fulltext.sqlite; do
             echo "Waiting for $pkg ${VERSION}..."
             for i in $(seq 1 30); do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -272,7 +272,7 @@ jobs:
 
       - name: Create version tag for MinVer
         run: |
-          TAG="doomsumv${{ needs.publish-summarizer-core.outputs.version }}"
+          TAG="doomcorev${{ needs.publish-summarizer-core.outputs.version }}"
           git tag "$TAG" 2>/dev/null || true
 
       - name: Build & Pack
@@ -316,7 +316,7 @@ jobs:
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
           for i in $(seq 1 30); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://api.nuget.org/v3-flatcontainer/mostlylucid.doomsummarizer.core/${VERSION}/mostlylucid.doomsummarizer.core.${VERSION}.nupkg")
+              "https://api.nuget.org/v3-flatcontainer/mostlylucid.lucidrag.doomsummarizer.core/${VERSION}/mostlylucid.lucidrag.doomsummarizer.core.${VERSION}.nupkg")
             echo "Attempt $i: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then exit 0; fi
             sleep 30
@@ -705,7 +705,7 @@ jobs:
 
       - name: Create version tag for MinVer
         run: |
-          TAG="doomsumcompletev${{ needs.publish-summarizer-core.outputs.version }}"
+          TAG="doomcompv${{ needs.publish-summarizer-core.outputs.version }}"
           git tag "$TAG" 2>/dev/null || true
 
       - name: Build & Pack
@@ -767,24 +767,24 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Tier | Package | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------|---------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 0 | \`Mostlylucid.Summarizer.Core\` | ${{ needs.publish-summarizer-core.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 1 | \`Mostlylucid.DocSummarizer\` | ${{ needs.publish-docsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 2 | \`DocSummarizer.Rdbms.Sqlite\` | ${{ needs.publish-rdbms-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 2 | \`DocSummarizer.FullText.Lucene\` | ${{ needs.publish-fts-lucene.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 2 | \`DocSummarizer.FullText.Sqlite\` | ${{ needs.publish-fts-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 3 | \`DoomSummarizer.Core\` | ${{ needs.publish-doomsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Source.HackerNews\` | ${{ needs.publish-source-hackernews.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Source.Reddit\` | ${{ needs.publish-source-reddit.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Source.Google\` | ${{ needs.publish-source-google.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Source.News\` | ${{ needs.publish-source-news.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Source.Web\` | ${{ needs.publish-source-web.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Source.Academic\` | ${{ needs.publish-source-academic.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Source.Science\` | ${{ needs.publish-source-science.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Source.Reference\` | ${{ needs.publish-source-reference.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Reader.Pdf\` | ${{ needs.publish-reader-pdf.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Reader.Docx\` | ${{ needs.publish-reader-docx.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Reader.Gutenberg\` | ${{ needs.publish-reader-gutenberg.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Reader.Markdown\` | ${{ needs.publish-reader-markdown.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Reader.Docling\` | ${{ needs.publish-reader-docling.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | \`Plugin.Books\` | ${{ needs.publish-plugin-books.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 5 | \`DoomSummarizer.Complete\` | ${{ needs.publish-doomsummarizer-complete.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 0 | \`Mostlylucid.LucidRAG.Summarizer.Core\` | ${{ needs.publish-summarizer-core.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 1 | \`Mostlylucid.LucidRAG.DocSummarizer\` | ${{ needs.publish-docsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.Rdbms.Sqlite\` | ${{ needs.publish-rdbms-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.FullText.Lucene\` | ${{ needs.publish-fts-lucene.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.FullText.Sqlite\` | ${{ needs.publish-fts-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 3 | \`Mostlylucid.LucidRAG.DoomSummarizer.Core\` | ${{ needs.publish-doomsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Sources.HackerNews\` | ${{ needs.publish-source-hackernews.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Reddit\` | ${{ needs.publish-source-reddit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Google\` | ${{ needs.publish-source-google.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Sources.News\` | ${{ needs.publish-source-news.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Web\` | ${{ needs.publish-source-web.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Academic\` | ${{ needs.publish-source-academic.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Science\` | ${{ needs.publish-source-science.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Reference\` | ${{ needs.publish-source-reference.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Readers.Pdf\` | ${{ needs.publish-reader-pdf.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Readers.Docx\` | ${{ needs.publish-reader-docx.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Readers.Gutenberg\` | ${{ needs.publish-reader-gutenberg.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Readers.Markdown\` | ${{ needs.publish-reader-markdown.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Readers.Docling\` | ${{ needs.publish-reader-docling.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Plugins.Books\` | ${{ needs.publish-plugin-books.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 5 | \`Mostlylucid.LucidRAG.DoomSummarizer.Complete\` | ${{ needs.publish-doomsummarizer-complete.result }} |" >> $GITHUB_STEP_SUMMARY

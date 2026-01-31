@@ -10,7 +10,7 @@
     <AssemblyName>Mostlylucid.Summarizer.Core</AssemblyName>
 
     <!-- Package metadata -->
-    <PackageId>Mostlylucid.Summarizer.Core</PackageId>
+    <PackageId>Mostlylucid.LucidRAG.Summarizer.Core</PackageId>
     <Description>Common abstractions for content summarization pipelines (documents, images, data)</Description>
     <Authors>Scott Galloway</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -19,8 +19,18 @@
     <PackageTags>summarizer;pipeline;documents;images;data;abstraction</PackageTags>
   </PropertyGroup>
 
+  <!-- MinVer -->
+  <PropertyGroup>
+    <MinVerTagPrefix>sumcorev</MinVerTagPrefix>
+    <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+  </PropertyGroup>
+
   <!-- Common packages -->
   <ItemGroup>
+    <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 

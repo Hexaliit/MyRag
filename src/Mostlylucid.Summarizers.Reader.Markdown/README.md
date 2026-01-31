@@ -1,4 +1,4 @@
-# Mostlylucid.Summarizers.Reader.Markdown
+# Mostlylucid.LucidRAG.Readers.Markdown
 
 Markdown and plain text reader for the Summarizers pipeline.
 
@@ -28,7 +28,7 @@ Console.WriteLine(result.Markdown); // Content (front matter stripped)
 
 ## Dependencies
 
-- [Mostlylucid.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.DoomSummarizer.Core) - IDocumentReader interface
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - IDocumentReader interface
 
 ## License
 

@@ -1,4 +1,4 @@
-# Mostlylucid.Summarizers.Reader.Gutenberg
+# Mostlylucid.LucidRAG.Readers.Gutenberg
 
 Project Gutenberg archive reader for the Summarizers pipeline.
 
@@ -32,7 +32,7 @@ Console.WriteLine(result.Metadata["language"]); // "English"
 ## Dependencies
 
 - `System.IO.Compression` (built-in)
-- [Mostlylucid.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.DoomSummarizer.Core) - IDocumentReader interface
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - IDocumentReader interface
 
 ## License
 
