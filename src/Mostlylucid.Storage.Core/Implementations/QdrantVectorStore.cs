@@ -721,11 +721,13 @@ public class QdrantVectorStore : IMultiVectorStore
         {
             // Build named vectors map including the default vector
             var namedVectors = new NamedVectors();
+#pragma warning disable CS0612 // Vector.Data is obsolete but replacement API not yet stable
             namedVectors.Vectors[""] = new Qdrant.Client.Grpc.Vector { Data = { d.Embedding } };
 
             foreach (var (name, vector) in d.NamedVectors)
             {
                 namedVectors.Vectors[name] = new Qdrant.Client.Grpc.Vector { Data = { vector } };
+#pragma warning restore CS0612
             }
 
             var point = new PointStruct

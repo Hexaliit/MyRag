@@ -214,7 +214,7 @@ public sealed partial class ScrollCommand
                 }
 
                 // Chunk the content with adaptive size based on document type
-                var chunks = ChunkDocument(content.Markdown, content.Title, filePath, detectedDocType);
+                var chunks = ChunkDocument(content.Markdown, content.Title ?? "", filePath, detectedDocType);
 
                 foreach (var chunk in chunks)
                 {

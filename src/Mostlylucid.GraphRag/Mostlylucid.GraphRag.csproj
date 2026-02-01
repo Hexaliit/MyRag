@@ -23,8 +23,6 @@
         <!-- Markdown parsing -->
         <PackageReference Include="Markdig" Version="0.44.0"/>
 
-        <!-- JSON for LLM responses -->
-        <PackageReference Include="System.Text.Json" Version="10.0.2" />
     </ItemGroup>
 
 </Project>

@@ -449,6 +449,11 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             WriteStatus($"[grey]Detected: sources=[[{Markup.Escape(sourcesStr)}]], vibe={vibe}{Markup.Escape(temporalInfo)}[/]");
         }
 
+        // Detect search_only intent: weather, scores, prices — needs search, not feeds
+        var isSearchOnlyIntent = interpreted?.SentinelIntent?.Intent == "search_only";
+        if (isSearchOnlyIntent && interpreted != null && interpreted.Limit > 10)
+            interpreted.Limit = 10; // Cap fetch count for direct-answer queries
+
         // ─── Decomposer: classify, analyze, plan ───
         // Runs AFTER PromptInterpreter, BEFORE cache check.
         // Fast-path: simple queries get concept classification + sentinel enhancement only.
@@ -1512,7 +1517,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         QueryType = earlyQueryType,
                         UseOutlierPenalty = true, // Outlier penalty still useful to filter genuinely off-topic items
                         UseEmbeddingDedup = false, // Web-mode uses URL/title dedup instead
-                        RelaxScoringGates = isLocalMode, // KB queries need relaxed gates to survive second scoring pass
+                        RelaxScoringGates = isLocalMode || isSearchOnlyIntent, // KB + search_only queries need relaxed gates
                     };
 
                     scoringResult = await scoringPipeline.ScoreItemsAsync(uniqueItems, scoringOpts, cancellationToken);

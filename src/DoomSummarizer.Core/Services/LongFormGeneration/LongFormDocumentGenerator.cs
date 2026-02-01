@@ -32,7 +32,15 @@ public class LongFormDocumentGenerator
     /// Generate a long-form document from analyzed items.
     /// Returns BlogArticleResult for compatibility with existing rendering pipeline.
     /// </summary>
-    /// <param name="parallel">Enable parallel section generation (faster but less cross-section coherence)</param>
+    /// <param name="analyzedItems">Scored and analyzed items from the retrieval pipeline.</param>
+    /// <param name="contentItems">Full content items with embeddings.</param>
+    /// <param name="query">User's original query.</param>
+    /// <param name="vibe">Vibe name (e.g. "neutral", "doom").</param>
+    /// <param name="vibePrompt">Vibe prompt text for LLM instructions.</param>
+    /// <param name="queryType">Detected query type for structural hints.</param>
+    /// <param name="templateDef">Optional YAML template definition for fixed structure.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <param name="parallel">Enable parallel section generation (faster but less cross-section coherence).</param>
     public async Task<BlogArticleResult> GenerateAsync(
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> analyzedItems,
         List<ContentItem> contentItems,

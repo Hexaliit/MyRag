@@ -24,6 +24,7 @@ public class AudioSegmentExtractor
     /// <param name="startSeconds">Start time in seconds</param>
     /// <param name="endSeconds">End time in seconds</param>
     /// <param name="maxDurationSeconds">Maximum segment duration (default: 3 seconds)</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Base64-encoded WAV data</returns>
     public async Task<string> ExtractSegmentAsBase64Async(
         string audioPath,

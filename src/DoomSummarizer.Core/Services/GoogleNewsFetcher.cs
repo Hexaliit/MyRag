@@ -519,9 +519,10 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
     /// Extract the actual article URL from a Google News redirect page's HTML.
     /// Google News uses JavaScript redirects, but the target URL often appears in:
     /// - data-n-au attributes
-    /// - <a> tags with article links
-    /// - <script> blocks with window.location or redirect URLs
-    /// - <noscript> sections with direct links
+    /// - data-n-au attributes in anchor tags
+    /// - anchor tags with article links
+    /// - script blocks with window.location or redirect URLs
+    /// - noscript sections with direct links
     /// </summary>
     private static string? ExtractUrlFromGoogleNewsHtml(string html)
     {

@@ -146,13 +146,13 @@ public static class DoomScrollerTools
             List<ContentItem> items;
             if (candidateIds.Count > 0)
             {
-                items = await _storage.LoadItemsByIdsAsync(candidateIds.ToList());
+                items = await _storage!.LoadItemsByIdsAsync(candidateIds.ToList());
             }
             else if (_embedding is not null)
             {
                 // Fallback: embedding search when Lucene misses
                 var queryEmbed = await _embedding.EmbedAsync(query);
-                var similar = await _storage.FindSimilarAsync(queryEmbed, limit: limit * 2, threshold: 0.20, source: source);
+                var similar = await _storage!.FindSimilarAsync(queryEmbed, limit: limit * 2, threshold: 0.20, source: source);
                 items = similar.Select(s => s.ToContentItem()).ToList();
             }
             else
@@ -273,7 +273,7 @@ public static class DoomScrollerTools
             if (ids.Count == 0)
                 return Json(new { success = true, keywords, results = Array.Empty<object>() });
 
-            var storedItems = await _storage.GetItemsByIdsAsync(ids);
+            var storedItems = await _storage!.GetItemsByIdsAsync(ids);
             var results = storedItems.Select(s => new
             {
                 id = s.Id, title = s.Title, url = s.Url,

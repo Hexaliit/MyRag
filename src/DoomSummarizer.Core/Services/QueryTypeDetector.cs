@@ -80,7 +80,7 @@ public static partial class QueryTypeDetector
             return heuristic;
 
         // Sentinel QA/howto always overrides Roundup — the user asked a specific question
-        if (sentinelIntent.Intent is "qa" or "howto" && heuristic == QueryType.Roundup)
+        if (sentinelIntent.Intent is "qa" or "howto" or "search_only" && heuristic == QueryType.Roundup)
             return QueryType.Explainer;
 
         // Sentinel research/deep_dive overrides Roundup

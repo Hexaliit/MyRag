@@ -221,6 +221,8 @@ public partial class RelevanceScorer
     /// <param name="queryEmbedding">Pre-computed query embedding for semantic matching (null = text-only).</param>
     /// <param name="textRelevanceScores">Pre-computed text relevance scores (e.g., from Lucene FTS).
     /// When provided, included as an RRF signal for keyword precision.</param>
+    /// <param name="querySimOut">Output dictionary for query similarity scores (used by PRF centroid filtering).</param>
+    /// <param name="gateThreshold">Minimum cosine similarity threshold for the hard gate.</param>
     /// <returns>Scored items in descending relevance order, with bottom tier discarded.</returns>
     public List<ContentItem> ScoreFast(List<ContentItem> items, string query, double discardRatio = 0.25,
         float[]? queryEmbedding = null,
@@ -331,6 +333,7 @@ public partial class RelevanceScorer
     /// <param name="textRelevanceScores">Pre-computed text relevance scores (e.g., from Lucene FTS).
     /// When provided, included as an RRF signal for keyword precision. Items not in the
     /// dictionary receive score 0 (worst rank in RRF).</param>
+    /// <param name="gateThreshold">Minimum cosine similarity threshold for the hard gate.</param>
     /// <returns>Items re-ranked with full RRF scores.</returns>
     public List<ContentItem> ScoreFull(
         List<ContentItem> items,

@@ -421,7 +421,7 @@ public class WebCrawlerService
                 {
                     Id = $"crawl_{GenerateId(finalUrl)}",
                     Source = $"crawl:{_config.Name}",
-                    Title = extracted.Title,
+                    Title = extracted!.Title ?? finalUrl ?? url,
                     Url = finalUrl,
                     Content = extracted.BestContent,
                     Author = extracted.Author,
@@ -431,7 +431,7 @@ public class WebCrawlerService
                     FetchedAt = DateTimeOffset.UtcNow,
                     ContentStructure = extracted.Structure
                 },
-                Url = finalUrl,
+                Url = finalUrl!,
                 ETag = responseETag,
                 LastModified = responseLastModified
             };

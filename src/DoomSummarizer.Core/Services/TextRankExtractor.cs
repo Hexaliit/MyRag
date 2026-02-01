@@ -10,7 +10,7 @@ namespace DoomSummarizer.Services;
 /// 3. Running PageRank-style power iteration to find central sentences
 /// 4. Returning top sentences in original order (preserves narrative flow)
 ///
-/// Based on: Mihalcea & Tarau (TextRank, 2004), Erkan & Radev (LexRank, 2004).
+/// Based on: Mihalcea and Tarau (TextRank, 2004), Erkan and Radev (LexRank, 2004).
 /// Uses local ONNX embeddings — deterministic, cheap, no LLM needed.
 /// </summary>
 public static partial class TextRankExtractor

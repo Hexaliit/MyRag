@@ -333,7 +333,7 @@ public partial class OllamaService
                 // Batch-embed all item texts at once when batch embedder is available
                 var itemEmbeddings = batchEmbedder != null
                     ? batchEmbedder(itemTexts)
-                    : itemTexts.Select(t => embedder(t)).ToArray();
+                    : itemTexts.Select(t => embedder!(t)).ToArray();
 
                 topItems = topItems
                     .Select((item, idx) =>

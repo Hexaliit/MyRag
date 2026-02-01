@@ -24,6 +24,9 @@ public class LinkFollowingService
     private int _cacheHits;
     private int _linksSkippedByRelevance;
 
+    /// <param name="httpClient">HTTP client for fetching linked pages.</param>
+    /// <param name="config">Link following configuration.</param>
+    /// <param name="storage">Optional storage service for content hash caching.</param>
     /// <param name="embedder">Optional embedding function (e.g. EmbeddingService.Embed) for link relevance pre-filtering.</param>
     /// <param name="queryEmbedding">Pre-computed query/topic embedding to compare link anchor text against.</param>
     public LinkFollowingService(

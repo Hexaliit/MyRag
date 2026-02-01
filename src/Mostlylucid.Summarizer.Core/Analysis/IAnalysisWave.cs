@@ -9,7 +9,7 @@ public interface IAnalysisWave : IWave
     /// <summary>
     /// Unique name identifying this analysis wave.
     /// </summary>
-    string Name { get; }
+    new string Name { get; }
 
     /// <summary>
     /// Human-readable description.

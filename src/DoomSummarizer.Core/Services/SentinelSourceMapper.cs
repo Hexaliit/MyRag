@@ -324,6 +324,7 @@ public static class SentinelSourceMapper
                         intent.TimeSensitivity is "today" or "breaking";
         var isResearch = intent.Intent is "research" or "deep_dive";
         var isQA = intent.Intent is "qa" or "howto";
+        var isSearchOnly = intent.Intent is "search_only";
         var hasTechCategory = categories.Any(c =>
             TechCategories.Contains(c.Key) && c.Value >= MinCategoryWeight);
 
@@ -393,7 +394,7 @@ public static class SentinelSourceMapper
             sortedCategories = [new KeyValuePair<string, double>("default", 0.5)];
 
         var totalFeedSourcesAdded = 0;
-        var maxTotalFeedSources = isQA ? 3 : MaxTotalSources; // QA: max 3 feed sources total
+        var maxTotalFeedSources = isSearchOnly ? 0 : isQA ? 3 : MaxTotalSources; // search_only: no feeds; QA: max 3 feed sources total
 
         foreach (var (category, weight) in sortedCategories)
         {
@@ -464,7 +465,8 @@ public static class SentinelSourceMapper
         }
 
         // --- Phase 6: Minimum diversity floor ---
-        if (sources.Count < 3)
+        // search_only: skip diversity floor — we want minimal, targeted search sources
+        if (!isSearchOnly && sources.Count < 3)
         {
             var defaultRouting = router.RouteByTopic("default", query);
             foreach (var src in defaultRouting.Sources)
@@ -480,7 +482,8 @@ public static class SentinelSourceMapper
             }
         }
 
-        return sources.Take(MaxTotalSources).ToList();
+        var maxSources = isSearchOnly ? 4 : MaxTotalSources;
+        return sources.Take(maxSources).ToList();
     }
 
     /// <summary>

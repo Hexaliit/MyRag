@@ -200,7 +200,7 @@ public class EntityProfileService
     /// Uses the same TF × IDF × confidence formula as document profiles.
     ///
     /// Note: Query NER is often sparse for short queries. Caller should fall back
-    /// to regular embedding search when query entities < 2.
+    /// to regular embedding search when query entities are fewer than 2.
     /// </summary>
     /// <param name="queryEntities">Entities extracted from the query: (name, type, confidence)</param>
     /// <param name="entityDocCounts">Document count per entity for IDF computation</param>

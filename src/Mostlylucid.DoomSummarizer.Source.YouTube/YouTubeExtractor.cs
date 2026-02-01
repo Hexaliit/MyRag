@@ -205,7 +205,7 @@ public sealed partial class YouTubeExtractor
         // Query directly against manifest.Tracks (IReadOnlyList) — no .ToList()
         var tracks = manifest.Tracks;
 
-        ClosedCaptionTrackInfo? manualEnglish = null, autoEnglish = null, manualAny = null;
+        ClosedCaptionTrackInfo? autoEnglish = null, manualAny = null;
         ClosedCaptionTrackInfo? first = null;
 
         foreach (var t in tracks)

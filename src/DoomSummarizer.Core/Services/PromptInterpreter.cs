@@ -186,7 +186,7 @@ public partial class PromptInterpreter
             REQUIRED fields:
             {
               "categories": {"topic": 0.8},  // Use: technology, ai, programming, science, health, business, finance, politics, world, entertainment, sports
-              "intent": "qa",  // news|roundup|research|howto|qa|trend|comparison
+              "intent": "qa",  // news|roundup|research|howto|qa|search_only|trend|comparison
               "search_queries": ["optimized search query"],  // 2-3 search queries
               "filter_keywords": ["keyword1", "keyword2"],  // 3-5 key terms
               "tone": "neutral"  // neutral|doom|hopeful|snarky|funny
@@ -198,6 +198,9 @@ public partial class PromptInterpreter
               "subqueries": ["First standalone question?", "Second standalone question?"]
             }
             Resolve pronouns in each subquery: "it" → the actual subject.
+
+            Use "search_only" for queries needing a direct web search answer, NOT news feeds:
+            weather, sports scores, stock prices, time zones, unit conversions, "what is X", definitions.
 
             Example: "What happens in Wuthering Heights and when was the latest movie made?"
             {
