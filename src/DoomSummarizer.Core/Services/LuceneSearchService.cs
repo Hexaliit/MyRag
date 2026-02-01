@@ -137,6 +137,9 @@ public sealed class LuceneSearchService : IDisposable
     /// - htmx AND "asp.net core" → boolean + phrase
     /// </summary>
     public List<LuceneSearchResult> Search(string query, string? sourceFilter = null, int limit = 50)
+        => Search(query, sourceFilter != null ? [sourceFilter] : null, limit);
+
+    public List<LuceneSearchResult> Search(string query, IReadOnlyList<string>? sourceFilters, int limit)
     {
         if (_searcher == null || string.IsNullOrWhiteSpace(query))
             return [];
@@ -156,19 +159,7 @@ public sealed class LuceneSearchService : IDisposable
                 PhraseSlop = 2       // Phrase proximity tolerance
             };
 
-            var luceneQuery = parser.Parse(EscapeSpecialChars(query));
-
-            // Add source filter if specified
-            if (!string.IsNullOrEmpty(sourceFilter))
-            {
-                var sourceQuery = new TermQuery(new Term(FieldSource, sourceFilter));
-                var boolQuery = new BooleanQuery
-                {
-                    { luceneQuery, Occur.MUST },
-                    { sourceQuery, Occur.MUST }
-                };
-                luceneQuery = boolQuery;
-            }
+            var luceneQuery = ApplySourceFilter(parser.Parse(EscapeSpecialChars(query)), sourceFilters);
 
             var topDocs = _searcher.Search(luceneQuery, limit);
 
@@ -188,38 +179,33 @@ public sealed class LuceneSearchService : IDisposable
         catch (ParseException)
         {
             // Query syntax error — fall back to simple term query
-            return SearchSimple(query, sourceFilter, limit);
+            return SearchSimple(query, sourceFilters, limit);
         }
     }
 
     /// <summary>
     /// Simple search without query parsing (for fallback).
     /// </summary>
-    private List<LuceneSearchResult> SearchSimple(string query, string? sourceFilter, int limit)
+    private List<LuceneSearchResult> SearchSimple(string query, IReadOnlyList<string>? sourceFilters, int limit)
     {
         if (_searcher == null) return [];
 
         var terms = query.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (terms.Length == 0) return [];
 
-        var boolQuery = new BooleanQuery();
+        var contentQuery = new BooleanQuery();
         foreach (var term in terms)
         {
-            // Add fuzzy query for each term across all fields
             foreach (var field in new[] { FieldTitle, FieldKeywords, FieldContent })
             {
                 var boost = FieldBoosts.GetValueOrDefault(field, 1.0f);
                 var fuzzyQuery = new FuzzyQuery(new Term(field, term), 2) { Boost = boost };
-                boolQuery.Add(fuzzyQuery, Occur.SHOULD);
+                contentQuery.Add(fuzzyQuery, Occur.SHOULD);
             }
         }
 
-        if (!string.IsNullOrEmpty(sourceFilter))
-        {
-            boolQuery.Add(new TermQuery(new Term(FieldSource, sourceFilter)), Occur.MUST);
-        }
-
-        var topDocs = _searcher.Search(boolQuery, limit);
+        var finalQuery = ApplySourceFilter(contentQuery, sourceFilters);
+        var topDocs = _searcher.Search(finalQuery, limit);
 
         return topDocs.ScoreDocs.Select(sd =>
         {
@@ -240,15 +226,17 @@ public sealed class LuceneSearchService : IDisposable
     /// Appends ~ to terms that look like they could benefit from fuzzy matching.
     /// </summary>
     public List<LuceneSearchResult> SearchWithFuzzy(string query, string? sourceFilter = null, int limit = 50)
+        => SearchWithFuzzy(query, sourceFilter != null ? [sourceFilter] : null, limit);
+
+    public List<LuceneSearchResult> SearchWithFuzzy(string query, IReadOnlyList<string>? sourceFilters, int limit)
     {
-        // Enhance query with fuzzy matching for longer terms
         var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var enhanced = string.Join(" ", terms.Select(t =>
             t.Length >= 4 && !t.Contains('~') && !t.Contains('"') && !t.Contains(':')
                 ? $"{t}~"
                 : t));
 
-        return Search(enhanced, sourceFilter, limit);
+        return Search(enhanced, sourceFilters, limit);
     }
 
     /// <summary>
@@ -256,6 +244,9 @@ public sealed class LuceneSearchService : IDisposable
     /// Uses PrefixQuery on title and keywords fields for fast autocomplete.
     /// </summary>
     public List<LuceneSearchResult> Suggest(string prefix, string? sourceFilter = null, int limit = 8)
+        => Suggest(prefix, sourceFilter != null ? [sourceFilter] : null, limit);
+
+    public List<LuceneSearchResult> Suggest(string prefix, IReadOnlyList<string>? sourceFilters, int limit)
     {
         if (_searcher == null || string.IsNullOrWhiteSpace(prefix))
             return [];
@@ -276,10 +267,8 @@ public sealed class LuceneSearchService : IDisposable
             boolQuery.Add(termBool, Occur.MUST);
         }
 
-        if (!string.IsNullOrEmpty(sourceFilter))
-            boolQuery.Add(new TermQuery(new Term(FieldSource, sourceFilter)), Occur.MUST);
-
-        var topDocs = _searcher.Search(boolQuery, limit);
+        var finalQuery = ApplySourceFilter(boolQuery, sourceFilters);
+        var topDocs = _searcher.Search(finalQuery, limit);
 
         // Deduplicate by title
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -319,6 +308,98 @@ public sealed class LuceneSearchService : IDisposable
         var query = new TermQuery(new Term(FieldId, id));
         var topDocs = _searcher.Search(query, 1);
         return topDocs.TotalHits > 0;
+    }
+
+    /// <summary>
+    /// Check if an exact term exists in the content/title/keywords fields.
+    /// Uses TermQuery — no fuzzy matching, no stemming, no query parsing.
+    /// The term must be lowercased (StandardAnalyzer lowercases at index time).
+    /// </summary>
+    public bool ContainsTerm(string term, string? sourceFilter = null)
+        => ContainsTerm(term, sourceFilter != null ? [sourceFilter] : null);
+
+    public bool ContainsTerm(string term, IReadOnlyList<string>? sourceFilters)
+    {
+        if (_searcher == null || string.IsNullOrWhiteSpace(term)) return false;
+
+        var lowered = term.ToLowerInvariant();
+
+        // Check across all text fields — any hit means the term exists in the corpus
+        foreach (var field in new[] { FieldContent, FieldTitle, FieldKeywords })
+        {
+            var query = ApplySourceFilter(new TermQuery(new Term(field, lowered)), sourceFilters);
+            var topDocs = _searcher.Search(query, 1);
+            if (topDocs.TotalHits > 0) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Build a Lucene query clause for filtering by one or more source values (OR semantics).
+    /// Returns null if no sources specified.
+    /// </summary>
+    private static Query? BuildSourceIncludeFilter(IReadOnlyList<string>? sources)
+    {
+        if (sources is not { Count: > 0 }) return null;
+        if (sources.Count == 1) return new TermQuery(new Term(FieldSource, sources[0]));
+
+        var boolQuery = new BooleanQuery();
+        foreach (var s in sources)
+            boolQuery.Add(new TermQuery(new Term(FieldSource, s)), Occur.SHOULD);
+        return boolQuery;
+    }
+
+    /// <summary>
+    /// Wrap a content query with include/exclude source filters.
+    /// Supports <see cref="SourceFilterSet"/> for ^ exclusion syntax, KB exclusion,
+    /// and URL glob exclusions.
+    /// </summary>
+    private static Query ApplySourceFilter(Query contentQuery, IReadOnlyList<string>? sources)
+    {
+        var filterSet = SourceFilterSet.Parse(sources);
+        if (!filterSet.HasFilters) return contentQuery;
+
+        var boolQuery = new BooleanQuery { { contentQuery, Occur.MUST } };
+
+        if (filterSet.ExcludeKbSources)
+        {
+            if (filterSet.Include.Count > 0)
+            {
+                // Combo mode (e.g., --name web,docs): Lucene can't express
+                // "non-KB sources OR explicit KB includes OR web-validated".
+                // Skip source filtering in Lucene entirely — SQLite is authoritative
+                // for the combo case. Lucene still applies content matching + exclusions.
+            }
+            else
+            {
+                // Pure web mode: exclude KB source prefixes via PrefixQuery MUST_NOT.
+                // Web-validated items are handled at the SQLite layer (which feeds
+                // items into Lucene), so Lucene only sees already-eligible items.
+                foreach (var prefix in SourceFilterSet.KbPrefixes)
+                    boolQuery.Add(new PrefixQuery(new Term(FieldSource, prefix)), Occur.MUST_NOT);
+                boolQuery.Add(new TermQuery(new Term(FieldSource, SourceFilterSet.ManualTag)), Occur.MUST_NOT);
+            }
+        }
+        else
+        {
+            // Standard include: match any of these sources
+            var includeFilter = BuildSourceIncludeFilter(filterSet.Include);
+            if (includeFilter != null)
+                boolQuery.Add(includeFilter, Occur.MUST);
+        }
+
+        // Exclude: must NOT match these source tags
+        foreach (var excluded in filterSet.Exclude)
+            boolQuery.Add(new TermQuery(new Term(FieldSource, excluded)), Occur.MUST_NOT);
+
+        // URL glob exclusions
+        foreach (var glob in filterSet.UrlExcludes)
+            boolQuery.Add(
+                new WildcardQuery(new Term(FieldUrl, glob.ToLowerInvariant())),
+                Occur.MUST_NOT);
+
+        return boolQuery;
     }
 
     /// <summary>

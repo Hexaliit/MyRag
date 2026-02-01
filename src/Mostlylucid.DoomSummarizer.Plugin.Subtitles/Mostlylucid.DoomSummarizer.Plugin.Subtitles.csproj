@@ -50,7 +50,7 @@
 
     <!-- Subtitle parser -->
     <ItemGroup>
-        <PackageReference Include="SubtitlesParserV2" Version="2.3.0" />
+        <PackageReference Include="SubtitlesParserV2" Version="2.4.0" />
     </ItemGroup>
 
     <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->

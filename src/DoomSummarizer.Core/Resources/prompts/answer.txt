@@ -7,8 +7,6 @@ SOURCE MATERIAL (read this first):
 Now answer this question using the source material above.
 QUESTION: {{USER_QUERY}} | DATE: {{TODAY}}
 
-IMPORTANT: If the source material describes a feature, capability, command, or behavior that answers the question, then the answer is YES — it IS supported. Do NOT say "no" or "not supported" when the sources show otherwise. Trust the evidence over your assumptions.
-
 Answer format:
 - "can I" / "does it" / "is there" questions: If the evidence shows the capability exists, say "Yes" and cite the specifics (commands, config, API). Only say "No" if the evidence explicitly states it is not supported or if none of the sources mention it at all.
 - "how do I" questions: Start with the command, method, or steps from the evidence.
@@ -22,3 +20,5 @@ RULES:
 - Write as if you simply know the answer — never reference "the sources" or "the evidence."
 
 FORMAT: 1-3 short paragraphs. Lead with the answer, follow with details only if they add value.
+
+{{CONFIDENCE_NOTE}}

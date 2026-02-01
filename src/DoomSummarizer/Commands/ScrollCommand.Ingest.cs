@@ -166,7 +166,7 @@ public sealed partial class ScrollCommand
             return (sourceTag, existing.Count, cachedDocType);
         }
 
-        var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, ct: ct);
+        using var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, collectionName: collectionName, ct: ct);
 
         // Set up document handlers
         var handlers = new Mostlylucid.DocSummarizer.Services.DocumentHandlerRegistry();
@@ -176,12 +176,6 @@ public sealed partial class ScrollCommand
         var increment = files.Count > 0 ? 80.0 / files.Count : 80.0;
         var detectedDocType = IngestDocumentType.Unknown;
         var docTypeDetected = false;
-
-        // Set up Lucene index for the collection
-        var lucenePath = Path.Combine(boot.Storage.DataPath, "lucene", collectionName);
-        Directory.CreateDirectory(lucenePath);
-        using var lucene = new LuceneSearchService(lucenePath);
-        lucene.Open();
 
         // Collect all items for batch embedding
         var pendingItems = new List<(ContentItem item, string embedText)>();
@@ -237,11 +231,7 @@ public sealed partial class ScrollCommand
                         FetchedAt = DateTimeOffset.UtcNow
                     };
 
-                    // TreeRAG: include hierarchical context in embedding text
-                    // This helps embeddings capture section-level meaning
-                    var textToEmbed = $"{chunk.title}: {chunk.text}".Trim();
-                    if (textToEmbed.Length > 1500)
-                        textToEmbed = textToEmbed[..1500];
+                    var textToEmbed = ItemProcessor.PrepareEmbeddingText(chunk.title, chunk.text);
 
                     pendingItems.Add((item, textToEmbed));
                 }
@@ -275,11 +265,10 @@ public sealed partial class ScrollCommand
             // Batch index: single DB transaction for all items (instead of 3 ops × N items)
             progressTask.Description = $"[cyan]Indexing {allItems.Count} chunks[/]";
             await processor.IndexBatchAsync(allItems);
-            lucene.IndexItems(allItems);
             totalIngested = allItems.Count;
         }
 
-        lucene.Commit();
+        processor.CommitLucene();
 
         // NER entity extraction: extract character names, locations, organizations from chunks.
         // For fiction, this populates the knowledge graph with character names so queries about
@@ -298,7 +287,7 @@ public sealed partial class ScrollCommand
                     foreach (var (item, _) in pendingItems)
                     {
                         ct.ThrowIfCancellationRequested();
-                        var textForNer = $"{item.Title} {item.Content?[..Math.Min(item.Content.Length, 2000)] ?? ""}";
+                        var textForNer = ItemProcessor.PrepareNerText(item.Title, item.Content);
                         var entities = await nerService.ExtractEntitiesAsync(textForNer, ct);
                         if (entities.Count > 0)
                         {

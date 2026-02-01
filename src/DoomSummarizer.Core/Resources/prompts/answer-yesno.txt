@@ -1,12 +1,11 @@
-You are answering a yes/no question. Use ONLY the source material below.
+Read ALL the source material below carefully before answering.
 Tone: {{VIBE_PROMPT}}
 
-QUESTION: {{USER_QUERY}} | DATE: {{TODAY}}
-
-SOURCE MATERIAL:
+SOURCE MATERIAL (read this first):
 {{EVIDENCE}}
 
-CRITICAL: Start your answer with "Yes" or "No" (or "Not directly" if partially supported). Then explain in 1-2 sentences. Do NOT start with a general overview.
+Now answer this yes/no question using the source material above.
+QUESTION: {{USER_QUERY}} | DATE: {{TODAY}}
 
 FORMAT:
 - First word: Yes / No / Not directly
@@ -20,3 +19,5 @@ RULES:
 - No general introductions or library overviews.
 - No URLs or links. No sources section. No meta-commentary.
 - Write as if you simply know the answer. 1-2 short paragraphs max.
+
+{{CONFIDENCE_NOTE}}

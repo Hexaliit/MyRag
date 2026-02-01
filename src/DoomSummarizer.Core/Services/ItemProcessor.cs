@@ -5,21 +5,34 @@ using Mostlylucid.DocSummarizer.Services.Onnx;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Consolidates per-item enrichment patterns shared across ScrollCommand, CrawlCommand, and PageCommand:
-/// sentiment/topic scoring, keyword indexing, batch indexing, and entity graph persistence.
+/// Single ingestion pipeline for all content paths (scroll, crawl, man, page).
+/// Every IndexItemAsync / IndexBatchAsync call goes through the same steps:
+///   1. Extract keywords (DocumentProfileService)
+///   2. Save to SQLite
+///   3. Index to FTS5
+///   4. Update keyword corpus
+///   5. Index to Lucene (if collection name provided)
 /// </summary>
-public sealed class ItemProcessor
+public sealed class ItemProcessor : IDisposable
 {
     private readonly float[] _positiveAnchor;
     private readonly float[] _negativeAnchor;
     private readonly Dictionary<string, float[]> _topicAnchors;
     private readonly StorageService _storage;
     private readonly IEntityGraphStore? _entityStore;
+    private readonly LuceneSearchService? _lucene;
+    private bool _luceneDirty;
 
     /// <summary>
     /// Async factory: pre-computes sentiment and topic anchor embeddings once.
+    /// Pass collectionName to enable Lucene indexing on every IndexItemAsync/IndexBatchAsync call.
     /// </summary>
-    public static async Task<ItemProcessor> CreateAsync(IEmbeddingService embedding, StorageService storage, IEntityGraphStore? entityStore = null, CancellationToken ct = default)
+    public static async Task<ItemProcessor> CreateAsync(
+        IEmbeddingService embedding,
+        StorageService storage,
+        IEntityGraphStore? entityStore = null,
+        string? collectionName = null,
+        CancellationToken ct = default)
     {
         // Batch-embed all anchors in a single ONNX call (instead of 2 + N sequential calls)
         var topicKeys = RelevanceScorer.TopicAnchorTexts.Keys.ToList();
@@ -38,16 +51,33 @@ public sealed class ItemProcessor
         for (var i = 0; i < topicKeys.Count; i++)
             topicAnchors[topicKeys[i]] = allEmbeddings[i + 2];
 
-        return new ItemProcessor(positiveAnchor, negativeAnchor, topicAnchors, storage, entityStore);
+        // Open Lucene writer if collection name provided
+        LuceneSearchService? lucene = null;
+        if (!string.IsNullOrEmpty(collectionName))
+        {
+            var lucenePath = Path.Combine(storage.DataPath, "lucene", collectionName);
+            Directory.CreateDirectory(lucenePath);
+            lucene = new LuceneSearchService(lucenePath);
+            lucene.Open();
+        }
+
+        return new ItemProcessor(positiveAnchor, negativeAnchor, topicAnchors, storage, entityStore, lucene);
     }
 
-    private ItemProcessor(float[] positiveAnchor, float[] negativeAnchor, Dictionary<string, float[]> topicAnchors, StorageService storage, IEntityGraphStore? entityStore = null)
+    private ItemProcessor(
+        float[] positiveAnchor,
+        float[] negativeAnchor,
+        Dictionary<string, float[]> topicAnchors,
+        StorageService storage,
+        IEntityGraphStore? entityStore,
+        LuceneSearchService? lucene = null)
     {
         _storage = storage;
         _entityStore = entityStore;
         _positiveAnchor = positiveAnchor;
         _negativeAnchor = negativeAnchor;
         _topicAnchors = topicAnchors;
+        _lucene = lucene;
     }
 
     /// <summary>
@@ -69,8 +99,7 @@ public sealed class ItemProcessor
     }
 
     /// <summary>
-    /// Per-item keyword profile extraction, FTS5 indexing, and corpus update.
-    /// Used by CrawlCommand and PageCommand.
+    /// Full per-item indexing: keywords → SQLite → FTS5 → keyword corpus → Lucene.
     /// </summary>
     public async Task IndexItemAsync(ContentItem item)
     {
@@ -82,11 +111,17 @@ public sealed class ItemProcessor
         var contentPreview = item.Content ?? "";
         await _storage.IndexDocumentFtsAsync(item.Id, item.Title, profile.KeywordsText, contentPreview);
         await _storage.UpdateKeywordCorpusAsync(profile.TopKeywords.Select(k => k.Keyword));
+
+        // Lucene — same step for every caller
+        if (_lucene != null)
+        {
+            _lucene.IndexItem(item);
+            _luceneDirty = true;
+        }
     }
 
     /// <summary>
-    /// Batch keyword extraction + FTS5 indexing via single transaction.
-    /// Used by ScrollCommand.
+    /// Batch indexing: keywords → SQLite + FTS5 → Lucene.
     /// </summary>
     public async Task IndexBatchAsync(List<ContentItem> items)
     {
@@ -99,11 +134,42 @@ public sealed class ItemProcessor
         }).ToList();
 
         await _storage.SaveAndIndexBatchAsync(batchEntries);
+
+        // Lucene — same step for every caller
+        if (_lucene != null)
+        {
+            _lucene.IndexItems(items);
+            _luceneDirty = true;
+        }
+    }
+
+    /// <summary>
+    /// Index items into Lucene only (no SQLite save). Used for URL-cached items
+    /// that are already in storage but need to appear in the current collection's Lucene index.
+    /// Idempotent: Lucene UpdateDocument handles duplicates by ID.
+    /// </summary>
+    public void EnsureInLucene(IEnumerable<ContentItem> items)
+    {
+        if (_lucene == null) return;
+        _lucene.IndexItems(items);
+        _luceneDirty = true;
+    }
+
+    /// <summary>
+    /// Commit pending Lucene writes to disk. Call after a batch of IndexItemAsync/IndexBatchAsync calls.
+    /// Also called automatically on Dispose.
+    /// </summary>
+    public void CommitLucene()
+    {
+        if (_lucene != null && _luceneDirty)
+        {
+            _lucene.Commit();
+            _luceneDirty = false;
+        }
     }
 
     /// <summary>
     /// Deduplicate entities by name, persist to SQLite knowledge graph, and build co-occurrence edges.
-    /// Used by ScrollCommand and CrawlCommand.
     /// </summary>
     public async Task PersistEntitiesAsync(ContentItem item, List<NerEntity> entities)
     {
@@ -146,5 +212,47 @@ public sealed class ItemProcessor
             "ars" or "verge" => "technology",
             _ => "general"
         };
+    }
+
+    // ── Shared text-preparation utilities ──────────────────────────────
+    // Used by all ingestion paths (crawl, scroll, man, page) so every item
+    // is embedded, NER'd, and hashed with identical logic.
+
+    public const int EmbeddingMaxChars = 1500;
+    public const int NerMaxChars = 2000;
+
+    /// <summary>
+    /// Format text for embedding: "Title: Content", truncated to <see cref="EmbeddingMaxChars"/>.
+    /// Colon separator matches TreeRAG hierarchical context format.
+    /// </summary>
+    public static string PrepareEmbeddingText(string? title, string? content)
+    {
+        var text = $"{title}: {content ?? ""}".Trim();
+        return text.Length > EmbeddingMaxChars ? text[..EmbeddingMaxChars] : text;
+    }
+
+    /// <summary>
+    /// Format text for NER entity extraction: "Title Content[..maxChars]".
+    /// Space separator (not colon) so NER doesn't confuse punctuation with entities.
+    /// </summary>
+    public static string PrepareNerText(string? title, string? content, int maxChars = NerMaxChars)
+    {
+        var truncatedContent = content != null && content.Length > maxChars
+            ? content[..maxChars]
+            : content ?? "";
+        return $"{title} {truncatedContent}";
+    }
+
+    /// <summary>
+    /// Compute content hash for cache comparison (ETag fallback).
+    /// Uses XxHash64 via shared ContentHasher — fast, non-cryptographic.
+    /// </summary>
+    public static string ComputeContentHash(string content)
+        => Mostlylucid.Summarizer.Core.Utilities.ContentHasher.ComputeHash(content);
+
+    public void Dispose()
+    {
+        CommitLucene();
+        _lucene?.Dispose();
     }
 }

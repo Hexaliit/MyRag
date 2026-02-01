@@ -1,57 +1,17 @@
-# Manual corpus manifest — defines documentation to index
-# Other projects can ship their own manifest files in this format.
+# Manual corpus manifest — seed URL for documentation crawl.
+# The crawler starts at seed_url and follows markdown links to discover docs.
+# Other projects can ship their own manifest with a different seed_url.
 name: doomsummarizer-manual
-version: "1.0"
+version: "2.0"
 description: "DoomSummarizer built-in documentation"
-base_url: "https://raw.githubusercontent.com/scottgal/lucidrag/main"
 
-documents:
-  # DoomSummarizer CLI docs (primary user-facing)
-  - path: src/DoomSummarizer/docs/CLI.md
-    title: "CLI Command Reference"
-    tags: [cli, commands, usage]
+# GitHub repo URL — crawler auto-detects GitHub and enables raw markdown mode.
+# Starts at the README and follows links to discover all docs.
+seed_url: "https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md"
 
-  - path: src/DoomSummarizer/docs/Architecture.md
-    title: "Architecture Overview"
-    tags: [architecture, design]
+# Optional: restrict crawl to paths matching this glob (null = follow all links)
+# path_filter: /scottgal/lucidrag/src/DoomSummarizer/**
 
-  - path: src/DoomSummarizer/docs/KnowledgeBase.md
-    title: "Knowledge Base System"
-    tags: [kb, storage, sqlite, lucene]
-
-  - path: src/DoomSummarizer/docs/Config.md
-    title: "Configuration Guide"
-    tags: [config, setup, settings]
-
-  - path: src/DoomSummarizer/docs/CloudLLM.md
-    title: "Cloud LLM Providers"
-    tags: [llm, anthropic, openai, cloud]
-
-  - path: src/DoomSummarizer/docs/Sources.md
-    title: "Source Plugins"
-    tags: [sources, plugins, feeds]
-
-  - path: src/DoomSummarizer/docs/Templates.md
-    title: "Template System"
-    tags: [templates, output, formatting]
-
-  - path: src/DoomSummarizer/docs/MCP.md
-    title: "MCP Server Integration"
-    tags: [mcp, tools, ide]
-
-  - path: src/DoomSummarizer/docs/Automation.md
-    title: "Automation & Scripting"
-    tags: [automation, scripting, cron]
-
-  - path: src/DoomSummarizer/docs/Troubleshooting.md
-    title: "Troubleshooting Guide"
-    tags: [troubleshooting, errors, faq]
-
-  # Project-level docs
-  - path: src/DoomSummarizer/README.md
-    title: "DoomSummarizer README"
-    tags: [readme, quickstart, overview]
-
-  - path: src/DoomSummarizer.Core/README.md
-    title: "DoomSummarizer Core Library"
-    tags: [core, library, pipeline]
+# Crawl limits
+max_depth: 3
+max_pages: 50

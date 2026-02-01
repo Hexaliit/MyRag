@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Channels;
 using DoomSummarizer.Commands;
 using DoomSummarizer.Models;
@@ -94,6 +92,7 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
             }
 
             var newItems = new List<ContentItem>();
+            var urlCachedItems = new List<ContentItem>();
             var httpNotModifiedCount = 0;
             var contentHashCachedCount = 0;
             var capturedHeaders = new Dictionary<string, (string? etag, string? lastModified)>(StringComparer.OrdinalIgnoreCase);
@@ -137,12 +136,25 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
 
                 if (!settings.Force && !string.IsNullOrEmpty(item.Url) && !string.IsNullOrEmpty(item.Content))
                 {
-                    var contentHash = ComputeContentHash(item.Content);
+                    var contentHash = ItemProcessor.ComputeContentHash(item.Content);
                     if (await boot.Storage.IsContentUnchangedAsync(item.Url, contentHash))
                     {
                         contentHashCachedCount++;
                         var (etag, lastMod) = capturedHeaders.TryGetValue(item.Url, out var h) ? h : (null, null);
                         await boot.Storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
+                        continue;
+                    }
+                }
+
+                // URL cache check: if this URL already exists in storage (from any source),
+                // web-validate it and collect for Lucene backfill instead of re-indexing
+                if (!settings.Force && !string.IsNullOrEmpty(item.Url))
+                {
+                    var existing = await boot.Storage.FindByUrlAsync(item.Url);
+                    if (existing != null)
+                    {
+                        await boot.Storage.WebValidateByUrlAsync(item.Url);
+                        urlCachedItems.Add(existing.ToContentItem());
                         continue;
                     }
                 }
@@ -171,9 +183,7 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
             for (var i = 0; i < newItems.Count; i++)
             {
                 var item = newItems[i];
-                var textToEmbed = $"{item.Title}: {item.Content ?? ""}".Trim();
-                if (textToEmbed.Length > 1500)
-                    textToEmbed = textToEmbed[..1500];
+                var textToEmbed = ItemProcessor.PrepareEmbeddingText(item.Title, item.Content);
                 item.Embedding = await boot.Embedding.EmbedAsync(textToEmbed, ct);
 
                 if ((i + 1) % 5 == 0 || i == newItems.Count - 1)
@@ -185,11 +195,11 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
                 }
             }
 
-            var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, ct);
+            using var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, collectionName: kbName, ct: ct);
 
             // Stage 3: NER entity extraction (optional)
             var articleEntityMap = new List<(ContentItem item, List<NerEntity> entities)>();
-            if (settings.Entities)
+            if (!settings.NoEntities)
             {
                 using var nerService = new NerService();
                 if (nerService.IsAvailable)
@@ -198,7 +208,7 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
                     for (var i = 0; i < newItems.Count; i++)
                     {
                         var item = newItems[i];
-                        var textForNer = $"{item.Title} {item.Content?[..Math.Min(item.Content.Length, 1000)] ?? ""}";
+                        var textForNer = ItemProcessor.PrepareNerText(item.Title, item.Content);
                         var entities = await nerService.ExtractEntitiesAsync(textForNer);
                         if (entities.Count > 0)
                         {
@@ -235,7 +245,7 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
 
                 if (!string.IsNullOrEmpty(item.Url) && !string.IsNullOrEmpty(item.Content))
                 {
-                    var contentHash = ComputeContentHash(item.Content);
+                    var contentHash = ItemProcessor.ComputeContentHash(item.Content);
                     var (etag, lastMod) = capturedHeaders.TryGetValue(item.Url, out var h) ? h : (null, null);
                     await boot.Storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
                 }
@@ -249,6 +259,26 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
                         $"Saving to KB '{kbName}' {i + 1}/{newItems.Count}",
                         i + 1, newItems.Count, Volatile.Read(ref sharedCounter[0])));
                 }
+            }
+
+            // Compensate: URL-cached items need Lucene indexing for this collection.
+            // Also backfill from storage to keep the index populated.
+            if (urlCachedItems.Count > 0)
+            {
+                processor.EnsureInLucene(urlCachedItems);
+
+                var sourceTag = $"crawl:{kbName}";
+                var shortfall = Math.Min(urlCachedItems.Count, settings.MaxPages - newItems.Count);
+                if (shortfall > 0)
+                {
+                    var storedItems = await boot.Storage.GetItemsBySourceAsync(sourceTag, limit: shortfall);
+                    processor.EnsureInLucene(storedItems.Select(s => s.ToContentItem()));
+                }
+
+                writer.TryWrite(new CrawlProgressUpdate(
+                    CrawlStage.Saving,
+                    $"Backfilled {urlCachedItems.Count} cached items into Lucene",
+                    newItems.Count, newItems.Count, Volatile.Read(ref sharedCounter[0])));
             }
 
             // Stage 5: Persist entities
@@ -297,12 +327,6 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
         {
             writer.TryComplete();
         }
-    }
-
-    private static string ComputeContentHash(string content)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     public async ValueTask DisposeAsync()

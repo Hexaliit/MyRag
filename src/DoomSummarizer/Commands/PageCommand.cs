@@ -59,7 +59,7 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
         await using var boot = await CommandBootstrap.CreateAsync(ct);
         var ollama = boot.CreateOllama();
 
-        var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, ct: ct);
+        using var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, collectionName: "default", ct: ct);
 
         var ollamaAvailable = !settings.NoLlm && await ollama.IsAvailableAsync();
         if (!ollamaAvailable && !settings.NoLlm && !settings.Quiet)
@@ -149,7 +149,7 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
                 var processTask = ctx.AddTask("[cyan]Processing content[/]", maxValue: 100);
 
                 // Compute embedding
-                var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
+                var textToEmbed = ItemProcessor.PrepareEmbeddingText(item.Title, item.Content);
                 item.Embedding = await boot.Embedding.EmbedAsync(textToEmbed, ct);
                 processTask.Value = 30;
 

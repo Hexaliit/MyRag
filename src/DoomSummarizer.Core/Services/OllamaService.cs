@@ -261,6 +261,7 @@ public partial class OllamaService
         bool forceAnswer = false,
         string? promptTemplate = null,
         SentinelIntent? sentinelIntent = null,
+        List<string>? missingTerms = null,
         CancellationToken ct = default)
     {
         var today = DateTime.Now.ToString("MMMM d, yyyy");
@@ -303,12 +304,30 @@ public partial class OllamaService
                 }).ToList();
             }
 
+            // Confidence + re-ranking both need the query embedding — compute once.
+            double? avgQuerySimilarity = null;
+            float[]? queryEmb = embedder != null ? embedder(userQuery) : null;
+
+            // Confidence: use raw pipeline embeddings (ContentItem.Embedding) which reflect
+            // the actual indexed content, not re-embedded title+summary which inflates similarity.
+            if (queryEmb != null && contentItems != null)
+            {
+                var matchedItems = topItems
+                    .Select(ti => contentItems.FirstOrDefault(c => c.Url == ti.url || c.Title == ti.title))
+                    .Where(c => c?.Embedding != null)
+                    .Take(5)
+                    .ToList();
+
+                if (matchedItems.Count > 0)
+                    avgQuerySimilarity = matchedItems
+                        .Average(c => (double)VectorMath.CosineSimilarity(queryEmb, c!.Embedding!));
+            }
+
             // Re-rank by semantic similarity to query when embedder is available.
             // This promotes the most query-relevant items to the top of the evidence
             // without discarding items (the upstream ScoreFast/ScoreFull already gated).
-            if (embedder != null && topItems.Count > 1)
+            if (queryEmb != null && topItems.Count > 1)
             {
-                var queryEmb = embedder(userQuery);
                 var itemTexts = topItems.Select(item => $"{item.title} {item.summary}").ToArray();
 
                 // Batch-embed all item texts at once when batch embedder is available
@@ -392,12 +411,37 @@ public partial class OllamaService
                 return "### Answer\nNo relevant evidence found for this query. Try a more specific search or different sources.\n";
             }
 
+            // Term verification is the strongest signal: if the sentinel/NER extracted
+            // specific terms from the query and Lucene found zero hits in the corpus,
+            // those terms are definitively not covered by the evidence.
+            var confidenceNote = "";
+            if (missingTerms is { Count: > 0 })
+            {
+                var termList = string.Join(", ", missingTerms.Select(t => $"\"{t}\""));
+                confidenceNote = $"IMPORTANT: The following terms from the question do NOT appear anywhere in the source material: {termList}. " +
+                    "Do NOT claim support for features, formats, or concepts that are not mentioned. " +
+                    "If the question is specifically about one of these missing terms, say \"No\" or \"Not directly\" and explain what IS supported instead.";
+            }
+            else
+            {
+                // Fallback: use query similarity (semantic match) for confidence.
+                // MiniLM cosine similarity ranges: strong >0.50, decent 0.30-0.50, weak <0.30
+                var matchConfidence = avgQuerySimilarity ?? topItems.Average(i => i.relevance);
+                confidenceNote = matchConfidence switch
+                {
+                    >= 0.50 => "",
+                    >= 0.30 => "NOTE: The source material is only a partial match. If the question asks about a specific format, feature, or term, check whether that EXACT term appears in the evidence. Do NOT say 'Yes' for something the evidence never mentions by name.",
+                    _ => $"NOTE: The source material is a weak match for this question. Start your answer with: \"I don't have a strong match for that question, but here's what I found in the {(topItems.Count == 1 ? "closest source" : $"{topItems.Count} closest sources")}:\" Then summarize what the sources actually cover."
+                };
+            }
+
             var templateVars = new Dictionary<string, object?>
             {
                 ["VIBE_PROMPT"] = vibePrompt,
                 ["USER_QUERY"] = userQuery,
                 ["TODAY"] = today,
-                ["EVIDENCE"] = evidence.ToString()
+                ["EVIDENCE"] = evidence.ToString(),
+                ["CONFIDENCE_NOTE"] = confidenceNote
             };
 
             // Template selection priority:

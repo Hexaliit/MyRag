@@ -67,9 +67,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [Description("Output as JSON (for LLM tool consumption)")]
         public bool Json { get; init; }
 
-        [CommandOption("--entities")]
-        [Description("Enable NER entity extraction")]
-        public bool Entities { get; init; }
+        [CommandOption("--no-entities")]
+        [Description("Disable NER entity extraction (enabled by default)")]
+        public bool NoEntities { get; init; }
 
         [CommandOption("--graph")]
         [Description("Enable knowledge graph build and display")]
@@ -629,6 +629,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         var extractEntities = false;
         var linkCacheHits = 0;
         var linksSkippedByRelevance = 0;
+        List<string>? missingTerms = null; // Terms from query not found in corpus (Lucene verified)
 
         await AnsiConsole.Progress()
             .Columns(
@@ -652,17 +653,27 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 {
                     var localQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
 
-                    // Derive source filter: ingested files take priority, then --name, then --source
+                    // Derive source filter: ingested files take priority, then --name + --source merge
                     string? sourceFilter = ingestedSourceFilter;
                     if (sourceFilter == null && !string.IsNullOrWhiteSpace(settings.Name))
                     {
+                        // Check if the name matches a known collection (crawl:X, page:X, file:X)
                         var collections = await boot.Storage.GetCollectionsAsync();
-                        var matchingCollection = collections.FirstOrDefault(c =>
-                            c.Source.Equals(settings.Name, StringComparison.OrdinalIgnoreCase) ||
-                            c.Source.Equals($"crawl:{settings.Name}", StringComparison.OrdinalIgnoreCase) ||
-                            c.Source.Equals($"page:{settings.Name}", StringComparison.OrdinalIgnoreCase) ||
-                            c.Source.Equals($"file:{settings.Name}", StringComparison.OrdinalIgnoreCase));
-                        sourceFilter = matchingCollection?.Source ?? $"crawl:{settings.Name}";
+                        var firstName = settings.Name.Split(',',
+                            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+                        var matchingCollection = firstName != null
+                            ? collections.FirstOrDefault(c =>
+                                c.Source.Equals(firstName, StringComparison.OrdinalIgnoreCase) ||
+                                c.Source.Equals($"crawl:{firstName}", StringComparison.OrdinalIgnoreCase) ||
+                                c.Source.Equals($"page:{firstName}", StringComparison.OrdinalIgnoreCase) ||
+                                c.Source.Equals($"file:{firstName}", StringComparison.OrdinalIgnoreCase))
+                            : null;
+
+                        // If the name resolves to a single known collection, use it directly
+                        if (matchingCollection != null && !settings.Name.Contains(','))
+                            sourceFilter = matchingCollection.Source;
+                        else
+                            sourceFilter = null; // Multi-name or unknown — handled by merged filter below
                     }
                     else if (sourceFilter == null)
                     {
@@ -756,10 +767,15 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             }
                         }
 
+                        // Build merged source filters for multi-name support
+                        var mergedSourceFilters = sourceFilter != null
+                            ? new[] { sourceFilter } as IReadOnlyList<string>
+                            : SourceFilterSet.MergeNameAndSource(settings.Name, settings.Sources);
+
                         var retrieval = new RetrievalPipeline(boot.Embedding, boot.Storage, boot.EntityStore);
                         var retrievalResult = await retrieval.SearchAsync(localQuery, new RetrievalOptions
                         {
-                            SourceFilter = sourceFilter,
+                            SourceFilters = mergedSourceFilters,
                             CollectionName = collectionName,
                             TopK = adaptiveTopK,
                             MinRelevance = adaptiveMinRelevance,
@@ -773,6 +789,17 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         }, cancellationToken);
 
                         items.AddRange(retrievalResult.Items);
+
+                        // Term verification: check if key content terms from the query exist in the corpus.
+                        // If Lucene returns zero hits for a specific term, the corpus has no knowledge
+                        // of it — a definitive signal that the LLM should not claim support.
+                        missingTerms = Core.Services.TermVerifier.Verify(
+                            localQuery, boot.Storage.DataPath, collectionName,
+                            sourceFilters: null, // KB queries check all sources in the collection
+                            interpreted?.SentinelIntent?.Entities,
+                            nerContext?.Entities?.Select(e => e.Text).ToList());
+                        if (missingTerms != null && settings.DebugPipeline)
+                            AnsiConsole.MarkupLine($"[grey]Term verification: missing from corpus: {Markup.Escape(string.Join(", ", missingTerms))}[/]");
                     }
                     else
                     {
@@ -1242,10 +1269,12 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 } // end normal fetch mode
 
                 // Stage 2: Deduplicate by URL (not embedding - topic queries have similar content)
+                // Also web-validates URLs found in storage — bridges source corpora with crawl KBs.
                 var dedupeTask = ctx.AddTask("[cyan]Deduplicating[/]", maxValue: items.Count);
                 uniqueItems.Clear(); // Use outer scope variable
                 var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var seenTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var webValidatedCount = 0;
 
                 foreach (var item in items)
                 {
@@ -1259,6 +1288,23 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                     if (!isDuplicate)
                     {
+                        // Web-validate: if this URL already exists in storage (from any source),
+                        // mark it as web-validated so it passes KB exclusion in future queries.
+                        if (!string.IsNullOrEmpty(item.Url))
+                        {
+                            var existing = await boot.Storage.FindByUrlAsync(item.Url);
+                            if (existing != null)
+                            {
+                                await boot.Storage.WebValidateByUrlAsync(item.Url);
+                                webValidatedCount++;
+                                // Use cached content if the fetched item lacks it
+                                if (string.IsNullOrEmpty(item.Content) && !string.IsNullOrEmpty(existing.Content))
+                                    item.Content = existing.Content;
+                                if (item.Embedding == null && existing.Embedding != null)
+                                    item.Embedding = EmbeddingCompat.FromBytes(existing.Embedding);
+                            }
+                        }
+
                         uniqueItems.Add(item);
                         if (!string.IsNullOrEmpty(normalizedUrl))
                             seenUrls.Add(normalizedUrl);
@@ -1268,7 +1314,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     dedupeTask.Increment(1);
                 }
 
-                dedupeTask.Description = $"[green]Found {uniqueItems.Count} unique items[/]";
+                var webValInfo = webValidatedCount > 0 ? $" ({webValidatedCount} web-validated)" : "";
+                dedupeTask.Description = $"[green]Found {uniqueItems.Count} unique items{webValInfo}[/]";
 
                 // Stage 2.1: Source domain filtering (allow/block lists)
                 if (boot.Config.SourceFilter.AllowedDomains.Count > 0 || boot.Config.SourceFilter.BlockedDomains.Count > 0)
@@ -1463,8 +1510,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         VibeText = scoringVibeText,
                         IsKnowledgeBase = isLocalMode,
                         QueryType = earlyQueryType,
-                        UseOutlierPenalty = true,
+                        UseOutlierPenalty = true, // Outlier penalty still useful to filter genuinely off-topic items
                         UseEmbeddingDedup = false, // Web-mode uses URL/title dedup instead
+                        RelaxScoringGates = isLocalMode, // KB queries need relaxed gates to survive second scoring pass
                     };
 
                     scoringResult = await scoringPipeline.ScoreItemsAsync(uniqueItems, scoringOpts, cancellationToken);
@@ -1795,7 +1843,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 analyzedItems = new List<(string title, string summary, string topic, float sentiment, string url, double relevance)>();
 
                 // Pre-compute anchor embeddings once for sentiment and topic inference
-                var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, cancellationToken);
+                using var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, ct: cancellationToken);
 
                 {
                     var itemsToAnalyze = uniqueItems.Take(settings.Limit).ToList();
@@ -1962,7 +2010,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 allEntities = new List<NerEntity>();
                 articleEntityMap = new List<(ContentItem item, List<NerEntity> entities)>();
                 // Auto-enable entity extraction when GraphScope is Global or Connective (GraphRAG scope detection)
-                extractEntities = settings.Entities
+                extractEntities = !settings.NoEntities
                     || (interpreted?.GraphScope is GraphScope.Global or GraphScope.Connective);
 
                 if (extractEntities)
@@ -2387,7 +2435,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             analyzedItems, vibe, vibePrompt, userQuery, uniqueItems,
                             embedder: text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(),
                             batchEmbedder: texts => boot.Embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult(),
-                            sentinelIntent: interpreted?.SentinelIntent);
+                            sentinelIntent: interpreted?.SentinelIntent,
+                            missingTerms: missingTerms);
                     }
                 }
                 else

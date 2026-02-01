@@ -98,6 +98,12 @@ public record StoredItem
     public string? UnitLevel { get; init; }
 
     /// <summary>
+    /// Timestamp when a web search confirmed this URL still exists online.
+    /// KB items with a recent WebValidatedAt are included in general queries.
+    /// </summary>
+    public DateTimeOffset? WebValidatedAt { get; init; }
+
+    /// <summary>
     /// Convert a stored item back to a ContentItem for ranking/display.
     /// </summary>
     public ContentItem ToContentItem() => new()

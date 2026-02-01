@@ -1,6 +1,4 @@
 using System.ComponentModel;
-using System.Security.Cryptography;
-using System.Text;
 using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Services.Transcription;
 using DoomSummarizer.Helpers;
@@ -40,6 +38,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         [CommandOption("-n|--name")]
         [Description("Knowledge base name (used to query later)")]
         public string? Name { get; init; }
+        
 
         [CommandOption("-d|--depth")]
         [Description("Maximum crawl depth from seed URL")]
@@ -65,9 +64,9 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         [Description("URL path filter pattern (e.g., /blog/* or /docs/*). Only pages matching this pattern are indexed.")]
         public string? Glob { get; init; }
 
-        [CommandOption("--entities")]
-        [Description("Enable NER entity extraction and persist to knowledge graph")]
-        public bool Entities { get; init; }
+        [CommandOption("--no-entities")]
+        [Description("Disable NER entity extraction (enabled by default)")]
+        public bool NoEntities { get; init; }
 
         [CommandOption("-f|--force")]
         [Description("Re-process all pages regardless of cache (default: skip unchanged pages)")]
@@ -100,11 +99,24 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
             return 1;
         }
 
+        // Check for built-in source overlap — warn if this URL is already covered
+        if (isUrl)
+        {
+            var overlap = GetBuiltInSourceForUrl(settings.Url);
+            if (overlap != null)
+            {
+                AnsiConsole.MarkupLine($"[yellow]Reminder:[/] [bold]{Markup.Escape(settings.Url)}[/] is already covered by the built-in [cyan]{overlap}[/] source.");
+                AnsiConsole.MarkupLine($"[grey]The built-in source applies rate limiting and politeness. Use:[/] doomsummarizer scroll \"your query\" [grey](auto-routes to {overlap})[/]");
+                AnsiConsole.MarkupLine($"[grey]Continuing with crawl — the crawler's adaptive delay will apply.[/]");
+                AnsiConsole.WriteLine();
+            }
+        }
+
         // Derive KB name from source
         var kbName = settings.Name ?? (isUrl ? CollectionNaming.FromUrl(settings.Url!) : CollectionNaming.Auto(settings.Url!));
 
         await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
-        if (settings.Entities)
+        if (!settings.NoEntities)
             await boot.InitializeEntityGraphStoreAsync();
 
         // YouTube URL: extract metadata + subtitles (no web crawl needed)
@@ -152,6 +164,8 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
         // Track both new/changed items and cached (unchanged) items
         var newItems = new List<Models.ContentItem>();
+        // URL-cached items: already in storage, need Lucene indexing for this collection
+        var urlCachedItems = new List<Models.ContentItem>();
         // Separate counters for HTTP 304 vs content-hash match
         var httpNotModifiedCount = 0;
         var contentHashCachedCount = 0;
@@ -214,13 +228,26 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                     // Content hash fallback: for servers that don't support ETags
                     if (!settings.Force && !string.IsNullOrEmpty(item.Url) && !string.IsNullOrEmpty(item.Content))
                     {
-                        var contentHash = ComputeContentHash(item.Content);
+                        var contentHash = ItemProcessor.ComputeContentHash(item.Content);
                         if (await boot.Storage.IsContentUnchangedAsync(item.Url, contentHash))
                         {
                             contentHashCachedCount++;
                             // Update cache: bump hit count + store any new ETags from this response
                             var (etag, lastMod) = capturedHeaders.TryGetValue(item.Url, out var h) ? h : (null, null);
                             await boot.Storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
+                            continue;
+                        }
+                    }
+
+                    // URL cache check: if this URL already exists in storage (from any source),
+                    // web-validate it and collect for Lucene backfill instead of re-indexing
+                    if (!settings.Force && !string.IsNullOrEmpty(item.Url))
+                    {
+                        var existing = await boot.Storage.FindByUrlAsync(item.Url);
+                        if (existing != null)
+                        {
+                            await boot.Storage.WebValidateByUrlAsync(item.Url);
+                            urlCachedItems.Add(existing.ToContentItem());
                             continue;
                         }
                     }
@@ -245,21 +272,19 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
                 foreach (var item in newItems)
                 {
-                    var textToEmbed = $"{item.Title}: {item.Content ?? ""}".Trim();
-                    if (textToEmbed.Length > 1500)
-                        textToEmbed = textToEmbed[..1500];
+                    var textToEmbed = ItemProcessor.PrepareEmbeddingText(item.Title, item.Content);
                     item.Embedding = await boot.Embedding.EmbedAsync(textToEmbed, cancellationToken);
                     embedTask.Increment(1);
                 }
 
                 embedTask.Description = $"[green]Embedded {newItems.Count} pages[/]";
 
-                var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, cancellationToken);
+                using var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, collectionName: kbName, ct: cancellationToken);
 
                 // Stage 3: NER entity extraction (optional)
                 // Entity persistence is deferred to after Stage 4 (item save) to avoid FK violations
                 var articleEntityMap = new List<(Models.ContentItem item, List<NerEntity> entities)>();
-                if (settings.Entities)
+                if (!settings.NoEntities)
                 {
                     var nerTask = ctx.AddTask("[cyan]Extracting entities[/]", maxValue: newItems.Count);
                     using var nerService = new NerService();
@@ -268,7 +293,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                         await nerService.InitializeAsync();
                         foreach (var item in newItems)
                         {
-                            var textForNer = $"{item.Title} {item.Content?[..Math.Min(item.Content.Length, 1000)] ?? ""}";
+                            var textForNer = ItemProcessor.PrepareNerText(item.Title, item.Content);
                             var entities = await nerService.ExtractEntitiesAsync(textForNer);
                             if (entities.Count > 0)
                             {
@@ -304,7 +329,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                     // Update URL cache: content hash + any ETags/Last-Modified from the response
                     if (!string.IsNullOrEmpty(item.Url) && !string.IsNullOrEmpty(item.Content))
                     {
-                        var contentHash = ComputeContentHash(item.Content);
+                        var contentHash = ItemProcessor.ComputeContentHash(item.Content);
                         var (etag, lastMod) = capturedHeaders.TryGetValue(item.Url, out var h) ? h : (null, null);
                         await boot.Storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
                     }
@@ -313,6 +338,25 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                 }
 
                 storeTask.Description = $"[green]Saved {newItems.Count} pages to KB '{kbName}'[/]";
+
+                // Compensate: URL-cached items are already in SQLite but need to be in
+                // this collection's Lucene index. Also backfill from storage for the
+                // current source to keep the index populated.
+                if (urlCachedItems.Count > 0)
+                {
+                    processor.EnsureInLucene(urlCachedItems);
+
+                    // Re-search storage for this collection to fill remaining Lucene gaps
+                    var sourceTag = $"crawl:{kbName}";
+                    var shortfall = Math.Min(urlCachedItems.Count, settings.MaxPages - newItems.Count);
+                    if (shortfall > 0)
+                    {
+                        var storedItems = await boot.Storage.GetItemsBySourceAsync(sourceTag, limit: shortfall);
+                        processor.EnsureInLucene(storedItems.Select(s => s.ToContentItem()));
+                    }
+
+                    storeTask.Description = $"[green]Saved {newItems.Count} pages + {urlCachedItems.Count} cached to KB '{kbName}'[/]";
+                }
 
                 // Stage 5: Persist entities (deferred from Stage 3 — items must exist in DB first)
                 if (articleEntityMap.Count > 0)
@@ -343,11 +387,13 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
         table.AddRow("Pages crawled", $"{crawler.PagesVisited}");
         table.AddRow("New/changed", $"{newItems.Count}");
+        if (urlCachedItems.Count > 0)
+            table.AddRow("URL cache (web-validated)", $"{urlCachedItems.Count}");
         if (httpNotModifiedCount > 0)
             table.AddRow("HTTP 304 (not modified)", $"{httpNotModifiedCount}");
         if (contentHashCachedCount > 0)
             table.AddRow("Content hash match", $"{contentHashCachedCount}");
-        table.AddRow("Total cached", $"{totalCachedFinal}");
+        table.AddRow("Total cached", $"{totalCachedFinal + urlCachedItems.Count}");
         table.AddRow("Skipped", $"{crawler.PagesSkipped}");
         if (crawler.RetryCount > 0)
             table.AddRow("Rate-limit retries", $"{crawler.RetryCount}");
@@ -365,7 +411,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
         AnsiConsole.Write(table);
 
-        if (totalCachedFinal > 0 && newItems.Count == 0)
+        if ((totalCachedFinal > 0 || urlCachedItems.Count > 0) && newItems.Count == 0)
         {
             AnsiConsole.MarkupLine($"\n[grey]All pages unchanged. Use --force to re-process anyway.[/]");
         }
@@ -507,14 +553,12 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
             .StartAsync(async ctx =>
             {
                 var embedTask = ctx.AddTask("[cyan]Computing embeddings[/]", maxValue: result.Items.Count);
-                var processor = await ItemProcessor.CreateAsync(
-                    boot.Embedding, boot.Storage, boot.EntityStore, ct);
+                using var processor = await ItemProcessor.CreateAsync(
+                    boot.Embedding, boot.Storage, boot.EntityStore, collectionName: kbName, ct: ct);
 
-                var texts = result.Items.Select(i =>
-                {
-                    var t = $"{i.Title}: {i.Content ?? ""}".Trim();
-                    return t.Length > 1500 ? t[..1500] : t;
-                }).ToList();
+                var texts = result.Items
+                    .Select(i => ItemProcessor.PrepareEmbeddingText(i.Title, i.Content))
+                    .ToList();
 
                 var embeddings = await boot.Embedding.EmbedBatchAsync(texts, ct);
                 embedTask.Value = result.Items.Count;
@@ -701,15 +745,6 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
     }
 
     /// <summary>
-    /// Compute a SHA256 content hash for cache comparison.
-    /// </summary>
-    private static string ComputeContentHash(string content)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
-    /// <summary>
     /// Create a CrawlConfig from command settings with auto-detection for GitHub repos.
     /// When a GitHub repo URL is detected:
     ///   - PathFilter is auto-set to /{owner}/{repo}/** (unless --glob is explicit)
@@ -758,5 +793,39 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
         repoPathPrefix = $"/{segments[0]}/{segments[1]}";
         return true;
+    }
+
+    /// <summary>
+    /// Check if a URL's domain matches a known built-in source.
+    /// Returns the source name if matched, null otherwise.
+    /// </summary>
+    private static string? GetBuiltInSourceForUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return null;
+        var host = uri.Host.ToLowerInvariant();
+
+        // Domain → built-in source name
+        return host switch
+        {
+            _ when host.Contains("news.ycombinator.com") || host.Contains("hacker-news") => "hn",
+            _ when host.Contains("reddit.com") || host.Contains("old.reddit.com") => "reddit",
+            _ when host.Contains("bbc.co.uk") || host.Contains("bbc.com") => "bbc",
+            _ when host.Contains("theguardian.com") => "guardian",
+            _ when host.Contains("reuters.com") => "reuters",
+            _ when host.Contains("cnn.com") => "cnn",
+            _ when host.Contains("arstechnica.com") => "ars",
+            _ when host.Contains("theverge.com") => "verge",
+            _ when host.Contains("stackoverflow.com") => "so",
+            _ when host.Contains("lobste.rs") => "lobsters",
+            _ when host.Contains("dev.to") => "devto",
+            _ when host.Contains("techcrunch.com") => "techcrunch",
+            _ when host.Contains("wired.com") => "wired",
+            _ when host.Contains("theregister.com") => "theregister",
+            _ when host.Contains("npr.org") => "npr",
+            _ when host.Contains("sciencedaily.com") => "sciencedaily",
+            _ when host.Contains("arxiv.org") => "arxiv",
+            _ when host.Contains("wikipedia.org") => "wikipedia",
+            _ => null
+        };
     }
 }

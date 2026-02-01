@@ -51,8 +51,8 @@ public sealed class ManCommand : AsyncCommand<ManCommand.Settings>
 
         if (needsLoad)
         {
-            var processor = await ItemProcessor.CreateAsync(
-                boot.Embedding, boot.Storage, boot.EntityStore, cancellationToken);
+            using var processor = await ItemProcessor.CreateAsync(
+                boot.Embedding, boot.Storage, boot.EntityStore, collectionName: "default", ct: cancellationToken);
             await loader.LoadManualAsync(processor, settings.Refresh || settings.LoadManual, cancellationToken);
         }
 

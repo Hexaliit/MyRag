@@ -71,7 +71,7 @@ public sealed class RetrievalPipeline
                 lucene.Open();
 
                 // Ensure items are indexed in Lucene (incremental update)
-                var allStoredItems = await _storage.GetRecentItemsAsync(days: 365, source: options.SourceFilter);
+                var allStoredItems = await _storage.GetRecentItemsAsync(365, options.SourceFilters);
                 var itemsToIndex = allStoredItems
                     .Where(s => !lucene.ContainsDocument(s.Id))
                     .Select(s => s.ToContentItem())
@@ -84,7 +84,7 @@ public sealed class RetrievalPipeline
                 }
 
                 var luceneQuery = LuceneQueryGenerator.BuildSimpleQuery(query);
-                return lucene.Search(luceneQuery, options.SourceFilter, limit: options.TopK * 3);
+                return lucene.Search(luceneQuery, options.SourceFilters, options.TopK * 3);
             }
             catch
             {
@@ -95,7 +95,7 @@ public sealed class RetrievalPipeline
         // Layer 2: Embedding HNSW semantic search
         var embeddingThreshold = options.RelaxScoringGates ? 0.10 : 0.20;
         var embeddingTask = _storage.FindSimilarAsync(
-            queryEmbedding, limit: options.TopK * 2, threshold: embeddingThreshold, source: options.SourceFilter);
+            queryEmbedding, options.TopK * 2, embeddingThreshold, options.SourceFilters);
 
         // Run Lucene + HNSW in parallel
         var luceneTask = SearchLuceneAsync();
@@ -149,8 +149,8 @@ public sealed class RetrievalPipeline
         if (allCandidateIds.Count == 0)
         {
             // Fallback: load recent items directly
-            var fallbackItems = options.SourceFilter != null
-                ? await _storage.GetRecentItemsAsync(days: 365, source: options.SourceFilter)
+            var fallbackItems = options.SourceFilters is { Count: > 0 }
+                ? await _storage.GetRecentItemsAsync(365, options.SourceFilters)
                 : await _storage.GetRecentItemsAsync(days: 30);
 
             var fallbackContent = fallbackItems
@@ -197,6 +197,17 @@ public sealed class RetrievalPipeline
             .Where(i => i.RelevanceScore > options.MinRelevance)
             .Take(options.TopK)
             .ToList();
+
+        // KB fallback: when a user explicitly queries a named knowledge base,
+        // always return something. If scoring gates filtered out all items
+        // (e.g., vague query "What is this?"), return the top-scored items
+        // regardless of the MinRelevance threshold.
+        if (finalItems.Count == 0 && options.IsKnowledgeBase && scoringResult.Items.Count > 0)
+        {
+            finalItems = scoringResult.Items
+                .Take(options.TopK)
+                .ToList();
+        }
 
         sw.Stop();
         return new RetrievalResult(finalItems, scoringResult.QueryType, sw.Elapsed);
@@ -402,8 +413,11 @@ public sealed class RetrievalPipeline
 /// </summary>
 public record RetrievalOptions
 {
-    /// <summary>Source filter (e.g., "crawl:mysite").</summary>
-    public string? SourceFilter { get; init; }
+    /// <summary>Source filters (e.g., ["crawl:mysite", "hn"]). OR semantics — matches any.</summary>
+    public IReadOnlyList<string>? SourceFilters { get; init; }
+
+    /// <summary>Convenience: single source filter. Use SourceFilters for multiple.</summary>
+    public string? SourceFilter { init => SourceFilters = value != null ? [value] : null; }
 
     /// <summary>Collection name for Lucene index directory.</summary>
     public string? CollectionName { get; init; }

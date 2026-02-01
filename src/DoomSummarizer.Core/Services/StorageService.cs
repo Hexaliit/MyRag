@@ -187,17 +187,32 @@ public partial class StorageService : IAsyncDisposable
             """;
         await cmd.ExecuteNonQueryAsync();
 
-        // Add keywords column to items table (safe migration for existing DBs)
-        try
+        // Safe migrations for existing DBs (column additions are idempotent via try/catch)
+        foreach (var migration in new[]
         {
-            await using var alterCmd = _connection.CreateCommand();
-            alterCmd.CommandText = "ALTER TABLE items ADD COLUMN keywords TEXT";
-            await alterCmd.ExecuteNonQueryAsync();
-        }
-        catch (SqliteException)
+            "ALTER TABLE items ADD COLUMN keywords TEXT",
+            "ALTER TABLE items ADD COLUMN web_validated_at TEXT",
+        })
         {
-            // Column already exists — that's fine
+            try
+            {
+                await using var alterCmd = _connection.CreateCommand();
+                alterCmd.CommandText = migration;
+                await alterCmd.ExecuteNonQueryAsync();
+            }
+            catch (SqliteException)
+            {
+                // Column already exists — that's fine
+            }
         }
+
+        // Additional indexes for URL lookup and web-validation queries
+        await using var idxCmd = _connection.CreateCommand();
+        idxCmd.CommandText = """
+            CREATE INDEX IF NOT EXISTS idx_items_url ON items(url);
+            CREATE INDEX IF NOT EXISTS idx_items_web_validated ON items(web_validated_at);
+            """;
+        await idxCmd.ExecuteNonQueryAsync();
     }
 
     // --- Core Item CRUD ---
@@ -263,17 +278,22 @@ public partial class StorageService : IAsyncDisposable
     /// </summary>
     private static StoredItem ReadStoredItem(SqliteDataReader reader)
     {
-        // Read keywords column safely (may not exist in older DBs before migration)
+        // Read optional columns safely (may not exist in older DBs before migration)
         string? keywords = null;
+        string? webValidatedAt = null;
         try
         {
             var keywordsOrd = reader.GetOrdinal("keywords");
             keywords = reader.IsDBNull(keywordsOrd) ? null : reader.GetString(keywordsOrd);
         }
-        catch (ArgumentOutOfRangeException)
+        catch (ArgumentOutOfRangeException) { /* Column doesn't exist yet */ }
+
+        try
         {
-            // Column doesn't exist yet — that's fine
+            var wvOrd = reader.GetOrdinal("web_validated_at");
+            webValidatedAt = reader.IsDBNull(wvOrd) ? null : reader.GetString(wvOrd);
         }
+        catch (ArgumentOutOfRangeException) { /* Column doesn't exist yet */ }
 
         return new StoredItem
         {
@@ -291,7 +311,8 @@ public partial class StorageService : IAsyncDisposable
             CreatedAt = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("created_at"))),
             FetchedAt = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("fetched_at"))),
             Embedding = reader.IsDBNull(reader.GetOrdinal("embedding")) ? null : (byte[])reader["embedding"],
-            Keywords = keywords
+            Keywords = keywords,
+            WebValidatedAt = webValidatedAt != null ? DateTimeOffset.Parse(webValidatedAt) : null
         };
     }
 

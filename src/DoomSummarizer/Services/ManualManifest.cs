@@ -3,8 +3,9 @@ using YamlDotNet.Serialization;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// YAML-deserializable manifest defining a documentation corpus to fetch and index.
-/// Exportable format — other projects can ship their own manifest files.
+/// YAML-deserializable manifest defining a documentation corpus seed URL.
+/// The crawler starts at seed_url and discovers docs by following markdown links.
+/// Other projects can ship their own manifest files in this format.
 /// </summary>
 public sealed record ManualManifest
 {
@@ -17,21 +18,15 @@ public sealed record ManualManifest
     [YamlMember(Alias = "description")]
     public string Description { get; init; } = "";
 
-    [YamlMember(Alias = "base_url")]
-    public string BaseUrl { get; init; } = "";
+    [YamlMember(Alias = "seed_url")]
+    public string SeedUrl { get; init; } = "";
 
-    [YamlMember(Alias = "documents")]
-    public List<ManualDocument> Documents { get; init; } = [];
-}
+    [YamlMember(Alias = "path_filter")]
+    public string? PathFilter { get; init; }
 
-public sealed record ManualDocument
-{
-    [YamlMember(Alias = "path")]
-    public string Path { get; init; } = "";
+    [YamlMember(Alias = "max_depth")]
+    public int MaxDepth { get; init; } = 3;
 
-    [YamlMember(Alias = "title")]
-    public string Title { get; init; } = "";
-
-    [YamlMember(Alias = "tags")]
-    public List<string> Tags { get; init; } = [];
+    [YamlMember(Alias = "max_pages")]
+    public int MaxPages { get; init; } = 50;
 }

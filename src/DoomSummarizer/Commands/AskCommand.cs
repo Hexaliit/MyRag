@@ -18,8 +18,8 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         public string? Question { get; init; }
 
         [CommandOption("-s|--source")]
-        [Description("Filter to a source (e.g., crawl:mysite, hn, reddit)")]
-        public string? Source { get; init; }
+        [Description("Filter to source(s) — URL, source name, or KB name (repeatable: -s hn -s reddit)")]
+        public string[]? Sources { get; init; }
 
         [CommandOption("-n|--name")]
         [Description("Query a named knowledge base collection (shorthand for --source crawl:<name>)")]
@@ -66,7 +66,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         }
 
         var options = new InteractiveAskOptions(
-            Source: settings.Source,
+            Sources: settings.Sources,
             Name: settings.Name,
             Days: settings.Days,
             TopK: settings.TopK,
