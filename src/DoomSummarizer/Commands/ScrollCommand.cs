@@ -765,7 +765,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             MinRelevance = adaptiveMinRelevance,
                             IsKnowledgeBase = true,
                             UseEmbeddingDedup = true,
-                            RelaxScoringGates = isFileSource,
+                            // Named KB: all items are from a curated collection — strict
+                            // authority/freshness gates add no value, only hurt recall for
+                            // vague or overview queries like "What is this?"
+                            RelaxScoringGates = true,
                             QueryEntities = queryEntities.Count > 0 ? queryEntities : null,
                         }, cancellationToken);
 
@@ -2383,7 +2386,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         finalSummary = await ollama.SynthesizeSummaryAsync(
                             analyzedItems, vibe, vibePrompt, userQuery, uniqueItems,
                             embedder: text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(),
-                            batchEmbedder: texts => boot.Embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult());
+                            batchEmbedder: texts => boot.Embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult(),
+                            sentinelIntent: interpreted?.SentinelIntent);
                     }
                 }
                 else

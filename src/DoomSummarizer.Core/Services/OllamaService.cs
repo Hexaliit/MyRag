@@ -259,6 +259,8 @@ public partial class OllamaService
         Func<string, float[]>? embedder = null,
         Func<string[], float[][]>? batchEmbedder = null,
         bool forceAnswer = false,
+        string? promptTemplate = null,
+        SentinelIntent? sentinelIntent = null,
         CancellationToken ct = default)
     {
         var today = DateTime.Now.ToString("MMMM d, yyyy");
@@ -398,9 +400,15 @@ public partial class OllamaService
                 ["EVIDENCE"] = evidence.ToString()
             };
 
+            // Template selection priority:
+            // 1. Explicit promptTemplate (from caller, e.g. --style or manual-answer)
+            // 2. Sentinel intent + query pattern (auto-detected: howto, yesno)
+            // 3. Default "answer" template
+            var answerTemplate = promptTemplate
+                ?? QueryTypeDetector.ResolveAnswerTemplate(userQuery, sentinelIntent);
             prompt = isRoundup
                 ? PromptTemplateService.Render("roundup", templateVars)
-                : PromptTemplateService.Render("answer", templateVars);
+                : PromptTemplateService.Render(answerTemplate, templateVars);
         }
         else
         {

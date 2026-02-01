@@ -1,0 +1,15 @@
+[Script Info]
+Title: Simple ASS Test
+ScriptType: v4.00
+
+[V4 Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, TertiaryColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, AlphaLevel, Encoding
+Style: Default,Arial,28,16777215,255,0,0,0,0,1,2,2,2,10,10,10,0,1
+
+[Events]
+Format: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: Marked=0,0:00:01.00,0:00:04.00,Default,,0000,0000,0000,,Hello and welcome to this video.
+Dialogue: Marked=0,0:00:04.50,0:00:08.00,Default,,0000,0000,0000,,Today we are going to talk about programming.
+Dialogue: Marked=0,0:00:08.20,0:00:12.00,Default,,0000,0000,0000,,Let us start with the basics of C#.
+Dialogue: Marked=0,0:00:12.50,0:00:16.00,Default,,0000,0000,0000,,C# is a modern object-oriented language.
+Dialogue: Marked=0,0:00:16.20,0:00:20.00,Default,,0000,0000,0000,,It was created by Microsoft in the early 2000s.

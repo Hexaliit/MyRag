@@ -135,6 +135,7 @@
     <!-- Embed prompt templates and config -->
     <ItemGroup>
         <EmbeddedResource Include="Resources\default-config.json" />
+        <EmbeddedResource Include="Resources\default-config.yaml" />
         <EmbeddedResource Include="Resources\sources.yaml" />
         <EmbeddedResource Include="Resources\prompts\*.txt" />
         <EmbeddedResource Include="Resources\templates\*.yaml" />

@@ -22,7 +22,8 @@ public record InteractiveAskOptions(
     bool Quiet,
     string? InitialQuestion,
     ChannelReader<CrawlProgressUpdate>? CrawlProgress = null,
-    Func<bool>? IsCrawlRunning = null);
+    Func<bool>? IsCrawlRunning = null,
+    string? PromptTemplate = null);
 
 public sealed class InteractiveAskLoop
 {
@@ -365,6 +366,7 @@ public sealed class InteractiveAskLoop
                 embedder: text => embedding.EmbedAsync(text).GetAwaiter().GetResult(),
                 batchEmbedder: texts => embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult(),
                 forceAnswer: true,
+                promptTemplate: _options.PromptTemplate,
                 ct: ct);
         }
         else

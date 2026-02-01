@@ -1,6 +1,10 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DoomSummarizer.Models;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
+
 namespace DoomSummarizer.Services;
 
 public static class ConfigService
@@ -11,59 +15,196 @@ public static class ConfigService
 
     private static readonly string ConfigPath = Path.Combine(ConfigDir, "config.json");
 
+    /// <summary>Ordered list of config sources that were loaded (for diagnostics).</summary>
+    public static List<string> LoadedSources { get; } = [];
+
     public static string? LoadedConfigPath { get; private set; }
 
     public static string GetConfigDir() => ConfigDir;
 
+    /// <summary>
+    /// Load configuration with layered merging:
+    ///   1. YAML embedded defaults (base)
+    ///   2. ~/.doomsummarizer/config.json (user overrides)
+    ///   3. ./doomsummarizer.json (local overrides)
+    /// Env vars and user secrets are handled separately by ApiKeyService.
+    /// </summary>
     public static async Task<DoomConfig> LoadAsync()
     {
-        // Try user config first
+        LoadedSources.Clear();
+
+        // 1. Load base defaults from embedded YAML (fall back to JSON)
+        var baseConfig = LoadYamlDefaults();
+        var baseNode = ConfigToJsonNode(baseConfig);
+
+        // 2. Merge user config (~/.doomsummarizer/config.json)
         if (File.Exists(ConfigPath))
         {
             var json = await File.ReadAllTextAsync(ConfigPath);
-            var config = JsonSerializer.Deserialize(json, DoomConfigContext.Default.DoomConfig);
-            if (config != null)
+            var userNode = JsonNode.Parse(json);
+            if (userNode != null)
             {
-                LoadedConfigPath = ConfigPath;
-                return config;
+                DeepMerge(baseNode, userNode);
+                LoadedSources.Add(ConfigPath);
             }
-            System.Diagnostics.Debug.WriteLine($"Warning: {ConfigPath} failed to deserialize -- using defaults");
         }
 
-        // Try local config
+        // 3. Merge local config (./doomsummarizer.json)
         var localConfig = Path.Combine(Directory.GetCurrentDirectory(), "doomsummarizer.json");
         if (File.Exists(localConfig))
         {
             var json = await File.ReadAllTextAsync(localConfig);
-            var config = JsonSerializer.Deserialize(json, DoomConfigContext.Default.DoomConfig);
-            if (config != null)
+            var localNode = JsonNode.Parse(json);
+            if (localNode != null)
             {
-                LoadedConfigPath = localConfig;
-                return config;
+                DeepMerge(baseNode, localNode);
+                LoadedSources.Add(localConfig);
             }
-            System.Diagnostics.Debug.WriteLine($"Warning: {localConfig} failed to deserialize -- using defaults");
         }
 
-        return await LoadDefaultAsync();
+        // 4. Deserialize merged result to DoomConfig
+        var mergedJson = baseNode.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+        var result = JsonSerializer.Deserialize(mergedJson, DoomConfigContext.Default.DoomConfig);
+
+        LoadedConfigPath = LoadedSources.Count > 0 ? LoadedSources[^1] : "embedded defaults";
+        return result ?? new DoomConfig();
     }
 
-    private static async Task<DoomConfig> LoadDefaultAsync()
+    /// <summary>
+    /// Load defaults from embedded YAML resource. Falls back to embedded JSON if YAML is missing.
+    /// </summary>
+    internal static DoomConfig LoadYamlDefaults()
     {
-        var assembly = Assembly.GetExecutingAssembly();
+        var assembly = typeof(ConfigService).Assembly;
+        var yamlResourceName = "DoomSummarizer.Resources.default-config.yaml";
+
+        using var stream = assembly.GetManifestResourceStream(yamlResourceName);
+        if (stream != null)
+        {
+            using var reader = new StreamReader(stream);
+            var yaml = reader.ReadToEnd();
+
+            var deserializer = new DeserializerBuilder()
+                .WithNamingConvention(UnderscoredNamingConvention.Instance)
+                .IgnoreUnmatchedProperties()
+                .Build();
+
+            var config = deserializer.Deserialize<DoomConfig>(yaml);
+            LoadedSources.Add("embedded default-config.yaml");
+            return config ?? new DoomConfig();
+        }
+
+        // Fall back to embedded JSON
+        return LoadJsonDefaults();
+    }
+
+    /// <summary>
+    /// Load the raw YAML text from the embedded resource (for --reference output).
+    /// </summary>
+    public static string? LoadYamlDefaultsText()
+    {
+        var assembly = typeof(ConfigService).Assembly;
+        var yamlResourceName = "DoomSummarizer.Resources.default-config.yaml";
+
+        using var stream = assembly.GetManifestResourceStream(yamlResourceName);
+        if (stream == null) return null;
+
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
+    private static DoomConfig LoadJsonDefaults()
+    {
+        var assembly = typeof(ConfigService).Assembly;
         var resourceName = "DoomSummarizer.Resources.default-config.json";
 
-        await using var stream = assembly.GetManifestResourceStream(resourceName);
+        using var stream = assembly.GetManifestResourceStream(resourceName);
         if (stream == null)
         {
             System.Diagnostics.Debug.WriteLine("Warning: Could not load default config, using hardcoded defaults");
-            LoadedConfigPath = "embedded default (hardcoded)";
+            LoadedSources.Add("hardcoded defaults");
             return new DoomConfig();
         }
 
         using var reader = new StreamReader(stream);
-        var json = await reader.ReadToEndAsync();
-        LoadedConfigPath = "embedded default";
+        var json = reader.ReadToEnd();
+        LoadedSources.Add("embedded default-config.json");
         return JsonSerializer.Deserialize(json, DoomConfigContext.Default.DoomConfig) ?? new DoomConfig();
+    }
+
+    /// <summary>
+    /// Convert a DoomConfig to a JsonNode tree for merging.
+    /// Uses the same camelCase serializer options as DoomConfigContext.
+    /// </summary>
+    internal static JsonNode ConfigToJsonNode(DoomConfig config)
+    {
+        var json = JsonSerializer.Serialize(config, DoomConfigContext.Default.DoomConfig);
+        return JsonNode.Parse(json)!;
+    }
+
+    /// <summary>
+    /// Deep-merge <paramref name="overrides"/> into <paramref name="baseNode"/> in place.
+    /// Objects are merged key-by-key; scalars and arrays are replaced outright.
+    /// </summary>
+    internal static void DeepMerge(JsonNode baseNode, JsonNode overrides)
+    {
+        if (baseNode is not JsonObject baseObj || overrides is not JsonObject overrideObj)
+            return;
+
+        foreach (var (key, value) in overrideObj)
+        {
+            if (value == null)
+            {
+                // Explicit null in override removes the key
+                baseObj.Remove(key);
+                continue;
+            }
+
+            if (baseObj.ContainsKey(key) && baseObj[key] is JsonObject existingObj && value is JsonObject nestedOverride)
+            {
+                // Recursively merge nested objects
+                DeepMerge(existingObj, nestedOverride);
+            }
+            else
+            {
+                // Replace scalar, array, or add new key
+                baseObj.Remove(key);
+                baseObj.Add(key, value.DeepClone());
+            }
+        }
+    }
+
+    /// <summary>
+    /// Compare two configs and return keys where the effective value differs from defaults.
+    /// Returns a flat dictionary of dotted paths to their effective values.
+    /// </summary>
+    public static Dictionary<string, string> GetOverrides(DoomConfig defaults, DoomConfig effective)
+    {
+        var defaultNode = ConfigToJsonNode(defaults);
+        var effectiveNode = ConfigToJsonNode(effective);
+        var overrides = new Dictionary<string, string>();
+        CollectDiffs("", defaultNode, effectiveNode, overrides);
+        return overrides;
+    }
+
+    private static void CollectDiffs(string prefix, JsonNode? defaultNode, JsonNode? effectiveNode,
+        Dictionary<string, string> result)
+    {
+        if (defaultNode is JsonObject defaultObj && effectiveNode is JsonObject effectiveObj)
+        {
+            foreach (var (key, _) in effectiveObj)
+            {
+                var path = string.IsNullOrEmpty(prefix) ? key : $"{prefix}.{key}";
+                CollectDiffs(path, defaultObj[key], effectiveObj[key], result);
+            }
+        }
+        else
+        {
+            var dStr = defaultNode?.ToJsonString() ?? "null";
+            var eStr = effectiveNode?.ToJsonString() ?? "null";
+            if (dStr != eStr)
+                result[prefix] = eStr;
+        }
     }
 
     public static async Task SaveAsync(DoomConfig config)
@@ -73,12 +214,44 @@ public static class ConfigService
         await File.WriteAllTextAsync(ConfigPath, json);
     }
 
-    public static async Task InitializeDefaultConfigAsync()
+    /// <summary>
+    /// Generate a starter config.json with commonly-changed settings only.
+    /// </summary>
+    public static async Task InitializeStarterConfigAsync()
     {
         Directory.CreateDirectory(ConfigDir);
-        var config = await LoadDefaultAsync();
+        var starter = new JsonObject
+        {
+            ["ollama"] = new JsonObject
+            {
+                ["model"] = "gemma3:4b",
+                ["baseUrl"] = "http://localhost:11434"
+            },
+            ["storage"] = new JsonObject
+            {
+                ["dbPath"] = "~/.doomsummarizer/doom.db"
+            }
+        };
+
+        var options = new JsonSerializerOptions { WriteIndented = true };
+        var json = starter.ToJsonString(options);
+        await File.WriteAllTextAsync(ConfigPath, json);
+    }
+
+    /// <summary>
+    /// Generate a full config.json with all settings (for --init --full).
+    /// </summary>
+    public static async Task InitializeFullConfigAsync()
+    {
+        Directory.CreateDirectory(ConfigDir);
+        var config = LoadYamlDefaults();
         await SaveAsync(config);
-        System.Diagnostics.Debug.WriteLine($"Created config at: {ConfigPath}");
+    }
+
+    [Obsolete("Use InitializeStarterConfigAsync or InitializeFullConfigAsync instead")]
+    public static async Task InitializeDefaultConfigAsync()
+    {
+        await InitializeFullConfigAsync();
     }
 
     public static string GetDbPath(DoomConfig config)

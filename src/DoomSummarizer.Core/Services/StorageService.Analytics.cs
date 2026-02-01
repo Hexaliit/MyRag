@@ -184,6 +184,35 @@ public partial class StorageService
         }
     }
 
+    /// <summary>
+    /// Delete all items (and related FTS/entity data) for a given source tag.
+    /// Used by ManualLoader to clear the manual corpus before re-indexing.
+    /// </summary>
+    public async Task DeleteItemsBySourceAsync(string source)
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            -- Delete FTS entries for items in this source
+            DELETE FROM items_fts WHERE item_id IN (SELECT id FROM items WHERE source = @source);
+
+            -- Delete entity mentions for items in this source
+            DELETE FROM entity_mentions WHERE item_id IN (SELECT id FROM items WHERE source = @source);
+
+            -- Delete the items themselves
+            DELETE FROM items WHERE source = @source;
+
+            -- Clean up entities with no remaining mentions
+            DELETE FROM entities WHERE id NOT IN (SELECT DISTINCT entity_id FROM entity_mentions);
+
+            -- Clean up orphaned relationships
+            DELETE FROM entity_relationships
+            WHERE source_entity_id NOT IN (SELECT id FROM entities)
+               OR target_entity_id NOT IN (SELECT id FROM entities);
+            """;
+        cmd.Parameters.AddWithValue("@source", source);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     public async Task CleanupOldDataAsync(int retentionDays)
     {
         var cutoff = DateTimeOffset.UtcNow.AddDays(-retentionDays).ToString("O");

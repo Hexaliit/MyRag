@@ -8,6 +8,43 @@ namespace DoomSummarizer.Services;
 /// </summary>
 public static partial class QueryTypeDetector
 {
+    /// <summary>
+    /// Resolve the answer prompt template based on sentinel intent and query pattern.
+    /// Returns a template name like "answer", "answer-howto", "answer-yesno".
+    /// The sentinel intent (if available) takes priority; falls back to regex patterns.
+    /// </summary>
+    public static string ResolveAnswerTemplate(string? query, SentinelIntent? sentinelIntent = null)
+    {
+        // Sentinel intent is authoritative when available
+        if (sentinelIntent != null)
+        {
+            var intent = sentinelIntent.Intent?.ToLowerInvariant();
+            if (intent is "howto")
+                return "answer-howto";
+        }
+
+        if (string.IsNullOrWhiteSpace(query))
+            return "answer";
+
+        var q = query.ToLowerInvariant();
+
+        // Yes/no pattern: "can I", "does it", "is it", "is there", "do you", "will it"
+        if (YesNoPattern().IsMatch(q))
+            return "answer-yesno";
+
+        // How-to pattern: "how do I", "how to", "how can I", "how should I"
+        if (HowToPattern().IsMatch(q))
+            return "answer-howto";
+
+        return "answer";
+    }
+
+    [GeneratedRegex(@"^\s*(can\s+(i|we|you|it)|does\s+(it|this|the)|is\s+(it|this|there)|do\s+(you|i|we)|will\s+(it|this)|are\s+there|should\s+i)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex YesNoPattern();
+
+    [GeneratedRegex(@"^\s*(how\s+(do|can|should|would|to)\b|what('?s|\s+is)\s+the\s+(command|way|method|syntax|step|process)\s+to\b)", RegexOptions.IgnoreCase)]
+    private static partial Regex HowToPattern();
+
     public static QueryType Detect(string? query)
     {
         if (string.IsNullOrWhiteSpace(query))

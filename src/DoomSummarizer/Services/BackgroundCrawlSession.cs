@@ -78,16 +78,7 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
         try
         {
             using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            var crawlConfig = new CrawlConfig
-            {
-                Name = kbName,
-                MaxDepth = settings.Depth,
-                MaxPages = settings.MaxPages,
-                DelayMs = settings.DelayMs,
-                MaxConcurrency = settings.Concurrency,
-                TimeoutSeconds = 15,
-                PathFilter = settings.Glob
-            };
+            var crawlConfig = CrawlCommand.CreateCrawlConfig(settings, kbName);
             var crawler = new WebCrawlerService(httpClient, crawlConfig);
 
             // Pre-load URL cache for conditional request headers
@@ -180,9 +171,9 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
             for (var i = 0; i < newItems.Count; i++)
             {
                 var item = newItems[i];
-                var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
-                if (textToEmbed.Length > 1000)
-                    textToEmbed = textToEmbed[..1000];
+                var textToEmbed = $"{item.Title}: {item.Content ?? ""}".Trim();
+                if (textToEmbed.Length > 1500)
+                    textToEmbed = textToEmbed[..1500];
                 item.Embedding = await boot.Embedding.EmbedAsync(textToEmbed, ct);
 
                 if ((i + 1) % 5 == 0 || i == newItems.Count - 1)

@@ -19,6 +19,14 @@ public static partial class CollectionNaming
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return Sanitize(url);
 
+        // GitHub: use {owner}-{repo} instead of just "github-com"
+        if (uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
+        {
+            var segments = uri.AbsolutePath.Trim('/').Split('/');
+            if (segments.Length >= 2)
+                return Sanitize($"{segments[0]}-{segments[1]}");
+        }
+
         var host = uri.Host
             .Replace("www.", "")
             .Replace('.', '-');

@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace DoomSummarizer.Plugins.Subtitles;
 
 /// <summary>
@@ -14,21 +12,22 @@ public record SubtitleChapter(
 /// Detects chapter-like boundaries in subtitle streams using gap analysis
 /// and marker detection (e.g., [Music], [Applause], all-caps titles).
 /// </summary>
-public static partial class ChapterDetector
+public static class ChapterDetector
 {
-    private static readonly HashSet<string> SectionMarkers = new(StringComparer.OrdinalIgnoreCase)
+    // Exact-match markers (checked via HashSet.Contains — O(1))
+    private static readonly HashSet<string> ExactMarkers = new(StringComparer.OrdinalIgnoreCase)
     {
         "[music]", "[applause]", "[laughter]", "[cheering]",
         "[silence]", "[inaudible]", "[music playing]",
         "♪", "♫"
     };
 
+    // Substring markers for Contains check (only checked when exact match fails)
+    private static readonly string[] SubstringMarkers = ["[music", "[applause", "[laughter", "♪", "♫"];
+
     /// <summary>
     /// Detect chapter boundaries from subtitle entries using gap and marker heuristics.
     /// </summary>
-    /// <param name="entries">Ordered subtitle entries with timing info.</param>
-    /// <param name="gapThresholdSeconds">Minimum gap between entries to mark a chapter boundary.</param>
-    /// <returns>List of detected chapter boundaries.</returns>
     public static List<SubtitleChapter> DetectChapters(
         IReadOnlyList<SubtitleEntry> entries,
         double gapThresholdSeconds = 5.0)
@@ -70,34 +69,69 @@ public static partial class ChapterDetector
 
     private static bool IsSectionMarker(string text)
     {
-        var trimmed = text.Trim();
-        return SectionMarkers.Any(m => trimmed.Contains(m, StringComparison.OrdinalIgnoreCase));
+        var trimmed = text.AsSpan().Trim();
+        if (trimmed.IsEmpty) return false;
+
+        // Fast path: exact match against HashSet (O(1) lookup, no allocation)
+        if (ExactMarkers.Contains(text.Trim()))
+            return true;
+
+        // Slow path: substring match for partial markers like "[Music] and talking"
+        foreach (var marker in SubstringMarkers)
+        {
+            if (trimmed.Contains(marker.AsSpan(), StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     private static bool IsLikelyTitle(string text)
     {
-        var trimmed = text.Trim();
-        if (string.IsNullOrEmpty(trimmed)) return false;
+        var span = text.AsSpan().Trim();
+        if (span.IsEmpty) return false;
 
-        // All-caps and short (< 10 words) suggests a title/heading
-        var words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (words.Length > 10 || words.Length == 0) return false;
+        // Count words and check length — no allocation (span-based)
+        var wordCount = 0;
+        var inWord = false;
+        var letterCount = 0;
+        var upperCount = 0;
 
-        // Check if all alphabetic characters are uppercase
-        var alphaChars = trimmed.Where(char.IsLetter).ToArray();
-        return alphaChars.Length > 2 && alphaChars.All(char.IsUpper);
+        for (var i = 0; i < span.Length; i++)
+        {
+            var ch = span[i];
+
+            if (char.IsWhiteSpace(ch))
+            {
+                inWord = false;
+            }
+            else if (!inWord)
+            {
+                inWord = true;
+                wordCount++;
+                if (wordCount > 10) return false; // Early exit
+            }
+
+            if (char.IsLetter(ch))
+            {
+                letterCount++;
+                if (char.IsUpper(ch)) upperCount++;
+            }
+        }
+
+        // All-caps: at least 3 letters and all uppercase
+        return letterCount > 2 && letterCount == upperCount;
     }
 
     private static string InferChapterTitle(IReadOnlyList<SubtitleEntry> entries, int startIndex)
     {
-        // Use the first meaningful text after the boundary as the title hint
-        for (var i = startIndex; i < Math.Min(startIndex + 3, entries.Count); i++)
+        var end = Math.Min(startIndex + 3, entries.Count);
+        for (var i = startIndex; i < end; i++)
         {
             var text = entries[i].Text.Trim();
             if (!string.IsNullOrEmpty(text) && !IsSectionMarker(text))
             {
-                // Truncate long text to use as a title
-                return text.Length > 60 ? text[..57] + "..." : text;
+                return text.Length > 60 ? string.Concat(text.AsSpan(0, 57), "...") : text;
             }
         }
 
@@ -105,7 +139,7 @@ public static partial class ChapterDetector
     }
 
     /// <summary>
-    /// Format a TimeSpan as a timestamp string (HH:MM:SS).
+    /// Format a TimeSpan as a timestamp string (H:MM:SS or M:SS).
     /// </summary>
     public static string FormatTimestamp(TimeSpan ts)
         => ts.TotalHours >= 1

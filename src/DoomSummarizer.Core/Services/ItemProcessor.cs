@@ -79,9 +79,7 @@ public sealed class ItemProcessor
 
         await _storage.SaveItemAsync(item);
 
-        var contentPreview = (item.Content ?? "").Length > 2000
-            ? item.Content![..2000]
-            : item.Content ?? "";
+        var contentPreview = item.Content ?? "";
         await _storage.IndexDocumentFtsAsync(item.Id, item.Title, profile.KeywordsText, contentPreview);
         await _storage.UpdateKeywordCorpusAsync(profile.TopKeywords.Select(k => k.Keyword));
     }

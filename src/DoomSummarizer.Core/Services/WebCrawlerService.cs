@@ -2,9 +2,11 @@ using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using AngleSharp;
 using AngleSharp.Dom;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services;
 using Polly;
 using Polly.Retry;
 
@@ -16,6 +18,9 @@ namespace DoomSummarizer.Services;
 /// stores as ContentItems for knowledge base use.
 /// Supports HTTP conditional requests (ETag / If-Modified-Since) for
 /// bandwidth-efficient incremental re-crawling.
+///
+/// GitHub raw mode: fetches raw markdown from raw.githubusercontent.com,
+/// extracts markdown links, and uses the raw content directly.
 ///
 /// Adaptive rate limiting:
 /// - Tracks response time via exponential moving average (EMA)
@@ -118,6 +123,13 @@ public class WebCrawlerService
         _currentDelayMs = effectiveDelayMs;
         AdaptiveDelayMs = _currentDelayMs;
 
+        // GitHub raw mode: convert seed URL to raw.githubusercontent.com
+        if (_config.GitHubRawMode)
+        {
+            var rawUrl = ConvertToRawGitHubUrl(seedUrl);
+            if (rawUrl != null) seedUrl = rawUrl;
+        }
+
         var seedUri = new Uri(seedUrl);
         // Allow both www and non-www variants of the domain
         var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -154,12 +166,13 @@ public class WebCrawlerService
 
             onActivity?.Invoke($"Crawling: {TruncateUrl(url, 60)}");
 
-            // Stage 1: Fetch HTML (with conditional request headers for cache validation)
-            string? html = null;
+            // Stage 1: Fetch page (with conditional request headers for cache validation)
+            string? body = null;
             string? finalUrl = url;
             string? responseETag = null;
             string? responseLastModified = null;
             bool wasNotModified = false;
+            bool isMarkdown = false;
             try
             {
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -168,7 +181,9 @@ public class WebCrawlerService
                 var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Add("User-Agent",
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MostlyLucid-DoomSummarizer/1.0 (KnowledgeBase)");
-                request.Headers.Add("Accept", "text/html,application/xhtml+xml");
+                request.Headers.Add("Accept", _config.GitHubRawMode
+                    ? "text/plain,text/markdown,text/html,application/xhtml+xml"
+                    : "text/html,application/xhtml+xml");
 
                 // Send conditional headers if we have cached ETags / Last-Modified
                 if (cacheProvider != null)
@@ -220,8 +235,6 @@ public class WebCrawlerService
                 {
                     PagesNotModified++;
                     wasNotModified = true;
-                    // Still extract links from seed pages at this depth
-                    // but we don't have HTML, so skip link extraction too
                 }
                 else if (!response.IsSuccessStatusCode)
                 {
@@ -237,15 +250,23 @@ public class WebCrawlerService
                         AdaptiveDelayMs = _currentDelayMs;
                     }
 
-                    // Only process HTML content
+                    // Determine content type
                     var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
-                    if (!contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
+                    var isHtml = contentType.Contains("html", StringComparison.OrdinalIgnoreCase);
+
+                    // In GitHub raw mode, accept text/plain for .md files
+                    isMarkdown = _config.GitHubRawMode && !isHtml &&
+                        (contentType.StartsWith("text/plain", StringComparison.OrdinalIgnoreCase)
+                         || contentType.StartsWith("text/markdown", StringComparison.OrdinalIgnoreCase)
+                         || IsMarkdownUrl(url));
+
+                    if (!isHtml && !isMarkdown)
                     {
                         PagesSkipped++;
                         continue;
                     }
 
-                    html = await response.Content.ReadAsStringAsync(cts.Token);
+                    body = await response.Content.ReadAsStringAsync(cts.Token);
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -271,45 +292,121 @@ public class WebCrawlerService
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(html))
+            if (string.IsNullOrWhiteSpace(body))
             {
                 PagesSkipped++;
                 continue;
             }
 
-            // Stage 2: Extract links ALWAYS (even if content extraction fails)
-            // This ensures the crawler keeps discovering pages on the domain
-            if (depth < _config.MaxDepth)
+            // ── GitHub raw markdown path ────────────────────────────────────
+            if (isMarkdown)
             {
-                var links = ExtractSameDomainLinks(html, finalUrl, allowedHosts);
-                foreach (var link in links)
+                bool shouldIndexMd = MatchesPathFilter(finalUrl);
+
+                // Extract markdown links for BFS (only follow .md/.markdown files)
+                if (depth < _config.MaxDepth)
                 {
-                    var normalized = NormalizeUrl(link);
-                    if (!visited.Contains(normalized) && !IsBlockedExtension(normalized))
-                        frontier.Enqueue((normalized, depth + 1));
+                    var links = ExtractMarkdownLinks(body, finalUrl, allowedHosts);
+                    foreach (var link in links)
+                    {
+                        var normalized = NormalizeUrl(link);
+                        if (!visited.Contains(normalized) && !IsBlockedExtension(normalized))
+                            frontier.Enqueue((normalized, depth + 1));
+                    }
+                }
+
+                if (!shouldIndexMd || body.Length < 50)
+                {
+                    PagesSkipped++;
+                    continue;
+                }
+
+                // Chunk the markdown into heading-based sections for focused embeddings.
+                // Uses the shared DocumentChunker from the DocSummarizer pipeline —
+                // one chunking strategy for all document types.
+                var mdTitle = ExtractMarkdownTitle(body, finalUrl);
+                var parentId = $"crawl_{GenerateId(finalUrl)}";
+                var displayUrl = ConvertToGitHubBlobUrl(finalUrl) ?? finalUrl;
+                var chunker = new DocumentChunker();
+                var chunks = chunker.ChunkByStructure(body);
+
+                foreach (var chunk in chunks)
+                {
+                    PagesExtracted++;
+                    progress?.Report((PagesVisited, frontier.Count, PagesExtracted));
+
+                    yield return new CrawlResult
+                    {
+                        Item = new ContentItem
+                        {
+                            Id = chunks.Count > 1
+                                ? $"{parentId}_{chunk.Order}"
+                                : parentId,
+                            Source = $"crawl:{_config.Name}",
+                            Title = !string.IsNullOrEmpty(chunk.Heading) ? chunk.Heading : mdTitle,
+                            Url = displayUrl,
+                            Content = chunk.Content,
+                            ParentDocumentId = chunks.Count > 1 ? parentId : null,
+                            ChunkSequence = chunk.Order,
+                            UnitLevel = chunks.Count > 1 ? "section" : "document",
+                            FetchedAt = DateTimeOffset.UtcNow,
+                            CreatedAt = DateTimeOffset.UtcNow
+                        },
+                        Url = finalUrl,
+                        ETag = responseETag,
+                        LastModified = responseLastModified
+                    };
+                }
+                continue;
+            }
+
+            // ── Standard HTML path ──────────────────────────────────────────
+            // Stage 2: Extract content
+            // When ContentScopedLinks is enabled, we need the article HTML for link discovery,
+            // so content extraction runs before link extraction.
+            bool shouldIndex = MatchesPathFilter(finalUrl);
+            ExtractedContent? extracted = null;
+
+            if (_config.ContentScopedLinks || shouldIndex)
+            {
+                try
+                {
+                    extracted = _extractor.ExtractFromHtml(body, finalUrl);
+                }
+                catch
+                {
+                    // Content extraction failed — fall through
                 }
             }
 
-            // Stage 3: Extract content (separate try-catch so link discovery isn't lost)
+            bool hasGoodContent = extracted is { IsReadable: true } && extracted.Content.Length >= 50;
+
+            // Stage 3: Extract links for BFS discovery
+            if (depth < _config.MaxDepth)
+            {
+                // When content-scoped: use article HTML so we only follow links the author
+                // put in the content (not navigation/sidebar/footer links from the page chrome).
+                // Falls back to full HTML if content extraction failed.
+                var linkHtml = _config.ContentScopedLinks && hasGoodContent && extracted!.HtmlContent != null
+                    ? extracted.HtmlContent
+                    : body;
+
+                // In content-scoped mode with no usable content, skip link discovery entirely
+                // (the page has no article content, so there are no meaningful links to follow)
+                if (!_config.ContentScopedLinks || hasGoodContent)
+                {
+                    var links = ExtractSameDomainLinks(linkHtml, finalUrl, allowedHosts);
+                    foreach (var link in links)
+                    {
+                        var normalized = NormalizeUrl(link);
+                        if (!visited.Contains(normalized) && !IsBlockedExtension(normalized))
+                            frontier.Enqueue((normalized, depth + 1));
+                    }
+                }
+            }
+
             // Apply path filter — pages outside the filter are crawled for links but not indexed
-            if (!MatchesPathFilter(finalUrl))
-            {
-                PagesSkipped++;
-                continue;
-            }
-
-            ExtractedContent? extracted;
-            try
-            {
-                extracted = _extractor.ExtractFromHtml(html, finalUrl);
-            }
-            catch
-            {
-                PagesSkipped++;
-                continue;
-            }
-
-            if (extracted == null || !extracted.IsReadable || extracted.Content.Length < 50)
+            if (!shouldIndex || !hasGoodContent)
             {
                 PagesSkipped++;
                 continue;
@@ -340,6 +437,148 @@ public class WebCrawlerService
             };
         }
     }
+
+    // ─── GitHub raw helpers ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Convert a github.com blob URL to a raw.githubusercontent.com URL.
+    /// github.com/{owner}/{repo}/blob/{branch}/{path}
+    ///   → raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
+    /// </summary>
+    internal static string? ConvertToRawGitHubUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return null;
+        if (!uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)) return null;
+
+        var segments = uri.AbsolutePath.Trim('/').Split('/');
+        // Expected: {owner}/{repo}/blob/{branch}/{path...}
+        if (segments.Length < 5) return null;
+        if (!segments[2].Equals("blob", StringComparison.OrdinalIgnoreCase)
+            && !segments[2].Equals("tree", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var owner = segments[0];
+        var repo = segments[1];
+        // segments[2] = blob/tree (skip)
+        var branch = segments[3];
+        var path = string.Join('/', segments[4..]);
+
+        return $"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}";
+    }
+
+    /// <summary>
+    /// Convert a raw.githubusercontent.com URL back to a github.com blob URL for display.
+    /// raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
+    ///   → github.com/{owner}/{repo}/blob/{branch}/{path}
+    /// </summary>
+    private static string? ConvertToGitHubBlobUrl(string rawUrl)
+    {
+        if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var uri)) return null;
+        if (!uri.Host.Equals("raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase)) return null;
+
+        var segments = uri.AbsolutePath.Trim('/').Split('/');
+        // Expected: {owner}/{repo}/{branch}/{path...}
+        if (segments.Length < 4) return null;
+
+        var owner = segments[0];
+        var repo = segments[1];
+        var branch = segments[2];
+        var path = string.Join('/', segments[3..]);
+
+        return $"https://github.com/{owner}/{repo}/blob/{branch}/{path}";
+    }
+
+    /// <summary>
+    /// Extract links from raw markdown content. Only follows .md/.markdown files.
+    /// Handles inline links [text](url) and reference-style [ref]: url definitions.
+    /// </summary>
+    private static List<string> ExtractMarkdownLinks(string markdown, string baseUrl, HashSet<string> allowedHosts)
+    {
+        var links = new List<string>();
+
+        // Inline links: [text](url) but NOT image links ![alt](url)
+        foreach (Match m in Regex.Matches(markdown, @"(?<!!)\[[^\]]+\]\(([^)\s]+)"))
+        {
+            TryAddMarkdownLink(m.Groups[1].Value, baseUrl, allowedHosts, links);
+        }
+
+        // Reference-style link definitions: [ref]: url
+        foreach (Match m in Regex.Matches(markdown, @"^\[[^\]]+\]:\s*(\S+)", RegexOptions.Multiline))
+        {
+            TryAddMarkdownLink(m.Groups[1].Value, baseUrl, allowedHosts, links);
+        }
+
+        return links;
+    }
+
+    private static void TryAddMarkdownLink(string href, string baseUrl, HashSet<string> allowedHosts, List<string> links)
+    {
+        if (string.IsNullOrWhiteSpace(href)) return;
+        if (href.StartsWith('#')) return; // fragment-only
+
+        // Strip title portion if present: url "title"
+        var spaceIdx = href.IndexOf(' ');
+        if (spaceIdx > 0) href = href[..spaceIdx];
+
+        // Strip surrounding angle brackets: <url>
+        href = href.Trim('<', '>');
+
+        // Only follow markdown files
+        if (!IsMarkdownUrl(href)) return;
+
+        try
+        {
+            var absoluteUri = new Uri(new Uri(baseUrl), href);
+
+            // Convert absolute GitHub blob URLs to raw.githubusercontent.com so they
+            // stay on the allowed host (the seed was converted to raw at the start).
+            if (absoluteUri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
+            {
+                var rawUrl = ConvertToRawGitHubUrl(absoluteUri.AbsoluteUri);
+                if (rawUrl != null)
+                    absoluteUri = new Uri(rawUrl);
+            }
+
+            if (allowedHosts.Contains(absoluteUri.Host) && absoluteUri.Scheme is "http" or "https")
+                links.Add(absoluteUri.AbsoluteUri);
+        }
+        catch
+        {
+            // Invalid URL — skip
+        }
+    }
+
+    private static bool IsMarkdownUrl(string url)
+    {
+        // Strip fragment and query for extension check
+        var path = url.Split('#')[0].Split('?')[0];
+        return path.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".mdx", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Extract a title from raw markdown: first # heading, or filename from URL.
+    /// </summary>
+    private static string ExtractMarkdownTitle(string markdown, string url)
+    {
+        var match = Regex.Match(markdown, @"^#\s+(.+)$", RegexOptions.Multiline);
+        if (match.Success) return match.Groups[1].Value.Trim();
+
+        // Fall back to filename
+        try
+        {
+            var path = new Uri(url).AbsolutePath;
+            var filename = Path.GetFileNameWithoutExtension(path);
+            return string.IsNullOrEmpty(filename) ? "Untitled" : filename;
+        }
+        catch
+        {
+            return "Untitled";
+        }
+    }
+
+    // ─── Standard HTML helpers ──────────────────────────────────────────
 
     /// <summary>
     /// Update the adaptive delay based on observed response time.
@@ -461,12 +700,11 @@ public class WebCrawlerService
             // Simple glob: convert to regex
             // * matches any sequence of non-/ characters
             // ** matches any sequence including /
-            var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
+            var regexPattern = "^" + Regex.Escape(pattern)
                 .Replace("\\*\\*", ".*")
                 .Replace("\\*", "[^/]*") + "$";
 
-            return System.Text.RegularExpressions.Regex.IsMatch(
-                path, regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return Regex.IsMatch(path, regexPattern, RegexOptions.IgnoreCase);
         }
         catch
         {
@@ -491,12 +729,12 @@ public class WebCrawlerService
         try
         {
             var uri = new Uri(url);
-            // Remove fragment, normalize path
-            return $"{uri.Scheme}://{uri.Host}{uri.AbsolutePath}".TrimEnd('/').ToLowerInvariant();
+            // Strip fragment and query. Preserve path case (raw.githubusercontent.com is case-sensitive).
+            return $"{uri.Scheme}://{uri.Host}{uri.AbsolutePath}".TrimEnd('/');
         }
         catch
         {
-            return url.Split('#')[0].Split('?')[0].TrimEnd('/').ToLowerInvariant();
+            return url.Split('#')[0].Split('?')[0].TrimEnd('/');
         }
     }
 
@@ -572,4 +810,19 @@ public record CrawlConfig
 
     /// <summary>URL path filter (glob pattern, e.g. "/blog/*"). Null means no filter.</summary>
     public string? PathFilter { get; init; }
+
+    /// <summary>
+    /// When true, extract links only from the article content area (SmartReader output)
+    /// rather than the full page HTML. Useful for sites like GitHub where the page
+    /// chrome contains many same-domain navigation links that would overwhelm the crawl.
+    /// Default: false (extract links from full page).
+    /// </summary>
+    public bool ContentScopedLinks { get; init; }
+
+    /// <summary>
+    /// When true, convert GitHub blob URLs to raw.githubusercontent.com and fetch raw markdown
+    /// instead of rendered HTML. Extracts markdown links to follow other .md files in the repo.
+    /// Default: false.
+    /// </summary>
+    public bool GitHubRawMode { get; init; }
 }

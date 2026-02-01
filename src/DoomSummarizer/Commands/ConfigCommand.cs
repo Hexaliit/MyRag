@@ -12,19 +12,44 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
     public sealed class Settings : CommandSettings
     {
         [CommandOption("--init")]
-        [Description("Create default config file")]
+        [Description("Create config file (minimal starter; use --full for all settings)")]
         public bool Init { get; init; }
 
+        [CommandOption("--full")]
+        [Description("With --init: generate a complete config.json with every setting")]
+        public bool Full { get; init; }
+
         [CommandOption("--show")]
-        [Description("Show current configuration")]
+        [Description("Show current configuration with load sources and overrides")]
         public bool Show { get; init; }
+
+        [CommandOption("--reference")]
+        [Description("Print the full YAML configuration reference to stdout")]
+        public bool Reference { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
+        if (settings.Reference)
+        {
+            ShowReference();
+            return 0;
+        }
+
         if (settings.Init)
         {
-            await ConfigService.InitializeDefaultConfigAsync();
+            if (settings.Full)
+            {
+                await ConfigService.InitializeFullConfigAsync();
+                AnsiConsole.MarkupLine($"[green]Created full config:[/] {ConfigService.GetConfigDir()}/config.json");
+            }
+            else
+            {
+                await ConfigService.InitializeStarterConfigAsync();
+                AnsiConsole.MarkupLine($"[green]Created starter config:[/] {ConfigService.GetConfigDir()}/config.json");
+                AnsiConsole.MarkupLine("[grey]Only commonly-changed settings included. Run 'config --init --full' for all settings.[/]");
+                AnsiConsole.MarkupLine("[grey]Run 'config --reference' for the complete setting reference.[/]");
+            }
             return 0;
         }
 
@@ -38,10 +63,30 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
         return 0;
     }
 
+    private static void ShowReference()
+    {
+        var yaml = ConfigService.LoadYamlDefaultsText();
+        if (yaml == null)
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] Could not load embedded YAML reference.");
+            return;
+        }
+
+        AnsiConsole.Write(new Rule("[bold cyan]Configuration Reference (default-config.yaml)[/]").RuleStyle("grey"));
+        AnsiConsole.WriteLine();
+        AnsiConsole.WriteLine(yaml);
+    }
+
     private static void ShowConfig(DoomConfig config)
     {
         AnsiConsole.Write(new Rule("[bold cyan]DoomSummarizer Configuration[/]").RuleStyle("grey"));
         AnsiConsole.WriteLine();
+
+        // Show load sources
+        ShowLoadSources();
+
+        // Show overrides from defaults
+        ShowOverrides(config);
 
         // Sources
         var sourcesTree = new Tree("[bold]Sources[/]");
@@ -127,6 +172,35 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[grey]Edit config: ~/.doomsummarizer/config.json[/]");
+        AnsiConsole.MarkupLine("[grey]Full reference: doomsummarizer config --reference[/]");
     }
 
+    private static void ShowLoadSources()
+    {
+        var sources = ConfigService.LoadedSources;
+        if (sources.Count == 0) return;
+
+        AnsiConsole.Write(new Rule("[bold]Config Sources (load order)[/]").RuleStyle("grey").LeftJustified());
+        for (var i = 0; i < sources.Count; i++)
+        {
+            var marker = i == 0 ? "[blue]base[/]" : "[yellow]override[/]";
+            AnsiConsole.MarkupLine($"  {i + 1}. {marker} {Markup.Escape(sources[i])}");
+        }
+        AnsiConsole.WriteLine();
+    }
+
+    private static void ShowOverrides(DoomConfig config)
+    {
+        var defaults = ConfigService.LoadYamlDefaults();
+        var overrides = ConfigService.GetOverrides(defaults, config);
+
+        if (overrides.Count == 0) return;
+
+        AnsiConsole.Write(new Rule("[bold]Values overridden from defaults[/]").RuleStyle("grey").LeftJustified());
+        foreach (var (path, value) in overrides)
+        {
+            AnsiConsole.MarkupLine($"  [yellow]{Markup.Escape(path)}[/] = [green]{Markup.Escape(value)}[/]");
+        }
+        AnsiConsole.WriteLine();
+    }
 }

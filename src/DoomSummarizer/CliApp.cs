@@ -120,6 +120,13 @@ public static class CliApp
                 .WithExample("ask", "--source", "crawl:docs", "how does authentication work?")
                 .WithExample("ask", "--once", "latest AI news");
 
+            config.AddCommand<ManCommand>("man")
+                .WithDescription("Built-in manual: Q&A about DoomSummarizer itself")
+                .WithExample("man", "how do I crawl a website?")
+                .WithExample("man", "--refresh", "what LLM providers are supported?")
+                .WithExample("man", "--once", "how do I configure sources?")
+                .WithExample("man");
+
             config.AddCommand<BenchmarkCommand>("benchmark")
                 .WithDescription("Benchmark Ollama models for speed and quality")
                 .WithExample("benchmark")
@@ -187,7 +194,7 @@ public static class CliApp
 
     private static bool IsKnownCommand(string arg)
     {
-        if (arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "benchmark" or "page" or "plugin" or "list")
+        if (arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "man" or "benchmark" or "page" or "plugin" or "list")
             return true;
 
         // Check plugin-contributed commands

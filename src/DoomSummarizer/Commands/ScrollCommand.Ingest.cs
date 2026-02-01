@@ -324,115 +324,31 @@ public sealed partial class ScrollCommand
 
     /// <summary>
     /// Split a document into retrieval-sized chunks.
-    /// Uses page markers for PDFs, heading/paragraph splits for text.
+    /// Delegates to the shared DocumentChunker from DocSummarizer.Core which handles
+    /// page markers (PDFs), heading-based splitting, paragraph fallback, and section merging.
     /// Chunk size adapts to document type: books use larger chunks for narrative continuity.
     /// </summary>
     private static List<(string title, string text, int index)> ChunkDocument(
         string markdown, string docTitle, string filePath,
         IngestDocumentType docType = IngestDocumentType.Unknown)
     {
-        var chunks = new List<(string title, string text, int index)>();
+        // Books need larger chunks to preserve narrative context (~5000 chars = ~1250 tokens)
+        // Technical/general content uses default (~400 tokens = ~1600 chars)
+        var targetTokens = docType is IngestDocumentType.Fiction or IngestDocumentType.NonFiction
+            ? 1250 : 400;
+        var minTokens = docType is IngestDocumentType.Fiction or IngestDocumentType.NonFiction
+            ? 200 : 50;
 
-        // Books need larger chunks to preserve narrative context
-        var targetChunkChars = docType is IngestDocumentType.Fiction or IngestDocumentType.NonFiction
-            ? 5000 : 2000;
-        const int minChunkChars = 200;
+        var chunker = new Mostlylucid.DocSummarizer.Services.DocumentChunker(
+            targetChunkTokens: targetTokens, minChunkTokens: minTokens);
+        var docChunks = chunker.ChunkByStructure(markdown);
 
-        // Try page-based chunking (PDFs have <!-- PAGE:N --> markers)
-        var pages = SplitByPageMarkers(markdown);
-        if (pages.Count > 1)
-        {
-            // Group pages into chunks of ~targetChunkChars
-            var currentText = new StringBuilder();
-            var startPage = 1;
-            var chunkIdx = 0;
-
-            for (var i = 0; i < pages.Count; i++)
-            {
-                if (currentText.Length > 0 && currentText.Length + pages[i].Length > targetChunkChars)
-                {
-                    // Emit current chunk
-                    var endPage = startPage + (i - 1 >= 0 ? 1 : 0);
-                    var title = startPage == endPage
-                        ? $"{docTitle} (p.{startPage})"
-                        : $"{docTitle} (p.{startPage}-{startPage + chunkIdx})";
-                    chunks.Add((title, currentText.ToString().Trim(), chunks.Count));
-                    currentText.Clear();
-                    startPage = i + 1;
-                    chunkIdx = 0;
-                }
-
-                currentText.AppendLine(pages[i]);
-                chunkIdx++;
-            }
-
-            // Remaining text
-            if (currentText.Length > minChunkChars)
-            {
-                chunks.Add(($"{docTitle} (p.{startPage}+)", currentText.ToString().Trim(), chunks.Count));
-            }
-
-            return chunks;
-        }
-
-        // Paragraph-based chunking for non-PDF documents
-        var paragraphs = markdown.Split("\n\n", StringSplitOptions.RemoveEmptyEntries);
-        var buffer = new StringBuilder();
-        var currentHeading = docTitle;
-
-        foreach (var para in paragraphs)
-        {
-            var trimmed = para.Trim();
-            if (string.IsNullOrWhiteSpace(trimmed)) continue;
-
-            // Track headings for chunk titles
-            if (trimmed.StartsWith('#'))
-            {
-                var headingText = trimmed.TrimStart('#').Trim();
-                if (!string.IsNullOrEmpty(headingText))
-                    currentHeading = headingText;
-            }
-
-            if (buffer.Length > 0 && buffer.Length + trimmed.Length > targetChunkChars)
-            {
-                chunks.Add((currentHeading, buffer.ToString().Trim(), chunks.Count));
-                buffer.Clear();
-            }
-
-            buffer.AppendLine(trimmed);
-            buffer.AppendLine();
-        }
-
-        if (buffer.Length > minChunkChars)
-        {
-            chunks.Add((currentHeading, buffer.ToString().Trim(), chunks.Count));
-        }
-
-        // If nothing was chunked, store the whole document
-        if (chunks.Count == 0 && markdown.Length > minChunkChars)
-        {
-            chunks.Add((docTitle, markdown.Trim(), 0));
-        }
-
-        return chunks;
-    }
-
-    /// <summary>
-    /// Split markdown by <!-- PAGE:N --> markers.
-    /// </summary>
-    private static List<string> SplitByPageMarkers(string markdown)
-    {
-        var pages = new List<string>();
-        var parts = System.Text.RegularExpressions.Regex.Split(markdown, @"<!--\s*PAGE:\d+\s*-->");
-
-        foreach (var part in parts)
-        {
-            var trimmed = part.Trim();
-            if (!string.IsNullOrWhiteSpace(trimmed))
-                pages.Add(trimmed);
-        }
-
-        return pages;
+        return docChunks
+            .Select(c => (
+                title: !string.IsNullOrEmpty(c.Heading) ? c.Heading : docTitle,
+                text: c.Content,
+                index: c.Order))
+            .ToList();
     }
 
     private static string GenerateChunkId(string filePath, int chunkIndex)

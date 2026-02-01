@@ -77,12 +77,13 @@
         <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj" />
     </ItemGroup>
 
-    <!-- Embed default config, prompt templates, and starter lens files -->
+    <!-- Embed default config, prompt templates, starter lens files, and manual manifest -->
     <ItemGroup>
         <EmbeddedResource Include="Resources\default-config.json" />
         <EmbeddedResource Include="Resources\sources.yaml" />
         <EmbeddedResource Include="Resources\prompts\*.txt" />
         <EmbeddedResource Include="Resources\lenses\*.lens.yaml" />
+        <EmbeddedResource Include="Resources\manual.manifest.yaml" />
     </ItemGroup>
 
 </Project>

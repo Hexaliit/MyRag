@@ -121,17 +121,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
-        var crawlConfig = new CrawlConfig
-        {
-            Name = kbName,
-            MaxDepth = settings.Depth,
-            MaxPages = settings.MaxPages,
-            DelayMs = settings.DelayMs,
-            MaxConcurrency = settings.Concurrency,
-            TimeoutSeconds = 15,
-            PathFilter = settings.Glob
-        };
-
+        var crawlConfig = CreateCrawlConfig(settings, kbName);
         var crawler = new WebCrawlerService(httpClient, crawlConfig);
 
         // Pre-load URL cache for conditional request headers (ETag / Last-Modified)
@@ -149,7 +139,12 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         }
 
         AnsiConsole.MarkupLine($"[bold cyan]Crawling:[/] {Markup.Escape(settings.Url)}");
-        var filterInfo = !string.IsNullOrEmpty(settings.Glob) ? $" | filter: {settings.Glob}" : "";
+        if (crawlConfig.GitHubRawMode)
+            AnsiConsole.MarkupLine($"[grey]GitHub repo detected — raw markdown mode, filter: {Markup.Escape(crawlConfig.PathFilter ?? "*")}[/]");
+        else if (crawlConfig.ContentScopedLinks)
+            AnsiConsole.MarkupLine($"[grey]GitHub repo detected — scoping to content links, filter: {Markup.Escape(crawlConfig.PathFilter ?? "*")}[/]");
+        var filterInfo = !string.IsNullOrEmpty(crawlConfig.PathFilter) && !crawlConfig.ContentScopedLinks
+            ? $" | filter: {crawlConfig.PathFilter}" : "";
         var cacheMode = settings.Force ? "[yellow]force[/]" : "[green]incremental[/]";
         var cacheStats = urlCacheLookup.Count > 0 ? $" | {urlCacheLookup.Count} cached ETags" : "";
         AnsiConsole.MarkupLine($"[grey]KB name: {Markup.Escape(kbName)} | depth: {settings.Depth} | max: {settings.MaxPages} pages{filterInfo} | mode: {cacheMode}{cacheStats}[/]");
@@ -250,9 +245,9 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
                 foreach (var item in newItems)
                 {
-                    var textToEmbed = $"{item.Title} {item.Content ?? ""}".Trim();
-                    if (textToEmbed.Length > 1000)
-                        textToEmbed = textToEmbed[..1000];
+                    var textToEmbed = $"{item.Title}: {item.Content ?? ""}".Trim();
+                    if (textToEmbed.Length > 1500)
+                        textToEmbed = textToEmbed[..1500];
                     item.Embedding = await boot.Embedding.EmbedAsync(textToEmbed, cancellationToken);
                     embedTask.Increment(1);
                 }
@@ -712,5 +707,56 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Create a CrawlConfig from command settings with auto-detection for GitHub repos.
+    /// When a GitHub repo URL is detected:
+    ///   - PathFilter is auto-set to /{owner}/{repo}/** (unless --glob is explicit)
+    ///   - ContentScopedLinks is enabled (only follow links from the article content,
+    ///     not GitHub UI navigation links)
+    /// Used by both the foreground crawl path and BackgroundCrawlSession.
+    /// </summary>
+    internal static CrawlConfig CreateCrawlConfig(Settings settings, string kbName)
+    {
+        var config = new CrawlConfig
+        {
+            Name = kbName,
+            MaxDepth = settings.Depth,
+            MaxPages = settings.MaxPages,
+            DelayMs = settings.DelayMs,
+            MaxConcurrency = settings.Concurrency,
+            TimeoutSeconds = 15,
+            PathFilter = settings.Glob
+        };
+
+        if (TryGetGitHubRepoScope(settings.Url, out var repoScope))
+        {
+            config = config with
+            {
+                PathFilter = settings.Glob ?? $"{repoScope}/**",
+                ContentScopedLinks = true,
+                GitHubRawMode = true
+            };
+        }
+
+        return config;
+    }
+
+    /// <summary>
+    /// Detect GitHub repo URLs and extract the /{owner}/{repo} path prefix for scoping.
+    /// Matches: github.com/{owner}/{repo}/blob/..., github.com/{owner}/{repo}/tree/..., etc.
+    /// </summary>
+    internal static bool TryGetGitHubRepoScope(string url, out string repoPathPrefix)
+    {
+        repoPathPrefix = "";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
+        if (!uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)) return false;
+
+        var segments = uri.AbsolutePath.Trim('/').Split('/');
+        if (segments.Length < 2) return false;
+
+        repoPathPrefix = $"/{segments[0]}/{segments[1]}";
+        return true;
     }
 }

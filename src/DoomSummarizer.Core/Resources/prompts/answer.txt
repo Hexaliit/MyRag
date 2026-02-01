@@ -1,11 +1,24 @@
-You are answering a question. Use the source material below — do not add information from outside it.
+Read ALL the source material below carefully before answering. Your answer MUST be based on what the sources say.
 Tone: {{VIBE_PROMPT}}
 
-QUESTION: {{USER_QUERY}} | DATE: {{TODAY}}
-
-SOURCE MATERIAL:
+SOURCE MATERIAL (read this first):
 {{EVIDENCE}}
 
-RULES: Answer directly — lead with the key fact | Synthesize across sources | Include specifics and data | Prefer recent material | No URLs or links | No sources section | Never say "based on the evidence" or "the sources say" or reference these instructions — write as if you simply know the answer
+Now answer this question using the source material above.
+QUESTION: {{USER_QUERY}} | DATE: {{TODAY}}
 
-FORMAT: 2-4 paragraphs of clean prose. Less is fine if material is thin.
+IMPORTANT: If the source material describes a feature, capability, command, or behavior that answers the question, then the answer is YES — it IS supported. Do NOT say "no" or "not supported" when the sources show otherwise. Trust the evidence over your assumptions.
+
+Answer format:
+- "can I" / "does it" / "is there" questions: If the evidence shows the capability exists, say "Yes" and cite the specifics (commands, config, API). Only say "No" if the evidence explicitly states it is not supported or if none of the sources mention it at all.
+- "how do I" questions: Start with the command, method, or steps from the evidence.
+- "what is" questions: Start with a concise definition from the evidence, then details.
+
+RULES:
+- First sentence directly answers the question. No preamble or overview.
+- Include specific commands, code, config values, or parameter names from the evidence.
+- Synthesize across sources when they cover different aspects.
+- No URLs or links. No sources section. No meta-commentary.
+- Write as if you simply know the answer — never reference "the sources" or "the evidence."
+
+FORMAT: 1-3 short paragraphs. Lead with the answer, follow with details only if they add value.

@@ -47,10 +47,12 @@ public class WebCrawlerServiceTests
     }
 
     [Fact]
-    public void NormalizeUrl_Lowercases()
+    public void NormalizeUrl_LowercasesHostPreservesPathCase()
     {
         var result = NormalizeUrl("https://Example.COM/Page");
-        result.Should().Be("https://example.com/page");
+        // Host is lowercased (per HTTP spec), path case is preserved
+        // (raw.githubusercontent.com is case-sensitive)
+        result.Should().Be("https://example.com/Page");
     }
 
     [Fact]
@@ -111,6 +113,67 @@ public class WebCrawlerServiceTests
         var result = TruncateUrl(longUrl, 60);
         result.Length.Should().Be(60);
         result.Should().EndWith("...");
+    }
+
+    #endregion
+
+    #region GitHub Raw Mode
+
+    [Theory]
+    [InlineData("https://github.com/scottgal/mostlylucid.nugetpackages/blob/main/README.md",
+        "https://raw.githubusercontent.com/scottgal/mostlylucid.nugetpackages/main/README.md")]
+    [InlineData("https://github.com/owner/repo/blob/develop/docs/guide.md",
+        "https://raw.githubusercontent.com/owner/repo/develop/docs/guide.md")]
+    [InlineData("https://github.com/owner/repo/tree/main/src",
+        "https://raw.githubusercontent.com/owner/repo/main/src")]
+    public void ConvertToRawGitHubUrl_ConvertsCorrectly(string input, string expected)
+    {
+        WebCrawlerService.ConvertToRawGitHubUrl(input).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("https://github.com/owner/repo")]  // no blob/tree segment
+    [InlineData("https://example.com/page")]        // not GitHub
+    [InlineData("not-a-url")]                       // invalid
+    public void ConvertToRawGitHubUrl_ReturnsNullForInvalid(string input)
+    {
+        WebCrawlerService.ConvertToRawGitHubUrl(input).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("docs/readme.md", true)]
+    [InlineData("guide.markdown", true)]
+    [InlineData("intro.mdx", true)]
+    [InlineData("README.MD", true)]
+    [InlineData("page.html", false)]
+    [InlineData("script.js", false)]
+    [InlineData("readme.md#section", true)]   // fragment stripped before check
+    [InlineData("readme.md?v=2", true)]       // query stripped before check
+    public void IsMarkdownUrl_CorrectlyIdentifies(string url, bool expected)
+    {
+        var method = typeof(WebCrawlerService).GetMethod("IsMarkdownUrl",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+        ((bool)method.Invoke(null, [url])!).Should().Be(expected);
+    }
+
+    [Fact]
+    public void ExtractMarkdownTitle_FindsFirstHeading()
+    {
+        var method = typeof(WebCrawlerService).GetMethod("ExtractMarkdownTitle",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+        var md = "Some preamble\n# My Title\n\nContent here";
+        ((string)method.Invoke(null, [md, "https://example.com/file.md"])!)
+            .Should().Be("My Title");
+    }
+
+    [Fact]
+    public void ExtractMarkdownTitle_FallsBackToFilename()
+    {
+        var method = typeof(WebCrawlerService).GetMethod("ExtractMarkdownTitle",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+        var md = "No heading here, just content.";
+        ((string)method.Invoke(null, [md, "https://example.com/my-guide.md"])!)
+            .Should().Be("my-guide");
     }
 
     #endregion

@@ -9,10 +9,16 @@ namespace DoomSummarizer.Plugins.Subtitles;
 /// Document handler for subtitle files (SRT, VTT, ASS, SSA).
 /// Converts subtitle content to chapter-aware markdown for ingestion.
 /// </summary>
-public sealed class SubtitleDocumentHandler : IDocumentHandler
+public sealed partial class SubtitleDocumentHandler : IDocumentHandler
 {
-    private static readonly Regex HtmlTagRegex = new(@"<[^>]+>", RegexOptions.Compiled);
-    private static readonly Regex VttCueSettingsRegex = new(@"\s*(align|position|size|line|vertical):[\w%]+", RegexOptions.Compiled);
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex(@"\s*(align|position|size|line|vertical):[\w%+\-.,]+")]
+    private static partial Regex VttCueSettingsRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     public IReadOnlyList<string> SupportedExtensions { get; } = [".srt", ".vtt", ".ass", ".ssa"];
     public int Priority => 10;
@@ -62,34 +68,55 @@ public sealed class SubtitleDocumentHandler : IDocumentHandler
         string filePath, CancellationToken ct)
     {
         await using var stream = File.OpenRead(filePath);
-        var result = SubtitleParser.ParseStream(stream, Encoding.UTF8);
+
+        // Use extension-based format selection to avoid misdetection
+        // (e.g., LRC parser incorrectly matching ASS bracket syntax)
+        var ext = Path.GetExtension(filePath).TrimStart('.').ToLowerInvariant();
+        var formatType = SubtitleFormat.GetFormatTypeByFileExtensionName(ext);
+        var result = formatType.HasValue
+            ? SubtitleParser.ParseStream(stream, Encoding.UTF8, formatType.Value)
+            : SubtitleParser.ParseStream(stream, Encoding.UTF8);
 
         if (result?.Subtitles == null)
             return [];
 
-        return result.Subtitles
-            .Where(item => item.StartTime >= 0 && item.EndTime >= 0)
-            .Select(item =>
+        var entries = new List<SubtitleEntry>(result.Subtitles.Count);
+        var lineJoinBuffer = new StringBuilder(256);
+
+        foreach (var item in result.Subtitles)
+        {
+            if (item.StartTime < 0 || item.EndTime < 0)
+                continue;
+
+            // Join lines into single string using shared buffer
+            lineJoinBuffer.Clear();
+            for (var j = 0; j < item.Lines.Count; j++)
             {
-                var text = CleanSubtitleText(string.Join(" ", item.Lines));
-                return new SubtitleEntry(
+                if (j > 0) lineJoinBuffer.Append(' ');
+                lineJoinBuffer.Append(item.Lines[j]);
+            }
+
+            var text = CleanSubtitleText(lineJoinBuffer.ToString());
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                entries.Add(new SubtitleEntry(
                     TimeSpan.FromMilliseconds(item.StartTime),
                     TimeSpan.FromMilliseconds(item.EndTime),
-                    text);
-            })
-            .Where(e => !string.IsNullOrWhiteSpace(e.Text))
-            .ToList();
+                    text));
+            }
+        }
+
+        return entries;
     }
 
     private static string CleanSubtitleText(string text)
     {
         // Strip HTML tags (<i>, <b>, <font>, etc.)
-        var cleaned = HtmlTagRegex.Replace(text, "");
+        var cleaned = HtmlTagRegex().Replace(text, "");
         // Strip VTT cue settings
-        cleaned = VttCueSettingsRegex.Replace(cleaned, "");
-        // Normalize whitespace
-        cleaned = cleaned.Replace('\n', ' ').Replace('\r', ' ');
-        cleaned = Regex.Replace(cleaned, @"\s+", " ");
+        cleaned = VttCueSettingsRegex().Replace(cleaned, "");
+        // Normalize whitespace (single pass with source-generated regex)
+        cleaned = WhitespaceRegex().Replace(cleaned, " ");
         return cleaned.Trim();
     }
 
@@ -98,13 +125,13 @@ public sealed class SubtitleDocumentHandler : IDocumentHandler
         List<SubtitleChapter> chapters,
         string docTitle)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine($"# {docTitle}");
+        // Pre-size StringBuilder: ~100 chars per entry as rough estimate
+        var sb = new StringBuilder(entries.Count * 100);
+        sb.Append("# ").AppendLine(docTitle);
         sb.AppendLine();
 
         if (chapters.Count <= 1)
         {
-            // No meaningful chapters detected — output as continuous text with timestamps
             WriteEntriesAsText(sb, entries, 0, entries.Count);
         }
         else
@@ -115,20 +142,22 @@ public sealed class SubtitleDocumentHandler : IDocumentHandler
                 var nextStart = c + 1 < chapters.Count ? chapters[c + 1].StartIndex : entries.Count;
                 var timestamp = ChapterDetector.FormatTimestamp(chapter.StartTime);
 
-                sb.AppendLine($"## [{timestamp}] {chapter.Title}");
+                sb.Append("## [").Append(timestamp).Append("] ").AppendLine(chapter.Title);
                 sb.AppendLine();
                 WriteEntriesAsText(sb, entries, chapter.StartIndex, nextStart);
                 sb.AppendLine();
             }
         }
 
-        return sb.ToString().TrimEnd();
+        // TrimEnd without allocating a new string when possible
+        var result = sb.ToString();
+        return result.TrimEnd();
     }
 
     private static void WriteEntriesAsText(
         StringBuilder sb, List<SubtitleEntry> entries, int start, int end)
     {
-        var paragraph = new StringBuilder();
+        var paragraph = new StringBuilder(512);
         TimeSpan? lastEnd = null;
 
         for (var i = start; i < end && i < entries.Count; i++)
@@ -139,7 +168,10 @@ public sealed class SubtitleDocumentHandler : IDocumentHandler
             if (lastEnd.HasValue && (entry.StartTime - lastEnd.Value).TotalSeconds > 2.0
                 && paragraph.Length > 0)
             {
-                sb.AppendLine(paragraph.ToString().Trim());
+                // Trim trailing space from paragraph before appending
+                while (paragraph.Length > 0 && paragraph[^1] == ' ')
+                    paragraph.Length--;
+                sb.AppendLine(paragraph.ToString());
                 sb.AppendLine();
                 paragraph.Clear();
             }
@@ -151,7 +183,9 @@ public sealed class SubtitleDocumentHandler : IDocumentHandler
 
         if (paragraph.Length > 0)
         {
-            sb.AppendLine(paragraph.ToString().Trim());
+            while (paragraph.Length > 0 && paragraph[^1] == ' ')
+                paragraph.Length--;
+            sb.AppendLine(paragraph.ToString());
         }
     }
 }

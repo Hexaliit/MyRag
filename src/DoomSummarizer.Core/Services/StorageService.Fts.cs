@@ -398,9 +398,7 @@ public partial class StorageService
                 delFts.Parameters.AddWithValue("@id", item.Id);
                 await delFts.ExecuteNonQueryAsync();
 
-                var contentPreview = (item.Content ?? "").Length > 2000
-                    ? item.Content![..2000]
-                    : item.Content ?? "";
+                var contentPreview = item.Content ?? "";
 
                 await using var ftsCmd = _connection.CreateCommand();
                 ftsCmd.Transaction = (SqliteTransaction)transaction;
