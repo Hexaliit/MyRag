@@ -11,7 +11,7 @@ A distillation of [***lucid*RAG**](https://github.com/scottgal/lucidrag) princip
 
 - **Scroll** — Fetch + rank news/search results into a digest, article, or newsletter
 - **Ask** — Interactive Q&A over your stored knowledge base
-- **Crawl** — Index any website for semantic search (incremental with HTTP ETag caching)
+- **Crawl** — Index any website or local files/directories for semantic search (PDF, DOCX, Markdown, HTML, TXT, PPTX)
 - **Page** — Summarize a single URL
 - **Show** — Browse knowledge base collections
 - **Long-form** — Generate evidence-grounded multi-section articles with validation
@@ -45,9 +45,16 @@ doomsummarizer scroll "dotnet news" -t newsletter -o weekly.html
 # Q&A over stored evidence
 doomsummarizer ask "What's the latest on SSH vulnerabilities?"
 
-# Build a knowledge base, then query it
+# Build a knowledge base from a website, then query it
 doomsummarizer crawl https://docs.example.com -n mydocs
 doomsummarizer ask -s crawl:mydocs "how does authentication work?"
+
+# Ingest local files and ask questions interactively
+doomsummarizer crawl C:\docs\project-specs --ask
+doomsummarizer crawl /home/user/research --recurse --ask
+
+# Crawl a website with background crawl + live Q&A
+doomsummarizer crawl https://docs.example.com --ask
 ```
 
 ### Requirements
@@ -104,11 +111,12 @@ doomsummarizer scroll "React vs Svelte" -t pros-cons -o comparison.md
 
 ### `ask` — Interactive Q&A
 
-Chat-style interface over stored evidence. Multi-turn with conversation context.
+Chat-style interface over stored evidence. Uses the same synthesis pipeline as `scroll` (smart evidence budgeting, TextRank compression, semantic re-ranking). Multi-turn with conversation context.
 
 ```bash
 doomsummarizer ask "What's new in .NET 10?"
 doomsummarizer ask -s crawl:mydocs "how does auth work?"
+doomsummarizer ask -s file:my-project "what's the architecture?"
 doomsummarizer ask --once "latest AI news"           # Single answer, exit
 doomsummarizer ask --days 7 "this week's highlights"
 ```
@@ -117,7 +125,7 @@ Inside the loop: `sources`, `history`, `clear`, `quit`.
 
 | Option | Short | Description |
 |--------|-------|-------------|
-| `--source NAME` | `-s` | Filter to source (e.g. `crawl:mysite`, `hn`) |
+| `--source NAME` | `-s` | Filter to source (e.g. `crawl:mysite`, `file:specs`, `hn`) |
 | `--days N` | | How far back to search (default: 30) |
 | `--top N` | | Evidence items to use (default: 10) |
 | `--once` | | Answer once, no interactive loop |
@@ -125,16 +133,26 @@ Inside the loop: `sources`, `history`, `clear`, `quit`.
 
 ### `crawl` — Build a knowledge base
 
-Incremental by default — uses HTTP ETags and content hashing to skip unchanged pages on re-crawl.
+Accepts a URL (web crawl) or local file/directory path (document ingestion). Web crawls are incremental by default — uses HTTP ETags and content hashing to skip unchanged pages.
 
 ```bash
+# Web crawl
 doomsummarizer crawl https://docs.example.com
 doomsummarizer crawl https://wiki.local -n wiki -d 5 -m 500
 doomsummarizer crawl https://blog.example.com -g "/blog/*" --entities
 doomsummarizer crawl https://docs.example.com --force  # Bypass cache
+
+# Local file/directory ingestion
+doomsummarizer crawl C:\docs\project-specs
+doomsummarizer crawl /home/user/papers --recurse
+doomsummarizer crawl C:\Blog\posts --ask               # Ingest + Q&A
+
+# Web crawl + interactive Q&A (background crawl)
+doomsummarizer crawl https://docs.example.com --ask
 ```
 
 Query crawled sites: `doomsummarizer ask -s crawl:wiki "search query"`
+Query local files: `doomsummarizer ask -s file:project-specs "search query"`
 Browse contents: `doomsummarizer show wiki`
 
 | Option | Short | Description |
@@ -143,10 +161,12 @@ Browse contents: `doomsummarizer show wiki`
 | `--depth N` | `-d` | Max crawl depth (default: 3) |
 | `--max-pages N` | `-m` | Max pages (default: 200) |
 | `--glob PATTERN` | `-g` | URL path filter (e.g., `/blog/*`, `/docs/**`) |
-| `--force` | `-f` | Re-process all pages, ignore cache |
-| `--delay MS` | | Request delay in ms (default: 500) |
+| `--force` | `-f` | Re-process all pages/files, ignore cache |
+| `--delay MS` | | Request delay in ms (default: 1000) |
 | `--concurrency N` | | Concurrent requests (default: 3) |
 | `--entities` | | NER entity extraction + knowledge graph |
+| `--ask` | | Interactive Q&A mode (local: after ingest; URL: during crawl) |
+| `--recurse` | `-r` | Recurse subdirectories for local paths (default: top-level) |
 | `--quiet` | `-q` | Minimal output |
 
 ### `show` — Browse knowledge base
@@ -307,16 +327,19 @@ doomsummarizer scroll "AI safety and regulations" --debug
 # [grey]  2. What are the latest AI regulations?[/]
 ```
 
-### Lucene Hybrid Search
+### Lucene.NET Hybrid Search
 
-The retrieval pipeline uses **Apache Lucene** for full-text search instead of simple BM25:
+The retrieval pipeline uses [Lucene.NET](https://lucenenet.apache.org/) (Apache Lucene for .NET) instead of SQLite FTS5 as the primary full-text search engine. Per-collection indexes are stored at `~/.doomsummarizer/lucene/<collection>/`.
 
-| Feature | Benefit |
-|---------|---------|
-| **BM25F field weighting** | Title (2×), keywords (2.5×), content (1×) |
-| **Fuzzy matching** | Handles typos: `languge~` finds "language" |
-| **Phrase boosting** | `"machine learning"^3` for exact phrases |
-| **FTS5 pre-filter** | SQLite FTS5 narrows candidates before Lucene scoring |
+| Feature | Lucene.NET | SQLite FTS5 |
+|---------|-----------|-------------|
+| **BM25F field weighting** | Title (2x), keywords (2.5x), content (1x) | Equal weight |
+| **Porter stemming** | "running" matches "run" | No stemming |
+| **Fuzzy matching** | `languge~` finds "language" | No fuzzy |
+| **Phrase boosting** | `"machine learning"^3` | No phrase boost |
+| **Query syntax** | Full boolean + proximity + wildcards | Simple AND/OR |
+
+Lucene and embedding HNSW searches run in parallel (`Task.WhenAll`) and are fused via RRF.
 
 ```bash
 # Fuzzy + boosted search

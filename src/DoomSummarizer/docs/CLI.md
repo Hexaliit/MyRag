@@ -55,19 +55,22 @@ Options (from `doomsummarizer scroll --help`):
 
 ### `ask` — interactive Q&A over your stored KB
 
-`ask` searches your locally stored items using embeddings, then answers using an LLM when available (Ollama or cloud). It can also disambiguate ambiguous entity queries by clustering evidence.
+`ask` searches your locally stored items using a three-layer retrieval pipeline (Lucene FTS + embedding HNSW + entity profiles), then synthesizes answers using the same evidence-grounded pipeline as `scroll`. Multi-turn with conversation context.
+
+The synthesis pipeline uses smart evidence budgeting (short items donate budget to long ones), TextRank key-sentence extraction for compression, semantic re-ranking against your query, and full content snippets — not truncated summaries.
 
 Examples:
 
 ```bash
 doomsummarizer ask "What happened with the SSH vulnerability?"
 doomsummarizer ask --source crawl:docs "how does authentication work?"
+doomsummarizer ask --source file:my-project "what's the architecture?"
 doomsummarizer ask --once "latest AI news"
 ```
 
 Options:
-- `-s, --source <SRC>`: filter evidence to one source (e.g. `crawl:docs`, `hn`, `reddit`)
-- `--days <N>`: search window (default: 30 days; 365 for `crawl:*` sources)
+- `-s, --source <SRC>`: filter evidence to one source (e.g. `crawl:docs`, `file:specs`, `hn`)
+- `--days <N>`: search window (default: 30 days; 365 for `crawl:*`/`file:*` sources)
 - `--top <N>`: number of evidence items to use (default `10`)
 - `--once`: answer once and exit
 - `-q, --quiet`: hide evidence panels and show only the answer
@@ -78,14 +81,16 @@ Interactive mode meta-commands:
 - `clear`: reset conversation memory
 - `quit` / `exit`: leave
 
-### `crawl` — build a named knowledge base from a website
+### `crawl` — build a named knowledge base from a URL or local files
 
-Crawls same-domain links from a seed URL, extracts readable content, embeds it, and stores it in SQLite under a `crawl:<name>` source. Re-crawls are **incremental by default** — the crawler uses HTTP conditional requests (ETag / Last-Modified) and content hashing to skip unchanged pages, saving bandwidth and processing time.
+Accepts either a **seed URL** (web crawl) or a **local file/directory path** (document ingestion). Web crawls follow same-domain links, extract readable content, embed it, and store it in SQLite. Local paths ingest PDF, DOCX, Markdown, HTML, TXT, and PPTX files using the document processing pipeline with adaptive chunking.
+
+Re-crawls are **incremental by default** — the crawler uses HTTP conditional requests (ETag / Last-Modified) and content hashing to skip unchanged pages.
 
 Examples:
 
 ```bash
-# Basic crawl — auto-names the KB from the domain
+# Web crawl — auto-names the KB from the domain
 doomsummarizer crawl https://docs.example.com
 
 # Named KB with deeper crawl
@@ -99,24 +104,58 @@ doomsummarizer crawl https://docs.example.com --force
 
 # Gentle crawl for external sites
 doomsummarizer crawl https://intranet.company.com --delay 1000 --concurrency 1
+
+# Local directory — ingest all supported documents (top-level only)
+doomsummarizer crawl C:\docs\project-specs
+
+# Local directory with subdirectories
+doomsummarizer crawl /home/user/research --recurse
+
+# Local path + interactive Q&A (ingest first, then ask loop)
+doomsummarizer crawl C:\Blog\posts --ask
+
+# Web crawl + interactive Q&A (background crawl + ask loop)
+doomsummarizer crawl https://docs.example.com --ask
 ```
 
 Options:
-- `-n, --name <NAME>`: knowledge base name; defaults to a derived domain label
-- `-d, --depth <N>`: max link depth (default `3`)
-- `-m, --max-pages <N>`: max pages to crawl (default `200`)
+- `-n, --name <NAME>`: knowledge base name; defaults to a derived domain or directory label
+- `-d, --depth <N>`: max link depth for web crawls (default `3`)
+- `-m, --max-pages <N>`: max pages to crawl for web crawls (default `200`)
 - `-g, --glob <PATTERN>`: URL path filter — only pages matching this pattern are indexed (e.g., `/blog/*`, `/docs/**`). Pages outside the filter are still crawled for link discovery but not stored.
-- `-f, --force`: re-process all pages regardless of cache (default: skip unchanged)
-- `--delay <MS>`: politeness delay between requests (default `500`)
+- `-f, --force`: re-process all pages/files regardless of cache (default: skip unchanged)
+- `--delay <MS>`: politeness delay between requests (default `1000`)
 - `--concurrency <N>`: max concurrent requests (default `3`)
-- `--entities`: run NER over crawled pages and persist entities to the SQLite knowledge graph
+- `--entities`: run NER over crawled/ingested content and persist entities to the knowledge graph
+- `--ask`: drop into interactive Q&A mode after ingestion (local paths) or during crawl (URLs)
+- `-r, --recurse`: recurse into subdirectories when source is a local path (default: top-level only)
 - `-q, --quiet`: minimal output
 
-#### Incremental caching
+#### Local file ingestion
+
+When the source is a local file or directory, `crawl` runs the document ingestion pipeline:
+
+1. **File discovery** — scans for supported extensions (`.pdf`, `.docx`, `.md`, `.txt`, `.html`, `.pptx`, plus any registered processor plugins)
+2. **Document type detection** — heuristic classification as Fiction, NonFiction, Academic, Technical, or Unknown (affects chunk sizing)
+3. **Adaptive chunking** — books use 5000-char chunks for narrative continuity; technical/academic docs use 2000-char chunks. PDFs are chunked by page markers; text by headings/paragraphs.
+4. **Batch embedding** — all chunks are embedded in a single ONNX batch call (not sequential)
+5. **Batch indexing** — all chunks are stored in a single SQLite transaction + Lucene index commit
+6. **NER extraction** — optional entity extraction from all chunks (`--entities`)
+
+Source tags for local ingestion use the `file:<name>` prefix (vs `crawl:<name>` for web crawls).
+
+#### `--ask` mode
+
+The `--ask` flag combines ingestion/crawling with interactive Q&A:
+
+- **Local paths**: Ingests files first (fast), then enters the ask loop against the newly-created collection. No background task needed.
+- **Web URLs**: Starts a background crawl while immediately entering the ask loop. You can ask questions while pages are still being crawled. The crawl progress is shown in the ask prompt.
+
+#### Incremental caching (web crawls)
 
 Re-crawls use a two-tier cache to avoid redundant work:
 
-1. **HTTP conditional requests** (fastest): Sends `If-None-Match` / `If-Modified-Since` headers using stored ETags and Last-Modified dates. If the server returns `304 Not Modified`, the page body is never transferred — zero bandwidth used.
+1. **HTTP conditional requests** (fastest): Sends `If-None-Match` / `If-Modified-Since` headers using stored ETags and Last-Modified dates. If the server returns `304 Not Modified`, the page body is never transferred.
 2. **Content hash fallback**: For servers that don't support ETags, the crawler compares a SHA256 hash of the page content against the stored hash. Identical content is skipped.
 
 The summary table after a crawl shows both cache tiers:
@@ -128,7 +167,7 @@ Total cached             │ 50
 
 Use `--force` to bypass all caching and re-process every page.
 
-#### Querying crawled KBs
+#### Querying crawled/ingested KBs
 
 ```bash
 # Semantic search over your KB
@@ -136,6 +175,9 @@ doomsummarizer scroll --local -s crawl:docs "your query"
 
 # Interactive Q&A
 doomsummarizer ask --source crawl:docs "your question"
+
+# For locally ingested files (note: file: prefix)
+doomsummarizer ask --source file:project-specs "your question"
 
 # Browse contents
 doomsummarizer show docs

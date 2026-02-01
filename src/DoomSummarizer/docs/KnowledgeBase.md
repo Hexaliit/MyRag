@@ -66,11 +66,12 @@ Useful for “put this URL into my KB and summarize it”:
 doomsummarizer page https://example.com/incident-report --template detailed
 ```
 
-### `crawl` stores a site as `crawl:<name>`
+### `crawl` stores a site or local files
 
-Use this for docs/wiki/intranet knowledge bases:
+Use this for docs/wiki/intranet knowledge bases, or for ingesting local files:
 
 ```bash
+# Web crawl
 doomsummarizer crawl https://docs.example.com --name docs --depth 4 --max-pages 800
 
 # Only index blog posts, extract named entities
@@ -78,11 +79,24 @@ doomsummarizer crawl https://blog.example.com -g "/blog/*" --entities
 
 # Force full re-crawl (ignoring cache)
 doomsummarizer crawl https://docs.example.com --force
+
+# Local file/directory ingestion
+doomsummarizer crawl C:\docs\project-specs
+doomsummarizer crawl /home/user/research --recurse
+doomsummarizer crawl C:\Blog\posts --ask   # Ingest + interactive Q&A
 ```
 
-The stored `source` value for crawled pages is `crawl:docs` (or whatever name you used).
+**Source tags**:
+- Web crawls: `crawl:<name>` (e.g., `crawl:docs`)
+- Local ingestion: `file:<name>` (e.g., `file:project-specs`)
 
-Re-crawling is **incremental by default**: the crawler sends HTTP conditional request headers (`If-None-Match` / `If-Modified-Since`) using stored ETags and Last-Modified dates. Pages that return `304 Not Modified` skip downloading entirely. For servers without ETag support, a SHA256 content hash fallback detects unchanged pages after download.
+**Supported local formats**: PDF, DOCX, Markdown, HTML, TXT, PPTX, plus any registered processor plugins.
+
+**Document type detection**: The ingestion pipeline classifies documents as Fiction, NonFiction, Academic, Technical, or Unknown using heuristic scoring (chapter markers, dialogue patterns, abstract/keywords sections, code blocks, ISBN markers). This affects chunk sizing — books use 5000-char chunks for narrative continuity while technical documents use 2000-char chunks.
+
+**Batch processing**: Local ingestion is optimized with batch ONNX embedding (single forward pass for all chunks) and batch SQLite indexing (single transaction for all items).
+
+Re-crawling (web) is **incremental by default**: the crawler sends HTTP conditional request headers (`If-None-Match` / `If-Modified-Since`) using stored ETags and Last-Modified dates. Pages that return `304 Not Modified` skip downloading entirely. For servers without ETag support, a SHA256 content hash fallback detects unchanged pages after download. Local ingestion checks if the collection already has items and skips re-ingestion unless `--force` is used.
 
 ## Querying Your KB
 
@@ -111,23 +125,52 @@ Interactive "retrieve + answer" interface with conversation context:
 
 ```bash
 doomsummarizer ask --source crawl:docs "how does authentication work?"
+doomsummarizer ask --source file:my-project "what's the architecture?"
 doomsummarizer ask --days 7 "what happened this week?"
 doomsummarizer ask --once "latest security news"  # Single answer, no loop
 ```
 
 How it behaves:
 - Computes an embedding for your question
-- Retrieves top evidence from SQLite (and can reuse near-identical cached queries)
-- If an LLM is available, it writes an evidence-grounded answer; otherwise it can still show the evidence
+- Runs three-layer retrieval in parallel: Lucene FTS + embedding HNSW + entity profiles (via `Task.WhenAll`)
+- Re-ranks evidence using batch cosine similarity against your query
+- Synthesizes an answer using `SynthesizeSummaryAsync` — the same pipeline as `scroll`:
+  - Smart evidence budgeting (short items donate surplus to long ones)
+  - TextRank key-sentence extraction for compressing long evidence
+  - Full content snippets (not truncated summaries)
+  - Conversation history folded into the query for multi-turn context
+- If no LLM is available, shows the evidence items directly
 - If your query is ambiguous (multiple entities), it can prompt you to pick which cluster you meant
+
+### `crawl --ask`
+
+Combines ingestion with interactive Q&A:
+
+```bash
+# Local: ingest files first, then ask loop
+doomsummarizer crawl C:\docs\specs --ask
+
+# Web: background crawl + ask loop (ask while crawling)
+doomsummarizer crawl https://docs.example.com --ask
+```
 
 ## Retrieval Pipeline
 
-When you query the KB, DoomSummarizer uses a **three-layer retrieval pipeline**:
+When you query the KB, DoomSummarizer uses a **three-layer retrieval pipeline**. Layers 1 and 2 execute in parallel via `Task.WhenAll` for lower latency.
 
-### Layer 1: Lucene Pre-Filter (LLM-generated query)
+### Layer 1: Lucene.NET Full-Text Search
 
-The sentinel LLM converts your natural language query into optimized Lucene syntax, then runs a fast full-text search to reduce candidates before expensive embedding comparisons:
+DoomSummarizer uses [Lucene.NET](https://lucenenet.apache.org/) (Apache Lucene ported to .NET) instead of SQLite FTS5 as the primary search engine. Why Lucene over FTS5?
+
+| Feature | Lucene.NET | SQLite FTS5 |
+|---------|-----------|-------------|
+| Field weighting | BM25F: title 2x, keywords 2.5x, content 1x | Equal weight all columns |
+| Stemming | Porter stemmer ("running" → "run") | No stemming |
+| Fuzzy matching | Edit distance (`languge~` → "language") | No fuzzy |
+| Phrase boosting | `"machine learning"^3` | No phrase boost |
+| Query syntax | Full boolean + proximity + wildcards | Simple prefix/AND/OR |
+
+The sentinel LLM converts natural language queries into optimized Lucene syntax:
 
 ```
 Query: "history of LLMs"
@@ -138,17 +181,27 @@ Query: "history of LLMs"
         │
         ▼
    Lucene search on:
-   - Document title (boosted)
-   - Extracted keywords (structurally weighted)
-   - Content
+   - Document title (boosted 2x)
+   - Extracted keywords (boosted 2.5x)
+   - Content (1x)
         │
         ▼
    30 docs → ~10-15 candidates
 ```
 
-### Layer 2: Multi-Signal RRF Ranking
+Each collection gets its own Lucene index at `$HOME/.doomsummarizer/lucene/<collection>/`. SQLite FTS5 is retained as a lightweight backup for KB enrichment pre-filtering.
 
-Reciprocal Rank Fusion combines multiple relevance signals:
+### Layer 2: Embedding HNSW Similarity
+
+384-dim all-MiniLM-L6-v2 embeddings with cosine similarity. For composite queries, items are scored against the best-matching subquery (max-sim). Runs concurrently with Layer 1.
+
+### Layer 3: Entity Profile HNSW (optional)
+
+With `--entities`, documents get entity profile embeddings (TF-IDF-confidence weighted). HNSW search finds related documents in O(log N).
+
+### RRF Fusion
+
+Reciprocal Rank Fusion combines signals from all layers:
 
 | Signal | Weight | Purpose |
 |--------|--------|---------|
@@ -158,8 +211,9 @@ Reciprocal Rank Fusion combines multiple relevance signals:
 | Authority | 0.3 | In-corpus PageRank, source quality |
 | Quality | 0.2 | Content vs clickbait (anchor-based) |
 | Vibe alignment | 0.4 | Tone matching (doom, hopeful, etc.) |
+| Entity profile | 0.3 | Entity fingerprint similarity (when `--entities`) |
 
-### Layer 3: Graph Enrichment (optional)
+### Graph Enrichment (optional)
 
 With `--entities --graph`, entity co-occurrence discovers related documents:
 

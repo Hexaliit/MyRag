@@ -2382,7 +2382,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                         finalSummary = await ollama.SynthesizeSummaryAsync(
                             analyzedItems, vibe, vibePrompt, userQuery, uniqueItems,
-                            embedder: text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult());
+                            embedder: text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(),
+                            batchEmbedder: texts => boot.Embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult());
                     }
                 }
                 else

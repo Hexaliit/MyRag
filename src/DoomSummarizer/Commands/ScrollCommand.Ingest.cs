@@ -95,9 +95,10 @@ public sealed partial class ScrollCommand
     /// Returns the list of resolved file paths and a suggested collection name.
     /// </summary>
     internal static (List<string> files, string collectionName) ResolveLocalSources(
-        string[] sources, string? explicitName)
+        string[] sources, string? explicitName, bool recurse = false)
     {
         var files = new List<string>();
+        var searchOption = recurse ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
 
         foreach (var source in sources)
         {
@@ -121,7 +122,7 @@ public sealed partial class ScrollCommand
                     .ToArray();
 
                 foreach (var ext in extensions)
-                    files.AddRange(Directory.EnumerateFiles(source, ext, SearchOption.AllDirectories));
+                    files.AddRange(Directory.EnumerateFiles(source, ext, searchOption));
             }
         }
 
@@ -260,6 +261,7 @@ public sealed partial class ScrollCommand
             var texts = pendingItems.Select(p => p.embedText).ToList();
             var embeddings = await boot.Embedding.EmbedBatchAsync(texts, ct);
 
+            var allItems = new List<ContentItem>(pendingItems.Count);
             for (var i = 0; i < pendingItems.Count; i++)
             {
                 var (item, _) = pendingItems[i];
@@ -267,10 +269,14 @@ public sealed partial class ScrollCommand
                     item.Embedding = embeddings[i];
 
                 processor.ScoreSentimentAndTopic(item);
-                await processor.IndexItemAsync(item);
-                lucene.IndexItem(item);
-                totalIngested++;
+                allItems.Add(item);
             }
+
+            // Batch index: single DB transaction for all items (instead of 3 ops × N items)
+            progressTask.Description = $"[cyan]Indexing {allItems.Count} chunks[/]";
+            await processor.IndexBatchAsync(allItems);
+            lucene.IndexItems(allItems);
+            totalIngested = allItems.Count;
         }
 
         lucene.Commit();

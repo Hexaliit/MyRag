@@ -21,11 +21,23 @@ public sealed class ItemProcessor
     /// </summary>
     public static async Task<ItemProcessor> CreateAsync(IEmbeddingService embedding, StorageService storage, IEntityGraphStore? entityStore = null, CancellationToken ct = default)
     {
-        var positiveAnchor = await embedding.EmbedAsync(RelevanceScorer.PositiveAnchorText, ct);
-        var negativeAnchor = await embedding.EmbedAsync(RelevanceScorer.NegativeAnchorText, ct);
+        // Batch-embed all anchors in a single ONNX call (instead of 2 + N sequential calls)
+        var topicKeys = RelevanceScorer.TopicAnchorTexts.Keys.ToList();
+        var allTexts = new List<string>
+        {
+            RelevanceScorer.PositiveAnchorText,
+            RelevanceScorer.NegativeAnchorText
+        };
+        allTexts.AddRange(topicKeys.Select(k => RelevanceScorer.TopicAnchorTexts[k]));
+
+        var allEmbeddings = await embedding.EmbedBatchAsync(allTexts, ct);
+
+        var positiveAnchor = allEmbeddings[0];
+        var negativeAnchor = allEmbeddings[1];
         var topicAnchors = new Dictionary<string, float[]>();
-        foreach (var kv in RelevanceScorer.TopicAnchorTexts)
-            topicAnchors[kv.Key] = await embedding.EmbedAsync(kv.Value, ct);
+        for (var i = 0; i < topicKeys.Count; i++)
+            topicAnchors[topicKeys[i]] = allEmbeddings[i + 2];
+
         return new ItemProcessor(positiveAnchor, negativeAnchor, topicAnchors, storage, entityStore);
     }
 

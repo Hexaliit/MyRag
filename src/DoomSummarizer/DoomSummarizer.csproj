@@ -72,6 +72,9 @@
     <ItemGroup>
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Subtitles\Mostlylucid.DoomSummarizer.Plugin.Subtitles.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.YouTube\Mostlylucid.DoomSummarizer.Source.YouTube.csproj" />
+        <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj" />
     </ItemGroup>
 
     <!-- Embed default config, prompt templates, and starter lens files -->

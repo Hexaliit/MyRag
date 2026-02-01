@@ -257,6 +257,8 @@ public partial class OllamaService
         string? userQuery = null,
         List<ContentItem>? contentItems = null,
         Func<string, float[]>? embedder = null,
+        Func<string[], float[][]>? batchEmbedder = null,
+        bool forceAnswer = false,
         CancellationToken ct = default)
     {
         var today = DateTime.Now.ToString("MMMM d, yyyy");
@@ -269,7 +271,7 @@ public partial class OllamaService
             // so the LLM has real material to extract facts from (not just summaries).
             // Two-stage filter: relevance score floor + semantic similarity to query.
             var queryType = QueryTypeDetector.Detect(userQuery);
-            var isRoundup = queryType == QueryType.Roundup;
+            var isRoundup = !forceAnswer && queryType == QueryType.Roundup;
             var evidence = new StringBuilder();
             var sortedItems = items.OrderByDescending(i => i.relevance).ToList();
             var bestRelevance = sortedItems.FirstOrDefault().relevance;
@@ -305,12 +307,17 @@ public partial class OllamaService
             if (embedder != null && topItems.Count > 1)
             {
                 var queryEmb = embedder(userQuery);
+                var itemTexts = topItems.Select(item => $"{item.title} {item.summary}").ToArray();
+
+                // Batch-embed all item texts at once when batch embedder is available
+                var itemEmbeddings = batchEmbedder != null
+                    ? batchEmbedder(itemTexts)
+                    : itemTexts.Select(t => embedder(t)).ToArray();
+
                 topItems = topItems
-                    .Select(item =>
+                    .Select((item, idx) =>
                     {
-                        var itemText = $"{item.title} {item.summary}";
-                        var itemEmb = embedder(itemText);
-                        var sim = (double)VectorMath.CosineSimilarity(queryEmb, itemEmb);
+                        var sim = (double)VectorMath.CosineSimilarity(queryEmb, itemEmbeddings[idx]);
                         return (item, sim);
                     })
                     .OrderByDescending(x => x.sim)
@@ -354,15 +361,15 @@ public partial class OllamaService
                 var isShort = rawLen <= totalBudget / topItems.Count;
                 var itemBudget = isShort ? rawLen : longBudget;
 
-                // Compact pipe-delimited format: [E#] Title | topic | relevance
-                evidence.AppendLine($"\n[E{ei + 1}] {item.title} | {item.topic} | {item.relevance:F2}");
+                // Evidence header: numbered title only (no metadata — it leaks into LLM output)
+                evidence.AppendLine($"\n[{ei + 1}] {item.title}");
 
                 if (!string.IsNullOrEmpty(rawContent))
                 {
                     if (rawContent.Length > itemBudget)
                     {
                         var snippet = embedder != null
-                            ? TextRankExtractor.ExtractKeySentences(rawContent, embedder, maxChars: itemBudget)
+                            ? TextRankExtractor.ExtractKeySentences(rawContent, embedder, batchEmbedder, maxChars: itemBudget)
                             : rawContent[..itemBudget] + "...";
                         evidence.AppendLine(snippet);
                     }

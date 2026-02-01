@@ -56,14 +56,13 @@ public sealed class RetrievalPipeline
         // Embed the query
         var queryEmbedding = await _embedding.EmbedAsync(query, ct);
 
-        // --- Candidate retrieval (3 layers) ---
-        var luceneResults = new List<LuceneSearchResult>();
-        var embeddingResults = new List<StoredItem>();
+        // --- Candidate retrieval (3 layers — Lucene + HNSW run in parallel) ---
         var entityProfileIds = new HashSet<string>();
 
         // Layer 1: Lucene FTS (fuzzy, phrase, field-boosted)
-        if (options.UseLucene)
+        async Task<List<LuceneSearchResult>> SearchLuceneAsync()
         {
+            if (!options.UseLucene) return [];
             try
             {
                 var collectionName = options.CollectionName ?? "default";
@@ -84,23 +83,26 @@ public sealed class RetrievalPipeline
                     lucene.Commit();
                 }
 
-                // Generate Lucene query (deterministic, no LLM needed)
                 var luceneQuery = LuceneQueryGenerator.BuildSimpleQuery(query);
-
-                // Search Lucene
-                luceneResults = lucene.Search(luceneQuery, options.SourceFilter, limit: options.TopK * 3);
+                return lucene.Search(luceneQuery, options.SourceFilter, limit: options.TopK * 3);
             }
             catch
             {
-                // Lucene search is best-effort; fall through to embedding search
+                return [];
             }
         }
 
         // Layer 2: Embedding HNSW semantic search
-        // Relaxed mode uses a lower threshold to retrieve more candidate segments
         var embeddingThreshold = options.RelaxScoringGates ? 0.10 : 0.20;
-        embeddingResults = await _storage.FindSimilarAsync(
+        var embeddingTask = _storage.FindSimilarAsync(
             queryEmbedding, limit: options.TopK * 2, threshold: embeddingThreshold, source: options.SourceFilter);
+
+        // Run Lucene + HNSW in parallel
+        var luceneTask = SearchLuceneAsync();
+        await Task.WhenAll(luceneTask, embeddingTask);
+
+        var luceneResults = luceneTask.Result;
+        var embeddingResults = embeddingTask.Result;
 
         // Layer 3: Entity profile HNSW search (when entity profiles exist)
         if (options.UseEntityProfiles && _entityStore != null && options.QueryEntities?.Count >= 2)

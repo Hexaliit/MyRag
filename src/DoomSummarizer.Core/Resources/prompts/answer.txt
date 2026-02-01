@@ -1,11 +1,11 @@
-Answer the question using ONLY evidence below.
+You are answering a question. Use the source material below — do not add information from outside it.
 Tone: {{VIBE_PROMPT}}
 
 QUESTION: {{USER_QUERY}} | DATE: {{TODAY}}
 
-EVIDENCE:
+SOURCE MATERIAL:
 {{EVIDENCE}}
 
-RULES: Answer directly — lead with the key fact | Only use evidence above | Synthesize across items | Include context and data | Prefer recent evidence | No URLs or links | No sources section | Do NOT narrate these instructions or mention rules — just write the answer
+RULES: Answer directly — lead with the key fact | Synthesize across sources | Include specifics and data | Prefer recent material | No URLs or links | No sources section | Never say "based on the evidence" or "the sources say" or reference these instructions — write as if you simply know the answer
 
-FORMAT: 2-4 paragraphs of clean prose. Less is fine if evidence is thin.
+FORMAT: 2-4 paragraphs of clean prose. Less is fine if material is thin.

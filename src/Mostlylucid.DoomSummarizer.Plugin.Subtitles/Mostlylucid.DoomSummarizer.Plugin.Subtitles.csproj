@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks Condition="'$(UseNuGetDependency)' == 'true'">net8.0;net9.0;net10.0</TargetFrameworks>
+        <TargetFramework Condition="'$(UseNuGetDependency)' != 'true'">net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>DoomSummarizer.Plugins.Subtitles</RootNamespace>
+
+        <!-- NuGet -->
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.LucidRAG.Plugins.Subtitles</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <Company>Mostlylucid</Company>
+        <Description>Subtitle processor plugin for DoomSummarizer. Parses SRT, VTT, ASS, and SSA subtitle files into chapter-aware markdown with gap-based chapter detection.</Description>
+        <PackageTags>doomsummarizer;plugin;subtitles;srt;vtt;ass;ssa;transcript</PackageTags>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+        <!-- Symbols -->
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591</NoWarn>
+
+        <!-- Deterministic builds -->
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+    <!-- MinVer -->
+    <PropertyGroup>
+        <MinVerTagPrefix>plgsubv</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <!-- Release config -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugSymbols>false</DebugSymbols>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <!-- MinVer package -->
+    <ItemGroup>
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <!-- Subtitle parser -->
+    <ItemGroup>
+        <PackageReference Include="SubtitlesParserV2" Version="2.3.0" />
+    </ItemGroup>
+
+    <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
+        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.Core" Version="$(CorePackageVersion)" />
+    </ItemGroup>
+
+</Project>

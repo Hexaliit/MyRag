@@ -1,0 +1,19 @@
+1
+00:00:01,000 --> 00:00:04,000
+Hello and welcome to this video.
+
+2
+00:00:04,500 --> 00:00:08,000
+Today we're going to talk about programming.
+
+3
+00:00:08,200 --> 00:00:12,000
+Let's start with the basics of C#.
+
+4
+00:00:12,500 --> 00:00:16,000
+C# is a modern, object-oriented language.
+
+5
+00:00:16,200 --> 00:00:20,000
+It was created by Microsoft in the early 2000s.

@@ -1,9 +1,14 @@
 using System.ComponentModel;
 using System.Security.Cryptography;
 using System.Text;
+using AudioSummarizer.Core.Config;
+using AudioSummarizer.Core.Services.Transcription;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using DoomSummarizer.Sources.YouTube;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -75,6 +80,10 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         [CommandOption("--ask")]
         [Description("Drop to interactive ask mode while crawling in background")]
         public bool Ask { get; init; }
+
+        [CommandOption("-r|--recurse")]
+        [Description("Recurse into subdirectories when source is a local path (default: top-level only)")]
+        public bool Recurse { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(
@@ -97,6 +106,10 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
         if (settings.Entities)
             await boot.InitializeEntityGraphStoreAsync();
+
+        // YouTube URL: extract metadata + subtitles (no web crawl needed)
+        if (isUrl && YouTubeExtractor.IsYouTubeUrl(settings.Url))
+            return await ExecuteYouTubeAsync(boot, settings, kbName, cancellationToken);
 
         // Local path: ingest files directly (fast, no background crawl needed)
         if (isLocalPath)
@@ -373,7 +386,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
     {
         // Resolve files using ScrollCommand's shared helper
         var (files, collectionName) = ScrollCommand.ResolveLocalSources(
-            new[] { settings.Url }, settings.Name);
+            new[] { settings.Url }, settings.Name, settings.Recurse);
 
         if (files.Count == 0)
         {
@@ -425,6 +438,125 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
             var askOptions = new InteractiveAskOptions(
                 Source: $"file:{kbName}",
+                Name: kbName,
+                Days: 0,
+                TopK: 10,
+                Once: false,
+                Quiet: settings.Quiet,
+                InitialQuestion: null);
+
+            var loop = new InteractiveAskLoop(boot, ollama, llmRouter, ollamaAvailable, askOptions);
+            return await loop.RunAsync(ct);
+        }
+
+        // Summary
+        AnsiConsole.MarkupLine($"\n[grey]Query this KB with:[/] doomsummarizer scroll \"your question\" --name {Markup.Escape(kbName)}");
+        AnsiConsole.MarkupLine($"[grey]Ask interactively:[/] doomsummarizer crawl {Markup.Escape(settings.Url)} --ask");
+        AnsiConsole.MarkupLine($"[grey]Browse contents:[/] doomsummarizer show {Markup.Escape(kbName)}");
+
+        return 0;
+    }
+
+    private async Task<int> ExecuteYouTubeAsync(
+        CommandBootstrap boot, Settings settings, string kbName, CancellationToken ct)
+    {
+        var extractor = new YouTubeExtractor();
+
+        AnsiConsole.MarkupLine($"[bold cyan]YouTube:[/] {Markup.Escape(settings.Url)}");
+
+        // Try to create a Whisper transcription delegate for audio fallback
+        var audioTranscriber = await CreateAudioTranscriberAsync(ct);
+        if (audioTranscriber != null)
+            AnsiConsole.MarkupLine("[grey]Audio transcription available (Whisper) — will use if no captions[/]");
+
+        // Extract metadata + subtitles (with optional audio fallback)
+        YouTubeExtractionResult? result = null;
+        await AnsiConsole.Status()
+            .Spinner(Spinner.Known.Dots)
+            .StartAsync("Extracting YouTube video...", async ctx =>
+            {
+                result = await extractor.ExtractAsync(
+                    settings.Url,
+                    msg => ctx.Status = $"[cyan]{Markup.Escape(msg)}[/]",
+                    ct,
+                    audioTranscriber);
+            });
+
+        if (result == null)
+        {
+            AnsiConsole.MarkupLine("[red]Failed to extract YouTube video.[/]");
+            return 1;
+        }
+
+        // Use video-ID-based KB name if not explicitly set
+        if (settings.Name == null)
+            kbName = $"yt-{result.VideoId}";
+
+        AnsiConsole.MarkupLine($"[grey]Title: {Markup.Escape(result.Title)}[/]");
+        AnsiConsole.MarkupLine($"[grey]Channel: {Markup.Escape(result.Channel)} | Duration: {result.Duration}[/]");
+        AnsiConsole.MarkupLine($"[grey]Extracted {result.Items.Count} content chunks[/]");
+
+        if (result.Items.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No subtitles/captions available for this video.[/]");
+            return 0;
+        }
+
+        // Embed and index all items
+        await AnsiConsole.Progress()
+            .Columns(
+                new TaskDescriptionColumn(),
+                new ProgressBarColumn(),
+                new PercentageColumn(),
+                new SpinnerColumn())
+            .StartAsync(async ctx =>
+            {
+                var embedTask = ctx.AddTask("[cyan]Computing embeddings[/]", maxValue: result.Items.Count);
+                var processor = await ItemProcessor.CreateAsync(
+                    boot.Embedding, boot.Storage, boot.EntityStore, ct);
+
+                var texts = result.Items.Select(i =>
+                {
+                    var t = $"{i.Title}: {i.Content ?? ""}".Trim();
+                    return t.Length > 1500 ? t[..1500] : t;
+                }).ToList();
+
+                var embeddings = await boot.Embedding.EmbedBatchAsync(texts, ct);
+                embedTask.Value = result.Items.Count;
+                embedTask.Description = $"[green]Embedded {result.Items.Count} chunks[/]";
+
+                var indexTask = ctx.AddTask("[cyan]Indexing content[/]", maxValue: result.Items.Count);
+                for (var i = 0; i < result.Items.Count; i++)
+                {
+                    var item = result.Items[i];
+                    if (i < embeddings.Length)
+                        item.Embedding = embeddings[i];
+                    processor.ScoreSentimentAndTopic(item);
+                }
+
+                await processor.IndexBatchAsync(result.Items);
+                indexTask.Value = result.Items.Count;
+                indexTask.Description = $"[green]Indexed {result.Items.Count} chunks to KB '{kbName}'[/]";
+            });
+
+        // If --ask: enter interactive ask loop
+        if (settings.Ask)
+        {
+            var ollama = boot.CreateOllama();
+            var llmRouter = await boot.InitializeLlmStackAsync(ct: ct);
+            var ollamaAvailable = await ollama.IsAvailableAsync();
+
+            try { await boot.InitializeEntityGraphStoreAsync(); }
+            catch { /* Entity store is optional */ }
+
+            var hasCloudLlm = llmRouter.HasCloudProvider;
+            if (!ollamaAvailable && !hasCloudLlm)
+            {
+                AnsiConsole.MarkupLine("[yellow]No LLM available (Ollama down, no cloud keys).[/] Answers will be limited to evidence listing.");
+            }
+
+            var askOptions = new InteractiveAskOptions(
+                Source: $"youtube:{kbName}",
                 Name: kbName,
                 Days: 0,
                 TopK: 10,
@@ -539,6 +671,38 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         table.AddRow("Final adaptive delay", $"{r.FinalAdaptiveDelayMs}ms");
 
         AnsiConsole.Write(table);
+    }
+
+    /// <summary>
+    /// Try to create a Whisper-based audio transcription delegate.
+    /// Returns null if Whisper is not available (model not downloaded, etc.).
+    /// </summary>
+    private static async Task<AudioTranscriberDelegate?> CreateAudioTranscriberAsync(CancellationToken ct)
+    {
+        try
+        {
+            var config = Options.Create(new AudioConfig());
+            var downloader = new WhisperModelDownloader(NullLogger<WhisperModelDownloader>.Instance);
+            var whisper = new WhisperTranscriptionService(
+                config,
+                NullLogger<WhisperTranscriptionService>.Instance,
+                downloader);
+
+            if (!await whisper.IsAvailableAsync(ct))
+                return null;
+
+            return async (audioPath, token) =>
+            {
+                var transcript = await whisper.TranscribeAsync(audioPath, cancellationToken: token);
+                return transcript.Segments
+                    .Select(s => new TranscriptSegmentInfo(s.Start, s.End, s.Text, s.Confidence ?? 0))
+                    .ToList();
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>

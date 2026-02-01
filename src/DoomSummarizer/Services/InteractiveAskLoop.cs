@@ -48,9 +48,11 @@ public sealed class InteractiveAskLoop
 
     public async Task<int> RunAsync(CancellationToken ct)
     {
-        var effectiveSource = !string.IsNullOrWhiteSpace(_options.Name)
-            ? $"crawl:{_options.Name}"
-            : _options.Source;
+        var effectiveSource = !string.IsNullOrWhiteSpace(_options.Source)
+            ? _options.Source
+            : !string.IsNullOrWhiteSpace(_options.Name)
+                ? $"crawl:{_options.Name}"
+                : null;
 
         var retrieval = new RetrievalPipeline(_boot.Embedding, _boot.Storage, _boot.EntityStore);
         var history = new List<(string question, string answer, List<string> sourceIds)>();
@@ -361,6 +363,8 @@ public sealed class InteractiveAskLoop
                 effectiveQuery,
                 topEvidence,
                 embedder: text => embedding.EmbedAsync(text).GetAwaiter().GetResult(),
+                batchEmbedder: texts => embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult(),
+                forceAnswer: true,
                 ct: ct);
         }
         else

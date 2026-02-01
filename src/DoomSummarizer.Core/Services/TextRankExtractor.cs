@@ -29,6 +29,18 @@ public static partial class TextRankExtractor
     /// <param name="maxChars">Maximum output length in characters.</param>
     /// <returns>Most informative sentences joined, respecting original order.</returns>
     public static string ExtractKeySentences(string text, Func<string, float[]> embedder, int maxChars = 800)
+        => ExtractKeySentencesCore(text, embedder, null, maxChars);
+
+    /// <summary>
+    /// Batch-optimized overload: embeds all sentences in a single batch call
+    /// instead of N sequential calls. Significantly faster with ONNX runtime.
+    /// </summary>
+    public static string ExtractKeySentences(string text, Func<string, float[]> embedder,
+        Func<string[], float[][]>? batchEmbedder, int maxChars = 800)
+        => ExtractKeySentencesCore(text, embedder, batchEmbedder, maxChars);
+
+    private static string ExtractKeySentencesCore(string text, Func<string, float[]> embedder,
+        Func<string[], float[][]>? batchEmbedder, int maxChars)
     {
         if (string.IsNullOrWhiteSpace(text)) return "";
         if (text.Length <= maxChars) return text;
@@ -38,14 +50,39 @@ public static partial class TextRankExtractor
         if (sentences.Count <= 3)
             return text.Length > maxChars ? text[..maxChars] + "..." : text;
 
-        // Embed sentences (skip very short ones)
+        // Embed sentences — batch when possible, sequential fallback
         var embeddings = new float[sentences.Count][];
         try
         {
-            for (var i = 0; i < sentences.Count; i++)
+            if (batchEmbedder != null)
             {
-                if (sentences[i].Length >= 20)
-                    embeddings[i] = embedder(sentences[i]);
+                // Batch path: collect embeddable sentences, single ONNX forward pass
+                var embeddableIndices = new List<int>();
+                var embeddableTexts = new List<string>();
+                for (var i = 0; i < sentences.Count; i++)
+                {
+                    if (sentences[i].Length >= 20)
+                    {
+                        embeddableIndices.Add(i);
+                        embeddableTexts.Add(sentences[i]);
+                    }
+                }
+
+                if (embeddableTexts.Count > 0)
+                {
+                    var batchResults = batchEmbedder(embeddableTexts.ToArray());
+                    for (var i = 0; i < embeddableIndices.Count; i++)
+                        embeddings[embeddableIndices[i]] = batchResults[i];
+                }
+            }
+            else
+            {
+                // Sequential fallback
+                for (var i = 0; i < sentences.Count; i++)
+                {
+                    if (sentences[i].Length >= 20)
+                        embeddings[i] = embedder(sentences[i]);
+                }
             }
         }
         catch
