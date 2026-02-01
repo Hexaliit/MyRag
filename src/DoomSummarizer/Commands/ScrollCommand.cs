@@ -2910,9 +2910,6 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
     /// </summary>
     private static async Task PlayEasterEggAnimationAsync(CancellationToken ct)
     {
-        // Enable Windows ANSI support for proper color rendering
-        ConsoleHelper.EnableAnsiSupport();
-
         AnsiConsole.Clear();
         AnsiConsole.WriteLine();
 

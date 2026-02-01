@@ -64,8 +64,8 @@
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
 
         <!-- Console image display and animation -->
-        <PackageReference Include="mostlylucid.consoleimage" Version="4.1.2" />
-        <PackageReference Include="mostlylucid.consoleimage.player" Version="4.1.2" />
+        <PackageReference Include="mostlylucid.consoleimage" Version="4.5.1" />
+        <PackageReference Include="mostlylucid.consoleimage.player" Version="4.5.1" />
     </ItemGroup>
 
     <!-- Project references -->

@@ -52,7 +52,7 @@
     <!-- Web server for 'serve' command -->
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
-        <PackageReference Include="Scalar.AspNetCore" Version="2.12.27" />
+        <PackageReference Include="Scalar.AspNetCore" Version="2.12.28" />
     </ItemGroup>
 
     <!-- Config files excluded from single-file -->

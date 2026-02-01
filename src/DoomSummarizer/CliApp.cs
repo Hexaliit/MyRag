@@ -204,7 +204,6 @@ public static class CliApp
 
     private static async Task PlayEasterEggAsync(CancellationToken ct)
     {
-        ConsoleHelper.EnableAnsiSupport();
         AnsiConsole.Clear();
         AnsiConsole.WriteLine();
 
