@@ -68,6 +68,7 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         var options = new InteractiveAskOptions(
             Sources: settings.Sources,
             Name: settings.Name,
+            
             Days: settings.Days,
             TopK: settings.TopK,
             Once: settings.Once,
