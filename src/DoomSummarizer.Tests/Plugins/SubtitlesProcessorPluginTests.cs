@@ -141,7 +141,7 @@ public class SubtitlesProcessorPluginTests
     public async Task ProcessAsync_WithFilePath_UsesFileNameAsTitle()
     {
         var markdown = "Some content";
-        var options = new ProcessorOptions { FilePath = @"C:\videos\my-lecture.srt" };
+        var options = new ProcessorOptions { FilePath = Path.Combine("C:", "videos", "my-lecture.srt") };
 
         var result = await _plugin.ProcessAsync(markdown, options);
 

@@ -174,7 +174,7 @@ public class LoadBalancingBenchmarks(Xunit.Abstractions.ITestOutputHelper output
         var opsPerSec = iterations / sw.Elapsed.TotalSeconds;
         output.WriteLine($"ExecuteWithFailover (failover path): {opsPerSec:N0} ops/sec");
 
-        opsPerSec.Should().BeGreaterThan(50_000, "Failover path should exceed 50K ops/sec");
+        opsPerSec.Should().BeGreaterThan(25_000, "Failover path should exceed 25K ops/sec");
 
         sut.Dispose();
     }

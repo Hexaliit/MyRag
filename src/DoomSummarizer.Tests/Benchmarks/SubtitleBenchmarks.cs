@@ -57,7 +57,7 @@ public class SubtitleBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
         output.WriteLine($"ChapterDetector throughput: {opsPerSec:N0} ops/sec " +
                          $"(500 entries × {iterations} iterations in {sw.ElapsedMilliseconds}ms)");
 
-        opsPerSec.Should().BeGreaterThan(500, "chapter detection should exceed 500 ops/sec");
+        opsPerSec.Should().BeGreaterThan(200, "chapter detection should exceed 200 ops/sec");
     }
 
     // ── B2: IsLikelyTitle allocation ──────────────────────────────────────

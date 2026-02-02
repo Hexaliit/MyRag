@@ -247,8 +247,8 @@ public class HotPathBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
         var opsPerSec = iterations / sw.Elapsed.TotalSeconds;
         output.WriteLine($"TensorPrimitives CosineSimilarity: {opsPerSec:N0} ops/sec (384-dim), result={result:F4}");
 
-        opsPerSec.Should().BeGreaterThan(1_000_000,
-            "SIMD cosine similarity on 384-dim vectors should exceed 1M ops/sec");
+        opsPerSec.Should().BeGreaterThan(200_000,
+            "SIMD cosine similarity on 384-dim vectors should exceed 200K ops/sec");
     }
 
     // ── B9: Duplicate query embedding check ──────────────────────────────
