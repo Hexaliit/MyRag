@@ -3,7 +3,7 @@ name: Publish All NuGet Packages
 # Cascading publish of ALL NuGet packages:
 # 0. Summarizer.Core (pure interfaces) → wait
 # 1. DocSummarizer (interfaces + services) → wait
-# 2. Backends (Rdbms.Sqlite, FullText.Lucene, FullText.Sqlite) parallel → wait
+# 2. Backends (Rdbms.Sqlite, FullText.Lucene, FullText.Sqlite, Anthropic, OpenAI) parallel → wait
 # 3. DoomSummarizer.Core → wait
 # 4. Sources + Readers + Plugin.Books (all parallel)
 # 5. DoomSummarizer.Complete (meta-package: fat CLI with everything)
@@ -317,15 +317,73 @@ jobs:
       - uses: actions/upload-artifact@v6
         with: { name: fts-sqlite-pkg, path: './artifacts/*' }
 
+  publish-docsummarizer-anthropic:
+    needs: [publish-summarizer-core, wait-for-docsummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="dsanthv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.DocSummarizer.Anthropic/Mostlylucid.DocSummarizer.Anthropic.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.DocSummarizer.Anthropic/Mostlylucid.DocSummarizer.Anthropic.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: docsummarizer-anthropic-pkg, path: './artifacts/*' }
+
+  publish-docsummarizer-openai:
+    needs: [publish-summarizer-core, wait-for-docsummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="dsoaiv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.DocSummarizer.OpenAI/Mostlylucid.DocSummarizer.OpenAI.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.DocSummarizer.OpenAI/Mostlylucid.DocSummarizer.OpenAI.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: docsummarizer-openai-pkg, path: './artifacts/*' }
+
   # ── Wait for backends ──────────────────────────────────────────────────
   wait-for-backends:
-    needs: [publish-summarizer-core, publish-rdbms-sqlite, publish-fts-lucene, publish-fts-sqlite]
+    needs: [publish-summarizer-core, publish-rdbms-sqlite, publish-fts-lucene, publish-fts-sqlite, publish-docsummarizer-anthropic, publish-docsummarizer-openai]
     runs-on: ubuntu-latest
     steps:
       - name: Poll NuGet for backend packages
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
-          for pkg in mostlylucid.lucidrag.docsummarizer.rdbms.sqlite mostlylucid.lucidrag.docsummarizer.fulltext.lucene mostlylucid.lucidrag.docsummarizer.fulltext.sqlite; do
+          for pkg in mostlylucid.lucidrag.docsummarizer.rdbms.sqlite mostlylucid.lucidrag.docsummarizer.fulltext.lucene mostlylucid.lucidrag.docsummarizer.fulltext.sqlite mostlylucid.lucidrag.docsummarizer.anthropic mostlylucid.lucidrag.docsummarizer.openai; do
             echo "Waiting for $pkg ${VERSION}..."
             for i in $(seq 1 30); do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -915,6 +973,8 @@ jobs:
       - publish-rdbms-sqlite
       - publish-fts-lucene
       - publish-fts-sqlite
+      - publish-docsummarizer-anthropic
+      - publish-docsummarizer-openai
       - publish-doomsummarizer
       - publish-codesummarizer-mermaid-jint
       - publish-source-hackernews
@@ -947,6 +1007,8 @@ jobs:
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.Rdbms.Sqlite\` | ${{ needs.publish-rdbms-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.FullText.Lucene\` | ${{ needs.publish-fts-lucene.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.FullText.Sqlite\` | ${{ needs.publish-fts-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.Anthropic\` | ${{ needs.publish-docsummarizer-anthropic.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.OpenAI\` | ${{ needs.publish-docsummarizer-openai.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 3 | \`Mostlylucid.LucidRAG.DoomSummarizer.Core\` | ${{ needs.publish-doomsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.HackerNews\` | ${{ needs.publish-source-hackernews.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Reddit\` | ${{ needs.publish-source-reddit.result }} |" >> $GITHUB_STEP_SUMMARY
