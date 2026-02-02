@@ -14,12 +14,13 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
 
       - name: Build and test
         run: |
@@ -62,12 +63,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
 
       - name: Publish single-file
         shell: bash
@@ -104,7 +106,7 @@ jobs:
           tar -czvf ../publish/${{ matrix.artifact }} *
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.rid }}
           path: ./publish/${{ matrix.artifact }}
@@ -117,15 +119,15 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: ./artifacts
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: doomsummarizer-v${{ github.event.inputs.version }}
           name: DoomSummarizer v${{ github.event.inputs.version }}

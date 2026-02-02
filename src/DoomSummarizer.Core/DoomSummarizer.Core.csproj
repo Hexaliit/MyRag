@@ -103,10 +103,16 @@
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\LucidRAG.LLM\LucidRAG.LLM.csproj" />
     </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.LLM" Version="$(CorePackageVersion)" />
+    </ItemGroup>
 
     <!-- Decomposer: agentic query decomposition engine -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\LucidRAG.Decomposer\LucidRAG.Decomposer.csproj" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.Decomposer" Version="$(CorePackageVersion)" />
     </ItemGroup>
 
     <!-- DocSummarizer + backend packages (conditional: ProjectRef local, PackageRef CI) -->

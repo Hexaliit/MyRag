@@ -7,6 +7,32 @@
         <RootNamespace>LucidRAG.Decomposer</RootNamespace>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <NoWarn>$(NoWarn);1591</NoWarn>
+
+        <!-- NuGet Package Metadata -->
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.LucidRAG.Decomposer</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <Company>Mostlylucid</Company>
+        <Description>Agentic query decomposition engine for LucidRAG: breaks complex queries into sub-queries with tool routing, glossary-aware expansion, and orchestration.</Description>
+        <PackageTags>rag;query-decomposition;agentic;orchestration;sub-queries</PackageTags>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+        <!-- Deterministic builds for NuGet -->
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+    <!-- MinVer for automatic versioning -->
+    <PropertyGroup>
+        <MinVerTagPrefix>decomv</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <!-- Release configuration: no PDB files -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugSymbols>false</DebugSymbols>
+        <DebugType>none</DebugType>
     </PropertyGroup>
 
     <!-- Enable test access to internal members -->
@@ -26,6 +52,14 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+    </ItemGroup>
+
+    <!-- MinVer -->
+    <ItemGroup>
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
     </ItemGroup>
 
     <!-- YAML for glossary -->

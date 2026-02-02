@@ -394,9 +394,92 @@ jobs:
             done
           done
 
+  # ── Tier 2.5: LLM + Decomposer (parallel, after backends) ─────────────
+  publish-llm:
+    needs: [publish-summarizer-core, wait-for-backends]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="llmv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/LucidRAG.LLM/LucidRAG.LLM.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet build src/LucidRAG.LLM/LucidRAG.LLM.csproj \
+            -c Release -p:GeneratePackageOnBuild=false \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/LucidRAG.LLM/LucidRAG.LLM.csproj \
+            -c Release -o ./artifacts --no-build \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: llm-pkg, path: './artifacts/*' }
+
+  publish-decomposer:
+    needs: [publish-summarizer-core, wait-for-backends]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="decomv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/LucidRAG.Decomposer/LucidRAG.Decomposer.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet build src/LucidRAG.Decomposer/LucidRAG.Decomposer.csproj \
+            -c Release -p:GeneratePackageOnBuild=false \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/LucidRAG.Decomposer/LucidRAG.Decomposer.csproj \
+            -c Release -o ./artifacts --no-build \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: decomposer-pkg, path: './artifacts/*' }
+
+  wait-for-llm-decomposer:
+    needs: [publish-summarizer-core, publish-llm, publish-decomposer]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet for LLM + Decomposer
+        run: |
+          VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          for pkg in mostlylucid.lucidrag.llm mostlylucid.lucidrag.decomposer; do
+            echo "Waiting for $pkg ${VERSION}..."
+            for i in $(seq 1 30); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                "https://api.nuget.org/v3-flatcontainer/$pkg/${VERSION}/$pkg.${VERSION}.nupkg")
+              echo "  Attempt $i: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then break; fi
+              sleep 30
+            done
+          done
+
   # ── Tier 3: DoomSummarizer.Core ────────────────────────────────────────
   publish-doomsummarizer:
-    needs: [publish-summarizer-core, wait-for-backends]
+    needs: [publish-summarizer-core, wait-for-backends, wait-for-llm-decomposer]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -418,8 +501,12 @@ jobs:
           dotnet restore src/DoomSummarizer.Core/DoomSummarizer.Core.csproj \
             -p:UseNuGetDependency=true \
             -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet build src/DoomSummarizer.Core/DoomSummarizer.Core.csproj \
+            -c Release -p:GeneratePackageOnBuild=false \
+            -p:UseNuGetDependency=true \
+            -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
           dotnet pack src/DoomSummarizer.Core/DoomSummarizer.Core.csproj \
-            -c Release -o ./artifacts \
+            -c Release -o ./artifacts --no-build \
             -p:UseNuGetDependency=true \
             -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
 
@@ -975,6 +1062,8 @@ jobs:
       - publish-fts-sqlite
       - publish-docsummarizer-anthropic
       - publish-docsummarizer-openai
+      - publish-llm
+      - publish-decomposer
       - publish-doomsummarizer
       - publish-codesummarizer-mermaid-jint
       - publish-source-hackernews
@@ -1009,6 +1098,8 @@ jobs:
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.FullText.Sqlite\` | ${{ needs.publish-fts-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.Anthropic\` | ${{ needs.publish-docsummarizer-anthropic.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.OpenAI\` | ${{ needs.publish-docsummarizer-openai.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2.5 | \`Mostlylucid.LucidRAG.LLM\` | ${{ needs.publish-llm.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2.5 | \`Mostlylucid.LucidRAG.Decomposer\` | ${{ needs.publish-decomposer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 3 | \`Mostlylucid.LucidRAG.DoomSummarizer.Core\` | ${{ needs.publish-doomsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.HackerNews\` | ${{ needs.publish-source-hackernews.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Reddit\` | ${{ needs.publish-source-reddit.result }} |" >> $GITHUB_STEP_SUMMARY
