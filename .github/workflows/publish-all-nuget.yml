@@ -116,7 +116,7 @@ jobs:
       - name: Build & Pack
         run: |
           dotnet restore src/CodeSummarizer.Core/CodeSummarizer.Core.csproj
-          dotnet build src/CodeSummarizer.Core/CodeSummarizer.Core.csproj -c Release
+          dotnet build src/CodeSummarizer.Core/CodeSummarizer.Core.csproj -c Release -p:GeneratePackageOnBuild=false
           dotnet pack src/CodeSummarizer.Core/CodeSummarizer.Core.csproj \
             -c Release -o ./artifacts --no-build
 
@@ -183,7 +183,7 @@ jobs:
             -p:UseNuGetDependency=true \
             -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
           dotnet build src/Mostlylucid.DocSummarizer.Core/Mostlylucid.DocSummarizer.Core.csproj \
-            -c Release \
+            -c Release -p:GeneratePackageOnBuild=false \
             -p:UseNuGetDependency=true \
             -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
           dotnet pack src/Mostlylucid.DocSummarizer.Core/Mostlylucid.DocSummarizer.Core.csproj \
@@ -759,7 +759,7 @@ jobs:
           dotnet restore src/CodeSummarizer.Mermaid.Jint/CodeSummarizer.Mermaid.Jint.csproj \
             -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
           dotnet build src/CodeSummarizer.Mermaid.Jint/CodeSummarizer.Mermaid.Jint.csproj \
-            -c Release \
+            -c Release -p:GeneratePackageOnBuild=false \
             -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
           dotnet pack src/CodeSummarizer.Mermaid.Jint/CodeSummarizer.Mermaid.Jint.csproj \
             -c Release -o ./artifacts --no-build \
