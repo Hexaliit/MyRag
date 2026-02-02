@@ -61,7 +61,7 @@ public class UsgsEarthquakeFetcher(HttpClient httpClient)
             try
             {
                 var request = new HttpRequestMessage(HttpMethod.Get, feedUrl);
-                request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
+                request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
 
                 var response = await httpClient.SendAsync(request);
                 response.EnsureSuccessStatusCode();

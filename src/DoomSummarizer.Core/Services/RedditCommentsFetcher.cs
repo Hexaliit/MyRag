@@ -23,7 +23,7 @@ public class RedditCommentsFetcher(HttpClient httpClient)
             var jsonUrl = postUrl.TrimEnd('/') + ".json?limit=" + commentLimit + "&raw_json=1";
 
             var request = new HttpRequestMessage(HttpMethod.Get, jsonUrl);
-            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0 (github.com/scottgal/lucidrag)");
+            request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
 
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
@@ -77,7 +77,7 @@ public class RedditCommentsFetcher(HttpClient httpClient)
             var searchUrl = $"https://www.reddit.com/r/{subreddit}/search.json?q={Uri.EscapeDataString(query)}&restrict_sr=on&sort=relevance&limit={postLimit}&raw_json=1";
 
             var request = new HttpRequestMessage(HttpMethod.Get, searchUrl);
-            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0 (github.com/scottgal/lucidrag)");
+            request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
 
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();

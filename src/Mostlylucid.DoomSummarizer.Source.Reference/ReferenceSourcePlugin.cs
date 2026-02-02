@@ -41,8 +41,19 @@ public sealed class ReferenceSourcePlugin : ISourcePlugin
 
     private async Task<List<ContentItem>> FetchWikipediaAsync(SourceFetchContext context)
     {
-        var section = context.SubParams.Count > 0 ? context.SubParams[0] : null;
-        return await new WikipediaFetcher(_httpClient).FetchAsync(context.Limit, section);
+        var fetcher = new WikipediaFetcher(_httpClient);
+        var firstParam = context.SubParams.Count > 0 ? context.SubParams[0] : null;
+
+        // If a sub-param looks like a section name, use it as section; otherwise treat as search query.
+        // Also use the main Query if no sub-params are provided.
+        var isSectionName = firstParam is "news" or "history" or "featured";
+
+        if (isSectionName)
+            return await fetcher.FetchAsync(context.Limit, section: firstParam);
+
+        // Use sub-param as query, or fall back to the main query
+        var query = !isSectionName && firstParam != null ? firstParam : context.Query;
+        return await fetcher.FetchAsync(context.Limit, query: query);
     }
 
     private async Task<List<ContentItem>> FetchFactCheckAsync(SourceFetchContext context)

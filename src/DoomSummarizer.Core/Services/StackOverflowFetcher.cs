@@ -13,6 +13,19 @@ namespace DoomSummarizer.Services;
 public partial class StackOverflowFetcher
 {
     private const string ApiBase = "https://api.stackexchange.com/2.3";
+    private const string UserAgentValue = "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)";
+
+    // Reuse a single HttpClient with decompression support (SO always returns gzip)
+    private static readonly Lazy<HttpClient> SharedClient = new(() =>
+    {
+        var handler = new HttpClientHandler
+        {
+            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
+        };
+        var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
+        client.DefaultRequestHeaders.Add("User-Agent", UserAgentValue);
+        return client;
+    });
 
     /// <summary>
     /// Fetch hot questions from StackOverflow.
@@ -103,20 +116,10 @@ public partial class StackOverflowFetcher
         return items;
     }
 
-    private async Task<string> FetchCompressedAsync(string url)
+    private static async Task<string> FetchCompressedAsync(string url)
     {
-        // StackOverflow API always returns gzip-compressed responses
-        // Use a handler with automatic decompression
-        using var handler = new HttpClientHandler
-        {
-            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
-        };
-        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
-        client.DefaultRequestHeaders.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0 (github.com/scottgal/lucidrag)");
-
-        var response = await client.GetAsync(url);
+        var response = await SharedClient.Value.GetAsync(url);
         response.EnsureSuccessStatusCode();
-
         return await response.Content.ReadAsStringAsync();
     }
 

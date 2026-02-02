@@ -168,7 +168,7 @@ public class LinkFollowingService
 
             var request = new HttpRequestMessage(HttpMethod.Get, item.Url);
             request.Headers.Add("User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 MostlyLucid-DoomSummarizer/1.0");
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
             request.Headers.Add("Accept", "text/html,application/xhtml+xml");
 
             // Conditional fetch: send ETag if we have one from cache

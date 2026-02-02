@@ -32,7 +32,7 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MostlyLucid-DoomSummarizer/1.0");
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
             request.Headers.Add("Accept", "application/rss+xml, application/xml, text/xml");
 
             var response = await httpClient.SendAsync(request);
@@ -93,7 +93,7 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MostlyLucid-DoomSummarizer/1.0");
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
 
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();

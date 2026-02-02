@@ -35,7 +35,7 @@ public partial class ArxivFetcher(HttpClient httpClient)
             var url = $"{BaseUrl}?search_query={searchQuery}&max_results={maxResults}&sortBy=lastUpdatedDate&sortOrder=descending";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0 (news aggregator)");
+            request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
 
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
@@ -117,7 +117,7 @@ public partial class ArxivFetcher(HttpClient httpClient)
             var url = $"{BaseUrl}?search_query=cat:{category}&max_results={maxResults}&sortBy=submittedDate&sortOrder=descending";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0 (news aggregator)");
+            request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
 
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();

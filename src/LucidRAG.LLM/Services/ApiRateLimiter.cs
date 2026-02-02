@@ -17,6 +17,7 @@ public static class ApiRateLimiter
     // Defaults when no config entry exists
     private static readonly Dictionary<string, int> DefaultDelayMs = new(StringComparer.OrdinalIgnoreCase)
     {
+        // Paid search APIs
         ["brave_search"] = 1100,
         ["serper"] = 200,
         ["tavily"] = 200,
@@ -27,6 +28,16 @@ public static class ApiRateLimiter
         ["openai"] = 100,
         ["duckduckgo"] = 2000,
         ["currents"] = 200,
+        // Free APIs -- respect their rate limits / etiquette
+        ["arxiv"] = 3000,       // arXiv asks for max 1 request per 3 seconds
+        ["stackoverflow"] = 1000, // 30 req/sec without key, but be polite
+        ["hackernews"] = 200,   // Firebase API, generous but throttle per-item fetches
+        ["wikipedia"] = 200,    // Wikimedia is generous, 200 req/sec, but be polite
+        ["spaceflight"] = 500,  // Small community API
+        ["reddit"] = 1000,      // Reddit requires 1 req/sec without OAuth
+        ["usgs"] = 500,         // Government API, no hard limit
+        ["google_search"] = 200,
+        ["google_places"] = 200,
     };
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Semaphores = new();

@@ -27,7 +27,7 @@ public class SpaceflightNewsFetcher(HttpClient httpClient)
                 url += $"&search={Uri.EscapeDataString(search)}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
 
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
@@ -75,7 +75,7 @@ public class SpaceflightNewsFetcher(HttpClient httpClient)
             var url = $"{BaseUrl}/events/?limit={Math.Min(limit, 20)}&ordering=-date";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
 
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();

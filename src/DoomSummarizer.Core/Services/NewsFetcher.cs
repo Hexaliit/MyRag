@@ -143,7 +143,7 @@ public partial class NewsFetcher(HttpClient httpClient)
             var url = $"{apiBaseUrl}{encodedQuery}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
             request.Headers.Add("Accept", "application/json");
 
             var response = await httpClient.SendAsync(request);
@@ -189,7 +189,7 @@ public partial class NewsFetcher(HttpClient httpClient)
         try
         {
             var request = new HttpRequestMessage(HttpMethod.Get, feedUrl);
-            request.Headers.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
 
             var response = await httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();

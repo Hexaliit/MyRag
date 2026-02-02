@@ -7,6 +7,9 @@ public class HackerNewsFetcher(HttpClient httpClient)
 {
     private const string BaseUrl = "https://hacker-news.firebaseio.com/v0";
 
+    // Limit concurrent requests to HN Firebase API to avoid hammering it
+    private static readonly SemaphoreSlim Throttle = new(5, 5);
+
     public async Task<List<ContentItem>> FetchAsync(HackerNewsConfig config, int limit, Action<string>? progress = null)
     {
         var items = new List<ContentItem>();
@@ -34,11 +37,13 @@ public class HackerNewsFetcher(HttpClient httpClient)
 
                 if (ids == null) continue;
 
+                // Throttle concurrent fetches to 5 at a time
                 var tasks = ids
                     .Where(id => !seen.Contains(id))
                     .Take(config.MaxStories)
                     .Select(async id =>
                     {
+                        await Throttle.WaitAsync();
                         try
                         {
                             var storyJson = await httpClient.GetStringAsync($"{BaseUrl}/item/{id}.json");
@@ -47,6 +52,10 @@ public class HackerNewsFetcher(HttpClient httpClient)
                         catch
                         {
                             return null;
+                        }
+                        finally
+                        {
+                            Throttle.Release();
                         }
                     });
 
