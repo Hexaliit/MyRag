@@ -238,6 +238,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="dssqlitev${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DocSummarizer.Rdbms.Sqlite/Mostlylucid.DocSummarizer.Rdbms.Sqlite.csproj \
@@ -263,6 +267,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="dsftlucev${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DocSummarizer.FullText.Lucene/Mostlylucid.DocSummarizer.FullText.Lucene.csproj \
@@ -288,6 +296,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="dsftsqlv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DocSummarizer.FullText.Sqlite/Mostlylucid.DocSummarizer.FullText.Sqlite.csproj \
@@ -400,6 +412,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="srchnv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DoomSummarizer.Source.HackerNews/Mostlylucid.DoomSummarizer.Source.HackerNews.csproj \
@@ -425,6 +441,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="srcredditv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DoomSummarizer.Source.Reddit/Mostlylucid.DoomSummarizer.Source.Reddit.csproj \
@@ -450,6 +470,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="srcgooglev${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DoomSummarizer.Source.Google/Mostlylucid.DoomSummarizer.Source.Google.csproj \
@@ -475,6 +499,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="srcnewsv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DoomSummarizer.Source.News/Mostlylucid.DoomSummarizer.Source.News.csproj \
@@ -500,6 +528,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="srcwebv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DoomSummarizer.Source.Web/Mostlylucid.DoomSummarizer.Source.Web.csproj \
@@ -525,6 +557,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="srcacadv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DoomSummarizer.Source.Academic/Mostlylucid.DoomSummarizer.Source.Academic.csproj \
@@ -550,6 +586,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="srcscienv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DoomSummarizer.Source.Science/Mostlylucid.DoomSummarizer.Source.Science.csproj \
@@ -575,6 +615,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="srcrefv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DoomSummarizer.Source.Reference/Mostlylucid.DoomSummarizer.Source.Reference.csproj \
@@ -600,6 +644,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="rdrpdfv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.Summarizers.Reader.Pdf/Mostlylucid.Summarizers.Reader.Pdf.csproj \
@@ -625,6 +673,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="rdrdocxv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.Summarizers.Reader.Docx/Mostlylucid.Summarizers.Reader.Docx.csproj \
@@ -650,6 +702,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="rdrgutv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.Summarizers.Reader.Gutenberg/Mostlylucid.Summarizers.Reader.Gutenberg.csproj \
@@ -675,6 +731,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="rdrmdv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.Summarizers.Reader.Markdown/Mostlylucid.Summarizers.Reader.Markdown.csproj \
@@ -700,6 +760,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="rdrdoclv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.Summarizers.Reader.Docling/Mostlylucid.Summarizers.Reader.Docling.csproj \
@@ -725,6 +789,10 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="plgbooksv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
       - name: Build & Pack
         run: |
           dotnet restore src/Mostlylucid.DoomSummarizer.Plugin.Books/Mostlylucid.DoomSummarizer.Plugin.Books.csproj \
