@@ -146,6 +146,7 @@
         <EmbeddedResource Include="Resources\sources.yaml" />
         <EmbeddedResource Include="Resources\prompts\*.txt" />
         <EmbeddedResource Include="Resources\templates\*.yaml" />
+        <EmbeddedResource Include="Resources\profiles\*.json" />
     </ItemGroup>
 
     <!-- Package files -->

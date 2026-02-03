@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Anthropic.Config;
@@ -223,6 +224,88 @@ public class LlmRouter : ILlmService
         }, ct);
 
     /// <summary>
+    /// Stream tokens from the best available provider with fallback chain.
+    /// Tries providers in order, with budget enforcement for cloud providers.
+    /// </summary>
+    public async IAsyncEnumerable<string> GenerateStreamingAsync(
+        string prompt, LlmOptions? options = null,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        Exception? lastException = null;
+
+        foreach (var entry in _providers)
+        {
+            // Budget check for cloud providers
+            if (!entry.IsLocal && entry.BudgetServiceName != null)
+            {
+                if (_circuit != null && !await _circuit.IsServiceAvailableAsync(entry.BudgetServiceName))
+                    continue;
+
+                if (_budget != null)
+                {
+                    var check = await _budget.CheckBudgetAsync(entry.BudgetServiceName);
+                    if (!check.IsAllowed)
+                        continue;
+                }
+            }
+
+            IAsyncEnumerable<string>? stream = null;
+            try
+            {
+                stream = entry.Service.GenerateStreamingAsync(prompt, options, ct);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"{entry.Service.ProviderName} streaming init failed: {ex.Message} -- trying next provider");
+                lastException = ex;
+                continue;
+            }
+
+            var yielded = false;
+            await using var enumerator = stream.GetAsyncEnumerator(ct);
+            while (true)
+            {
+                string current;
+                try
+                {
+                    if (!await enumerator.MoveNextAsync())
+                        break;
+                    current = enumerator.Current;
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    if (yielded)
+                        throw; // Already started streaming, can't fallback
+                    System.Diagnostics.Debug.WriteLine(
+                        $"{entry.Service.ProviderName} streaming failed: {ex.Message} -- trying next provider");
+                    lastException = ex;
+                    break;
+                }
+
+                yielded = true;
+                yield return current;
+            }
+
+            if (yielded)
+            {
+                // Record usage for cloud providers
+                if (!entry.IsLocal && _budget != null && entry.BudgetServiceName != null)
+                    await _budget.RecordUsageAsync(entry.BudgetServiceName);
+                yield break;
+            }
+        }
+
+        throw new InvalidOperationException(
+            "All LLM providers failed for streaming. Is Ollama running?",
+            lastException);
+    }
+
+    /// <summary>
     /// Check if any provider is available.
     /// </summary>
     public async Task<bool> IsAnyAvailableAsync(CancellationToken ct = default)
@@ -299,6 +382,10 @@ public class LlmRouter : ILlmService
     /// <inheritdoc />
     Task<string> ILlmService.GenerateAsync(string prompt, LlmOptions? options, CancellationToken ct)
         => GenerateAsync(prompt, options, ct);
+
+    /// <inheritdoc />
+    IAsyncEnumerable<string> ILlmService.GenerateStreamingAsync(string prompt, LlmOptions? options, CancellationToken ct)
+        => GenerateStreamingAsync(prompt, options, ct);
 
     /// <inheritdoc />
     async Task<T?> ILlmService.GenerateJsonAsync<T>(string prompt, LlmOptions? options, CancellationToken ct)

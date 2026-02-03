@@ -1,3 +1,4 @@
+using System.Text;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
@@ -10,6 +11,64 @@ namespace DoomSummarizer.Commands;
 /// </summary>
 public sealed partial class ScrollCommand
 {
+    /// <summary>
+    /// Stream LLM synthesis tokens directly to console as they arrive.
+    /// Used for perceived speed: evidence/links are shown first, then tokens stream in.
+    /// Includes repetition detection to halt degenerate model output.
+    /// </summary>
+    private static async Task<string> RenderStreamingOutputAsync(
+        IAsyncEnumerable<string> tokens, string title)
+    {
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule($"[cyan]{Markup.Escape(title)}[/]").RuleStyle("grey").LeftJustified());
+        AnsiConsole.WriteLine();
+
+        var sb = new StringBuilder();
+
+        // Repetition detection: track recent output windows to detect looping
+        const int windowSize = 120; // chars to compare
+        const int maxRepetitions = 2; // stop after this many consecutive repeats
+        var repetitionCount = 0;
+
+        await foreach (var token in tokens)
+        {
+            Console.Write(token);
+            sb.Append(token);
+
+            // Check for repetition once we have enough output
+            if (sb.Length > windowSize * 2)
+            {
+                var text = sb.ToString();
+                var tail = text[^windowSize..];
+                var preceding = text[^(windowSize * 2)..^windowSize];
+                if (string.Equals(tail, preceding, StringComparison.Ordinal))
+                {
+                    repetitionCount++;
+                    if (repetitionCount >= maxRepetitions)
+                    {
+                        // Truncate the repeated content and stop
+                        var cleanLength = sb.Length - (windowSize * repetitionCount);
+                        if (cleanLength > windowSize)
+                        {
+                            sb.Length = cleanLength;
+                            Console.WriteLine();
+                            AnsiConsole.MarkupLine("[dim](output truncated — repetition detected)[/]");
+                        }
+                        break;
+                    }
+                }
+                else
+                {
+                    repetitionCount = 0;
+                }
+            }
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule().RuleStyle("grey"));
+        return sb.ToString();
+    }
+
     private async Task RenderOutputAsync(
         Settings settings,
         CommandBootstrap boot,

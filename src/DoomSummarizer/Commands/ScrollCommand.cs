@@ -604,6 +604,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         var template = "default";
         var isBlogTemplate = false;
         DigestData? templateData = null;
+        string? streamingPrompt = null; // Set when using streaming synthesis path
         var allEntities = new List<NerEntity>();
         var articleEntityMap = new List<(ContentItem item, List<NerEntity> entities)>();
         var extractEntities = false;
@@ -2413,12 +2414,29 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             }
                         }
 
-                        finalSummary = await ollama.SynthesizeSummaryAsync(
-                            analyzedItems, vibe, vibePrompt, userQuery, uniqueItems,
-                            embedder: text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(),
-                            batchEmbedder: texts => boot.Embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult(),
-                            sentinelIntent: interpreted?.SentinelIntent,
-                            missingTerms: missingTerms);
+                        // Determine if we should use streaming output (console, non-blog, non-JSON)
+                        var canStream = !settings.Json && string.IsNullOrEmpty(settings.Output) && !isBlogTemplate;
+
+                        if (canStream)
+                        {
+                            // Build prompt only — streaming happens after progress block
+                            streamingPrompt = await ollama.SynthesizeSummaryAsync(
+                                analyzedItems, vibe, vibePrompt, userQuery, uniqueItems,
+                                embedder: text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(),
+                                batchEmbedder: texts => boot.Embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult(),
+                                sentinelIntent: interpreted?.SentinelIntent,
+                                missingTerms: missingTerms,
+                                returnPromptOnly: true);
+                        }
+                        else
+                        {
+                            finalSummary = await ollama.SynthesizeSummaryAsync(
+                                analyzedItems, vibe, vibePrompt, userQuery, uniqueItems,
+                                embedder: text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(),
+                                batchEmbedder: texts => boot.Embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult(),
+                                sentinelIntent: interpreted?.SentinelIntent,
+                                missingTerms: missingTerms);
+                        }
                     }
                 }
                 else
@@ -2427,12 +2445,15 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 }
 
                 summaryTask.Value = 100;
-                summaryTask.Description = isBlogTemplate
-                    ? $"[green]{template} generated[/]"
-                    : "[green]Summary generated[/]";
+                summaryTask.Description = streamingPrompt != null
+                    ? "[cyan]Ready to stream[/]"
+                    : isBlogTemplate
+                        ? $"[green]{template} generated[/]"
+                        : "[green]Summary generated[/]";
 
-                // Save summary
-                await boot.Storage.SaveSummaryAsync(vibe, finalSummary, analyzedItems.Count);
+                // Save summary (skip for streaming — saved after streaming completes)
+                if (streamingPrompt == null)
+                    await boot.Storage.SaveSummaryAsync(vibe, finalSummary, analyzedItems.Count);
 
                 // Log query for segment reuse (LFU tracking + similar query matching)
                 if (!string.IsNullOrWhiteSpace(queryText))
@@ -2450,11 +2471,32 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     await boot.EntityStore.CleanupAsync(boot.Config.Storage.RetentionDays);
             });
 
-        // === Output (delegated to Display partial) ===
-        await RenderOutputAsync(settings, boot, vibe, finalSummary, template, isBlogTemplate,
-            templateData, uniqueItems, analyzedItems, allEntities, articleEntityMap,
-            extractEntities, ollamaAvailable, interpreted, linkCacheHits, linksSkippedByRelevance,
-            outputTemplates, httpClient, isImageSource, cancellationToken);
+        // === Streaming synthesis path ===
+        if (streamingPrompt != null)
+        {
+            // Display evidence/links FIRST (fast, already available)
+            var maxContentWidth = Math.Min(Spectre.Console.AnsiConsole.Profile.Width - 6, 94);
+            if ((settings.Full || settings.Briefing) && analyzedItems.Count > 0)
+                await RenderEvidenceBriefingAsync(boot, uniqueItems, analyzedItems, articleEntityMap, maxContentWidth);
+
+            RenderSourcesUsed(analyzedItems, uniqueItems, maxContentWidth);
+
+            // Stream LLM synthesis tokens as they arrive
+            var title = $"Doom Scroll Digest ({vibe})";
+            var tokens = ollama.SynthesizeSummaryStreamingAsync(streamingPrompt, cancellationToken);
+            finalSummary = await RenderStreamingOutputAsync(tokens, title);
+
+            // Save the streamed summary
+            await boot.Storage.SaveSummaryAsync(vibe, finalSummary, analyzedItems.Count);
+        }
+        else
+        {
+            // === Non-streaming output (delegated to Display partial) ===
+            await RenderOutputAsync(settings, boot, vibe, finalSummary, template, isBlogTemplate,
+                templateData, uniqueItems, analyzedItems, allEntities, articleEntityMap,
+                extractEntities, ollamaAvailable, interpreted, linkCacheHits, linksSkippedByRelevance,
+                outputTemplates, httpClient, isImageSource, cancellationToken);
+        }
 
         return 0;
     }

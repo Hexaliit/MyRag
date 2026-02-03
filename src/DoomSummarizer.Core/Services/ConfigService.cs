@@ -23,21 +23,65 @@ public static class ConfigService
     public static string GetConfigDir() => ConfigDir;
 
     /// <summary>
+    /// Optional profile name to apply during LoadAsync.
+    /// Set this before calling LoadAsync to apply a profile via CLI --profile flag.
+    /// </summary>
+    public static string? RequestedProfile { get; set; }
+
+    /// <summary>
+    /// The profile name that was actually applied (after dynamic resolution).
+    /// </summary>
+    public static string? AppliedProfile { get; private set; }
+
+    /// <summary>
     /// Load configuration with layered merging:
     ///   1. YAML embedded defaults (base)
-    ///   2. ~/.doomsummarizer/config.json (user overrides)
-    ///   3. ./doomsummarizer.json (local overrides)
+    ///   2. Profile overlay (if --profile or config.profile is set)
+    ///   3. ~/.doomsummarizer/config.json (user overrides)
+    ///   4. ./doomsummarizer.json (local overrides)
     /// Env vars and user secrets are handled separately by ApiKeyService.
     /// </summary>
     public static async Task<DoomConfig> LoadAsync()
     {
         LoadedSources.Clear();
+        AppliedProfile = null;
 
         // 1. Load base defaults from embedded YAML (fall back to JSON)
         var baseConfig = LoadYamlDefaults();
         var baseNode = ConfigToJsonNode(baseConfig);
 
-        // 2. Merge user config (~/.doomsummarizer/config.json)
+        // 2. Determine profile: CLI flag takes priority, then existing config "profile" field
+        var profileName = RequestedProfile;
+
+        // Peek at user config for a persisted profile if no CLI override
+        if (profileName == null && File.Exists(ConfigPath))
+        {
+            try
+            {
+                var peekJson = await File.ReadAllTextAsync(ConfigPath);
+                var peekNode = JsonNode.Parse(peekJson);
+                profileName = peekNode?["profile"]?.GetValue<string>();
+            }
+            catch { /* ignore parse errors in profile peek */ }
+        }
+
+        // 2b. Apply profile overlay
+        if (!string.IsNullOrEmpty(profileName))
+        {
+            var resolvedName = profileName;
+            if (profileName == "dynamic")
+                resolvedName = await HardwareDetector.ResolveProfileAsync();
+
+            var profileOverlay = ProfileService.LoadProfile(resolvedName);
+            if (profileOverlay != null)
+            {
+                DeepMerge(baseNode, profileOverlay);
+                LoadedSources.Add($"profile:{resolvedName}");
+                AppliedProfile = resolvedName;
+            }
+        }
+
+        // 3. Merge user config (~/.doomsummarizer/config.json)
         if (File.Exists(ConfigPath))
         {
             var json = await File.ReadAllTextAsync(ConfigPath);
@@ -49,7 +93,7 @@ public static class ConfigService
             }
         }
 
-        // 3. Merge local config (./doomsummarizer.json)
+        // 4. Merge local config (./doomsummarizer.json)
         var localConfig = Path.Combine(Directory.GetCurrentDirectory(), "doomsummarizer.json");
         if (File.Exists(localConfig))
         {
@@ -62,7 +106,7 @@ public static class ConfigService
             }
         }
 
-        // 4. Deserialize merged result to DoomConfig
+        // 5. Deserialize merged result to DoomConfig
         var mergedJson = baseNode.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
         var result = JsonSerializer.Deserialize(mergedJson, DoomConfigContext.Default.DoomConfig);
 

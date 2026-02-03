@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
@@ -64,6 +66,18 @@ public interface ILlmService
     Task<string> GenerateAsync(string prompt, LlmOptions? options = null, CancellationToken ct = default);
 
     /// <summary>
+    ///     Stream text tokens from a prompt as they are generated.
+    ///     Default implementation calls GenerateAsync and yields the full result.
+    /// </summary>
+    IAsyncEnumerable<string> GenerateStreamingAsync(
+        string prompt,
+        LlmOptions? options = null,
+        CancellationToken ct = default)
+    {
+        return DefaultStreamingFallback(this, prompt, options, ct);
+    }
+
+    /// <summary>
     ///     Generate structured JSON output from a prompt
     /// </summary>
     /// <typeparam name="T">Type to deserialize the response into</typeparam>
@@ -83,4 +97,17 @@ public interface ILlmService
     ///     Get the context window size in tokens for the configured model
     /// </summary>
     Task<int> GetContextWindowAsync(CancellationToken ct = default);
+
+    /// <summary>
+    ///     Default streaming fallback: calls GenerateAsync and yields the full result.
+    /// </summary>
+    protected static async IAsyncEnumerable<string> DefaultStreamingFallback(
+        ILlmService service,
+        string prompt,
+        LlmOptions? options,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        var result = await service.GenerateAsync(prompt, options, ct);
+        yield return result;
+    }
 }

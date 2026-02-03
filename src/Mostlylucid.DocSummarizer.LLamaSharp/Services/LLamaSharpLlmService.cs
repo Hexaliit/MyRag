@@ -1,7 +1,9 @@
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using LLama;
 using LLama.Common;
+using LLama.Native;
 using LLama.Sampling;
 using Mostlylucid.DocSummarizer.LLamaSharp.Config;
 using Mostlylucid.DocSummarizer.Services;
@@ -11,6 +13,7 @@ namespace Mostlylucid.DocSummarizer.LLamaSharp.Services;
 /// <summary>
 ///     Local GGUF model inference via LLamaSharp implementing ILlmService.
 ///     Models are lazy-loaded on first use and kept for the session lifetime.
+///     Uses GGUF embedded chat templates to prevent prompt leaks.
 /// </summary>
 public sealed class LLamaSharpLlmService : ILlmService, IDisposable
 {
@@ -24,6 +27,14 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
     private ModelParams? _sentinelParams;
     private readonly SemaphoreSlim _loadLock = new(1, 1);
 
+    // Ensure native logging is suppressed exactly once (llama.cpp is extremely verbose)
+    private static int _loggingConfigured;
+
+    /// <summary>
+    ///     End-of-turn tokens used by supported GGUF models (Qwen/ChatML, Phi-4, Gemma).
+    /// </summary>
+    private static readonly string[] EndOfTurnTokens = ["<|im_end|>", "<|end|>", "<end_of_turn>"];
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -33,6 +44,27 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
     {
         _config = config;
         _downloader = downloader;
+        SuppressNativeLogging();
+    }
+
+    /// <summary>
+    ///     Configure native backend and suppress llama.cpp debug output.
+    ///     Called once before any model loading.
+    ///     Prefers CUDA GPU acceleration when available, with automatic CPU fallback.
+    ///     Without log suppression, every StatelessExecutor call dumps dozens of lines
+    ///     of model metadata, tensor info, and memory allocation details to stderr.
+    /// </summary>
+    private static void SuppressNativeLogging()
+    {
+        if (Interlocked.CompareExchange(ref _loggingConfigured, 1, 0) == 0)
+        {
+            // Configure backend selection before any native API calls.
+            // WithCuda() prefers CUDA when the Backend.Cuda12 package is present;
+            // auto-fallback (enabled by default) drops to CPU if no NVIDIA GPU is found.
+            NativeLibraryConfig.All.WithCuda();
+
+            NativeLogConfig.llama_log_set((_, _) => { });
+        }
     }
 
     /// <inheritdoc />
@@ -47,8 +79,19 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
         var maxTokens = options?.MaxTokens ?? (isSentinel ? 1024 : 2048);
         var temperature = (float)(options?.Temperature ?? (isSentinel ? 0.1 : 0.4));
 
-        // Build the full prompt with system prompt if provided
-        var fullPrompt = BuildPrompt(prompt, options?.SystemPrompt, options?.JsonMode ?? false);
+        // Build system prompt (include JSON mode instruction if needed)
+        var systemPrompt = options?.SystemPrompt ?? "";
+        if (options?.JsonMode ?? false)
+        {
+            const string jsonInstruction = "Respond with valid JSON only. No markdown, no code blocks, just the JSON object.";
+            systemPrompt = string.IsNullOrEmpty(systemPrompt)
+                ? jsonInstruction
+                : $"{systemPrompt}\n\n{jsonInstruction}";
+        }
+
+        // Use GGUF embedded chat template to format the prompt with proper role boundaries.
+        // This prevents prompt leaks by clearly marking system/user/assistant turns.
+        var formattedPrompt = FormatWithChatTemplate(weights, systemPrompt, prompt);
 
         var executor = new StatelessExecutor(weights, modelParams);
 
@@ -59,18 +102,77 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
             {
                 Temperature = temperature,
                 TopP = 0.9f,
+                MinP = 0.05f,
                 RepeatPenalty = 1.1f,
             },
-            AntiPrompts = isSentinel ? ["```", "\n\n\n"] : ["\n\n\n"],
+            // Stop on end-of-turn tokens from all supported model families
+            AntiPrompts = isSentinel
+                ? ["```", "\n\n\n", ..EndOfTurnTokens]
+                : ["\n\n\n", ..EndOfTurnTokens],
         };
 
         var sb = new StringBuilder();
-        await foreach (var token in executor.InferAsync(fullPrompt, inferenceParams, ct))
+        await foreach (var token in executor.InferAsync(formattedPrompt, inferenceParams, ct))
         {
             sb.Append(token);
         }
 
-        return sb.ToString().Trim();
+        return CleanResponse(sb.ToString());
+    }
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<string> GenerateStreamingAsync(
+        string prompt, LlmOptions? options = null,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var isSentinel = options?.Role is "sentinel";
+        var (weights, modelParams) = await EnsureModelLoadedAsync(isSentinel, ct);
+
+        var maxTokens = options?.MaxTokens ?? (isSentinel ? 1024 : 2048);
+        var temperature = (float)(options?.Temperature ?? (isSentinel ? 0.1 : 0.4));
+
+        var systemPrompt = options?.SystemPrompt ?? "";
+        if (options?.JsonMode ?? false)
+        {
+            const string jsonInstruction = "Respond with valid JSON only. No markdown, no code blocks, just the JSON object.";
+            systemPrompt = string.IsNullOrEmpty(systemPrompt)
+                ? jsonInstruction
+                : $"{systemPrompt}\n\n{jsonInstruction}";
+        }
+
+        var formattedPrompt = FormatWithChatTemplate(weights, systemPrompt, prompt);
+        var executor = new StatelessExecutor(weights, modelParams);
+
+        var inferenceParams = new InferenceParams
+        {
+            MaxTokens = maxTokens,
+            SamplingPipeline = new DefaultSamplingPipeline
+            {
+                Temperature = temperature,
+                TopP = 0.9f,
+                MinP = 0.05f,
+                RepeatPenalty = 1.1f,
+            },
+            AntiPrompts = isSentinel
+                ? ["```", "\n\n\n", ..EndOfTurnTokens]
+                : ["\n\n\n", ..EndOfTurnTokens],
+        };
+
+        await foreach (var token in executor.InferAsync(formattedPrompt, inferenceParams, ct))
+        {
+            // Skip end-of-turn tokens in streaming output
+            var isEot = false;
+            foreach (var eot in EndOfTurnTokens)
+            {
+                if (token.Contains(eot, StringComparison.Ordinal))
+                {
+                    isEot = true;
+                    break;
+                }
+            }
+            if (!isEot)
+                yield return token;
+        }
     }
 
     /// <inheritdoc />
@@ -176,29 +278,52 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
     }
 
     /// <summary>
-    ///     Build a prompt with optional system instructions.
-    ///     Chat templates are auto-detected from GGUF metadata by LLamaSharp.
+    ///     Format a prompt using the GGUF model's embedded chat template.
+    ///     This reads the template from model metadata and applies it with proper role markers,
+    ///     preventing system instructions from leaking into the model's response.
     /// </summary>
-    private static string BuildPrompt(string prompt, string? systemPrompt, bool jsonMode)
+    private static string FormatWithChatTemplate(LLamaWeights weights, string systemPrompt, string userPrompt)
     {
-        var sb = new StringBuilder();
-
-        if (!string.IsNullOrEmpty(systemPrompt))
+        try
         {
-            sb.AppendLine(systemPrompt);
-            sb.AppendLine();
+            var template = new LLamaTemplate(weights);
+            if (!string.IsNullOrEmpty(systemPrompt))
+                template.Add("system", systemPrompt);
+            template.Add("user", userPrompt);
+            template.AddAssistant = true;
+
+            var bytes = template.Apply();
+            return Encoding.UTF8.GetString(bytes);
         }
-
-        sb.Append(prompt);
-
-        if (jsonMode)
+        catch
         {
-            sb.AppendLine();
-            sb.AppendLine();
-            sb.Append("Respond with valid JSON only. No markdown, no code blocks, just the JSON object.");
+            // Fallback: plain concatenation (should not happen with instruct-tuned GGUF models)
+            var sb = new StringBuilder();
+            if (!string.IsNullOrEmpty(systemPrompt))
+            {
+                sb.AppendLine(systemPrompt);
+                sb.AppendLine();
+            }
+            sb.Append(userPrompt);
+            return sb.ToString();
         }
+    }
 
-        return sb.ToString();
+    /// <summary>
+    ///     Strip trailing end-of-turn tokens and whitespace from model output.
+    /// </summary>
+    private static string CleanResponse(string raw)
+    {
+        var result = raw.Trim();
+        // Models may emit their end-of-turn marker before the anti-prompt catches it
+        foreach (var eot in EndOfTurnTokens)
+        {
+            if (result.EndsWith(eot, StringComparison.Ordinal))
+            {
+                result = result[..^eot.Length].TrimEnd();
+            }
+        }
+        return result;
     }
 
     public void Dispose()

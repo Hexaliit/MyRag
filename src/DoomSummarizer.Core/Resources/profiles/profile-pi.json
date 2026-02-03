@@ -1,0 +1,25 @@
+{
+  "sources": {
+    "hackerNews": { "maxStories": 10 },
+    "reddit": { "maxPosts": 10 }
+  },
+  "ollama": {
+    "model": "qwen3:0.6b",
+    "sentinelModel": "qwen3:0.6b",
+    "contextSize": 2048,
+    "sentinelContextSize": 2048
+  },
+  "llamaSharp": {
+    "synthesisModel": "qwen2.5-0.5b-instruct",
+    "sentinelModel": "qwen2.5-0.5b-instruct",
+    "contextSize": 1024,
+    "gpuLayerCount": 0,
+    "batchSize": 128
+  },
+  "linkFollowing": {
+    "enabled": false
+  },
+  "output": {
+    "maxSummaryLength": 300
+  }
+}

@@ -26,6 +26,14 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
         [CommandOption("--reference")]
         [Description("Print the full YAML configuration reference to stdout")]
         public bool Reference { get; init; }
+
+        [CommandOption("--profile")]
+        [Description("Apply a hardware profile (pi, laptop, desktop, server, enterprise, dynamic)")]
+        public string? Profile { get; init; }
+
+        [CommandOption("--list-profiles")]
+        [Description("Show available hardware profiles with descriptions")]
+        public bool ListProfiles { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
@@ -33,6 +41,12 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
         if (settings.Reference)
         {
             ShowReference();
+            return 0;
+        }
+
+        if (settings.ListProfiles)
+        {
+            ShowProfiles();
             return 0;
         }
 
@@ -53,6 +67,11 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
             return 0;
         }
 
+        if (!string.IsNullOrEmpty(settings.Profile))
+        {
+            return await ApplyProfileAsync(settings);
+        }
+
         var config = await ConfigService.LoadAsync();
 
         if (settings.Show || !settings.Init)
@@ -61,6 +80,93 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
         }
 
         return 0;
+    }
+
+    private static async Task<int> ApplyProfileAsync(Settings settings)
+    {
+        var profileName = settings.Profile!;
+
+        if (!ProfileService.IsValidProfile(profileName))
+        {
+            AnsiConsole.MarkupLine($"[red]Unknown profile:[/] {Markup.Escape(profileName)}");
+            AnsiConsole.MarkupLine("[grey]Valid profiles: pi, laptop, desktop, server, enterprise, dynamic[/]");
+            return 1;
+        }
+
+        var resolvedName = profileName;
+        if (profileName == "dynamic")
+        {
+            var hw = await HardwareDetector.DetectAsync();
+            resolvedName = HardwareDetector.ResolveProfile(hw);
+            AnsiConsole.MarkupLine($"[cyan]Hardware detected:[/] {hw.TotalRamGb:F1} GB RAM, {hw.CpuCores} cores, GPU: {(hw.HasGpu ? "yes" : "no")}, Ollama: {(hw.OllamaAvailable ? "yes" : "no")}");
+            AnsiConsole.MarkupLine($"[cyan]Resolved profile:[/] [bold]{resolvedName}[/]");
+        }
+
+        if (settings.Show)
+        {
+            // Dry-run: show what the profile would change
+            AnsiConsole.MarkupLine($"[cyan]Preview of profile:[/] [bold]{resolvedName}[/]");
+            AnsiConsole.WriteLine();
+
+            DoomConfig previewConfig;
+            try
+            {
+                ConfigService.RequestedProfile = resolvedName;
+                previewConfig = await ConfigService.LoadAsync();
+            }
+            finally
+            {
+                ConfigService.RequestedProfile = null;
+            }
+            ShowConfig(previewConfig);
+            AnsiConsole.MarkupLine("[grey]This is a preview. Remove --show to apply.[/]");
+            return 0;
+        }
+
+        // Apply: set the profile in user config and reload
+        DoomConfig config;
+        try
+        {
+            ConfigService.RequestedProfile = resolvedName;
+            config = await ConfigService.LoadAsync();
+        }
+        finally
+        {
+            ConfigService.RequestedProfile = null;
+        }
+
+        // Persist the profile name in config
+        var updatedConfig = config with { Profile = resolvedName };
+        await ConfigService.SaveAsync(updatedConfig);
+
+        var desc = ProfileService.ProfileDescriptions.TryGetValue(resolvedName, out var d) ? d.Description : "";
+        AnsiConsole.MarkupLine($"[green]Applied profile:[/] [bold]{resolvedName}[/]");
+        if (!string.IsNullOrEmpty(desc))
+            AnsiConsole.MarkupLine($"[grey]{desc}[/]");
+        AnsiConsole.MarkupLine($"[grey]Config saved to {ConfigService.GetConfigDir()}/config.json[/]");
+
+        return 0;
+    }
+
+    private static void ShowProfiles()
+    {
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .Title("[bold cyan]Hardware Profiles[/]")
+            .AddColumn("[bold]Profile[/]")
+            .AddColumn("[bold]Target[/]")
+            .AddColumn("[bold]Description[/]");
+
+        foreach (var (name, (target, description)) in ProfileService.ProfileDescriptions)
+        {
+            var nameMarkup = name == "dynamic" ? $"[cyan]{name}[/]" : name;
+            table.AddRow(nameMarkup, target, description);
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey]Usage: doomsummarizer config --profile <name>[/]");
+        AnsiConsole.MarkupLine("[grey]Preview: doomsummarizer config --profile <name> --show[/]");
     }
 
     private static void ShowReference()

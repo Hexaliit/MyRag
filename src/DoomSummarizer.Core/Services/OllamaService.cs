@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -144,7 +145,9 @@ public partial class OllamaService
                 Options = new OllamaOptions
                 {
                     Temperature = temperature ?? _config.Temperature,
-                    NumCtx = numCtx
+                    NumCtx = numCtx,
+                    NumPredict = isSentinel ? 1024 : 4096,
+                    RepeatPenalty = 1.15
                 }
             };
 
@@ -159,6 +162,102 @@ public partial class OllamaService
 
             return result?.Response ?? "";
         }, ct);
+    }
+
+    /// <summary>
+    /// Stream tokens from Ollama using NDJSON streaming.
+    /// When a router is configured, delegates to the router's streaming method.
+    /// </summary>
+    public async IAsyncEnumerable<string> GenerateStreamingAsync(
+        string prompt, string? systemPrompt = null, double? temperature = null,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await foreach (var token in GenerateStreamingWithModelAsync(
+            _config.Model, prompt, systemPrompt, temperature, ct))
+        {
+            yield return token;
+        }
+    }
+
+    /// <summary>
+    /// Stream synthesis summary tokens, yielding each token as it arrives.
+    /// This is the streaming counterpart of SynthesizeSummaryAsync — the caller
+    /// is responsible for building the prompt (typically via the same logic as
+    /// SynthesizeSummaryAsync but yielding tokens instead of collecting a string).
+    /// </summary>
+    public async IAsyncEnumerable<string> SynthesizeSummaryStreamingAsync(
+        string prompt,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await foreach (var token in GenerateStreamingWithModelAsync(
+            _config.Model, prompt, null, 0.6, ct))
+        {
+            yield return token;
+        }
+    }
+
+    private async IAsyncEnumerable<string> GenerateStreamingWithModelAsync(
+        string model, string prompt, string? systemPrompt,
+        double? temperature,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        // When a cloud router is configured, delegate to its streaming method
+        if (Router != null)
+        {
+            var isSentinel = model == _config.SentinelModel;
+            var options = new Mostlylucid.DocSummarizer.Services.LlmOptions
+            {
+                SystemPrompt = systemPrompt,
+                Temperature = temperature ?? _config.Temperature,
+                MaxTokens = isSentinel ? 1024 : 4096,
+                Role = isSentinel ? "sentinel" : "main",
+            };
+            await foreach (var token in Router.GenerateStreamingAsync(prompt, options, ct))
+            {
+                yield return token;
+            }
+            yield break;
+        }
+
+        // Direct Ollama streaming via NDJSON
+        var isSentinelDirect = model == _config.SentinelModel;
+        var numCtx = isSentinelDirect ? _config.SentinelContextSize : _config.ContextSize;
+
+        var request = new OllamaGenerateRequest
+        {
+            Model = model,
+            Prompt = prompt,
+            System = systemPrompt,
+            Stream = true,
+            Options = new OllamaOptions
+            {
+                Temperature = temperature ?? _config.Temperature,
+                NumCtx = numCtx,
+                NumPredict = isSentinelDirect ? 1024 : 4096,
+                RepeatPenalty = 1.15
+            }
+        };
+
+        var json = JsonSerializer.Serialize(request, OllamaJsonContext.Default.OllamaGenerateRequest);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        using var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/generate") { Content = content };
+        using var response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+
+        while (await reader.ReadLineAsync(ct) is { } line)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var chunk = JsonSerializer.Deserialize(line, OllamaJsonContext.Default.OllamaGenerateResponse);
+            if (chunk?.Response != null)
+                yield return chunk.Response;
+            if (chunk?.Done == true)
+                yield break;
+        }
     }
 
     /// <summary>
@@ -270,6 +369,7 @@ public partial class OllamaService
         string? promptTemplate = null,
         SentinelIntent? sentinelIntent = null,
         List<string>? missingTerms = null,
+        bool returnPromptOnly = false,
         CancellationToken ct = default)
     {
         var today = DateTime.Now.ToString("MMMM d, yyyy");
@@ -489,6 +589,9 @@ public partial class OllamaService
                 ["USER_QUERY"] = userQuery ?? ""
             });
         }
+
+        if (returnPromptOnly)
+            return prompt;
 
         return await GenerateAsync(prompt, null, 0.6, ct);
     }
@@ -1189,6 +1292,8 @@ public record OllamaOptions
 {
     [JsonPropertyName("temperature")] public double Temperature { get; init; }
     [JsonPropertyName("num_ctx")] public int? NumCtx { get; init; }
+    [JsonPropertyName("num_predict")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public int? NumPredict { get; init; }
+    [JsonPropertyName("repeat_penalty")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public double RepeatPenalty { get; init; }
 }
 
 public record ContentAnalysis

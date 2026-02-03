@@ -72,13 +72,14 @@ public sealed class CommandBootstrap : IAsyncDisposable
 
     /// <summary>
     /// Create a LLamaSharp local LLM service for zero-config GGUF inference.
+    /// Applies DoomConfig.LlamaSharp overrides from config profiles.
     /// Returns null if LLamaSharp is disabled in config or fails to initialize.
     /// </summary>
     public LLamaSharpLlmService? CreateLLamaSharp()
     {
         try
         {
-            var llamaConfig = new LLamaSharpConfig();
+            var llamaConfig = ApplyLlamaSharpOverrides(new LLamaSharpConfig(), Config.LlamaSharp);
             if (!llamaConfig.Enabled) return null;
 
             var downloader = new LLamaSharpModelDownloader(llamaConfig);
@@ -89,6 +90,23 @@ public sealed class CommandBootstrap : IAsyncDisposable
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Apply DoomConfig.LlamaSharp profile overrides onto a LLamaSharpConfig.
+    /// Only non-null fields in the override section are applied.
+    /// </summary>
+    private static LLamaSharpConfig ApplyLlamaSharpOverrides(LLamaSharpConfig baseConfig, Models.LlamaSharpConfigSection overrides)
+    {
+        return baseConfig with
+        {
+            Enabled = overrides.Enabled ?? baseConfig.Enabled,
+            SynthesisModel = overrides.SynthesisModel ?? baseConfig.SynthesisModel,
+            SentinelModel = overrides.SentinelModel ?? baseConfig.SentinelModel,
+            ContextSize = overrides.ContextSize ?? baseConfig.ContextSize,
+            GpuLayerCount = overrides.GpuLayerCount ?? baseConfig.GpuLayerCount,
+            BatchSize = overrides.BatchSize ?? baseConfig.BatchSize,
+        };
     }
 
     /// <summary>

@@ -31,9 +31,17 @@
         </PackageReference>
     </ItemGroup>
 
+    <!-- GPU backend selection: cuda12 (default, NVIDIA), cuda11, vulkan (AMD/cross-platform), cpu -->
+    <PropertyGroup>
+        <LLamaBackend Condition="'$(LLamaBackend)' == ''">cuda12</LLamaBackend>
+    </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="LLamaSharp" Version="0.25.0" />
-        <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.25.0" />
+        <PackageReference Include="LLamaSharp.Backend.Cuda12" Version="0.25.0" Condition="'$(LLamaBackend)' == 'cuda12'" />
+        <PackageReference Include="LLamaSharp.Backend.Cuda11" Version="0.25.0" Condition="'$(LLamaBackend)' == 'cuda11'" />
+        <PackageReference Include="LLamaSharp.Backend.Vulkan" Version="0.25.0" Condition="'$(LLamaBackend)' == 'vulkan'" />
+        <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.25.0" Condition="'$(LLamaBackend)' == 'cpu'" />
     </ItemGroup>
 
     <!-- DocSummarizer dependency (conditional: ProjectRef local, PackageRef CI) -->

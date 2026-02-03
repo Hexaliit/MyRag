@@ -1,0 +1,11 @@
+{
+  "ollama": {
+    "model": "gemma3:4b",
+    "contextSize": 4096
+  },
+  "llamaSharp": {
+    "contextSize": 4096,
+    "gpuLayerCount": 0,
+    "batchSize": 512
+  }
+}

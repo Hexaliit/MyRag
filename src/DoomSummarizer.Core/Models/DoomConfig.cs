@@ -4,6 +4,7 @@ namespace DoomSummarizer.Models;
 
 public record DoomConfig
 {
+    public string? Profile { get; init; }
     public SourcesConfig Sources { get; init; } = new();
     public SourceFilterConfig SourceFilter { get; init; } = new();
     public OllamaConfig Ollama { get; init; } = new();
@@ -13,9 +14,24 @@ public record DoomConfig
     public LinkFollowingConfig LinkFollowing { get; init; } = new();
     public EmailConfig Email { get; init; } = new();
     public PluginsConfig Plugins { get; init; } = new();
+    public LlamaSharpConfigSection LlamaSharp { get; init; } = new();
     public Dictionary<string, string> Vibes { get; init; } = new();
     public List<ApiKeyEntry> Keys { get; init; } = [];
     public ApiBudgetConfig ApiBudget { get; init; } = new();
+}
+
+/// <summary>
+/// LLamaSharp local GGUF inference settings that can be overridden via config profiles.
+/// Nullable fields indicate "use the LLamaSharpConfig defaults".
+/// </summary>
+public record LlamaSharpConfigSection
+{
+    public bool? Enabled { get; init; }
+    public string? SynthesisModel { get; init; }
+    public string? SentinelModel { get; init; }
+    public uint? ContextSize { get; init; }
+    public int? GpuLayerCount { get; init; }
+    public int? BatchSize { get; init; }
 }
 
 public record SourcesConfig
@@ -243,6 +259,7 @@ public record PluginSettings
 [JsonSerializable(typeof(SmtpConfig))]
 [JsonSerializable(typeof(PluginsConfig))]
 [JsonSerializable(typeof(PluginSettings))]
+[JsonSerializable(typeof(LlamaSharpConfigSection))]
 [JsonSerializable(typeof(List<ApiKeyEntry>))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
