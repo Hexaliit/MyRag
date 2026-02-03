@@ -8,6 +8,23 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
+    <!-- Mirror DoomSummarizer's CompleteBuild flag so tests compile in both modes -->
+    <PropertyGroup Condition="'$(CompleteBuild)' == 'true'">
+        <DefineConstants>$(DefineConstants);FEATURE_COMPLETE</DefineConstants>
+    </PropertyGroup>
+
+    <!-- Exclude Subtitle/YouTube test files in slim builds (they reference complete-only assemblies) -->
+    <ItemGroup Condition="'$(CompleteBuild)' != 'true'">
+        <Compile Remove="Plugins\ChapterDetectorTests.cs" />
+        <Compile Remove="Plugins\DescriptionChapterParserTests.cs" />
+        <Compile Remove="Plugins\SubtitleDocumentHandlerTests.cs" />
+        <Compile Remove="Plugins\SubtitleEndToEndTests.cs" />
+        <Compile Remove="Plugins\SubtitlesProcessorPluginTests.cs" />
+        <Compile Remove="Plugins\YouTubeExtractorTests.cs" />
+        <Compile Remove="Plugins\YouTubeSourcePluginTests.cs" />
+        <Compile Remove="Benchmarks\SubtitleBenchmarks.cs" />
+    </ItemGroup>
+
     <ItemGroup>
         <PackageReference Include="coverlet.collector" Version="6.0.4" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
@@ -23,6 +40,13 @@
         <ProjectReference Include="..\DoomSummarizer\DoomSummarizer.csproj" />
         <ProjectReference Include="..\LucidRAG.LLM\LucidRAG.LLM.csproj" />
         <ProjectReference Include="..\LucidRAG.Decomposer\LucidRAG.Decomposer.csproj" />
+    </ItemGroup>
+
+    <!-- Complete-only test dependencies (Subtitles, YouTube, Audio) -->
+    <ItemGroup Condition="'$(CompleteBuild)' == 'true'">
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Subtitles\Mostlylucid.DoomSummarizer.Plugin.Subtitles.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.YouTube\Mostlylucid.DoomSummarizer.Source.YouTube.csproj" />
+        <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj" />
     </ItemGroup>
 
     <ItemGroup>

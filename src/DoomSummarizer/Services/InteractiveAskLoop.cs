@@ -9,6 +9,7 @@ using LucidRAG.Decomposer.Models;
 using LucidRAG.Decomposer.Orchestration;
 using LucidRAG.Decomposer.Refinement;
 using Mostlylucid.DocSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
 
 namespace DoomSummarizer.Services;
@@ -77,12 +78,15 @@ public sealed class InteractiveAskLoop
         var turnNumber = 0;
         Task? pendingIndexTask = null;
 
+        // Personal corpus: user memory via existing entity infrastructure
+        var personalCorpus = CreatePersonalCorpus();
+
         if (!_options.Once)
         {
             AnsiConsole.Write(new Rule("[bold cyan]DoomSummarizer Ask Mode[/]").LeftJustified());
             AnsiConsole.MarkupLine("[grey]Interactive Q&A over your stored knowledge base.[/]");
             AnsiConsole.MarkupLine("[grey]Commands: quit, sources, history, clear, suggest <prefix>[/]");
-            AnsiConsole.MarkupLine("[grey]Slash commands: /docs, /segments, /cache, /resolve <query>[/]");
+            AnsiConsole.MarkupLine("[grey]Slash commands: /docs, /segments, /cache, /resolve <query>, /me, /remember, /forget, /personal, /whois[/]");
             if (_options.CrawlProgress != null)
                 AnsiConsole.MarkupLine("[grey]Background crawl is running — items become queryable as they're indexed.[/]");
             AnsiConsole.WriteLine();
@@ -152,8 +156,9 @@ public sealed class InteractiveAskLoop
             // Slash commands
             if (cmd.StartsWith("/"))
             {
-                HandleSlashCommand(cmd, question.Trim(), history, segmentCache,
-                    retrieval, effectiveSources, collectionName, turnNumber);
+                await HandleSlashCommandAsync(cmd, question.Trim(), history, segmentCache,
+                    retrieval, effectiveSources, collectionName, turnNumber,
+                    personalCorpus, ct);
                 question = null;
                 continue;
             }
@@ -169,7 +174,7 @@ public sealed class InteractiveAskLoop
             pendingIndexTask = await AnswerQuestion(question, effectiveSources, retrieval,
                 _boot.Storage, _boot.Embedding, _ollama,
                 llmAvailable, history, segmentCache, chatCorpus,
-                sessionId, turnNumber, ct);
+                personalCorpus, sessionId, turnNumber, ct);
 
             if (_options.Once) break;
             question = null;
@@ -227,6 +232,7 @@ public sealed class InteractiveAskLoop
         List<(string question, string answer, List<string> sourceIds)> history,
         SalientSegmentCache segmentCache,
         ChatCorpusService chatCorpus,
+        PersonalCorpusService? personalCorpus,
         string sessionId,
         int turnNumber,
         CancellationToken ct)
@@ -243,6 +249,7 @@ public sealed class InteractiveAskLoop
         var needsDisambiguation = false;
         DisambiguationResult? disambiguation = null;
         ConversationSentinelResult? sentinelResult = null;
+        string? personalContext = null;
 
         await AnsiConsole.Status()
             .Spinner(Spinner.Known.Dots)
@@ -263,6 +270,24 @@ public sealed class InteractiveAskLoop
                 }
 
                 var searchQuery = sentinelResult?.ResolvedQuery ?? question;
+
+                // Phase 0b: Personal context gap-filling — resolve "here", "my company", etc.
+                if (personalCorpus != null)
+                {
+                    try
+                    {
+                        var sentinel = new ConversationSentinel(ollama, embedding, ollamaAvailable);
+                        var (personalResolved, pCtx) =
+                            await sentinel.ResolveFromPersonalAsync(searchQuery, personalCorpus, ct);
+                        if (personalResolved != searchQuery)
+                            searchQuery = personalResolved;
+                        personalContext = pCtx;
+                    }
+                    catch
+                    {
+                        // Personal resolution failure is non-fatal
+                    }
+                }
 
                 // Phase 1: Decompose
                 try
@@ -381,7 +406,7 @@ public sealed class InteractiveAskLoop
                 ctx.Status("Synthesizing answer...");
                 answer = await SynthesizeAnswer(
                     question, topEvidence, embedding, ollama, ollamaAvailable,
-                    history, sentinelResult, missingTerms, ct);
+                    history, sentinelResult, personalContext, missingTerms, ct);
             });
 
         // Show sentinel diagnostic
@@ -389,6 +414,13 @@ public sealed class InteractiveAskLoop
         {
             AnsiConsole.MarkupLine(
                 $"[dim]Resolved: \"{Markup.Escape(sentinelResult.ResolvedQuery)}\" ({sentinelResult.Reason})[/]");
+        }
+
+        // Show personal context diagnostic
+        if (!_options.Quiet && personalContext != null)
+        {
+            AnsiConsole.MarkupLine(
+                $"[dim]Personal: {Markup.Escape(personalContext)}[/]");
         }
 
         // Show cache stats
@@ -468,7 +500,7 @@ public sealed class InteractiveAskLoop
                     ctx.Status("Synthesizing answer...");
                     answer = await SynthesizeAnswer(
                         question, topEvidence, embedding, ollama, ollamaAvailable,
-                        history, sentinelResult, missingTerms, ct);
+                        history, sentinelResult, personalContext, missingTerms, ct);
                 });
         }
         else if (disambiguation is { IsAmbiguous: true } && (_options.Once || Console.IsInputRedirected))
@@ -523,7 +555,7 @@ public sealed class InteractiveAskLoop
         var logEmbedding = await embedding.EmbedAsync(question, ct);
         await storage.LogQueryAsync(question, logEmbedding, null, sourceIds);
 
-        // Background: index turn into chat corpus + record feedback
+        // Background: index turn into chat corpus + detect personal facts + record feedback
         // Returned so RunAsync can await before exit (prevents ONNX disposal crash)
         return Task.Run(async () =>
         {
@@ -538,10 +570,24 @@ public sealed class InteractiveAskLoop
                     await chatCorpus.RecordFeedbackAsync(sessionId, turnNumber - 1,
                         continued: true, ct);
                 }
+
+                // Detect and index personal facts from user's question
+                if (personalCorpus != null)
+                {
+                    // Check for name introduction first (e.g., "My name is Scott")
+                    await personalCorpus.DetectAndSetNameAsync(question, ct);
+
+                    var factStatement = await personalCorpus.DetectSelfDisclosureAsync(question, ct);
+                    if (factStatement != null)
+                    {
+                        await personalCorpus.IndexFactAsync(
+                            personalCorpus.ActiveCorpusName, factStatement, question, ct);
+                    }
+                }
             }
             catch
             {
-                // Chat corpus indexing failure is non-fatal
+                // Chat corpus / personal corpus indexing failure is non-fatal
             }
         }, ct);
     }
@@ -557,6 +603,7 @@ public sealed class InteractiveAskLoop
         bool ollamaAvailable,
         List<(string question, string answer, List<string> sourceIds)> history,
         ConversationSentinelResult? sentinelResult,
+        string? personalContext,
         List<string>? missingTerms,
         CancellationToken ct)
     {
@@ -586,12 +633,18 @@ public sealed class InteractiveAskLoop
                 resolvedQuery, targetTokens: 2000, ct);
         }
 
-        // If we have conversation context, use the ask-answer.txt template directly
-        if (!string.IsNullOrEmpty(conversationContext))
+        // Build user context line from personal corpus (empty string if none)
+        var userContextLine = !string.IsNullOrEmpty(personalContext)
+            ? $"USER CONTEXT: {personalContext}\n"
+            : "";
+
+        // If we have conversation context or personal context, use the ask-answer.txt template directly
+        if (!string.IsNullOrEmpty(conversationContext) || !string.IsNullOrEmpty(personalContext))
         {
             var evidenceBlock = BuildEvidenceBlock(topEvidence);
             var templateVars = new Dictionary<string, object?>
             {
+                ["USER_CONTEXT"] = userContextLine,
                 ["CONVERSATION_CONTEXT"] = conversationContext,
                 ["QUESTION"] = question, // Original question (not resolved)
                 ["TODAY"] = DateTime.Now.ToString("MMMM d, yyyy"),
@@ -654,14 +707,16 @@ public sealed class InteractiveAskLoop
 
     // --- Slash Commands ---
 
-    private void HandleSlashCommand(
+    private async Task HandleSlashCommandAsync(
         string cmd, string rawInput,
         List<(string question, string answer, List<string> sourceIds)> history,
         SalientSegmentCache segmentCache,
         RetrievalPipeline retrieval,
         IReadOnlyList<string>? effectiveSources,
         string collectionName,
-        int turnNumber)
+        int turnNumber,
+        PersonalCorpusService? personalCorpus,
+        CancellationToken ct)
     {
         if (cmd == "/docs" || cmd == "/documents")
         {
@@ -683,6 +738,30 @@ public sealed class InteractiveAskLoop
         else if (cmd == "/stats")
         {
             ShowSessionStats(history, segmentCache, turnNumber);
+        }
+        else if (cmd == "/me")
+        {
+            await ShowPersonalFacts(personalCorpus, ct);
+        }
+        else if (cmd.StartsWith("/remember "))
+        {
+            var statement = rawInput[10..].Trim();
+            await RememberFact(personalCorpus, statement, ct);
+        }
+        else if (cmd.StartsWith("/forget"))
+        {
+            var category = cmd.Length > 7 ? rawInput[7..].Trim() : null;
+            if (string.IsNullOrWhiteSpace(category)) category = "all";
+            await ForgetFacts(personalCorpus, category, ct);
+        }
+        else if (cmd == "/personal")
+        {
+            await ShowPersonalEntities(personalCorpus, ct);
+        }
+        else if (cmd == "/whois" || cmd.StartsWith("/whois "))
+        {
+            var name = cmd.Length > 6 ? rawInput[6..].Trim() : null;
+            await SwitchPersonalCorpus(personalCorpus, name, ct);
         }
         else if (cmd == "/help" || cmd == "/?")
         {
@@ -832,12 +911,20 @@ public sealed class InteractiveAskLoop
     private static void ShowSlashHelp()
     {
         AnsiConsole.MarkupLine("[bold]Slash Commands:[/]");
-        AnsiConsole.MarkupLine("  [cyan]/docs[/]           Show documents from last query");
-        AnsiConsole.MarkupLine("  [cyan]/segments[/]       Show all source segments across conversation");
-        AnsiConsole.MarkupLine("  [cyan]/cache[/]          Show cached segment IDs");
-        AnsiConsole.MarkupLine("  [cyan]/resolve <q>[/]    Preview how a query would be resolved");
-        AnsiConsole.MarkupLine("  [cyan]/stats[/]          Show session statistics");
-        AnsiConsole.MarkupLine("  [cyan]/help[/]           Show this help");
+        AnsiConsole.MarkupLine("  [cyan]/docs[/]              Show documents from last query");
+        AnsiConsole.MarkupLine("  [cyan]/segments[/]          Show all source segments across conversation");
+        AnsiConsole.MarkupLine("  [cyan]/cache[/]             Show cached segment IDs");
+        AnsiConsole.MarkupLine("  [cyan]/resolve <q>[/]       Preview how a query would be resolved");
+        AnsiConsole.MarkupLine("  [cyan]/stats[/]             Show session statistics");
+        AnsiConsole.MarkupLine("");
+        AnsiConsole.MarkupLine("[bold]Personal Memory:[/]");
+        AnsiConsole.MarkupLine("  [cyan]/me[/]                Show all personal facts");
+        AnsiConsole.MarkupLine("  [cyan]/remember <fact>[/]   Save a personal fact (e.g. /remember I live in London)");
+        AnsiConsole.MarkupLine("  [cyan]/forget [type][/]     Forget facts: location, org, all (default: all)");
+        AnsiConsole.MarkupLine("  [cyan]/personal[/]          Show personal entity graph");
+        AnsiConsole.MarkupLine("  [cyan]/whois [name][/]      List/switch personal corpuses (e.g. /whois scott)");
+        AnsiConsole.MarkupLine("");
+        AnsiConsole.MarkupLine("  [cyan]/help[/]              Show this help");
     }
 
     // --- Original display helpers ---
@@ -896,5 +983,199 @@ public sealed class InteractiveAskLoop
         AnsiConsole.MarkupLine($"[bold]Suggestions for \"{Markup.Escape(prefix)}\":[/]");
         foreach (var s in suggestions)
             AnsiConsole.MarkupLine($"  [cyan]{Markup.Escape(s.Title ?? s.Id)}[/] [grey]({s.Score:F2})[/]");
+    }
+
+    // --- Personal corpus command handlers ---
+
+    private static async Task ShowPersonalFacts(PersonalCorpusService? corpus, CancellationToken ct)
+    {
+        if (corpus == null)
+        {
+            AnsiConsole.MarkupLine("[yellow]Personal corpus not available.[/]");
+            return;
+        }
+
+        var corpusName = corpus.ActiveCorpusName;
+        var facts = await corpus.GetAllFactsAsync(corpusName, ct);
+        if (facts.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[grey]No personal facts stored. Use /remember or share facts in your questions.[/]");
+            return;
+        }
+
+        var label = corpusName == "default" ? "Personal Facts" : $"Personal Facts ({corpusName})";
+        AnsiConsole.MarkupLine($"[bold]{label} ({facts.Count}):[/]");
+        var table = new Table()
+            .Border(TableBorder.Simple)
+            .AddColumn("#")
+            .AddColumn("Fact")
+            .AddColumn("Stored");
+
+        for (var i = 0; i < facts.Count; i++)
+        {
+            var fact = facts[i];
+            var age = FormattingHelpers.FormatAge(fact.CreatedAt);
+            table.AddRow($"{i + 1}", Markup.Escape(fact.Content ?? fact.Title), $"[grey]{age}[/]");
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    private static async Task RememberFact(
+        PersonalCorpusService? corpus, string statement, CancellationToken ct)
+    {
+        if (corpus == null)
+        {
+            AnsiConsole.MarkupLine("[yellow]Personal corpus not available.[/]");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(statement))
+        {
+            AnsiConsole.MarkupLine("[yellow]Usage: /remember <fact>[/]");
+            return;
+        }
+
+        await corpus.IndexFactAsync(corpus.ActiveCorpusName, statement, null, ct);
+        AnsiConsole.MarkupLine($"[green]Remembered:[/] {Markup.Escape(statement)}");
+    }
+
+    private static async Task ForgetFacts(
+        PersonalCorpusService? corpus, string category, CancellationToken ct)
+    {
+        if (corpus == null)
+        {
+            AnsiConsole.MarkupLine("[yellow]Personal corpus not available.[/]");
+            return;
+        }
+
+        var count = await corpus.ForgetAsync(corpus.ActiveCorpusName, category, ct);
+        if (count > 0)
+            AnsiConsole.MarkupLine($"[green]Forgot {count} personal fact(s) ({Markup.Escape(category)}).[/]");
+        else
+            AnsiConsole.MarkupLine($"[grey]No personal facts matching \"{Markup.Escape(category)}\" to forget.[/]");
+    }
+
+    private async Task ShowPersonalEntities(PersonalCorpusService? corpus, CancellationToken ct)
+    {
+        if (corpus == null)
+        {
+            AnsiConsole.MarkupLine("[yellow]Personal corpus not available.[/]");
+            return;
+        }
+
+        var types = new[] { ("LOC", "Locations"), ("ORG", "Organizations"), ("PER", "People"), ("MISC", "Other") };
+        var hasAny = false;
+
+        var corpusName = corpus.ActiveCorpusName;
+        var graphLabel = corpusName == "default" ? "Personal Entity Graph" : $"Personal Entity Graph ({corpusName})";
+        AnsiConsole.MarkupLine($"[bold]{graphLabel}:[/]");
+
+        foreach (var (type, label) in types)
+        {
+            var entities = await corpus.GetPersonalEntitiesAsync(corpusName, type, limit: 5, ct);
+            if (entities.Count == 0) continue;
+            hasAny = true;
+
+            AnsiConsole.MarkupLine($"\n  [bold]{label}:[/]");
+            foreach (var (name, _, lastSeen) in entities)
+            {
+                var age = FormattingHelpers.FormatAge(lastSeen);
+                AnsiConsole.MarkupLine($"    {Markup.Escape(name)} [grey](seen {age})[/]");
+            }
+        }
+
+        if (!hasAny)
+        {
+            AnsiConsole.MarkupLine("[grey]No personal entities yet. Share facts about yourself to build your profile.[/]");
+        }
+    }
+
+    private static async Task SwitchPersonalCorpus(
+        PersonalCorpusService? corpus, string? name, CancellationToken ct)
+    {
+        if (corpus == null)
+        {
+            AnsiConsole.MarkupLine("[yellow]Personal corpus not available.[/]");
+            return;
+        }
+
+        var corpuses = await corpus.GetActiveCorpusNamesAsync(ct);
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            // List all personal corpuses
+            if (corpuses.Count == 0)
+            {
+                AnsiConsole.MarkupLine("[grey]No personal corpuses yet. Share facts about yourself to get started.[/]");
+                return;
+            }
+
+            AnsiConsole.MarkupLine("[bold]Personal Corpuses:[/]");
+            foreach (var c in corpuses)
+            {
+                var active = c.Equals(corpus.ActiveCorpusName, StringComparison.OrdinalIgnoreCase)
+                    ? " [green](active)[/]" : "";
+                var facts = await corpus.GetAllFactsAsync(c, ct);
+                AnsiConsole.MarkupLine($"  {Markup.Escape(c)}{active} — {facts.Count} fact(s)");
+            }
+            AnsiConsole.MarkupLine("[grey]Usage: /whois <name> to switch[/]");
+            return;
+        }
+
+        // Switch to a specific corpus
+        var match = corpuses.FirstOrDefault(c =>
+            c.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        if (match != null)
+        {
+            corpus.SetActiveCorpus(match);
+            AnsiConsole.MarkupLine($"[green]Switched to personal corpus:[/] {Markup.Escape(match)}");
+        }
+        else
+        {
+            // Create new corpus
+            corpus.SetActiveCorpus(name);
+            AnsiConsole.MarkupLine($"[green]Created new personal corpus:[/] {Markup.Escape(name)}");
+            AnsiConsole.MarkupLine("[grey]Use /remember to add facts, or share them in conversation.[/]");
+        }
+    }
+
+    // --- Personal corpus factory ---
+
+    private PersonalCorpusService? CreatePersonalCorpus()
+    {
+        // NER: try to create, non-fatal if unavailable
+        INerService? ner = null;
+        try
+        {
+            var nerService = new NerService();
+            if (nerService.IsAvailable)
+            {
+                nerService.InitializeAsync().GetAwaiter().GetResult();
+                ner = nerService;
+            }
+            else
+            {
+                nerService.Dispose();
+            }
+        }
+        catch
+        {
+            // NER unavailable — personal corpus works without it (no entity extraction)
+        }
+
+        // KnowledgeGraph: requires both VectorStore and EntityStore
+        KnowledgeGraphService? knowledgeGraph = null;
+        if (_boot.VectorStore != null && _boot.EntityStore != null)
+        {
+            var entityProfileService = new EntityProfileService(_boot.Embedding, _boot.EntityStore);
+            knowledgeGraph = new KnowledgeGraphService(
+                _boot.VectorStore, _boot.EntityStore, entityProfileService);
+        }
+
+        return new PersonalCorpusService(
+            _boot.Storage, _boot.Embedding, ner, knowledgeGraph,
+            _ollama, _ollamaAvailable);
     }
 }

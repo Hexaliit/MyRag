@@ -132,6 +132,39 @@ public partial class StorageService
         await cmd.ExecuteNonQueryAsync();
     }
 
+    /// <summary>
+    /// Delete a single item by ID, along with its FTS and entity mention records.
+    /// </summary>
+    public async Task DeleteItemByIdAsync(string itemId)
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+            DELETE FROM items_fts WHERE item_id = @id;
+            DELETE FROM entity_mentions WHERE item_id = @id;
+            DELETE FROM items WHERE id = @id;
+            """;
+        cmd.Parameters.AddWithValue("@id", itemId);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Get distinct source values matching a prefix (e.g., "personal:" → ["personal:default", "personal:scott"]).
+    /// Bypasses the auto-exclusion filter since it queries source values directly.
+    /// </summary>
+    public async Task<List<string>> GetDistinctSourcesAsync(string prefix)
+    {
+        var sources = new List<string>();
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT DISTINCT source FROM items WHERE source LIKE @prefix";
+        cmd.Parameters.AddWithValue("@prefix", prefix + "%");
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            sources.Add(reader.GetString(0));
+        }
+        return sources;
+    }
+
     // --- Shared filter clause builder ---
 
     /// <summary>
@@ -201,6 +234,20 @@ public partial class StorageService
             clauses.Add($"(url IS NULL OR url NOT LIKE @uglob{g} ESCAPE '\\')");
             cmd.Parameters.AddWithValue($"@uglob{g}",
                 SourceFilterSet.GlobToSqlLike(filterSet.UrlExcludes[g]));
+        }
+
+        // Auto-exclude chat and personal corpus entries unless explicitly included.
+        // Within-session context is handled by the in-memory SalientSegmentCache;
+        // chat: sources only need to appear when the user opts in (e.g. -s chat:*).
+        // personal: items are excluded from evidence (user context injected separately
+        // via USER_CONTEXT) but their entities remain in the knowledge graph.
+        if (!filterSet.Include.Any(s => s.StartsWith("chat:", StringComparison.OrdinalIgnoreCase)))
+        {
+            clauses.Add("source NOT LIKE 'chat:%'");
+        }
+        if (!filterSet.Include.Any(s => s.StartsWith("personal:", StringComparison.OrdinalIgnoreCase)))
+        {
+            clauses.Add("source NOT LIKE 'personal:%'");
         }
     }
 }

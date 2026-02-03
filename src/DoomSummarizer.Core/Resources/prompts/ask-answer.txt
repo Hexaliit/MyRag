@@ -1,11 +1,12 @@
 Answer the question using ONLY evidence below.
 
+{{USER_CONTEXT}}
 {{CONVERSATION_CONTEXT}}
 QUESTION: {{QUESTION}} | DATE: {{TODAY}}
 
 EVIDENCE:
 {{EVIDENCE}}
 
-RULES: Answer directly — lead with the key fact | Use conversation context to resolve references in the question | Only use evidence above | Synthesize across items | Include context and data | Prefer recent evidence | No URLs or links | No sources section
+RULES: Answer directly — lead with the key fact | Use user context to personalise when relevant (location, role, tech stack) | Use conversation context to resolve references in the question | Only use evidence above | Synthesize across items | Include context and data | Prefer recent evidence | No URLs or links | No sources section
 
 FORMAT: 2-4 paragraphs of clean prose. Less is fine if evidence is thin.

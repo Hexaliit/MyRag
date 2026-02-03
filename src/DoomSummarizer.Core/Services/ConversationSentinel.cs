@@ -15,6 +15,12 @@ public record ConversationSentinelResult
     public float Confidence { get; init; }
     public string? Reason { get; init; }
     public bool ShouldSearch { get; init; } = true;
+
+    /// <summary>
+    /// Personal context resolved from user's personal corpus entities.
+    /// Injected into synthesis prompt as USER_CONTEXT. Null if no personal context applied.
+    /// </summary>
+    public string? PersonalContext { get; init; }
 }
 
 /// <summary>
@@ -448,6 +454,112 @@ public sealed partial class ConversationSentinel
         // User included specific terms — keep the full question with context appended
         // e.g., "Tell me more about the GPD controversy" stays mostly intact
         return $"{question} (regarding {topic})";
+    }
+
+    /// <summary>
+    /// Resolve implicit references using personal corpus entities.
+    /// "here" → user's LOC, "my company" → user's ORG, etc.
+    /// </summary>
+    public async Task<(string resolvedQuery, string? personalContext)>
+        ResolveFromPersonalAsync(
+            string question,
+            PersonalCorpusService personalCorpus,
+            CancellationToken ct)
+    {
+        var resolved = question;
+        string? context = null;
+
+        // Implicit location: "here", "locally", "nearby", "my area", "my city"
+        if (HasLocationGap(question))
+        {
+            var locs = await personalCorpus.GetPersonalEntitiesAsync(
+                "default", "LOC", limit: 1, ct);
+            if (locs.Count > 0)
+            {
+                resolved = ResolveLocationGap(resolved, locs[0].name);
+                context = $"User is in {locs[0].name}";
+            }
+        }
+
+        // Implicit org: "my company", "my team", "my org", "at work", "my employer"
+        if (HasOrgGap(question))
+        {
+            var orgs = await personalCorpus.GetPersonalEntitiesAsync(
+                "default", "ORG", limit: 1, ct);
+            if (orgs.Count > 0)
+            {
+                resolved = ResolveOrgGap(resolved, orgs[0].name);
+                context = (context != null ? context + "; " : "")
+                    + $"Works at {orgs[0].name}";
+            }
+        }
+
+        // Implicit tech: "my stack", "my project", "my codebase", "my setup"
+        if (HasTechGap(question))
+        {
+            var techs = await personalCorpus.GetPersonalEntitiesAsync(
+                "default", "MISC", limit: 3, ct);
+            if (techs.Count > 0)
+            {
+                var techNames = string.Join(", ", techs.Select(t => t.name));
+                context = (context != null ? context + "; " : "")
+                    + $"Uses {techNames}";
+            }
+        }
+
+        return (resolved, context);
+    }
+
+    // --- Gap detection helpers ---
+
+    private static bool HasLocationGap(string q) =>
+        q.Contains("here", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("locally", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("nearby", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("my area", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("my city", StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasOrgGap(string q) =>
+        q.Contains("my company", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("my org", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("at work", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("my team", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("my employer", StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasTechGap(string q) =>
+        q.Contains("my stack", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("my project", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("my codebase", StringComparison.OrdinalIgnoreCase)
+        || q.Contains("my setup", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveLocationGap(string query, string location)
+    {
+        // Replace "here" and similar with the actual location
+        var result = HerePattern().Replace(query, location);
+        result = LocallyPattern().Replace(result, $"in {location}");
+        result = NearbyPattern().Replace(result, $"near {location}");
+        result = result.Replace("my area", location, StringComparison.OrdinalIgnoreCase);
+        result = result.Replace("my city", location, StringComparison.OrdinalIgnoreCase);
+        return result;
+    }
+
+    [GeneratedRegex(@"\bhere\b", RegexOptions.IgnoreCase)]
+    private static partial Regex HerePattern();
+
+    [GeneratedRegex(@"\blocally\b", RegexOptions.IgnoreCase)]
+    private static partial Regex LocallyPattern();
+
+    [GeneratedRegex(@"\bnearby\b", RegexOptions.IgnoreCase)]
+    private static partial Regex NearbyPattern();
+
+    private static string ResolveOrgGap(string query, string org)
+    {
+        var result = query.Replace("my company", org, StringComparison.OrdinalIgnoreCase);
+        result = result.Replace("my org", org, StringComparison.OrdinalIgnoreCase);
+        result = result.Replace("my employer", org, StringComparison.OrdinalIgnoreCase);
+        result = result.Replace("my team", $"{org} team", StringComparison.OrdinalIgnoreCase);
+        result = result.Replace("at work", $"at {org}", StringComparison.OrdinalIgnoreCase);
+        return result;
     }
 
     private record Tier1Result
