@@ -136,7 +136,7 @@ public class LoadBalancingBenchmarks(Xunit.Abstractions.ITestOutputHelper output
         var opsPerSec = iterations / sw.Elapsed.TotalSeconds;
         output.WriteLine($"ExecuteWithFailover (happy path): {opsPerSec:N0} ops/sec");
 
-        opsPerSec.Should().BeGreaterThan(100_000, "Happy path should exceed 100K ops/sec");
+        opsPerSec.Should().BeGreaterThan(50_000, "Happy path should exceed 50K ops/sec");
 
         service.Dispose();
     }

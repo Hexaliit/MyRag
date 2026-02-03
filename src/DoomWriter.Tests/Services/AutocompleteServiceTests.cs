@@ -8,7 +8,7 @@ namespace DoomWriter.Tests.Services;
 public class AutocompleteServiceTests
 {
     private readonly AutocompleteService _sut;
-    private readonly Mock<OllamaService> _mockOllama;
+    private readonly Mock<DoomSummarizer.Services.OllamaService> _mockOllama;
 
     public AutocompleteServiceTests()
     {
@@ -18,7 +18,7 @@ public class AutocompleteServiceTests
             BaseUrl = "http://localhost:11434",
             Model = "test-model"
         };
-        _mockOllama = new Mock<OllamaService>(config) { CallBase = false };
+        _mockOllama = new Mock<DoomSummarizer.Services.OllamaService>(config) { CallBase = false };
 
         var settingsService = new WriterSettingsService();
 
@@ -33,7 +33,7 @@ public class AutocompleteServiceTests
         var entityGraphStore = new DuckDbEntityGraphStore(vecPath);
         var entityProfiles = new EntityProfileService(embeddingService, entityGraphStore);
         var corpus = new CorpusService(embeddingService, storageService, nerService,
-            entityProfiles, vectorStore, settingsService);
+            entityProfiles, vectorStore, entityGraphStore, settingsService);
 
         _sut = new AutocompleteService(_mockOllama.Object, corpus, embeddingService, settingsService);
     }

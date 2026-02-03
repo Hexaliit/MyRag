@@ -38,6 +38,10 @@ public static class ApiRateLimiter
         ["usgs"] = 500,         // Government API, no hard limit
         ["google_search"] = 200,
         ["google_places"] = 200,
+        // UK Government APIs -- all free, no hard limits, but be polite
+        ["parliament"] = 500,   // Hansard API, no documented limits
+        ["ukpolice"] = 500,     // data.police.uk, no documented limits
+        ["ukflood"] = 500,      // Environment Agency, no documented limits
     };
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Semaphores = new();

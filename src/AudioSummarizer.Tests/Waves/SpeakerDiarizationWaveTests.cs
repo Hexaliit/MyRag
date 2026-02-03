@@ -31,12 +31,14 @@ public class SpeakerDiarizationWaveTests
         // Use MockBehavior.Loose to allow all virtual methods to be called
         _mockDiarizationService = new Mock<SpeakerDiarizationService>(
             MockBehavior.Loose,
-            null, null, null
+            new Mock<ILogger<SpeakerDiarizationService>>().Object,
+            null!, // Not used in these tests (DiarizeAsync is mocked)
+            config
         );
 
         _mockSegmentExtractor = new Mock<AudioSegmentExtractor>(
             MockBehavior.Loose,
-            null
+            new Mock<ILogger<AudioSegmentExtractor>>().Object
         );
 
         // Setup default return for ExtractSpeakerSamplesAsync

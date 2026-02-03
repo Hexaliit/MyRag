@@ -734,4 +734,4 @@ Mostlylucid.RagDocuments/
 
 ## License
 
-MIT License - See LICENSE file for details.
+See [LICENSE](../../LICENSE).

@@ -1,0 +1,3 @@
+1. To deploy a Kubernetes cluster, utilize the installation process detailed in PortSwigger's guide.
+2. The PortSwigger documentation provides step-by-step instructions for installing the Kubernetes application.
+3.  The provided sources do not detail a specific command or method for deploying a Kubernetes cluster; they primarily focus on related tools and management aspects.  The Oracle WebLogic Kubernetes Toolkit update (SDxCentral) adds cross-architecture support, but lacks deployment instructions. The Indiatimes article lists management tools for enterprises, again without deployment specifics.

@@ -46,7 +46,7 @@ public class HashHelperTests
 
         // Assert
         Assert.NotNull(hash);
-        Assert.Equal(16, hash.Length);
+        Assert.Equal(string.Empty, hash);
     }
 
     [Fact]

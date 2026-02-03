@@ -9,6 +9,7 @@ namespace LucidRAG.Tests.Integration;
 ///     Integration tests for the Crawl API
 /// </summary>
 [Collection("Integration")]
+[Trait("Category", "Integration")]
 public class CrawlApiTests : IAsyncLifetime
 {
     private readonly HttpClient _client;

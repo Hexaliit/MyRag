@@ -10,6 +10,7 @@ namespace LucidRAG.Tests.Integration;
 ///     Integration tests for the Chat API
 /// </summary>
 [Collection("Integration")]
+[Trait("Category", "Integration")]
 public class ChatApiTests : IAsyncLifetime
 {
     private readonly HttpClient _client;

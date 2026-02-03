@@ -51,18 +51,36 @@ public class ConversationService(
         var conversation = await db.Conversations.FindAsync([conversationId], ct)
             ?? throw new InvalidOperationException($"Conversation {conversationId} not found");
 
+        // Ensure stable ordering even on providers that store DateTimeOffset with millisecond precision (e.g. SQLite).
+        // When messages are inserted in a tight loop, multiple rows can share the same timestamp, making "last N" queries
+        // nondeterministic. Enforce a strictly-increasing CreatedAt per conversation.
+        var now = DateTimeOffset.UtcNow;
+        var lastCreatedAt = await db.ConversationMessages
+            .Where(m => m.ConversationId == conversationId)
+            .OrderByDescending(m => m.CreatedAt)
+            .Select(m => m.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (lastCreatedAt != default)
+        {
+            var nowMs = now.ToUnixTimeMilliseconds();
+            var lastMs = lastCreatedAt.ToUnixTimeMilliseconds();
+            if (nowMs <= lastMs) now = DateTimeOffset.FromUnixTimeMilliseconds(lastMs + 1);
+        }
+
         var message = new ConversationMessage
         {
             Id = Guid.NewGuid(),
             ConversationId = conversationId,
             Role = role,
             Content = content,
-            Metadata = metadata
+            Metadata = metadata,
+            CreatedAt = now
         };
 
         db.ConversationMessages.Add(message);
 
-        conversation.UpdatedAt = DateTimeOffset.UtcNow;
+        conversation.UpdatedAt = now;
         if (role == "user" && string.IsNullOrEmpty(conversation.Title))
         {
             // Use first user message as title

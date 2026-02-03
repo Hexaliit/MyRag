@@ -927,7 +927,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // Dedupe sources
                 sources = sources.Distinct().ToList();
 
-                var perSourceLimit = Math.Max(10, settings.Limit / Math.Max(1, sources.Count));
+                var perSourceLimit = Math.Max(3, (settings.Limit * 3) / Math.Max(1, sources.Count));
 
                 // Initialize plugin registry (builtins + runtime plugins)
                 var pluginRegistry = new SourcePluginRegistry();
@@ -1004,7 +1004,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                 // Source diversity fallback: if initial fetch returned too few items,
                 // auto-add search fallbacks to fill the gap via plugin registry
-                var minDesired = Math.Max(15, settings.Limit / 2);
+                var minDesired = Math.Max(5, settings.Limit / 3);
                 if (items.Count < minDesired && !string.IsNullOrEmpty(interpreted?.RawPrompt ?? settings.Prompt))
                 {
                     var fallbackQuery = interpreted?.RawPrompt ?? settings.Prompt ?? "";
@@ -1029,7 +1029,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 SubParams = [fallbackQuery],
                                 Query = fallbackQuery,
                                 RawPrompt = fallbackQuery,
-                                Limit = perSourceLimit * 2,
+                                Limit = perSourceLimit,
                                 Vibe = vibe,
                                 Config = boot.Config
                             };
@@ -1523,6 +1523,11 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 {
                     var preScoreCount = uniqueItems.Count;
 
+                    // Broad queries (news/roundup) use a lower gate to avoid over-filtering
+                    // diverse results; focused queries (qa/howto/research) use the strict default
+                    var isBroadIntent = interpreted?.SentinelIntent?.Intent is "news" or "roundup" or "general";
+                    float? gateOverride = isBroadIntent ? 0.20f : null;
+
                     scoringOpts = new ScoringOptions
                     {
                         Query = queryText,
@@ -1533,6 +1538,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         UseOutlierPenalty = true, // Outlier penalty still useful to filter genuinely off-topic items
                         UseEmbeddingDedup = false, // Web-mode uses URL/title dedup instead
                         RelaxScoringGates = isLocalMode || isSearchOnlyIntent, // KB + search_only queries need relaxed gates
+                        Phase1GateOverride = gateOverride,
                     };
 
                     scoringResult = await scoringPipeline.ScoreItemsAsync(uniqueItems, scoringOpts, cancellationToken);
@@ -1779,37 +1785,39 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             .Select(i => (double)ComputeMaxQuerySimilarity(i.Embedding, queryEmbedding, subqueryEmbeddings))
                             .Average();
 
-                        if (avgRelevance < 0.25)
+                        if (avgRelevance < 0.15)
                         {
                             if (settings.Full)
                                 AnsiConsole.MarkupLine(
                                     $"[yellow]Evidence gap detected (top-5 relevance: {avgRelevance:F2}) — running targeted re-search[/]");
 
-                            // Re-search with the raw query directly through available search APIs
+                            // Re-search with the raw query through at most 2 search APIs (priority order)
                             var reSearchQuery = queryText;
                             var reSearchResults = new List<ContentItem>();
                             var reSearchTasks = new List<Task<List<ContentItem>>>();
+                            var reSearchLimit = Math.Min(5, settings.Limit);
+                            const int maxReSearchApis = 2;
 
-                            if (boot.ApiKeys!.IsAvailable("brave_search"))
+                            if (reSearchTasks.Count < maxReSearchApis && boot.ApiKeys!.IsAvailable("brave_search"))
                                 reSearchTasks.Add(Task.Run(async () =>
                                     await new BraveSearchService(httpClient, boot.ApiKeys!, boot.ApiBudget!, circuitBreaker)
-                                        .SearchAsync(reSearchQuery, 10)));
-                            if (boot.ApiKeys!.IsAvailable("serper"))
+                                        .SearchAsync(reSearchQuery, reSearchLimit)));
+                            if (reSearchTasks.Count < maxReSearchApis && boot.ApiKeys!.IsAvailable("serper"))
                                 reSearchTasks.Add(Task.Run(async () =>
                                     await new SerperSearchService(httpClient, boot.ApiKeys!, boot.ApiBudget!, circuitBreaker)
-                                        .SearchAsync(reSearchQuery, 10)));
-                            if (boot.ApiKeys!.IsAvailable("tavily"))
+                                        .SearchAsync(reSearchQuery, reSearchLimit)));
+                            if (reSearchTasks.Count < maxReSearchApis && boot.ApiKeys!.IsAvailable("tavily"))
                                 reSearchTasks.Add(Task.Run(async () =>
                                     await new TavilySearchService(httpClient, boot.ApiKeys!, boot.ApiBudget!, circuitBreaker)
-                                        .SearchAsync(reSearchQuery, 10)));
-                            if (boot.ApiKeys!.IsAvailable("jina"))
+                                        .SearchAsync(reSearchQuery, reSearchLimit)));
+                            if (reSearchTasks.Count < maxReSearchApis && boot.ApiKeys!.IsAvailable("jina"))
                                 reSearchTasks.Add(Task.Run(async () =>
                                     await new JinaSearchService(httpClient, boot.ApiKeys!, boot.ApiBudget!, circuitBreaker)
-                                        .SearchAsync(reSearchQuery, 5)));
+                                        .SearchAsync(reSearchQuery, reSearchLimit)));
                             if (reSearchTasks.Count == 0)
                                 reSearchTasks.Add(Task.Run(async () =>
                                     await new DuckDuckGoSearch(httpClient, circuitBreaker)
-                                        .SearchAsync(reSearchQuery, 10)));
+                                        .SearchAsync(reSearchQuery, reSearchLimit)));
 
                             var reSearchBatches = await Task.WhenAll(reSearchTasks);
                             foreach (var batch in reSearchBatches)

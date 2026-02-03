@@ -10,6 +10,7 @@ namespace LucidRAG.Tests.Integration;
 ///     Integration tests for the Collections API
 /// </summary>
 [Collection("Integration")]
+[Trait("Category", "Integration")]
 public class CollectionsApiTests : IAsyncLifetime
 {
     private readonly HttpClient _client;

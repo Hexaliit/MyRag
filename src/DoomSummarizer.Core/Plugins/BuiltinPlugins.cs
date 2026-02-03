@@ -22,6 +22,7 @@ public static class BuiltinPlugins
         registry.Register(new SciencePlugin());
         registry.Register(new ReferencePlugin());
         registry.Register(new WebPlugin());
+        registry.Register(new UkGovPlugin());
     }
 
     /// <summary>

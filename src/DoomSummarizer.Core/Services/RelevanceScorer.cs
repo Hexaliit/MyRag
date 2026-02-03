@@ -228,7 +228,7 @@ public partial class RelevanceScorer
         float[]? queryEmbedding = null,
         Dictionary<string, double>? textRelevanceScores = null,
         Dictionary<string, double>? querySimOut = null,
-        float gateThreshold = 0.25f)
+        float gateThreshold = 0.30f)
     {
         if (items.Count == 0) return items;
 
@@ -304,8 +304,7 @@ public partial class RelevanceScorer
         {
             var simLookup = querySimScores.ToDictionary(x => x.item.Id, x => x.score);
             sorted = sorted
-                .Where(i => simLookup.GetValueOrDefault(i.Id, 0) >= gateThreshold ||
-                            i.Embedding == null)
+                .Where(i => simLookup.GetValueOrDefault(i.Id, 0) >= gateThreshold)
                 .ToList();
         }
 
@@ -422,8 +421,7 @@ public partial class RelevanceScorer
         }
 
         var gated = rrfScores
-            .Where(x => gateSim.GetValueOrDefault(x.item.Id, 0) >= gateThreshold
-                        || x.item.Embedding == null) // keep items without embeddings (can't gate)
+            .Where(x => gateSim.GetValueOrDefault(x.item.Id, 0) >= gateThreshold)
             .OrderByDescending(x => x.score)
             .Select(x => x.item)
             .ToList();

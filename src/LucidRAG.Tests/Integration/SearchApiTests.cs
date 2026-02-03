@@ -10,6 +10,7 @@ namespace LucidRAG.Tests.Integration;
 ///     Integration tests for the Search API (standalone search without conversation memory)
 /// </summary>
 [Collection("Integration")]
+[Trait("Category", "Integration")]
 public class SearchApiTests : IAsyncLifetime
 {
     private readonly HttpClient _client;

@@ -592,20 +592,22 @@ public class QdrantVectorStore : IVectorStore
     private static string ExtractDocHash(string segmentId)
     {
         // Segment ID format can be:
-        // - filename_contenthash_type_index (4+ parts)
-        // - filename_contenthash (2 parts, e.g., "14_217138edd1c840c1")
-        // We want just the content hash portion (16 char hex)
-        var parts = segmentId.Split('_');
+        // - filename_contenthash_type_index (e.g., "my_file_217138edd1c840c1_s_0")
+        // - filename_contenthash (e.g., "14_217138edd1c840c1" or "file_name_217138edd1c840c1")
+        // We want just the content hash portion (16-char hex).
 
-        // For 2-part format (docId from DocumentSummary.Trace), check if second part is the hash
-        if (parts.Length == 2 && parts[1].Length == 16 && parts[1].All(c => char.IsLetterOrDigit(c)))
-            return parts[1];
+        if (string.IsNullOrWhiteSpace(segmentId))
+            return GenerateHashFromText(segmentId ?? string.Empty);
 
-        // For 4+ part segment IDs, look for the hash portion
-        if (parts.Length >= 4)
-            for (var i = parts.Length - 3; i >= 0; i--)
-                if (parts[i].Length == 16 && parts[i].All(c => char.IsLetterOrDigit(c)))
-                    return parts[i];
+        var parts = segmentId.Split('_', StringSplitOptions.RemoveEmptyEntries);
+
+        // Search from the end so filenames containing underscores don't break extraction.
+        for (var i = parts.Length - 1; i >= 0; i--)
+        {
+            var part = parts[i];
+            if (part.Length == 16 && part.All(static c => char.IsAsciiHexDigit(c)))
+                return part.ToLowerInvariant();
+        }
 
         // Fallback: generate hash from the full ID
         return GenerateHashFromText(segmentId);

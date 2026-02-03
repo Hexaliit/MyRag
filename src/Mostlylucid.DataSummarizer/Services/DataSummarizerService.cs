@@ -222,7 +222,9 @@ public class DataSummarizerService : IDisposable
 
     private DataInsight? TryBuildAverageClarifier(DataProfile profile, string q)
     {
-        if (!(q.Contains("average") || q.Contains("mean"))) return null;
+        // Only clarify on "average" questions. Queries using explicit statistical terms (mean/median/etc.)
+        // should fall through to numeric stats so callers get a direct answer by default.
+        if (!q.Contains("average")) return null;
         if (q.Contains("most average") || q.Contains("closest")) return null;
 
         var mentionsColumn = profile.Columns.Any(c => q.Contains(c.Name.ToLowerInvariant()));

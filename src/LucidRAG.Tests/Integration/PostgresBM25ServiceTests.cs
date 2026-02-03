@@ -13,6 +13,7 @@ namespace LucidRAG.Tests.Integration;
 ///     Tests the actual PostgreSQL FTS functionality with real database.
 /// </summary>
 [Collection("Integration")]
+[Trait("Category", "Integration")]
 public class PostgresBM25ServiceTests : IAsyncLifetime
 {
     private readonly TestWebApplicationFactory _factory;

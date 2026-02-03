@@ -100,6 +100,14 @@ public partial class OllamaService
         => await GenerateWithModelAsync(_config.SentinelModel, prompt, systemPrompt, temperature, format: null, ct);
 
     /// <summary>
+    /// Generate using the sentinel (fast/small) model with forced JSON output.
+    /// Combines the speed of the sentinel model with Ollama's format:"json" guarantee.
+    /// Used for structured outputs like conversation query rewriting.
+    /// </summary>
+    public async Task<string> SentinelGenerateJsonAsync(string prompt, string? systemPrompt = null, double? temperature = null, CancellationToken ct = default)
+        => await GenerateWithModelAsync(_config.SentinelModel, prompt, systemPrompt, temperature, format: "json", ct);
+
+    /// <summary>
     /// Generate using the main model with forced JSON output.
     /// Ollama's format:"json" ensures the response is always valid JSON.
     /// </summary>

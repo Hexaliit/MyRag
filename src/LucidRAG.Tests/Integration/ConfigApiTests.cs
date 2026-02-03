@@ -9,6 +9,7 @@ namespace LucidRAG.Tests.Integration;
 ///     Integration tests for the Config API (capabilities detection and mode switching)
 /// </summary>
 [Collection("Integration")]
+[Trait("Category", "Integration")]
 public class ConfigApiTests : IAsyncLifetime
 {
     private readonly HttpClient _client;

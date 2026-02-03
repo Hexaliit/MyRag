@@ -395,7 +395,7 @@ lucidrag-image batch ./collection --export-csv catalog.csv --export-jsonld finge
 
 ## License
 
-MIT License - See [LICENSE](../../LICENSE) file for details
+See [LICENSE](../../LICENSE).
 
 ---
 

@@ -83,12 +83,11 @@ Most RAG systems are basic document-to-vector pipelines. ***lucid***RAG is diffe
 
 ```bash
 # Clone the repository
-git clone https://github.com/scottgal/LucidRAG.git
-cd LucidRAG
+git clone https://github.com/scottgal/lucidrag.git
+cd lucidrag
 
 # Set up the database connection in user secrets
-cd src/LucidRAG
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=LucidRAG;Username=postgres;Password=yourpassword"
+dotnet user-secrets -p src/LucidRAG/LucidRAG.csproj set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=LucidRAG;Username=postgres;Password=yourpassword"
 
 # Build and run
 dotnet run --project src/LucidRAG/LucidRAG.csproj
@@ -415,7 +414,7 @@ imagesummarizer animation.gif --pipeline advancedocr
 imagesummarizer --mcp
 ```
 
-**MCP Tools (9 available):** `summarize_animated_gif`, `generate_caption`, `generate_detailed_description`, `analyze_with_template`, `ocr_text`, `analyze_quality`, `extract_gif_summary`, `guess_intent`, `list_output_templates`
+**MCP Tools (9 available):** `extract_text_from_image`, `analyze_image_quality`, `list_ocr_pipelines`, `batch_extract_text`, `summarize_animated_gif`, `generate_caption`, `generate_detailed_description`, `analyze_with_template`, `list_output_templates`
 
 ---
 
@@ -432,7 +431,13 @@ dotnet watch run --project src/LucidRAG/LucidRAG.csproj
 cd src/LucidRAG && npm install && npm run build:css
 
 # Run tests
-dotnet test --filter "Category!=Browser"
+dotnet test LucidRAG.sln -c Release --filter "Category!=Browser&Category!=Integration"
+
+# Integration tests (requires PostgreSQL + migrations / test DB)
+dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj -c Release --filter "Category=Integration"
+
+# Browser tests (requires a running app + downloads Chromium via Puppeteer)
+dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj -c Release --filter "Category=Browser"
 ```
 
 ---

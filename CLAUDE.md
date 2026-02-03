@@ -22,14 +22,16 @@ dotnet run --project src/LucidRAG/LucidRAG.csproj -- --standalone  # SQLite mode
 # Run CLI
 dotnet run --project src/LucidRAG.Cli/LucidRAG.Cli.csproj
 
-# Tests
-dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj
-dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj --filter "Category!=Browser"
-
-# Frontend CSS (from src/LucidRAG/)
-npm install
-npm run build:css
-npm run watch:css
+ # Tests
+ dotnet test LucidRAG.sln -c Release --filter "Category!=Browser&Category!=Integration"
+ dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj -c Release --filter "Category=Integration"
+ dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj -c Release --filter "Category=Browser"
+ 
+ # Frontend CSS (from src/LucidRAG/)
+ cd src/LucidRAG
+ npm install
+ npm run build:css
+ npm run watch:css
 
 # Docker
 docker-compose -f src/LucidRAG/docker-compose.yml up -d

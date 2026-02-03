@@ -274,7 +274,7 @@ public sealed class RetrievalPipeline
         // Relaxed scoring for file collections: all segments are from the same document(s),
         // so broad queries need lower gates to retrieve enough narrative content.
         var relaxed = options.RelaxScoringGates;
-        var phase1Gate = relaxed ? 0.10f : 0.25f;
+        var phase1Gate = options.Phase1GateOverride ?? (relaxed ? 0.10f : 0.30f);
         var phase1Discard = relaxed ? 0.10 : 0.25;
         var phase2Gate = relaxed ? 0.05f : 0.20f;
         var prfThreshold = relaxed ? 0.15 : 0.30;
@@ -517,6 +517,14 @@ public record ScoringOptions
     /// ratio, and disables outlier penalty for broad queries over narrative content.
     /// </summary>
     public bool RelaxScoringGates { get; init; }
+
+    /// <summary>
+    /// Override the Phase 1 hard gate threshold (cosine similarity minimum).
+    /// When null, uses the default (0.30 for strict, 0.10 for relaxed).
+    /// Broad queries (news/roundup) can set a lower threshold (e.g., 0.20) to avoid
+    /// over-filtering topically diverse results.
+    /// </summary>
+    public float? Phase1GateOverride { get; init; }
 }
 
 /// <summary>

@@ -268,6 +268,32 @@ sources:
     description: "arXiv preprint search (papers with full abstracts, free API)"
     search: true
 
+  # -- UK Government APIs (free, no auth) --
+  parliament:
+    type: api
+    description: "UK Parliament Hansard debates, divisions (votes), and written statements"
+    search: true
+    scope: [politics, uk, government, legislation]
+    region: UK
+    # Sub-params: debates, divisions, statements, answers
+    # Examples: -s parliament, -s parliament:debates, -s parliament:divisions
+
+  ukpolice:
+    type: api
+    description: "UK Police crime data (street-level crime, forces, outcomes)"
+    scope: [crime, safety, uk]
+    region: UK
+    # Sub-params: crime:LAT,LNG, forces, outcomes:LAT,LNG
+    # Examples: -s ukpolice, -s ukpolice:crime:51.5074,-0.1278, -s ukpolice:forces
+
+  ukflood:
+    type: api
+    description: "Environment Agency flood warnings, river levels, and rainfall monitoring"
+    scope: [environment, weather, flooding, uk]
+    region: UK
+    # Sub-params: warnings, levels, rainfall, stations
+    # Examples: -s ukflood, -s ukflood:warnings, -s ukflood:levels
+
 # Routing rules - which sources to use for different topic categories
 # "search" sources (google_news, duckduckgo) always search with the query
 # "rss" sources use the category-specific feed if available
@@ -297,12 +323,12 @@ routing:
     google_news_topic: SCIENCE
 
   environment:
-    sources: [google_news, guardian, bbc, npr, carbonbrief, sciencedaily, reuters]
+    sources: [ukflood, google_news, guardian, bbc, npr, carbonbrief, sciencedaily, reuters]
     bbc_category: environment
     google_news_topic: SCIENCE
 
   climate:
-    sources: [google_news, guardian, bbc, npr, carbonbrief, sciencedaily, reuters]
+    sources: [ukflood, google_news, guardian, bbc, npr, carbonbrief, sciencedaily, reuters]
     bbc_category: environment
     google_news_topic: SCIENCE
 
@@ -317,7 +343,7 @@ routing:
     google_news_topic: BUSINESS
 
   politics:
-    sources: [google_news, bbc, guardian, reuters, cnn, npr, factcheck]
+    sources: [parliament, google_news, bbc, guardian, reuters, cnn, npr, factcheck]
     bbc_category: politics
     google_news_topic: NATION
 
@@ -359,12 +385,28 @@ routing:
     google_news_topic: SCIENCE
 
   disaster:
-    sources: [earthquake, google_news, bbc, guardian, reuters, cnn, npr]
+    sources: [earthquake, ukflood, google_news, bbc, guardian, reuters, cnn, npr]
     bbc_category: world
     google_news_topic: WORLD
 
   factcheck:
     sources: [factcheck, google_news]
+
+  # UK-specific topics - prefer specialist UK Government APIs
+  uk_politics:
+    sources: [parliament, bbc, guardian, google_news, factcheck]
+    bbc_category: politics
+
+  crime:
+    sources: [ukpolice, google_news, bbc, guardian]
+    bbc_category: politics
+
+  flooding:
+    sources: [ukflood, bbc, guardian, google_news]
+    bbc_category: environment
+
+  uk:
+    sources: [parliament, ukpolice, ukflood, bbc, guardian, theregister, google_news]
 
   # Default routing for any unrecognized topic
   default:
@@ -377,7 +419,7 @@ topic_keywords:
   environment: [climate, climate change, environment, emissions, carbon, renewable, sustainability, pollution, fossil fuel, green energy, deforestation, biodiversity, conservation, net zero, greenhouse, paris agreement, cop, ipcc, warming, sea level]
   business: [business, economy, market, stock, trade, company, startup, investment, finance, banking, revenue]
   finance: [finance, stock, crypto, bitcoin, trading, investor, wall street, nasdaq]
-  politics: [politics, election, government, policy, legislation, congress, parliament, vote, democrat, republican]
+  politics: [politics, election, government, policy, legislation, congress, parliament, vote, democrat, republican, hansard, commons, lords, mp, minister, prime minister, cabinet, whitehall, westminster]
   world: [war, conflict, international, diplomatic, treaty, united nations, nato, geopolitical]
   entertainment: [movie, film, music, celebrity, award, oscar, grammy, streaming, netflix, disney, snl, saturday night live, tv, television, show, host, sitcom, comedy, talk show, late night, reality tv, actor, actress, concert, broadway, podcast, comedian, standup, series, premiere, season, episode, theater, theatre, performance, talent, audition, red carpet, box office, trailer, blockbuster, hbo, hulu, amazon prime, apple tv]
   sports: [sport, football, soccer, basketball, tennis, cricket, olympics, championship, league, nfl, nba]
@@ -388,3 +430,7 @@ topic_keywords:
   disaster: [earthquake, tsunami, volcano, hurricane, tornado, flood, wildfire, disaster, seismic, magnitude]
   humor: [funny, humor, satire, satirical, comedy, parody, joke, onion, meme, hilarious, laughing, stand-up, roast, sketch, improv, prank]
   factcheck: [fact check, misinformation, disinformation, false claim, debunk, hoax, fake news, verify, snopes, politifact]
+  uk_politics: [uk parliament, hansard, house of commons, house of lords, mp, prime minister, cabinet, westminster, whitehall, devolution, pmqs, backbench]
+  crime: [crime, police, theft, robbery, burglary, assault, anti-social, criminal, offence, arrest, custody, crime rate, neighbourhood policing, metropolitan police]
+  flooding: [flood, flooding, river level, flood warning, flood alert, rainfall, environment agency, tidal, storm surge, surface water, flood risk]
+  uk: [uk, united kingdom, britain, british, england, scotland, wales, northern ireland]

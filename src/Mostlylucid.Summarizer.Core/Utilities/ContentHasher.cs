@@ -32,7 +32,7 @@ public static class ContentHasher
     /// </summary>
     public static string ComputeHash(Stream stream)
     {
-        if (stream == null || stream.Length == 0)
+        if (stream == null || (stream.CanSeek && stream.Length == 0))
             return string.Empty;
 
         var position = stream.Position;

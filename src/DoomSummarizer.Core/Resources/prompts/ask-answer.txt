@@ -6,6 +6,6 @@ QUESTION: {{QUESTION}} | DATE: {{TODAY}}
 EVIDENCE:
 {{EVIDENCE}}
 
-RULES: Answer directly — lead with the key fact | Use conversation context for follow-ups | Only use evidence above | Synthesize across items | Include context and data | Prefer recent evidence | No URLs or links | No sources section
+RULES: Answer directly — lead with the key fact | Use conversation context to resolve references in the question | Only use evidence above | Synthesize across items | Include context and data | Prefer recent evidence | No URLs or links | No sources section
 
 FORMAT: 2-4 paragraphs of clean prose. Less is fine if evidence is thin.

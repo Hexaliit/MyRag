@@ -185,6 +185,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.DoomSummarizer.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.DoomSummarizer.Source.YouTube", "src\Mostlylucid.DoomSummarizer.Source.YouTube\Mostlylucid.DoomSummarizer.Source.YouTube.csproj", "{CF60E1E8-ADCB-47E4-B58F-5EFCE9694E0F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.DoomSummarizer.Source.UkGov", "src\Mostlylucid.DoomSummarizer.Source.UkGov\Mostlylucid.DoomSummarizer.Source.UkGov.csproj", "{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1095,6 +1097,18 @@ Global
 		{CF60E1E8-ADCB-47E4-B58F-5EFCE9694E0F}.Release|x64.Build.0 = Release|Any CPU
 		{CF60E1E8-ADCB-47E4-B58F-5EFCE9694E0F}.Release|x86.ActiveCfg = Release|Any CPU
 		{CF60E1E8-ADCB-47E4-B58F-5EFCE9694E0F}.Release|x86.Build.0 = Release|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Debug|x64.Build.0 = Debug|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Debug|x86.Build.0 = Debug|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Release|x64.ActiveCfg = Release|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Release|x64.Build.0 = Release|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Release|x86.ActiveCfg = Release|Any CPU
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1176,5 +1190,6 @@ Global
 		{EBA602FC-5DFC-44AB-A0DA-CDC866F5C20C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{B3B4800E-1006-4136-9C4A-026BDE4B40D0} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{CF60E1E8-ADCB-47E4-B58F-5EFCE9694E0F} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{F6B9C228-05EE-420B-820E-99A0F7FA3B1F} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

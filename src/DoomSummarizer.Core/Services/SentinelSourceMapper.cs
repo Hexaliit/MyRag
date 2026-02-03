@@ -221,9 +221,10 @@ public record DateRangeIntent
 public static class SentinelSourceMapper
 {
     /// <summary>
-    /// Maximum total sources to select (avoids excessive fetching).
+    /// Default maximum total sources to select (avoids excessive fetching).
+    /// Overridden per-intent in <see cref="MapToSources"/>.
     /// </summary>
-    private const int MaxTotalSources = 10;
+    private const int DefaultMaxTotalSources = 10;
 
     /// <summary>
     /// Minimum category weight to include sources from that category.
@@ -314,6 +315,14 @@ public static class SentinelSourceMapper
         var sources = new List<string>();
         var usedRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // Adaptive source cap: focused queries need fewer sources to reduce irrelevant fetches
+        var maxTotalSources = intent.Intent switch
+        {
+            "qa" or "howto" => 4,
+            "deep_dive" or "research" => 8,  // room for arxiv/wikipedia enrichment
+            _ => DefaultMaxTotalSources
+        };
+
         // Null-guard all collection properties — JSON deserialization can set them to null
         // even though the record has default initializers.
         var categories = intent.Categories ?? new();
@@ -394,11 +403,12 @@ public static class SentinelSourceMapper
             sortedCategories = [new KeyValuePair<string, double>("default", 0.5)];
 
         var totalFeedSourcesAdded = 0;
-        var maxTotalFeedSources = isSearchOnly ? 0 : isQA ? 3 : MaxTotalSources; // search_only: no feeds; QA: max 3 feed sources total
+        // search_only: no feeds; QA: max 3; research: cap feeds to leave room for arxiv enrichment
+        var maxTotalFeedSources = isSearchOnly ? 0 : isQA ? 3 : isResearch ? 5 : maxTotalSources;
 
         foreach (var (category, weight) in sortedCategories)
         {
-            if (sources.Count >= MaxTotalSources) break;
+            if (sources.Count >= maxTotalSources) break;
             if (totalFeedSourcesAdded >= maxTotalFeedSources) break;
 
             var routing = router.RouteByTopic(category, query);
@@ -413,7 +423,8 @@ public static class SentinelSourceMapper
             foreach (var yamlSource in routing.Sources)
             {
                 if (added >= maxFromCategory) break;
-                if (sources.Count >= MaxTotalSources) break;
+                if (sources.Count >= maxTotalSources) break;
+                if (totalFeedSourcesAdded >= maxTotalFeedSources) break;
 
                 // Skip archive sources for roundups
                 if (isRoundup && ArchiveSources.Contains(yamlSource))
@@ -440,7 +451,7 @@ public static class SentinelSourceMapper
         }
 
         // --- Phase 4: Research enrichment ---
-        if (isResearch && !usedRoots.Contains("arxiv") && sources.Count < MaxTotalSources)
+        if (isResearch && !usedRoots.Contains("arxiv") && sources.Count < maxTotalSources)
         {
             var topicTerms = ExtractTopicTerms(query);
             var arxivQuery = !string.IsNullOrEmpty(topicTerms) ? $"arxiv:{topicTerms}" : "arxiv";
@@ -458,7 +469,7 @@ public static class SentinelSourceMapper
                 var gnewsQuery = $"gnews:{eq.EntityText}";
                 if (!sources.Any(s => s.Contains(eq.EntityText, StringComparison.OrdinalIgnoreCase)))
                 {
-                    if (sources.Count < MaxTotalSources)
+                    if (sources.Count < maxTotalSources)
                         sources.Add(gnewsQuery);
                 }
             }
@@ -482,7 +493,7 @@ public static class SentinelSourceMapper
             }
         }
 
-        var maxSources = isSearchOnly ? 4 : MaxTotalSources;
+        var maxSources = isSearchOnly ? 4 : maxTotalSources;
         return sources.Take(maxSources).ToList();
     }
 

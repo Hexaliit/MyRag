@@ -10,6 +10,7 @@ namespace LucidRAG.Tests.Integration;
 ///     Integration tests for the Documents API
 /// </summary>
 [Collection("Integration")]
+[Trait("Category", "Integration")]
 public class DocumentsApiTests : IAsyncLifetime
 {
     private readonly HttpClient _client;
