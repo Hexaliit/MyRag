@@ -1,4 +1,4 @@
-# DoomSummarizer
+# DoomSummarizer / LucidRAG CLI
 
 > **⚠️ PREVIEW / ALPHA** — This project is in active development. APIs, commands, and features may change without notice until v1.0. Use at your own risk and expect rough edges.
 
@@ -9,9 +9,22 @@
 
 A distillation of [***lucid*RAG**](https://github.com/scottgal/lucidrag) principles — hybrid search, entity extraction, knowledge graph construction, evidence-grounded synthesis — into a console-first, local-first research assistant and personal knowledge base.
 
+## Two Variants
+
+This project ships as two binaries from the same codebase. Both have the same commands (`scroll`, `crawl`, `ask`, etc.) — the difference is what they can process.
+
+| Binary | Description | Size |
+|--------|-------------|------|
+| **`doomsummarizer`** | The "it just works" version. A minimal, web-oriented deep research and knowledge base tool. Fetches, ranks, and synthesizes web sources. Ingests `.md`, `.txt`, and `.pdf` files. Includes local LLM inference via LLamaSharp (no Ollama needed) and ONNX embeddings. | ~76 MB |
+| **`lucidrag`** | All the bells and whistles. Everything in `doomsummarizer` plus all document formats (DOCX, HTML, PPTX), image analysis, YouTube transcription, audio analysis, subtitle processing, and email delivery. | ~112 MB |
+
+If you just want to grab a single binary and start researching, `doomsummarizer` is the one. If you need the full document processing pipeline with media support, grab `lucidrag`.
+
+### Capabilities
+
 - **Scroll** — Fetch + rank news/search results into a digest, article, or newsletter
 - **Ask** — Interactive Q&A over your stored knowledge base
-- **Crawl** — Index any website or local files/directories for semantic search (PDF, DOCX, Markdown, HTML, TXT, PPTX)
+- **Crawl** — Index any website or local files/directories for semantic search
 - **Page** — Summarize a single URL
 - **Show** — Browse knowledge base collections
 - **Long-form** — Generate evidence-grounded multi-section articles with validation
@@ -24,8 +37,10 @@ Works fully offline after initial model downloads. No API keys required for defa
 ## Quick Start
 
 ```bash
-# Build
+# Build (slim)
 dotnet build DoomSummarizer.csproj
+# Build (complete / lucidrag)
+dotnet build DoomSummarizer.csproj -p:CompleteBuild=true
 
 # Daily digest (auto-downloads ONNX model on first run)
 doomsummarizer scroll
@@ -39,9 +54,6 @@ doomsummarizer scroll "history of transformers" -t blog-article -o article.md
 # Deep-dive with custom sources
 doomsummarizer scroll "Rust vs Go" -t deep-dive -s hn -s reddit -o rust-vs-go.md
 
-# Newsletter to file
-doomsummarizer scroll "dotnet news" -t newsletter -o weekly.html
-
 # Q&A over stored evidence
 doomsummarizer ask "What's the latest on SSH vulnerabilities?"
 
@@ -52,15 +64,14 @@ doomsummarizer ask -s crawl:mydocs "how does authentication work?"
 # Ingest local files and ask questions interactively
 doomsummarizer crawl C:\docs\project-specs --ask
 doomsummarizer crawl /home/user/research --recurse --ask
-
-# Crawl a website with background crawl + live Q&A
-doomsummarizer crawl https://docs.example.com --ask
 ```
+
+> All examples use `doomsummarizer` — substitute `lucidrag` if you're running the complete variant. The commands and flags are identical.
 
 ### Requirements
 
-- **.NET 10** SDK
-- **Ollama** (recommended): `ollama serve` + pull models — see `doomsummarizer setup`
+- **.NET 10** SDK (for building from source)
+- **Ollama** (recommended): `ollama serve` + pull models — see `doomsummarizer setup` / `lucidrag setup`
 - **First run**: downloads ONNX embedding model ([all-MiniLM-L6-v2](https://huggingface.co/Xenova/all-MiniLM-L6-v2), 384-dim, ~23 MB quantized) to `~/.doomsummarizer/models/`
 - **No API keys required** — default sources are free RSS/HTML. Optional search APIs (Brave, Serper, Tavily, NewsAPI) and cloud LLMs (Anthropic, OpenAI) are disabled by default
 
@@ -534,19 +545,52 @@ Without Ollama, the full signal pipeline still runs: ONNX embeddings, BM25, sent
 
 ## LLM Providers
 
-### Local Models — Ollama (Default)
+The two variants have different default providers, but both support the same providers and you can switch freely.
 
-DoomSummarizer runs entirely on local Ollama models by default. No cloud API keys required.
+| | `doomsummarizer` (slim) | `lucidrag` (complete) |
+|---|---|---|
+| **Default LLM** | LLamaSharp (local GGUF, zero-config) | Ollama (local server) |
+| **Fallback chain** | LLamaSharp → Ollama → Cloud | LLamaSharp → Ollama → Cloud |
+| **Setup downloads models?** | Yes, automatically | No (use `--local-llm` to opt in) |
+
+### LLamaSharp — Local GGUF (doomsummarizer default)
+
+Zero-config local inference. Models are downloaded automatically on first run to `~/.doomsummarizer/models/llm/`.
+
+| Role | Default Model | Size |
+|------|---------------|------|
+| **Sentinel** (triage) | Qwen 2.5 0.5B (Q4_K_M) | ~397 MB |
+| **Synthesis** (main) | Phi-4 Mini 3.8B (Q4_K_M) | ~2.4 GB |
+
+No external server needed — runs in-process. To skip auto-download during setup: `doomsummarizer setup --skip-local-llm`.
+
+### Ollama — Local Server (lucidrag default)
+
+Requires [Ollama](https://ollama.com) running locally. More model choices and better GPU support.
 
 | Role | Default Model | Purpose |
 |------|---------------|---------|
 | **Main** (synthesis) | `gemma3:4b` | Digests, articles, evidence-grounded answers |
 | **Sentinel** (triage) | `qwen3:0.6b` | Query classification, JSON outlines, fast decisions |
 
+```bash
+ollama serve
+ollama pull gemma3:4b
+ollama pull qwen3:0.6b
+```
+
 Use `benchmark` to find optimal models for your hardware:
 ```bash
 doomsummarizer benchmark "qwen3:4b,gemma3:4b" --pull
 ```
+
+### Switching Providers
+
+**Use Ollama with `doomsummarizer`**: Install Ollama and start it — it's automatically detected as a fallback. If you prefer Ollama exclusively, use `--skip-local-llm` during setup.
+
+**Use LLamaSharp with `lucidrag`**: Run `lucidrag setup --local-llm` to download the GGUF models. LLamaSharp is automatically used as the highest-priority provider when models are present.
+
+Both variants use the same priority chain: LLamaSharp (if models present) → Ollama (if running) → Cloud (if API keys configured). The difference is only what `setup` downloads by default.
 
 ### Cloud LLMs (Optional — Disabled by Default)
 
@@ -658,9 +702,9 @@ All ONNX models use Microsoft.ML.OnnxRuntime. Execution provider is configurable
 | **DirectML** | Windows GPU | AMD/Intel/NVIDIA, may be unstable on some drivers |
 | **Auto** | All | Tries DirectML → CUDA → CPU fallback chain |
 
-### Complete Build — Additional Models
+### LucidRAG (Complete Build) — Additional Models
 
-The `doomsummarizer_complete` build includes additional ML models for media processing:
+The `lucidrag` binary includes additional ML models for media processing:
 
 | Model | Purpose | Size | Source |
 |-------|---------|------|--------|
@@ -692,7 +736,7 @@ These are downloaded on first use and stored in `~/.doomsummarizer/models/`.
 
 **Minimal setup** (embedding only): ~23 MB model download
 **Recommended setup** (embedding + NER): ~453 MB
-**Complete build** (all models): ~2.5–5 GB depending on Whisper model size
+**LucidRAG / complete build** (all models): ~2.5–5 GB depending on Whisper model size
 
 ## Vibes
 
@@ -826,12 +870,14 @@ Override any LLM prompt by placing a file in `~/.doomsummarizer/prompts/`. Uses 
 
 ## MCP Server (AI Agent Integration)
 
-DoomSummarizer exposes its knowledge base, search pipeline, and entity graph as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server. This lets AI agents like Claude Code, Claude Desktop, or any MCP client query your stored knowledge, ingest URLs, and explore entity relationships.
+Both `doomsummarizer` and `lucidrag` expose the knowledge base, search pipeline, and entity graph as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server. This lets AI agents like Claude Code, Claude Desktop, or any MCP client query your stored knowledge, ingest URLs, and explore entity relationships.
 
 ### Starting the MCP Server
 
 ```bash
 doomsummarizer --mcp
+# or
+lucidrag --mcp
 ```
 
 This launches a stdio-based MCP server. The server uses the same SQLite database and ONNX embedding model as the CLI.
@@ -850,12 +896,12 @@ This launches a stdio-based MCP server. The server uses the same SQLite database
 }
 ```
 
-**Claude Desktop** (`claude_desktop_config.json`):
+**Claude Desktop** (`claude_desktop_config.json`) — use whichever binary you have:
 ```json
 {
   "mcpServers": {
-    "doomsummarizer": {
-      "command": "/path/to/doomsummarizer",
+    "lucidrag": {
+      "command": "/path/to/lucidrag",
       "args": ["--mcp"]
     }
   }
@@ -904,8 +950,13 @@ Agent: keyword_search("AI safety") → compare_items(id1, id2)
 ```bash
 git clone https://github.com/scottgal/LucidRAG.git
 cd LucidRAG
+
+# Slim build → produces doomsummarizer binary
 dotnet build src/DoomSummarizer/DoomSummarizer.csproj
 dotnet run --project src/DoomSummarizer/DoomSummarizer.csproj -- scroll
+
+# Complete build → produces lucidrag binary
+dotnet build src/DoomSummarizer/DoomSummarizer.csproj -p:CompleteBuild=true
 ```
 
 ## Tests
@@ -918,7 +969,7 @@ dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj
 
 ## Platforms
 
-Pre-built binaries: Windows x64/ARM64, Linux x64/ARM64, macOS x64/ARM64.
+Pre-built binaries for both `doomsummarizer` and `lucidrag`: Windows x64/ARM64, Linux x64/ARM64, macOS x64/ARM64.
 
 ## License
 

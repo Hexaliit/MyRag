@@ -12,10 +12,12 @@ using Mostlylucid.Summarizer.Core.Utilities;
 using Polly;
 using Polly.CircuitBreaker;
 using Polly.Retry;
+#if !SLIM_BUILD
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Processing;
+#endif
 using Configuration = AngleSharp.Configuration;
 
 namespace Mostlylucid.DocSummarizer.Services;
@@ -227,6 +229,11 @@ public class WebFetcher
     /// </summary>
     private async Task<(byte[] bytes, string extension)> ProcessImageAsync(byte[] imageBytes, string extension)
     {
+#if SLIM_BUILD
+        // Slim build: pass through without image processing (no ImageSharp)
+        await Task.CompletedTask;
+        return (imageBytes, extension);
+#else
         try
         {
             using var inputStream = new MemoryStream(imageBytes);
@@ -290,6 +297,7 @@ public class WebFetcher
             Console.WriteLine($"  [Image] Warning: Could not process image ({ex.Message}), using original");
             return (imageBytes, extension);
         }
+#endif
     }
 
     #endregion

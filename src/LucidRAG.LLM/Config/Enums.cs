@@ -15,7 +15,10 @@ public enum LlmBackendType
     OpenAI,
 
     /// <summary>LMStudio local server (OpenAI-compatible)</summary>
-    LMStudio
+    LMStudio,
+
+    /// <summary>Local GGUF inference via LLamaSharp (no external server needed)</summary>
+    LLamaSharp
 }
 
 /// <summary>

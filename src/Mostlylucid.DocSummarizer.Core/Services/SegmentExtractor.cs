@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+#if !SLIM_BUILD
 using CodeSummarizer.Parsing;
 using CodeSummarizer.Services;
+#endif
 using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
@@ -23,24 +25,34 @@ public class SegmentExtractor : IDisposable
     private readonly OnnxEmbeddingService _embeddingService;
     private readonly MarkdigDocumentParser _parser;
     private readonly bool _verbose;
+#if !SLIM_BUILD
     private readonly CodeSummarizerService _codeSummarizer;
     private readonly IMermaidParser _mermaidParser;
+#endif
 
+#if !SLIM_BUILD
     public SegmentExtractor(OnnxConfig onnxConfig, ExtractionConfig? config = null, bool verbose = false,
         IMermaidParser? mermaidParser = null)
+#else
+    public SegmentExtractor(OnnxConfig onnxConfig, ExtractionConfig? config = null, bool verbose = false)
+#endif
     {
         _embeddingService = new OnnxEmbeddingService(onnxConfig, verbose);
         _parser = new MarkdigDocumentParser();
         _config = config ?? new ExtractionConfig();
         _verbose = verbose;
+#if !SLIM_BUILD
         _mermaidParser = mermaidParser ?? new RegexMermaidParser();
         _codeSummarizer = new CodeSummarizerService(NullLogger<CodeSummarizerService>.Instance, _mermaidParser);
+#endif
     }
 
     public void Dispose()
     {
         _embeddingService.Dispose();
+#if !SLIM_BUILD
         _codeSummarizer.Dispose();
+#endif
     }
 
     /// <summary>
@@ -335,6 +347,7 @@ public class SegmentExtractor : IDisposable
                     string segmentText;
                     SegmentType segType;
 
+#if !SLIM_BUILD
                     if (codeBlock.Language.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
                     {
                         // Mermaid → parse diagram structure → text description
@@ -350,6 +363,14 @@ public class SegmentExtractor : IDisposable
                         segmentText = $"[{codeBlock.Language}] {summary.Description}";
                         segType = SegmentType.CodeBlock;
                     }
+#else
+                    // Slim build: include raw code as segment text (no tree-sitter analysis)
+                    {
+                        var preview = codeBlock.Code.Length > 200 ? codeBlock.Code[..200] + "..." : codeBlock.Code;
+                        segmentText = $"[{codeBlock.Language}] {preview}";
+                        segType = SegmentType.CodeBlock;
+                    }
+#endif
 
                     var segment = new Segment(docId, segmentText, segType, segments.Count,
                         charOffset, charOffset + segmentText.Length)

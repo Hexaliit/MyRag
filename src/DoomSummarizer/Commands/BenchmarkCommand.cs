@@ -1,6 +1,9 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.LLamaSharp.Config;
+using Mostlylucid.DocSummarizer.LLamaSharp.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -31,6 +34,14 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
         [CommandOption("--pull")]
         [Description("Auto-pull models that aren't available locally")]
         public bool Pull { get; init; }
+
+        [CommandOption("--local")]
+        [Description("Benchmark local GGUF models via LLamaSharp (no Ollama needed)")]
+        public bool Local { get; init; }
+
+        [CommandOption("--all")]
+        [Description("Benchmark both Ollama and local GGUF models")]
+        public bool All { get; init; }
     }
 
     // Standardized test prompt for synthesis (digest generation)
@@ -98,12 +109,19 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
         AnsiConsole.MarkupLine("[grey]Model speed & quality comparison[/]");
         AnsiConsole.WriteLine();
 
+        // Local GGUF-only benchmark mode
+        if (settings.Local && !settings.All)
+        {
+            return await RunLocalBenchmarkAsync(settings, cancellationToken);
+        }
+
         var config = await ConfigService.LoadAsync();
         var ollama = new OllamaService(config.Ollama);
 
-        if (!await ollama.IsAvailableAsync())
+        if (!await ollama.IsAvailableAsync() && !settings.All)
         {
             AnsiConsole.MarkupLine("[red]Ollama not available.[/] Start it with: [grey]ollama serve[/]");
+            AnsiConsole.MarkupLine("[grey]Or use --local to benchmark local GGUF models without Ollama[/]");
             return 1;
         }
 
@@ -292,7 +310,174 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
         AnsiConsole.WriteLine();
         DisplayResults(results, benchSynthesis, benchSentinel, config);
 
+        // Also run local GGUF benchmark if --all
+        if (settings.All)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.Write(new Rule("[bold cyan]Local GGUF Models (LLamaSharp)[/]").LeftJustified());
+            await RunLocalBenchmarkAsync(settings, cancellationToken);
+        }
+
         return 0;
+    }
+
+    /// <summary>
+    /// Benchmark local GGUF models via LLamaSharp.
+    /// </summary>
+    private static async Task<int> RunLocalBenchmarkAsync(Settings settings, CancellationToken ct)
+    {
+        var llamaConfig = new LLamaSharpConfig();
+        using var downloader = new LLamaSharpModelDownloader(llamaConfig);
+
+        var modelsToTest = new List<LLamaSharpModelRegistry.ModelInfo>();
+
+        if (!string.IsNullOrEmpty(settings.Models))
+        {
+            var names = settings.Models.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var name in names)
+            {
+                var model = LLamaSharpModelRegistry.FindByName(name);
+                if (model != null)
+                    modelsToTest.Add(model);
+                else
+                    AnsiConsole.MarkupLine($"[yellow]Unknown local model: {Markup.Escape(name)}[/]");
+            }
+        }
+        else
+        {
+            // Default: test sentinel and synthesis default models
+            modelsToTest.Add(LLamaSharpModelRegistry.GetSentinel(llamaConfig.SentinelModel));
+            modelsToTest.Add(LLamaSharpModelRegistry.GetSynthesis(llamaConfig.SynthesisModel));
+        }
+
+        if (modelsToTest.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[red]No local GGUF models to test.[/]");
+            AnsiConsole.MarkupLine($"Available: {string.Join(", ", LLamaSharpModelRegistry.Models.Select(m => m.Name))}");
+            return 1;
+        }
+
+        // Ensure models are downloaded
+        foreach (var model in modelsToTest.ToList())
+        {
+            if (!downloader.IsModelAvailable(model))
+            {
+                AnsiConsole.MarkupLine($"[yellow]Downloading {model.DisplayName}...[/]");
+                try
+                {
+                    await downloader.EnsureModelAsync(model, ct: ct);
+                }
+                catch (Exception ex)
+                {
+                    AnsiConsole.MarkupLine($"[red]Failed to download {model.Name}: {Markup.Escape(ex.Message)}[/]");
+                    modelsToTest.Remove(model);
+                }
+            }
+        }
+
+        AnsiConsole.MarkupLine($"\n[bold]Testing {modelsToTest.Count} local GGUF model(s):[/] {string.Join(", ", modelsToTest.Select(m => m.DisplayName))}");
+        AnsiConsole.MarkupLine($"[grey]Rounds: {settings.Rounds} | Role: {settings.Role}[/]\n");
+
+        var benchSynthesis = settings.Role is "both" or "synthesis";
+        var benchSentinel = settings.Role is "both" or "sentinel";
+
+        var localResults = new List<LocalBenchmarkResult>();
+
+        foreach (var model in modelsToTest)
+        {
+            using var service = new LLamaSharpLlmService(llamaConfig, downloader);
+
+            for (var round = 0; round < settings.Rounds; round++)
+            {
+                var isSentinel = model.Role == "sentinel";
+                if (isSentinel && !benchSentinel) continue;
+                if (!isSentinel && !benchSynthesis) continue;
+
+                var prompt = isSentinel ? SentinelPrompt : SynthesisPrompt;
+                var roleName = isSentinel ? "sentinel" : "synthesis";
+
+                AnsiConsole.MarkupLine($"  [grey]{model.DisplayName} {roleName} (round {round + 1})...[/]");
+
+                try
+                {
+                    var sw = Stopwatch.StartNew();
+                    var response = await service.GenerateAsync(prompt, new Mostlylucid.DocSummarizer.Services.LlmOptions
+                    {
+                        Role = isSentinel ? "sentinel" : "main",
+                        Temperature = isSentinel ? 0.3 : 0.6,
+                    }, ct);
+                    sw.Stop();
+
+                    // Approximate token count (rough ~4 chars per token)
+                    var approxTokens = response.Length / 4;
+                    var tokPerSec = sw.Elapsed.TotalSeconds > 0 ? approxTokens / sw.Elapsed.TotalSeconds : 0;
+
+                    localResults.Add(new LocalBenchmarkResult
+                    {
+                        ModelName = model.DisplayName,
+                        Role = roleName,
+                        Response = response,
+                        TotalMs = sw.Elapsed.TotalMilliseconds,
+                        ApproxTokens = approxTokens,
+                        ApproxTokPerSec = tokPerSec
+                    });
+                }
+                catch (Exception ex)
+                {
+                    AnsiConsole.MarkupLine($"[red]  {model.DisplayName} {roleName} failed: {Markup.Escape(ex.Message)}[/]");
+                }
+            }
+        }
+
+        // Display local results
+        if (localResults.Count > 0)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.Write(new Rule("[bold yellow]Local GGUF Results[/]").LeftJustified());
+
+            var table = new Table()
+                .Border(TableBorder.Rounded)
+                .AddColumn("Model")
+                .AddColumn("Role")
+                .AddColumn(new TableColumn("~tok/s").RightAligned())
+                .AddColumn(new TableColumn("Total (s)").RightAligned())
+                .AddColumn(new TableColumn("~Tokens").RightAligned())
+                .AddColumn("Quality");
+
+            foreach (var group in localResults.GroupBy(r => (r.ModelName, r.Role)))
+            {
+                var avgTokSec = group.Average(r => r.ApproxTokPerSec);
+                var avgTotalMs = group.Average(r => r.TotalMs);
+                var avgTokens = group.Average(r => r.ApproxTokens);
+                var sample = group.First().Response;
+
+                var quality = group.Key.Role == "sentinel"
+                    ? (sample.Contains('{') && sample.Contains('}') ? "[green]JSON[/]" : "[yellow]Text[/]")
+                    : (sample.Contains('#') ? "[green]Markdown[/]" : "[yellow]Plain[/]");
+
+                table.AddRow(
+                    Markup.Escape(group.Key.ModelName),
+                    group.Key.Role,
+                    $"{avgTokSec:F1}",
+                    $"{avgTotalMs / 1000:F1}",
+                    $"{avgTokens:F0}",
+                    quality);
+            }
+
+            AnsiConsole.Write(table);
+        }
+
+        return 0;
+    }
+
+    private class LocalBenchmarkResult
+    {
+        public string ModelName { get; set; } = "";
+        public string Role { get; set; } = "";
+        public string Response { get; set; } = "";
+        public double TotalMs { get; set; }
+        public int ApproxTokens { get; set; }
+        public double ApproxTokPerSec { get; set; }
     }
 
     private static void DisplayResults(List<ModelBenchmarkSummary> results, bool showSynth, bool showSent, DoomConfig config)

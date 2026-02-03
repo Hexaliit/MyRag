@@ -21,7 +21,9 @@ public class DocumentSummarizer
     // Persistent chunk cache
     private readonly ChunkCacheService _chunkCache;
 
+#if !SLIM_BUILD
     private readonly DoclingClient _docling;
+#endif
     private readonly IEmbeddingService _embedder;
 
     // Front matter detector for filtering junk content
@@ -64,7 +66,9 @@ public class DocumentSummarizer
     {
         _verbose = verbose;
         _progress = new ProgressService(verbose);
+#if !SLIM_BUILD
         _docling = new DoclingClient(doclingConfig ?? new DoclingConfig { BaseUrl = doclingUrl });
+#endif
 
         _processingConfig = processingConfig ?? new ProcessingConfig();
         _lengthConfig = _processingConfig.SummaryLength ?? new SummaryLengthConfig();
@@ -271,10 +275,15 @@ public class DocumentSummarizer
         }
         else
         {
+#if !SLIM_BUILD
             Console.WriteLine("Converting document with Docling (one-time for benchmark)...");
             Console.Out.Flush();
             markdown = await _docling.ConvertAsync(filePath);
             Console.WriteLine("Document converted to markdown");
+#else
+            throw new NotSupportedException(
+                $"File type '{extension}' requires Docling for conversion. Use the complete build for PDF/DOCX support via Docling.");
+#endif
         }
 
         // Chunk the document
@@ -399,6 +408,7 @@ public class DocumentSummarizer
                 }
                 else
                 {
+#if !SLIM_BUILD
                     // Use Spectre progress for conversion with live updates from DoclingClient
                     Console.WriteLine("Converting document with Docling...");
                     Console.Out.Flush();
@@ -416,6 +426,10 @@ public class DocumentSummarizer
                     markdown = await _docling.ConvertAsync(filePath);
 
                     Console.WriteLine("Document converted to markdown");
+#else
+                    throw new NotSupportedException(
+                        $"File type '{extension}' requires Docling for conversion. Use the complete build for PDF/DOCX support via Docling.");
+#endif
 
                     // Filter front matter and junk content
                     markdown = await FilterFrontMatterAsync(markdown);
@@ -611,6 +625,7 @@ public class DocumentSummarizer
         return result;
     }
 
+#if !SLIM_BUILD
     /// <summary>
     ///     BERT→RAG pipeline: production-grade summarization.
     ///     Architecture:
@@ -685,6 +700,7 @@ public class DocumentSummarizer
         if (_verbose) Console.WriteLine("[SUCCESS] BERT→RAG pipelined pipeline complete");
         return (result, docId);
     }
+#endif
 
     private async Task<DocumentSummary> SummarizeBertRagAsync(string markdown, string docId, string? focusQuery)
     {

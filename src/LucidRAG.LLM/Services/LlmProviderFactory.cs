@@ -152,6 +152,7 @@ public class LlmProviderFactory : ILlmProviderFactory
             LlmBackendType.Ollama => CreateOllamaService(backendConfig, modelConfig),
             LlmBackendType.Anthropic => CreateAnthropicService(backendConfig, modelConfig),
             LlmBackendType.OpenAI or LlmBackendType.LMStudio => CreateOpenAIService(backendConfig, modelConfig),
+            LlmBackendType.LLamaSharp => CreateLLamaSharpService(),
             _ => null
         };
     }
@@ -278,6 +279,25 @@ public class LlmProviderFactory : ILlmProviderFactory
         }
     }
 
+    private ILlmService? CreateLLamaSharpService()
+    {
+        try
+        {
+            // Resolve from DI — the LLamaSharp assembly registers its service there
+            var existingService = _serviceProvider.GetService<ILlmService>();
+            if (existingService?.ProviderName.Contains("LLamaSharp", StringComparison.OrdinalIgnoreCase) == true)
+                return existingService;
+
+            _logger.LogDebug("LLamaSharp service not registered in DI, skipping");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create LLamaSharp service");
+            return null;
+        }
+    }
+
     /// <summary>
     /// Get effective endpoints for a backend, filtered by model-level endpoint restrictions.
     /// </summary>
@@ -353,6 +373,10 @@ public class LlmProviderFactory : ILlmProviderFactory
                 name, inner, _promptService, modelConfig, backendConfig,
                 loggerFactory.CreateLogger<OpenAIProvider>(),
                 isLmStudio: true),
+
+            LlmBackendType.LLamaSharp => new LLamaSharpProvider(
+                name, inner, _promptService, modelConfig, backendConfig,
+                loggerFactory.CreateLogger<LLamaSharpProvider>()),
 
             _ => throw new NotSupportedException($"Backend type '{backendType}' not supported")
         };

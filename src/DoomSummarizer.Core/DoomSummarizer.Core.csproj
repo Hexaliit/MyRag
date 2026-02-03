@@ -53,6 +53,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="DoomSummarizer.Tests" />
         <InternalsVisibleTo Include="doomsummarizer" />
+        <InternalsVisibleTo Include="lucidrag" />
         <InternalsVisibleTo Include="DoomWriter" />
     </ItemGroup>
 

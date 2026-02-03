@@ -119,12 +119,14 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<DocumentPipeline>();
         services.AddSingleton<IPipeline>(sp => sp.GetRequiredService<DocumentPipeline>());
 
-        // Register PDF to Markdown conversion services
+        // Register PDF to Markdown conversion services (complete build only)
+#if !SLIM_BUILD
         services.TryAddSingleton<PdfPageRenderer>(sp =>
         {
             var logger = sp.GetService<ILogger<PdfPageRenderer>>();
             return new PdfPageRenderer(logger);
         });
+#endif
 
         // Register VLM OCR service for vision-based document extraction
         services.TryAddSingleton<IVlmOcrService>(sp =>
@@ -136,13 +138,19 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton<DocumentToMarkdownService>(sp =>
         {
+#if !SLIM_BUILD
             var pdfRenderer = sp.GetRequiredService<PdfPageRenderer>();
+#endif
             var tableFactory = sp.GetService<ITableExtractorFactory>();
             var logger = sp.GetService<ILogger<DocumentToMarkdownService>>();
             var vlmOcrService = sp.GetService<IVlmOcrService>();
             var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
 
+#if !SLIM_BUILD
             var service = new DocumentToMarkdownService(pdfRenderer, tableFactory, logger)
+#else
+            var service = new DocumentToMarkdownService(tableFactory, logger)
+#endif
             {
                 MinTextDensityForNative = config.VlmOcr.MinTextDensityForNative
             };
@@ -241,12 +249,14 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<DocumentPipeline>();
         services.AddSingleton<IPipeline>(sp => sp.GetRequiredService<DocumentPipeline>());
 
-        // Register PDF to Markdown conversion services
+        // Register PDF to Markdown conversion services (complete build only)
+#if !SLIM_BUILD
         services.TryAddSingleton<PdfPageRenderer>(sp =>
         {
             var logger = sp.GetService<ILogger<PdfPageRenderer>>();
             return new PdfPageRenderer(logger);
         });
+#endif
 
         // Register VLM OCR service for vision-based document extraction
         services.TryAddSingleton<IVlmOcrService>(sp =>
@@ -258,13 +268,19 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton<DocumentToMarkdownService>(sp =>
         {
+#if !SLIM_BUILD
             var pdfRenderer = sp.GetRequiredService<PdfPageRenderer>();
+#endif
             var tableFactory = sp.GetService<ITableExtractorFactory>();
             var logger = sp.GetService<ILogger<DocumentToMarkdownService>>();
             var vlmOcrService = sp.GetService<IVlmOcrService>();
             var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
 
+#if !SLIM_BUILD
             var service = new DocumentToMarkdownService(pdfRenderer, tableFactory, logger)
+#else
+            var service = new DocumentToMarkdownService(tableFactory, logger)
+#endif
             {
                 MinTextDensityForNative = config.VlmOcr.MinTextDensityForNative
             };
@@ -335,6 +351,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<NativeExtractionWave>();
         services.AddSingleton<IDocumentWave>(sp => sp.GetRequiredService<NativeExtractionWave>());
 
+#if !SLIM_BUILD
         services.TryAddSingleton<VlmOcrWave>(sp =>
         {
             var vlmOcrService = sp.GetRequiredService<IVlmOcrService>();
@@ -344,6 +361,7 @@ public static class ServiceCollectionExtensions
             return new VlmOcrWave(vlmOcrService, pdfRenderer, escalationService, logger);
         });
         services.AddSingleton<IDocumentWave>(sp => sp.GetRequiredService<VlmOcrWave>());
+#endif
 
         // Register wave orchestrator
         services.TryAddSingleton<DocumentWaveOrchestrator>(sp =>

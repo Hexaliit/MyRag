@@ -16,8 +16,11 @@
         <UseAppHost>true</UseAppHost>
         <PublishSingleFile>true</PublishSingleFile>
         <PublishReadyToRun>true</PublishReadyToRun>
-        <!-- Native libraries sit alongside binary on macOS to avoid Gatekeeper blocking unsigned extracted dylibs -->
-        <IncludeNativeLibrariesForSelfExtract Condition="!$([MSBuild]::IsOSPlatform('osx')) AND !$(RuntimeIdentifier.StartsWith('osx'))">true</IncludeNativeLibrariesForSelfExtract>
+        <!-- LLamaSharp ships multiple AVX-variant native DLLs with the same filename;
+             allow last-wins for publish copy, and keep native libs alongside binary
+             (also avoids macOS Gatekeeper blocking unsigned extracted dylibs) -->
+        <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+        <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
         <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
         <SelfContained>true</SelfContained>
 
@@ -35,6 +38,9 @@
     <!-- Slim vs Complete build: CompleteBuild=true includes audio/video/YouTube -->
     <PropertyGroup Condition="'$(CompleteBuild)' == 'true'">
         <DefineConstants>$(DefineConstants);FEATURE_COMPLETE</DefineConstants>
+        <AssemblyName>lucidrag</AssemblyName>
+        <ToolCommandName>lucidrag</ToolCommandName>
+        <Description>LucidRAG CLI — full document processing, audio/video analysis, and AI-powered deep research</Description>
     </PropertyGroup>
 
     <!-- MinVer -->
@@ -55,21 +61,23 @@
         <InternalsVisibleTo Include="DoomSummarizer.Tests" />
     </ItemGroup>
 
-    <!-- CLI-only dependencies (Spectre.Console, MCP, Playwright, email, console images) -->
+    <!-- CLI-only dependencies (always included) -->
     <ItemGroup>
-        <PackageReference Include="MailKit" Version="4.14.1" />
-        <PackageReference Include="SendGrid" Version="9.29.3" />
         <PackageReference Include="Spectre.Console" Version="0.54.0" />
         <PackageReference Include="Spectre.Console.Cli" Version="0.53.1" />
 
-        <!-- Playwright for JS-rendered sites -->
+        <!-- Playwright for JS-rendered sites (browser downloaded via setup, not embedded) -->
         <PackageReference Include="Microsoft.Playwright" Version="1.58.0" />
 
         <!-- MCP server for AI agent integration -->
         <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1" />
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
+    </ItemGroup>
 
-        <!-- Console image display and animation -->
+    <!-- Complete-only: email delivery, console image display -->
+    <ItemGroup Condition="'$(CompleteBuild)' == 'true'">
+        <PackageReference Include="MailKit" Version="4.14.1" />
+        <PackageReference Include="SendGrid" Version="9.29.3" />
         <PackageReference Include="mostlylucid.consoleimage" Version="4.5.1" />
         <PackageReference Include="mostlylucid.consoleimage.player" Version="4.5.1" />
     </ItemGroup>
@@ -78,6 +86,8 @@
     <ItemGroup>
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+        <!-- Local LLM via LLamaSharp (zero-config, no Ollama needed) -->
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.LLamaSharp\Mostlylucid.DocSummarizer.LLamaSharp.csproj" />
     </ItemGroup>
 
     <!-- Complete-only: audio transcription, YouTube, subtitles -->
@@ -85,6 +95,13 @@
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Subtitles\Mostlylucid.DoomSummarizer.Plugin.Subtitles.csproj" />
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.YouTube\Mostlylucid.DoomSummarizer.Source.YouTube.csproj" />
         <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj" />
+    </ItemGroup>
+
+    <!-- Exclude complete-only source files from slim builds -->
+    <ItemGroup Condition="'$(CompleteBuild)' != 'true'">
+        <Compile Remove="Services\ImageService.cs" />
+        <Compile Remove="Services\EmailService.cs" />
+        <Compile Remove="Commands\ScrollCommand.Animation.cs" />
     </ItemGroup>
 
     <!-- Embed default config, prompt templates, starter lens files, and manual manifest -->
@@ -95,5 +112,6 @@
         <EmbeddedResource Include="Resources\lenses\*.lens.yaml" />
         <EmbeddedResource Include="Resources\manual.manifest.yaml" />
     </ItemGroup>
+
 
 </Project>

@@ -213,10 +213,13 @@ public static class ServiceDetector
 
         // Run all checks in parallel
         var ollamaTask = CheckOllamaAsync(config.Ollama);
-        var doclingTask = CheckDoclingAsync(config.Docling);
         var qdrantTask = CheckQdrantAsync(config.Qdrant);
-
+#if !SLIM_BUILD
+        var doclingTask = CheckDoclingAsync(config.Docling);
         await Task.WhenAll(ollamaTask, doclingTask, qdrantTask);
+#else
+        await Task.WhenAll(ollamaTask, qdrantTask);
+#endif
 
         // Ollama
         var (ollamaOk, model, models) = await ollamaTask;
@@ -224,11 +227,13 @@ public static class ServiceDetector
         result.OllamaModel = model;
         result.AvailableModels = models;
 
+#if !SLIM_BUILD
         // Docling
         var (doclingOk, hasGpu, accelerator) = await doclingTask;
         result.DoclingAvailable = doclingOk;
         result.DoclingHasGpu = hasGpu;
         result.DoclingAccelerator = accelerator;
+#endif
 
         // Qdrant
         result.QdrantAvailable = await qdrantTask;
@@ -368,6 +373,7 @@ public static class ServiceDetector
         }
     }
 
+#if !SLIM_BUILD
     private static async Task<(bool available, bool hasGpu, string? accelerator)> CheckDoclingAsync(
         DoclingConfig config)
     {
@@ -388,6 +394,7 @@ public static class ServiceDetector
             return (false, false, null);
         }
     }
+#endif
 
     private static async Task<bool> CheckQdrantAsync(QdrantConfig config)
     {

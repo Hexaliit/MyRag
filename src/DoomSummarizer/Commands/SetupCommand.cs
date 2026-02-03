@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using DoomSummarizer.Services;
+using Mostlylucid.DocSummarizer.LLamaSharp.Config;
+using Mostlylucid.DocSummarizer.LLamaSharp.Services;
 using Mostlylucid.DocSummarizer.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -17,12 +19,25 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
         [CommandOption("--ner")]
         [Description("Download NER model for entity extraction (~430MB)")]
         public bool Ner { get; init; }
+
+        [CommandOption("--local-llm")]
+        [Description("Download local GGUF models for LLamaSharp inference (~2.7GB)")]
+        public bool LocalLlm { get; init; }
+
+        [CommandOption("--skip-local-llm")]
+        [Description("Skip local LLM model download")]
+        public bool SkipLocalLlm { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
+#if FEATURE_COMPLETE
+        AnsiConsole.Write(new FigletText("LucidRAG").Color(Color.Cyan1));
+        AnsiConsole.MarkupLine("[grey]Setting up LucidRAG (complete)...[/]");
+#else
         AnsiConsole.Write(new FigletText("DoomSummarizer").Color(Color.Red));
         AnsiConsole.MarkupLine("[grey]Setting up your doom-scrolling agent...[/]");
+#endif
         AnsiConsole.WriteLine();
 
         await AnsiConsole.Status()
@@ -42,6 +57,68 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                     onStatus: msg => ctx.Status(msg),
                     ct: cancellationToken);
                 AnsiConsole.MarkupLine("[green]\u2713[/] ONNX model (all-MiniLM-L6-v2) ready");
+
+                // 2b. Download local LLM models (LLamaSharp GGUF)
+                // doomsummarizer: auto-download by default ("it just works")
+                // lucidrag: skip by default (uses Ollama), opt in with --local-llm
+#if FEATURE_COMPLETE
+                var shouldDownloadLocalLlm = settings.LocalLlm;
+                var skipReason = "use --local-llm to download, or use Ollama (recommended)";
+#else
+                var shouldDownloadLocalLlm = !settings.SkipLocalLlm;
+                var skipReason = "use --local-llm to download";
+#endif
+                if (!settings.SkipLocalLlm)
+                {
+                    ctx.Status("Setting up local LLM models...");
+                    try
+                    {
+                        var llamaConfig = new LLamaSharpConfig();
+                        using var downloader = new LLamaSharpModelDownloader(llamaConfig);
+
+                        var sentinelModel = LLamaSharpModelRegistry.GetSentinel(llamaConfig.SentinelModel);
+                        var synthesisModel = LLamaSharpModelRegistry.GetSynthesis(llamaConfig.SynthesisModel);
+
+                        if (downloader.IsModelAvailable(sentinelModel))
+                        {
+                            AnsiConsole.MarkupLine($"[green]\u2713[/] Sentinel model ({sentinelModel.DisplayName}) already downloaded");
+                        }
+                        else if (shouldDownloadLocalLlm || llamaConfig.AutoDownload)
+                        {
+                            ctx.Status($"Downloading sentinel model ({sentinelModel.DisplayName}, ~{sentinelModel.ExpectedSizeBytes / 1_000_000}MB)...");
+                            await downloader.EnsureModelAsync(sentinelModel, ct: cancellationToken);
+                            AnsiConsole.MarkupLine($"[green]\u2713[/] Sentinel model ({sentinelModel.DisplayName}) ready");
+                        }
+                        else
+                        {
+                            AnsiConsole.MarkupLine($"[grey]-[/] Sentinel model not downloaded ({skipReason})");
+                        }
+
+                        if (downloader.IsModelAvailable(synthesisModel))
+                        {
+                            AnsiConsole.MarkupLine($"[green]\u2713[/] Synthesis model ({synthesisModel.DisplayName}) already downloaded");
+                        }
+                        else if (shouldDownloadLocalLlm || llamaConfig.AutoDownload)
+                        {
+                            ctx.Status($"Downloading synthesis model ({synthesisModel.DisplayName}, ~{synthesisModel.ExpectedSizeBytes / 1_000_000}MB)...");
+                            await downloader.EnsureModelAsync(synthesisModel, ct: cancellationToken);
+                            AnsiConsole.MarkupLine($"[green]\u2713[/] Synthesis model ({synthesisModel.DisplayName}) ready");
+                        }
+                        else
+                        {
+                            AnsiConsole.MarkupLine($"[grey]-[/] Synthesis model not downloaded ({skipReason})");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Local LLM setup failed: {Markup.Escape(ex.Message)}");
+                        AnsiConsole.MarkupLine("   [grey]Models will be downloaded on first use, or use --local-llm to retry[/]");
+                    }
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine("[grey]-[/] Local LLM skipped (use --local-llm to download)");
+                }
 
                 // 3. Initialize database
                 ctx.Status("Initializing database...");
@@ -82,11 +159,17 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                 }
                 else
                 {
+#if FEATURE_COMPLETE
                     AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Ollama not running at {config.Ollama.BaseUrl}");
-                    AnsiConsole.MarkupLine("   Summaries will use ONNX signals only (no LLM). Start Ollama:");
+                    AnsiConsole.MarkupLine("   LucidRAG uses Ollama by default. Start it:");
                     AnsiConsole.MarkupLine("   [grey]ollama serve[/]");
                     AnsiConsole.MarkupLine($"   [grey]ollama pull {config.Ollama.Model}[/]");
                     AnsiConsole.MarkupLine($"   [grey]ollama pull {config.Ollama.SentinelModel}[/]");
+                    AnsiConsole.MarkupLine("   [grey]Or use local GGUF models: lucidrag setup --local-llm[/]");
+#else
+                    AnsiConsole.MarkupLine($"[grey]-[/] Ollama not running at {config.Ollama.BaseUrl} (optional — LLamaSharp handles LLM locally)");
+                    AnsiConsole.MarkupLine("   [grey]To use Ollama instead: ollama serve && ollama pull {0}[/]", config.Ollama.Model);
+#endif
                 }
 
                 // 5. Create templates directory
@@ -159,16 +242,24 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[bold green]Setup complete![/]");
         AnsiConsole.WriteLine();
+#if FEATURE_COMPLETE
+        const string cmd = "lucidrag";
+        AnsiConsole.MarkupLine("[grey]LucidRAG defaults to Ollama for LLM. Use --local-llm with setup to download GGUF models instead.[/]");
+#else
+        const string cmd = "doomsummarizer";
+        AnsiConsole.MarkupLine("[grey]DoomSummarizer uses local LLamaSharp GGUF models by default — no Ollama needed.[/]");
+        AnsiConsole.MarkupLine("[grey]To use Ollama instead, install it and run: ollama serve[/]");
+#endif
+        AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("Quick start:");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll[/]                          - Fetch and summarize");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll \"AI news\" --vibe snarky[/]   - Topic + vibe");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll --json --nollm[/]            - Fast JSON for tools");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer crawl https://docs.example.com[/]   - Build knowledge base");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll \"query\" --local[/]           - Query stored KB");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer trends[/]                           - Historical trends");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer config --show[/]                    - View configuration");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll --list-templates[/]           - List output templates");
-        AnsiConsole.MarkupLine("  [cyan]doomsummarizer scroll -t problem-solution \"topic\"[/] - Use YAML template");
+        AnsiConsole.MarkupLine($"  [cyan]{cmd} scroll[/]                          - Fetch and summarize");
+        AnsiConsole.MarkupLine($"  [cyan]{cmd} scroll \"AI news\" --vibe snarky[/]   - Topic + vibe");
+        AnsiConsole.MarkupLine($"  [cyan]{cmd} scroll --json --nollm[/]            - Fast JSON for tools");
+        AnsiConsole.MarkupLine($"  [cyan]{cmd} crawl https://docs.example.com[/]   - Build knowledge base");
+        AnsiConsole.MarkupLine($"  [cyan]{cmd} scroll \"query\" --local[/]           - Query stored KB");
+        AnsiConsole.MarkupLine($"  [cyan]{cmd} trends[/]                           - Historical trends");
+        AnsiConsole.MarkupLine($"  [cyan]{cmd} config --show[/]                    - View configuration");
+        AnsiConsole.MarkupLine($"  [cyan]{cmd} scroll --list-templates[/]           - List output templates");
 
         return 0;
     }

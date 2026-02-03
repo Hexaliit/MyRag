@@ -1,17 +1,21 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
+#if !SLIM_BUILD
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+#endif
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Core.Models;
 using UglyToad.PdfPig;
 
+#if !SLIM_BUILD
 // Alias to avoid ambiguity with OpenXml types
 using WordTableCell = DocumentFormat.OpenXml.Wordprocessing.TableCell;
 using WordTable = DocumentFormat.OpenXml.Wordprocessing.Table;
 using WordTableRow = DocumentFormat.OpenXml.Wordprocessing.TableRow;
+#endif
 
 namespace Mostlylucid.DocSummarizer.Core.Services;
 
@@ -21,7 +25,9 @@ namespace Mostlylucid.DocSummarizer.Core.Services;
 /// </summary>
 public class DocumentToMarkdownService
 {
+#if !SLIM_BUILD
     private readonly PdfPageRenderer _pdfRenderer;
+#endif
     private readonly ITableExtractorFactory? _tableExtractorFactory;
     private readonly ILogger<DocumentToMarkdownService>? _logger;
 
@@ -42,6 +48,7 @@ public class DocumentToMarkdownService
     /// </summary>
     public Func<string, CancellationToken, Task<VlmOcrResult>>? VlmOcrCallback { get; set; }
 
+#if !SLIM_BUILD
     public DocumentToMarkdownService(
         PdfPageRenderer pdfRenderer,
         ITableExtractorFactory? tableExtractorFactory = null,
@@ -51,6 +58,15 @@ public class DocumentToMarkdownService
         _tableExtractorFactory = tableExtractorFactory;
         _logger = logger;
     }
+#else
+    public DocumentToMarkdownService(
+        ITableExtractorFactory? tableExtractorFactory = null,
+        ILogger<DocumentToMarkdownService>? logger = null)
+    {
+        _tableExtractorFactory = tableExtractorFactory;
+        _logger = logger;
+    }
+#endif
 
     /// <summary>
     /// Convert a document to Markdown.
@@ -78,9 +94,11 @@ public class DocumentToMarkdownService
             var result = extension switch
             {
                 ".pdf" => await ConvertPdfAsync(documentPath, options, progress, ct),
+#if !SLIM_BUILD
                 ".docx" => await ConvertDocxAsync(documentPath, options, progress, ct),
                 ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" or ".bmp" or ".tiff" or ".tif"
                     => await ConvertImageAsync(documentPath, options, progress, ct),
+#endif
                 _ => throw new NotSupportedException($"Unsupported file type: {extension}")
             };
 
@@ -228,6 +246,16 @@ public class DocumentToMarkdownService
             };
         }
 
+#if SLIM_BUILD
+        // Slim build: VLM OCR not available (no PDFtoImage)
+        return new DocumentToMarkdownResult
+        {
+            SourcePath = pdfPath,
+            Success = false,
+            Error = "VLM OCR requires the complete build (PDF page rendering not available in slim mode)."
+        };
+    }
+#else
         // Render all pages
         var renderedPages = await _pdfRenderer.RenderAllPagesAsync(
             pdfPath,
@@ -297,7 +325,9 @@ public class DocumentToMarkdownService
             _pdfRenderer.CleanupRenderedPages(renderedPages);
         }
     }
+#endif
 
+#if !SLIM_BUILD
     /// <summary>
     /// Convert a DOCX document to Markdown.
     /// </summary>
@@ -835,6 +865,7 @@ public class DocumentToMarkdownService
             } : null
         };
     }
+#endif
 
     /// <summary>
     /// Convert an extracted table to Markdown format.

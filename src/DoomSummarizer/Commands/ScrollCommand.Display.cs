@@ -75,13 +75,17 @@ public sealed partial class ScrollCommand
                 await graphService.DisplayGraphAsync(topN: 15, daysBack: 7);
             }
 
-            // Image gallery
+            // Image gallery (complete build only)
+#if FEATURE_COMPLETE
             await RenderImageGalleryAsync(settings, uniqueItems, httpClient, isImageSource);
+#endif
         }
 
-        // Email
+        // Email (complete build only)
+#if FEATURE_COMPLETE
         if (settings.SendEmail)
             await SendEmailAsync(settings, boot, vibe, finalSummary, templateData, analyzedItems, interpreted, outputTemplates, ct);
+#endif
     }
 
     private async Task RenderJsonOutputAsync(
@@ -378,6 +382,7 @@ public sealed partial class ScrollCommand
             DisplayStoryConnections(articleEntityMap);
     }
 
+#if FEATURE_COMPLETE
     private static async Task RenderImageGalleryAsync(
         Settings settings,
         List<ContentItem> uniqueItems,
@@ -508,4 +513,5 @@ public sealed partial class ScrollCommand
             .Replace("{{QUERY}}", interpreted?.RawPrompt ?? settings.Prompt ?? "");
         await emailService.SendAsync(emailHtml, subject, settings.EmailTo, ct);
     }
+#endif
 }

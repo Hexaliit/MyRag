@@ -111,12 +111,14 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
+#if FEATURE_COMPLETE
         // Handle --easter-egg: play the DoomSummarizer animation
         if (settings.EasterEgg)
         {
             await PlayEasterEggAnimationAsync(cancellationToken);
             return 0;
         }
+#endif
 
         // Handle --list-templates
         if (settings.ListTemplates)

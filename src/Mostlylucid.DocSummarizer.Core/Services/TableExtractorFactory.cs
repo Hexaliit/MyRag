@@ -20,7 +20,9 @@ public class TableExtractorFactory : ITableExtractorFactory
         _extractors = new List<ITableExtractor>
         {
             new PdfTableExtractor(loggerFactory.CreateLogger<PdfTableExtractor>()),
+#if !SLIM_BUILD
             new DocxTableExtractor(loggerFactory.CreateLogger<DocxTableExtractor>())
+#endif
         };
     }
 

@@ -178,6 +178,7 @@ public class BackendConfig
         "anthropic" => LlmBackendType.Anthropic,
         "openai" => LlmBackendType.OpenAI,
         "lmstudio" => LlmBackendType.LMStudio,
+        "llamasharp" or "local-gguf" or "gguf" => LlmBackendType.LLamaSharp,
         _ => LlmBackendType.Ollama
     };
 }

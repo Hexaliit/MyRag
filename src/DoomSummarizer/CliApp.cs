@@ -1,4 +1,3 @@
-using ConsoleImage.Core;
 using DoomSummarizer.Commands;
 using DoomSummarizer.Plugins;
 using DoomSummarizer.Plugins.Runtime;
@@ -11,8 +10,8 @@ using Spectre.Console.Cli;
 namespace DoomSummarizer;
 
 /// <summary>
-/// Shared CLI application setup. Used by both the slim CLI (DoomSummarizer)
-/// and the fat CLI (DoomSummarizer.Complete).
+/// Shared CLI application setup. Used by both the slim CLI (doomsummarizer)
+/// and the complete CLI (lucidrag).
 /// </summary>
 public static class CliApp
 {
@@ -68,7 +67,7 @@ public static class CliApp
         app.Configure(config =>
         {
 #if FEATURE_COMPLETE
-            config.SetApplicationName("doomsummarizer (complete)");
+            config.SetApplicationName("lucidrag");
 #else
             config.SetApplicationName("doomsummarizer");
 #endif

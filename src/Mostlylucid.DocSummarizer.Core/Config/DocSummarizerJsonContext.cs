@@ -36,12 +36,14 @@ namespace Mostlylucid.DocSummarizer.Config;
 [JsonSerializable(typeof(SummarizationMode))]
 [JsonSerializable(typeof(BatchResult))]
 [JsonSerializable(typeof(BatchSummary))]
+#if !SLIM_BUILD
 // Docling types
 [JsonSerializable(typeof(DoclingResponse))]
 [JsonSerializable(typeof(DoclingDocument))]
 [JsonSerializable(typeof(DoclingTaskResponse))]
 [JsonSerializable(typeof(DoclingStatusResponse))]
 [JsonSerializable(typeof(DoclingResultResponse))]
+#endif
 [JsonSerializable(typeof(ModelInfo), TypeInfoPropertyName = "DocSummarizerModelInfo")]
 // Ollama HTTP client types (replacing OllamaSharp)
 [JsonSerializable(typeof(OllamaGenerateRequest))]

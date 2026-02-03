@@ -53,7 +53,9 @@ public class NativeExtractionWave : IDocumentWave
             var (markdown, pageCount, textDensity, title) = ext switch
             {
                 ".pdf" => await ExtractPdfAsync(documentPath, ct),
+#if !SLIM_BUILD
                 ".docx" => await ExtractDocxAsync(documentPath, ct),
+#endif
                 _ => ("", 0, 0, Path.GetFileNameWithoutExtension(documentPath))
             };
 
@@ -195,6 +197,7 @@ public class NativeExtractionWave : IDocumentWave
         }, ct);
     }
 
+#if !SLIM_BUILD
     private async Task<(string markdown, int pageCount, int textDensity, string title)> ExtractDocxAsync(
         string docxPath, CancellationToken ct)
     {
@@ -243,6 +246,7 @@ public class NativeExtractionWave : IDocumentWave
             return (content, estimatedPages, textDensity, title ?? Path.GetFileNameWithoutExtension(docxPath));
         }, ct);
     }
+#endif
 
     private static string NormalizePdfText(string text)
     {

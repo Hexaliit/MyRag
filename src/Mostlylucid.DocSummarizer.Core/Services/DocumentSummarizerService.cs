@@ -25,7 +25,9 @@ public class DocumentSummarizerService : IDocumentSummarizer, IDisposable
     private readonly IVectorStore? _vectorStore;
     private readonly bool _verbose;
     private BertRagSummarizer? _bertRag;
+#if !SLIM_BUILD
     private DoclingClient? _docling;
+#endif
     private OnnxEmbeddingService? _embedder;
     private bool _initialized;
 
@@ -45,7 +47,9 @@ public class DocumentSummarizerService : IDocumentSummarizer, IDisposable
 
     public void Dispose()
     {
+#if !SLIM_BUILD
         _docling?.Dispose();
+#endif
         _bertRag?.Dispose();
         _embedder?.Dispose();
     }
@@ -176,11 +180,16 @@ public class DocumentSummarizerService : IDocumentSummarizer, IDisposable
 
                 case ".pdf":
                 case ".docx":
+#if !SLIM_BUILD
                     if (_docling == null)
                         throw new InvalidOperationException(
                             "Docling is not configured. PDF/DOCX conversion requires Docling service.");
                     progress.WriteStage("Conversion", "Converting document with Docling", 10, sw.ElapsedMilliseconds);
                     markdown = await _docling.ConvertAsync(filePath, cancellationToken);
+#else
+                    throw new NotSupportedException(
+                        $"File type '{ext}' requires Docling for conversion. Use the complete build for PDF/DOCX support via Docling.");
+#endif
                     progress.WriteInfo("Conversion", $"Converted to {markdown.Length:N0} characters",
                         sw.ElapsedMilliseconds);
                     break;
@@ -410,6 +419,7 @@ public class DocumentSummarizerService : IDocumentSummarizer, IDisposable
             // Ollama not available
         }
 
+#if !SLIM_BUILD
         try
         {
             if (_docling != null) doclingAvailable = await _docling.IsAvailableAsync();
@@ -418,6 +428,7 @@ public class DocumentSummarizerService : IDocumentSummarizer, IDisposable
         {
             // Docling not available
         }
+#endif
 
         return new ServiceAvailability(
             ollamaAvailable,
@@ -444,8 +455,10 @@ public class DocumentSummarizerService : IDocumentSummarizer, IDisposable
                 _config.Embedding,
                 ollamaConfig.ClassifierModel);
 
+#if !SLIM_BUILD
             // Initialize Docling client if configured
             if (!string.IsNullOrEmpty(_config.Docling?.BaseUrl)) _docling = new DoclingClient(_config.Docling);
+#endif
 
             // Initialize embedding service
             _embedder = new OnnxEmbeddingService(_config.Onnx, _verbose);

@@ -1,8 +1,10 @@
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+#if !SLIM_BUILD
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+#endif
 using UglyToad.PdfPig;
 
 namespace Mostlylucid.DocSummarizer.Services;
@@ -241,6 +243,7 @@ public class PdfDocumentHandler : IDocumentHandler
     }
 }
 
+#if !SLIM_BUILD
 /// <summary>
 ///     Default handler for DOCX files using Open XML SDK
 /// </summary>
@@ -303,6 +306,7 @@ public class DocxDocumentHandler : IDocumentHandler
         });
     }
 }
+#endif
 
 /// <summary>
 ///     Extension methods to register default document handlers
@@ -317,8 +321,10 @@ public static class DefaultDocumentHandlerExtensions
         registry.Register(new TextDocumentHandler());
         registry.Register(new HtmlDocumentHandler());
         registry.Register(new PdfDocumentHandler());
+#if !SLIM_BUILD
         registry.Register(new DocxDocumentHandler());
         registry.Register(new PptxDocumentHandler());
+#endif
         return registry;
     }
 }

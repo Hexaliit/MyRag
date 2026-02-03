@@ -86,7 +86,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p ./stage
-          cp ./publish/${{ matrix.rid }}/doomsummarizer${{ matrix.ext }} ./stage/
+          if [[ "${{ matrix.build_type }}" == "complete" ]]; then
+            BINARY_NAME="lucidrag"
+          else
+            BINARY_NAME="doomsummarizer"
+          fi
+          cp ./publish/${{ matrix.rid }}/${BINARY_NAME}${{ matrix.ext }} ./stage/
           # On macOS, native libs sit alongside the binary (not embedded) to avoid Gatekeeper issues
           if [[ "${{ matrix.rid }}" == osx-* ]]; then
             cp ./publish/${{ matrix.rid }}/*.dylib ./stage/ 2>/dev/null || true
@@ -98,23 +103,22 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $variant = "${{ matrix.build_type }}" -eq "complete" ? "_complete" : ""
-          Compress-Archive -Path ./stage/* -DestinationPath "./publish/doomsummarizer${variant}-${{ matrix.rid }}.zip"
+          $name = "${{ matrix.build_type }}" -eq "complete" ? "lucidrag" : "doomsummarizer"
+          Compress-Archive -Path ./stage/* -DestinationPath "./publish/${name}-${{ matrix.rid }}.zip"
 
       - name: Create archive (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          variant=""
-          if [[ "${{ matrix.build_type }}" == "complete" ]]; then variant="_complete"; fi
+          if [[ "${{ matrix.build_type }}" == "complete" ]]; then name="lucidrag"; else name="doomsummarizer"; fi
           cd ./stage
-          tar -czvf "../publish/doomsummarizer${variant}-${{ matrix.rid }}.tar.gz" *
+          tar -czvf "../publish/${name}-${{ matrix.rid }}.tar.gz" *
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: doomsummarizer${{ matrix.build_type == 'complete' && '_complete' || '' }}-${{ matrix.rid }}
-          path: ./publish/doomsummarizer${{ matrix.build_type == 'complete' && '_complete' || '' }}-${{ matrix.rid }}.*
+          name: ${{ matrix.build_type == 'complete' && 'lucidrag' || 'doomsummarizer' }}-${{ matrix.rid }}
+          path: ./publish/${{ matrix.build_type == 'complete' && 'lucidrag' || 'doomsummarizer' }}-${{ matrix.rid }}.*
           retention-days: 5
 
   release:
@@ -149,8 +153,8 @@ jobs:
 
             | Variant | Description |
             |---------|-------------|
-            | `doomsummarizer-{platform}` | **Deep Research** (~100MB) — Web sources, knowledge graph, hybrid search, LLM synthesis. Ingests `.md` and `.txt` files. |
-            | `doomsummarizer_complete-{platform}` | **Complete** (~300MB) — Everything above + all document formats (PDF, DOCX, HTML, PPTX), image analysis, YouTube transcription, audio analysis, subtitle processing, data profiling |
+            | `doomsummarizer-{platform}` | **Deep Research** (~76 MB) — The "it just works" version. Web sources, knowledge graph, hybrid search, local LLM (LLamaSharp), ONNX embeddings. Ingests `.md`, `.txt`, `.pdf` files. |
+            | `lucidrag-{platform}` | **LucidRAG Complete** (~112 MB) — Everything above + all document formats (DOCX, HTML, PPTX), image analysis, YouTube transcription, audio analysis, subtitle processing, email delivery |
 
             ### What it does
 
@@ -166,7 +170,7 @@ jobs:
 
             All of this from a single file. Download, extract, run.
 
-            ### Quick Start
+            ### Quick Start (doomsummarizer)
 
             ```bash
             # 1. Extract and run setup (downloads embedding model, ~23MB one-time)
@@ -178,24 +182,31 @@ jobs:
             # 3. Ask questions over your growing knowledge base
             doomsummarizer ask "What happened with the SSH vulnerability?"
 
-            # 4. Crawl any site into a named knowledge base (incremental by default)
-            doomsummarizer crawl https://docs.example.com --name docs --entities
-            doomsummarizer ask --source crawl:docs "how does auth work?"
-
             # Topic-focused with personality
             doomsummarizer scroll "AI security news" --vibe snarky
+            ```
+
+            ### Quick Start (lucidrag — complete)
+
+            ```bash
+            lucidrag setup
+            lucidrag scroll
+
+            # Crawl any site into a named knowledge base (incremental by default)
+            lucidrag crawl https://docs.example.com --name docs --entities
+            lucidrag ask --source crawl:docs "how does auth work?"
 
             # Long-form article generation
-            doomsummarizer scroll "history of LLMs" -t blog-article -o llm-history.md
+            lucidrag scroll "history of LLMs" -t blog-article -o llm-history.md
             ```
 
             ### What's in the archive
 
             | File | Purpose |
             |------|---------|
-            | `doomsummarizer` | Self-contained single-file binary (no .NET runtime needed) |
+            | `doomsummarizer` / `lucidrag` | Self-contained single-file binary (no .NET runtime needed) |
             | `README.md` | Full documentation -- all commands, flags, sources, pipeline details |
-            | `config.json` | Default config reference (copy to `~/.doomsummarizer/config.json` to customize) |
+            | `config.json` | Default config reference (copy to config directory to customize) |
 
             ### Works offline, scales up with APIs
 
@@ -219,14 +230,14 @@ jobs:
           prerelease: false
           files: |
             ./artifacts/doomsummarizer-win-x64/*.zip
-            ./artifacts/doomsummarizer_complete-win-x64/*.zip
+            ./artifacts/lucidrag-win-x64/*.zip
             ./artifacts/doomsummarizer-win-arm64/*.zip
-            ./artifacts/doomsummarizer_complete-win-arm64/*.zip
+            ./artifacts/lucidrag-win-arm64/*.zip
             ./artifacts/doomsummarizer-linux-x64/*.tar.gz
-            ./artifacts/doomsummarizer_complete-linux-x64/*.tar.gz
+            ./artifacts/lucidrag-linux-x64/*.tar.gz
             ./artifacts/doomsummarizer-linux-arm64/*.tar.gz
-            ./artifacts/doomsummarizer_complete-linux-arm64/*.tar.gz
+            ./artifacts/lucidrag-linux-arm64/*.tar.gz
             ./artifacts/doomsummarizer-osx-x64/*.tar.gz
-            ./artifacts/doomsummarizer_complete-osx-x64/*.tar.gz
+            ./artifacts/lucidrag-osx-x64/*.tar.gz
             ./artifacts/doomsummarizer-osx-arm64/*.tar.gz
-            ./artifacts/doomsummarizer_complete-osx-arm64/*.tar.gz
+            ./artifacts/lucidrag-osx-arm64/*.tar.gz
