@@ -153,8 +153,8 @@ jobs:
 
             | Variant | Description |
             |---------|-------------|
-            | `doomsummarizer-{platform}` | **Deep Research** (~76 MB) — The "it just works" version. Web sources, knowledge graph, hybrid search, local LLM (LLamaSharp), ONNX embeddings. Ingests `.md`, `.txt`, `.pdf` files. |
-            | `lucidrag-{platform}` | **LucidRAG Complete** (~112 MB) — Everything above + all document formats (DOCX, HTML, PPTX), image analysis, YouTube transcription, audio analysis, subtitle processing, email delivery |
+            | `doomsummarizer-{platform}` | **Deep Research** (~50 MB) — Lightweight build. Web sources, knowledge graph, hybrid search, ONNX embeddings. Uses Ollama or cloud APIs for LLM. Ingests `.md`, `.txt`, `.pdf` files. |
+            | `lucidrag-{platform}` | **LucidRAG Complete** (~120 MB) — Everything above + local GGUF inference via LLamaSharp (no Ollama needed), all document formats (DOCX, HTML, PPTX), image analysis, video analysis (shot detection, scene segmentation), YouTube transcription, audio transcription & speaker ID, subtitle processing, email delivery |
 
             ### What it does
 

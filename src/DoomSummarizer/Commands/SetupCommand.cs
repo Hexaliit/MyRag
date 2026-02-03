@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using DoomSummarizer.Services;
+#if FEATURE_LLAMASHARP
 using Mostlylucid.DocSummarizer.LLamaSharp.Config;
 using Mostlylucid.DocSummarizer.LLamaSharp.Services;
+#endif
 using Mostlylucid.DocSummarizer.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -20,6 +22,7 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
         [Description("Download NER model for entity extraction (~430MB)")]
         public bool Ner { get; init; }
 
+#if FEATURE_LLAMASHARP
         [CommandOption("--local-llm")]
         [Description("Download local GGUF models for LLamaSharp inference (~2.7GB)")]
         public bool LocalLlm { get; init; }
@@ -27,6 +30,7 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
         [CommandOption("--skip-local-llm")]
         [Description("Skip local LLM model download")]
         public bool SkipLocalLlm { get; init; }
+#endif
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
@@ -58,9 +62,10 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                     ct: cancellationToken);
                 AnsiConsole.MarkupLine("[green]\u2713[/] ONNX model (all-MiniLM-L6-v2) ready");
 
+#if FEATURE_LLAMASHARP
                 // 2b. Download local LLM models (LLamaSharp GGUF)
-                // doomsummarizer: auto-download by default ("it just works")
-                // lucidrag: skip by default (uses Ollama), opt in with --local-llm
+                // lucidrag (complete): skip by default (uses Ollama), opt in with --local-llm
+                // doomsummarizer with -p:IncludeLLamaSharp=true: auto-download by default
 #if FEATURE_COMPLETE
                 var shouldDownloadLocalLlm = settings.LocalLlm;
                 var skipReason = "use --local-llm to download, or use Ollama (recommended)";
@@ -119,6 +124,10 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                 {
                     AnsiConsole.MarkupLine("[grey]-[/] Local LLM skipped (use --local-llm to download)");
                 }
+#else
+                AnsiConsole.MarkupLine("[grey]-[/] Local LLM (LLamaSharp) not included in this build");
+                AnsiConsole.MarkupLine("   [grey]Use Ollama for local inference, or use the lucidrag (complete) build[/]");
+#endif
 
                 // 3. Initialize database
                 ctx.Status("Initializing database...");
@@ -165,10 +174,16 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                     AnsiConsole.MarkupLine("   [grey]ollama serve[/]");
                     AnsiConsole.MarkupLine($"   [grey]ollama pull {config.Ollama.Model}[/]");
                     AnsiConsole.MarkupLine($"   [grey]ollama pull {config.Ollama.SentinelModel}[/]");
+#if FEATURE_LLAMASHARP
                     AnsiConsole.MarkupLine("   [grey]Or use local GGUF models: lucidrag setup --local-llm[/]");
-#else
+#endif
+#elif FEATURE_LLAMASHARP
                     AnsiConsole.MarkupLine($"[grey]-[/] Ollama not running at {config.Ollama.BaseUrl} (optional — LLamaSharp handles LLM locally)");
                     AnsiConsole.MarkupLine("   [grey]To use Ollama instead: ollama serve && ollama pull {0}[/]", config.Ollama.Model);
+#else
+                    AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Ollama not running at {config.Ollama.BaseUrl}");
+                    AnsiConsole.MarkupLine("   [grey]Install Ollama for LLM synthesis: ollama serve && ollama pull {0}[/]", config.Ollama.Model);
+                    AnsiConsole.MarkupLine("   [grey]Or set ANTHROPIC_API_KEY / OPENAI_API_KEY for cloud LLM[/]");
 #endif
                 }
 
@@ -247,8 +262,8 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
         AnsiConsole.MarkupLine("[grey]LucidRAG defaults to Ollama for LLM. Use --local-llm with setup to download GGUF models instead.[/]");
 #else
         const string cmd = "doomsummarizer";
-        AnsiConsole.MarkupLine("[grey]DoomSummarizer uses local LLamaSharp GGUF models by default — no Ollama needed.[/]");
-        AnsiConsole.MarkupLine("[grey]To use Ollama instead, install it and run: ollama serve[/]");
+        AnsiConsole.MarkupLine("[grey]DoomSummarizer uses Ollama for LLM synthesis. Install and run: ollama serve[/]");
+        AnsiConsole.MarkupLine("[grey]Or set ANTHROPIC_API_KEY / OPENAI_API_KEY for cloud LLM fallback.[/]");
 #endif
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("Quick start:");

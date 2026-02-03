@@ -2,8 +2,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+#if FEATURE_LLAMASHARP
 using Mostlylucid.DocSummarizer.LLamaSharp.Config;
 using Mostlylucid.DocSummarizer.LLamaSharp.Services;
+#endif
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -35,6 +37,7 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
         [Description("Auto-pull models that aren't available locally")]
         public bool Pull { get; init; }
 
+#if FEATURE_LLAMASHARP
         [CommandOption("--local")]
         [Description("Benchmark local GGUF models via LLamaSharp (no Ollama needed)")]
         public bool Local { get; init; }
@@ -42,6 +45,7 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
         [CommandOption("--all")]
         [Description("Benchmark both Ollama and local GGUF models")]
         public bool All { get; init; }
+#endif
     }
 
     // Standardized test prompt for synthesis (digest generation)
@@ -109,16 +113,22 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
         AnsiConsole.MarkupLine("[grey]Model speed & quality comparison[/]");
         AnsiConsole.WriteLine();
 
+#if FEATURE_LLAMASHARP
         // Local GGUF-only benchmark mode
         if (settings.Local && !settings.All)
         {
             return await RunLocalBenchmarkAsync(settings, cancellationToken);
         }
+#endif
 
         var config = await ConfigService.LoadAsync();
         var ollama = new OllamaService(config.Ollama);
 
+#if FEATURE_LLAMASHARP
         if (!await ollama.IsAvailableAsync() && !settings.All)
+#else
+        if (!await ollama.IsAvailableAsync())
+#endif
         {
             AnsiConsole.MarkupLine("[red]Ollama not available.[/] Start it with: [grey]ollama serve[/]");
             AnsiConsole.MarkupLine("[grey]Or use --local to benchmark local GGUF models without Ollama[/]");
@@ -310,6 +320,7 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
         AnsiConsole.WriteLine();
         DisplayResults(results, benchSynthesis, benchSentinel, config);
 
+#if FEATURE_LLAMASHARP
         // Also run local GGUF benchmark if --all
         if (settings.All)
         {
@@ -317,10 +328,12 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
             AnsiConsole.Write(new Rule("[bold cyan]Local GGUF Models (LLamaSharp)[/]").LeftJustified());
             await RunLocalBenchmarkAsync(settings, cancellationToken);
         }
+#endif
 
         return 0;
     }
 
+#if FEATURE_LLAMASHARP
     /// <summary>
     /// Benchmark local GGUF models via LLamaSharp.
     /// </summary>
@@ -479,6 +492,7 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
         public int ApproxTokens { get; set; }
         public double ApproxTokPerSec { get; set; }
     }
+#endif
 
     private static void DisplayResults(List<ModelBenchmarkSummary> results, bool showSynth, bool showSent, DoomConfig config)
     {

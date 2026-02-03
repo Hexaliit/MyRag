@@ -15,19 +15,21 @@ This project ships as two binaries from the same codebase. Both have the same co
 
 | Binary | Description | Size |
 |--------|-------------|------|
-| **`doomsummarizer`** | The "it just works" version. A minimal, web-oriented deep research and knowledge base tool. Fetches, ranks, and synthesizes web sources. Ingests `.md`, `.txt`, and `.pdf` files. Includes local LLM inference via LLamaSharp (no Ollama needed) and ONNX embeddings. | ~76 MB |
-| **`lucidrag`** | All the bells and whistles. Everything in `doomsummarizer` plus all document formats (DOCX, HTML, PPTX), image analysis, YouTube transcription, audio analysis, subtitle processing, and email delivery. | ~112 MB |
+| **`doomsummarizer`** | The lightweight "just works" version. Web-oriented deep research and knowledge base. Fetches, ranks, and synthesizes web sources. Ingests `.md`, `.txt`, and `.pdf` files. ONNX embeddings. Requires [Ollama](https://ollama.com) or cloud API keys for LLM synthesis. | ~50 MB |
+| **`lucidrag`** | The full stack. Everything in `doomsummarizer` plus local GGUF inference via LLamaSharp (no Ollama needed), all document formats (DOCX, HTML, PPTX), image analysis, YouTube transcription, audio analysis, subtitle processing, and email delivery. | ~120 MB |
 
-If you just want to grab a single binary and start researching, `doomsummarizer` is the one. If you need the full document processing pipeline with media support, grab `lucidrag`.
+If you just want a small binary and already run Ollama, `doomsummarizer` is the one. If you want zero-config local LLM inference (no external server) or need the full document processing pipeline, grab `lucidrag`.
 
 ### Capabilities
 
 - **Scroll** — Fetch + rank news/search results into a digest, article, or newsletter
 - **Ask** — Interactive Q&A over your stored knowledge base
-- **Crawl** — Index any website or local files/directories for semantic search
+- **Crawl** — Index any website, YouTube video, or local files/directories for semantic search
 - **Page** — Summarize a single URL
 - **Show** — Browse knowledge base collections
 - **Long-form** — Generate evidence-grounded multi-section articles with validation
+- **Video** — Shot detection, scene segmentation, and transcription for video files (`lucidrag` only)
+- **Audio** — Speech-to-text transcription and speaker diarization (`lucidrag` only)
 - **MCP Server** — Expose KB, search, and entity graph to AI agents via Model Context Protocol
 
 Works fully offline after initial model downloads. No API keys required for default sources. Optional cloud LLM and search providers are budget-controlled.
@@ -144,7 +146,7 @@ Inside the loop: `sources`, `history`, `clear`, `quit`.
 
 ### `crawl` — Build a knowledge base
 
-Accepts a URL (web crawl) or local file/directory path (document ingestion). Web crawls are incremental by default — uses HTTP ETags and content hashing to skip unchanged pages.
+Accepts a URL (web crawl), YouTube video URL (`lucidrag` only), or local file/directory path (document ingestion). Web crawls are incremental by default — uses HTTP ETags and content hashing to skip unchanged pages.
 
 ```bash
 # Web crawl
@@ -152,6 +154,11 @@ doomsummarizer crawl https://docs.example.com
 doomsummarizer crawl https://wiki.local -n wiki -d 5 -m 500
 doomsummarizer crawl https://blog.example.com -g "/blog/*" --entities
 doomsummarizer crawl https://docs.example.com --force  # Bypass cache
+
+# YouTube video (lucidrag only — extracts captions, chapters, metadata)
+lucidrag crawl https://www.youtube.com/watch?v=dQw4w9WgXcQ -n talks
+lucidrag crawl https://youtu.be/dQw4w9WgXcQ --ask      # Ingest + Q&A over transcript
+lucidrag ask -s crawl:talks "what did they say about X?"
 
 # Local file/directory ingestion
 doomsummarizer crawl C:\docs\project-specs
@@ -230,6 +237,37 @@ doomsummarizer setup --ner           # Download NER model (~430 MB)
 doomsummarizer config --show         # Display current config
 doomsummarizer config --init         # Create config file
 doomsummarizer sources               # List all sources + API status
+```
+
+### `video` — Video analysis (`lucidrag` only)
+
+Shot detection, scene segmentation, and speech transcription for video files. Uses FFmpeg + OpenCV for visual analysis and Whisper for audio transcription. Available in the `lucidrag` (complete) build only.
+
+```bash
+lucidrag video analyze movie.mp4        # Full pipeline: shots → scenes → transcription
+lucidrag video shots trailer.mp4        # Detect shot boundaries (cuts, fades, dissolves)
+lucidrag video scenes episode.mkv       # Segment into semantic scenes
+```
+
+Supported formats: `.mp4`, `.mkv`, `.avi`, `.webm`, `.mov`, `.wmv`
+
+### `audio` — Audio transcription (`lucidrag` only)
+
+Speech-to-text via Whisper (GGML) and speaker diarization via ECAPA-TDNN. Models download automatically on first use. Available in the `lucidrag` (complete) build only.
+
+```bash
+lucidrag audio transcribe podcast.mp3              # Transcribe to text
+lucidrag audio transcribe meeting.wav -o notes.md  # Save transcript to file
+lucidrag audio speakers meeting.wav                # Identify speakers
+```
+
+Supported formats: `.mp3`, `.wav`, `.flac`, `.ogg`, `.m4a`, `.opus`
+
+Subtitle files (`.srt`, `.vtt`, `.ass`, `.ssa`) are also supported as ingestion sources — crawl them into a knowledge base for Q&A:
+
+```bash
+lucidrag crawl subtitles.srt -n lecture
+lucidrag ask -s file:lecture "what was discussed?"
 ```
 
 ## Query Intelligence
@@ -541,32 +579,42 @@ Query → PromptInterpreter (+ composite query decomposition) → SourceRouter (
 
 ### `--no-llm` Mode
 
-Without Ollama, the full signal pipeline still runs: ONNX embeddings, BM25, sentiment, topic inference, RRF ranking, NER (with `--entities`). All signals stored to SQLite.
+Without Ollama or an LLM provider, the full signal pipeline still runs: ONNX embeddings, BM25, sentiment, topic inference, RRF ranking, NER (with `--entities`). All signals stored to SQLite. Use `--nollm` to skip synthesis entirely.
 
 ## LLM Providers
 
-The two variants have different default providers, but both support the same providers and you can switch freely.
+The LLM provider chain depends on which binary you're running:
 
-| | `doomsummarizer` (slim) | `lucidrag` (complete) |
-|---|---|---|
-| **Default LLM** | LLamaSharp (local GGUF, zero-config) | Ollama (local server) |
-| **Fallback chain** | LLamaSharp → Ollama → Cloud | LLamaSharp → Ollama → Cloud |
-| **Setup downloads models?** | Yes, automatically | No (use `--local-llm` to opt in) |
+| Binary | Provider chain |
+|--------|---------------|
+| **`doomsummarizer`** (slim) | Ollama (if running) → Cloud (if API keys set) |
+| **`lucidrag`** (complete) | Ollama (if running) → LLamaSharp (local GGUF) → Cloud (if API keys set) |
 
-### LLamaSharp — Local GGUF (doomsummarizer default)
+**Ollama is the recommended LLM provider** for both variants. It keeps models warm in memory across calls, giving fast inference with GPU auto-detection. `lucidrag` additionally includes LLamaSharp as a zero-config fallback — if Ollama isn't running, it loads GGUF models in-process (no external server needed).
 
-Zero-config local inference. Models are downloaded automatically on first run to `~/.doomsummarizer/models/llm/`.
+On startup you'll see which provider was selected:
+```
+Detecting LLM providers...
+LLM: Ollama: gemma3:4b (fallback: LLamaSharp)     # lucidrag
+LLM: Ollama: gemma3:4b                              # doomsummarizer
+```
 
-| Role | Default Model | Size |
-|------|---------------|------|
-| **Sentinel** (triage) | Qwen 2.5 0.5B (Q4_K_M) | ~397 MB |
-| **Synthesis** (main) | Phi-4 Mini 3.8B (Q4_K_M) | ~2.4 GB |
+### Which should I use?
 
-No external server needed — runs in-process. To skip auto-download during setup: `doomsummarizer setup --skip-local-llm`.
+| Scenario | Recommended | Why |
+|----------|-------------|-----|
+| Desktop/laptop with Ollama installed | `doomsummarizer` | Smaller binary, Ollama handles inference |
+| Server/CI with Ollama | `doomsummarizer` | Minimal footprint, Ollama manages model lifecycle |
+| Offline / no Ollama / "it just works" | `lucidrag` | LLamaSharp runs GGUF models with no external server |
+| NVIDIA GPU, want local inference | `lucidrag` | LLamaSharp auto-offloads to CUDA GPU |
+| Raspberry Pi / ARM | `doomsummarizer` + Ollama | Slim binary, Ollama optimized for ARM |
+| YouTube videos, podcasts, audio files | `lucidrag` | Whisper transcription, caption extraction, speaker ID |
+| Video analysis (shot detection, scenes) | `lucidrag` | FFmpeg + OpenCV video pipeline |
+| Full document processing (DOCX, PPTX, subtitles) | `lucidrag` | Only complete build has all format support |
 
-### Ollama — Local Server (lucidrag default)
+### Ollama — Local Server (recommended for both builds)
 
-Requires [Ollama](https://ollama.com) running locally. More model choices and better GPU support.
+Requires [Ollama](https://ollama.com) running locally. Best performance: models stay warm in memory, GPU auto-detected.
 
 | Role | Default Model | Purpose |
 |------|---------------|---------|
@@ -584,17 +632,51 @@ Use `benchmark` to find optimal models for your hardware:
 doomsummarizer benchmark "qwen3:4b,gemma3:4b" --pull
 ```
 
-### Switching Providers
+### LLamaSharp — Local GGUF (`lucidrag` only)
 
-**Use Ollama with `doomsummarizer`**: Install Ollama and start it — it's automatically detected as a fallback. If you prefer Ollama exclusively, use `--skip-local-llm` during setup.
+Zero-config local inference when Ollama isn't available. **Included in `lucidrag` (complete) only.** Models are downloaded automatically on first run to `~/.doomsummarizer/models/llm/`.
 
-**Use LLamaSharp with `lucidrag`**: Run `lucidrag setup --local-llm` to download the GGUF models. LLamaSharp is automatically used as the highest-priority provider when models are present.
+| Role | Default Model | Size |
+|------|---------------|------|
+| **Sentinel** (triage) | Qwen 2.5 0.5B (Q4_K_M) | ~397 MB |
+| **Synthesis** (main) | Phi-4 Mini 3.8B (Q4_K_M) | ~2.4 GB |
 
-Both variants use the same priority chain: LLamaSharp (if models present) → Ollama (if running) → Cloud (if API keys configured). The difference is only what `setup` downloads by default.
+No external server needed — runs in-process. First call loads the model (~5-15s), subsequent calls reuse it.
+
+If you apply a hardware profile that configures LLamaSharp (like `desktop`) while running `doomsummarizer`, you'll see a warning:
+```
+Note: Config has LLamaSharp settings but this build doesn't include it. Use lucidrag for local GGUF support.
+```
+
+To skip auto-download during setup: `lucidrag setup --skip-local-llm`.
+
+#### GPU Acceleration
+
+LLamaSharp uses NVIDIA CUDA 12 by default for GPU-accelerated inference. GPU is auto-detected — if your system has an NVIDIA GPU with drivers installed, model layers are automatically offloaded.
+
+| Backend | Build flag | Platforms |
+|---------|-----------|-----------|
+| **CUDA 12** (default) | `-p:LLamaBackend=cuda12` | Windows, Linux (NVIDIA) |
+| CUDA 11 | `-p:LLamaBackend=cuda11` | Windows, Linux (older NVIDIA) |
+| Vulkan | `-p:LLamaBackend=vulkan` | Windows, Linux (AMD, Intel, NVIDIA) |
+| CPU only | `-p:LLamaBackend=cpu` | All platforms |
+
+To build with a specific backend:
+```bash
+dotnet build -p:LLamaBackend=vulkan   # AMD GPU
+dotnet build -p:LLamaBackend=cpu      # Raspberry Pi / ARM
+```
+
+Hardware profiles also control GPU usage — `desktop` profile enables GPU offload, `laptop` forces CPU-only:
+```bash
+lucidrag config --profile desktop   # GPU enabled (GpuLayerCount=-1)
+lucidrag config --profile laptop    # CPU only (GpuLayerCount=0)
+lucidrag config --profile dynamic   # Auto-detect hardware
+```
 
 ### Cloud LLMs (Optional — Disabled by Default)
 
-Cloud providers are **disabled by default**. To enable, set an API key **and** set `"enabled": true` in config or user secrets.
+Cloud providers are **disabled by default** in both builds. To enable, set an API key **and** set `"enabled": true` in config or user secrets.
 
 | Provider | Models | Key | Docs |
 |----------|--------|-----|------|
@@ -606,7 +688,50 @@ To enable cloud fallback:
 { "name": "anthropic", "apiKey": "sk-ant-...", "enabled": true }
 ```
 
-Cloud LLMs offer larger context windows (200K tokens) and higher-quality synthesis. When enabled, they are used as **fallback** when Ollama fails — Ollama remains the primary provider. Budget-controlled with per-service rate limits, retry with backoff, and circuit breakers. See [docs/CloudLLM.md](docs/CloudLLM.md).
+Cloud LLMs offer larger context windows (200K tokens) and higher-quality synthesis. When enabled, they are used as **last-resort fallback** when local providers fail. Budget-controlled with per-service rate limits, retry with backoff, and circuit breakers. See [docs/CloudLLM.md](docs/CloudLLM.md).
+
+### Recommended Configuration
+
+Here's what to set up based on your hardware:
+
+**Raspberry Pi / low-RAM ARM (1-4 GB)**
+```bash
+doomsummarizer config --profile pi      # tiny models, minimal sources
+ollama serve && ollama pull qwen3:0.6b  # small model fits in RAM
+```
+
+**Laptop without GPU (8-16 GB)**
+```bash
+doomsummarizer config --profile laptop
+ollama serve && ollama pull gemma3:4b
+```
+Or use `lucidrag` for fully offline operation (no Ollama needed).
+
+**Desktop with NVIDIA GPU (16+ GB)**
+```bash
+lucidrag config --profile desktop       # enables GPU offload for LLamaSharp
+ollama serve && ollama pull gemma3:4b   # optional, Ollama preferred when running
+```
+LLamaSharp auto-detects CUDA and offloads model layers to GPU.
+
+**Server / always-on (32+ GB, Ollama running)**
+```bash
+doomsummarizer config --profile server  # disables LLamaSharp, Ollama-primary
+ollama serve && ollama pull qwen3:8b    # larger model, more context
+```
+Slim binary is fine — Ollama manages inference. Add cloud API keys as fallback.
+
+**Enterprise / maximum quality**
+```bash
+lucidrag config --profile enterprise    # max sources, large context
+ollama serve && ollama pull llama3.1:70b
+export ANTHROPIC_API_KEY=sk-ant-...     # cloud fallback
+```
+
+**Auto-detect (let the tool decide)**
+```bash
+lucidrag config --profile dynamic       # probes RAM, GPU, Ollama, picks best profile
+```
 
 ## Models & ML Pipeline
 
@@ -704,15 +829,19 @@ All ONNX models use Microsoft.ML.OnnxRuntime. Execution provider is configurable
 
 ### LucidRAG (Complete Build) — Additional Models
 
-The `lucidrag` binary includes additional ML models for media processing:
+The `lucidrag` binary includes additional ML models and processing capabilities for video, audio, and YouTube content:
 
-| Model | Purpose | Size | Source |
-|-------|---------|------|--------|
-| **Whisper** (GGML) | Audio transcription | 75 MB–3 GB (size-dependent) | [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp) |
-| **ECAPA-TDNN** | Speaker identification | ~100 MB | [Wespeaker/ecapa-tdnn512](https://huggingface.co/Wespeaker/wespeaker-ecapa-tdnn512-LM) |
+| Model / Library | Purpose | Size | Source |
+|-----------------|---------|------|--------|
+| **Whisper** (GGML) | Audio/video speech transcription | 75 MB–3 GB (size-dependent) | [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp) |
+| **ECAPA-TDNN** | Speaker identification & diarization | ~100 MB | [Wespeaker/ecapa-tdnn512](https://huggingface.co/Wespeaker/wespeaker-ecapa-tdnn512-LM) |
 | **HTDemucs** | Audio source separation | 220 MB | [gentij/htdemucs-ort](https://huggingface.co/gentij/htdemucs-ort) |
+| **FFmpeg** | Video demuxing, keyframe extraction | Bundled | [FFmpeg](https://ffmpeg.org/) |
+| **OpenCV** | Shot detection, scene analysis | Bundled | [OpenCvSharp](https://github.com/shimat/opencvsharp) |
+| **YoutubeExplode** | YouTube caption/metadata extraction | Bundled (no API key) | [Tyrrrz/YoutubeExplode](https://github.com/Tyrrrz/YoutubeExplode) |
+| **LLamaSharp** | Local GGUF inference (no Ollama) | Bundled + model download | [SciSharp/LLamaSharp](https://github.com/SciSharp/LLamaSharp) |
 
-These are downloaded on first use and stored in `~/.doomsummarizer/models/`.
+ML models are downloaded on first use and stored in `~/.doomsummarizer/models/`.
 
 ### Model Storage Summary
 

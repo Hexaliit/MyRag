@@ -145,6 +145,18 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
             AnsiConsole.MarkupLine($"[grey]{desc}[/]");
         AnsiConsole.MarkupLine($"[grey]Config saved to {ConfigService.GetConfigDir()}/config.json[/]");
 
+#if !FEATURE_LLAMASHARP
+        // Warn if the profile configured LLamaSharp settings but this build doesn't include it
+        var ls = config.LlamaSharp;
+        if (ls.Enabled != false && (ls.ContextSize != null || ls.GpuLayerCount != null || ls.SynthesisModel != null))
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[yellow]Note:[/] This profile configures local GGUF inference (LLamaSharp), which is not included in this build.");
+            AnsiConsole.MarkupLine("  LLamaSharp settings will be ignored. LLM providers: Ollama, cloud APIs.");
+            AnsiConsole.MarkupLine("  For local GGUF support, use [bold cyan]lucidrag[/] (the complete build).");
+        }
+#endif
+
         return 0;
     }
 

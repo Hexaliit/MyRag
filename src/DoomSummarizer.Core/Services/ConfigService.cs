@@ -52,6 +52,7 @@ public static class ConfigService
 
         // 2. Determine profile: CLI flag takes priority, then existing config "profile" field
         var profileName = RequestedProfile;
+        var isCliProfile = profileName != null; // CLI --profile flag: applies LAST (overrides config files)
 
         // Peek at user config for a persisted profile if no CLI override
         if (profileName == null && File.Exists(ConfigPath))
@@ -65,20 +66,24 @@ public static class ConfigService
             catch { /* ignore parse errors in profile peek */ }
         }
 
-        // 2b. Apply profile overlay
+        // 2b. Resolve profile name (needed for both early and late application)
+        string? resolvedProfileName = null;
+        JsonNode? profileOverlay = null;
         if (!string.IsNullOrEmpty(profileName))
         {
-            var resolvedName = profileName;
+            resolvedProfileName = profileName;
             if (profileName == "dynamic")
-                resolvedName = await HardwareDetector.ResolveProfileAsync();
+                resolvedProfileName = await HardwareDetector.ResolveProfileAsync();
 
-            var profileOverlay = ProfileService.LoadProfile(resolvedName);
-            if (profileOverlay != null)
-            {
-                DeepMerge(baseNode, profileOverlay);
-                LoadedSources.Add($"profile:{resolvedName}");
-                AppliedProfile = resolvedName;
-            }
+            profileOverlay = ProfileService.LoadProfile(resolvedProfileName);
+        }
+
+        // 2c. Apply profile BEFORE config files (persisted profile — config files can override)
+        if (profileOverlay != null && !isCliProfile)
+        {
+            DeepMerge(baseNode, profileOverlay);
+            LoadedSources.Add($"profile:{resolvedProfileName}");
+            AppliedProfile = resolvedProfileName;
         }
 
         // 3. Merge user config (~/.doomsummarizer/config.json)
@@ -106,7 +111,20 @@ public static class ConfigService
             }
         }
 
-        // 5. Deserialize merged result to DoomConfig
+        // 5. Apply profile AFTER config files (CLI --profile flag: overrides everything)
+        if (profileOverlay != null && isCliProfile)
+        {
+            // Re-parse because JsonNode is consumed by the first merge
+            profileOverlay = ProfileService.LoadProfile(resolvedProfileName!);
+            if (profileOverlay != null)
+            {
+                DeepMerge(baseNode, profileOverlay);
+                LoadedSources.Add($"profile:{resolvedProfileName} (override)");
+                AppliedProfile = resolvedProfileName;
+            }
+        }
+
+        // 6. Deserialize merged result to DoomConfig
         var mergedJson = baseNode.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
         var result = JsonSerializer.Deserialize(mergedJson, DoomConfigContext.Default.DoomConfig);
 

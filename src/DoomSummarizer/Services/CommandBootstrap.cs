@@ -1,7 +1,9 @@
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+#if FEATURE_LLAMASHARP
 using Mostlylucid.DocSummarizer.LLamaSharp.Config;
 using Mostlylucid.DocSummarizer.LLamaSharp.Services;
+#endif
 using Mostlylucid.DocSummarizer.Resilience;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
@@ -31,7 +33,9 @@ public sealed class CommandBootstrap : IAsyncDisposable
     public CircuitBreakerService? CircuitBreaker { get; private set; }
     public DuckDbVectorStore? VectorStore { get; private set; }
     public IEntityGraphStore? EntityStore { get; private set; }
+#if FEATURE_LLAMASHARP
     public LLamaSharpLlmService? LLamaSharp { get; private set; }
+#endif
 
     private CommandBootstrap(DoomConfig config, string dbPath, StorageService storage, IEmbeddingService embedding, VibeResolver vibeResolver)
     {
@@ -70,6 +74,7 @@ public sealed class CommandBootstrap : IAsyncDisposable
         return Ollama;
     }
 
+#if FEATURE_LLAMASHARP
     /// <summary>
     /// Create a LLamaSharp local LLM service for zero-config GGUF inference.
     /// Applies DoomConfig.LlamaSharp overrides from config profiles.
@@ -108,11 +113,11 @@ public sealed class CommandBootstrap : IAsyncDisposable
             BatchSize = overrides.BatchSize ?? baseConfig.BatchSize,
         };
     }
+#endif
 
     /// <summary>
     /// Initialize the full LLM stack: API keys → rate limiter → budget → router.
-    /// Optionally wires the router into an OllamaService for fallback.
-    /// LLamaSharp is added as the highest-priority local provider when available.
+    /// Provider priority: Ollama (if running) → LLamaSharp (GPU fallback, complete builds only) → Cloud.
     /// </summary>
     public async Task<LlmRouter> InitializeLlmStackAsync(
         CircuitBreakerService? circuitBreaker = null,
@@ -124,8 +129,19 @@ public sealed class CommandBootstrap : IAsyncDisposable
         ApiBudget = new ApiBudgetService(Config.ApiBudget, ApiKeys, DbPath);
         await ApiBudget.InitializeAsync();
 
-        // Create LLamaSharp as highest-priority local provider (zero-config GGUF inference)
+#if FEATURE_LLAMASHARP
+        // Create LLamaSharp as fallback provider (used when Ollama isn't running)
         var llamaSharp = LLamaSharp ?? CreateLLamaSharp();
+#else
+        Mostlylucid.DocSummarizer.Services.ILlmService? llamaSharp = null;
+
+        // Warn if config/profile has LLamaSharp settings but this build doesn't include it
+        var ls = Config.LlamaSharp;
+        if (ls.Enabled != false && (ls.ContextSize != null || ls.GpuLayerCount != null || ls.SynthesisModel != null))
+        {
+            Spectre.Console.AnsiConsole.MarkupLine("[yellow]Note:[/] Config has LLamaSharp settings but this build doesn't include it. Use [bold cyan]lucidrag[/] for local GGUF support.");
+        }
+#endif
 
         LlmRouter = await Services.LlmRouter.BuildAsync(
             Config.Ollama, ApiKeys, ApiBudget, circuitBreaker,
@@ -201,19 +217,27 @@ public sealed class CommandBootstrap : IAsyncDisposable
 
         var ollamaAvailable = await ollama.IsAvailableAsync();
         var hasCloudLlm = llmRouter.HasCloudProvider;
+#if FEATURE_LLAMASHARP
         var hasLlamaSharp = LLamaSharp != null && await LLamaSharp.IsAvailableAsync();
-        if (hasLlamaSharp)
+#else
+        var hasLlamaSharp = false;
+#endif
+        if (ollamaAvailable)
         {
-            Spectre.Console.AnsiConsole.MarkupLine("[green]Local LLM ready (LLamaSharp GGUF)[/]");
+            Spectre.Console.AnsiConsole.MarkupLine($"[green]LLM:[/] {llmRouter.StatusDescription}");
         }
-        else if (!ollamaAvailable && !hasCloudLlm)
+        else if (hasLlamaSharp)
         {
-            Spectre.Console.AnsiConsole.MarkupLine("[yellow]No LLM available (Ollama down, no cloud keys, LLamaSharp disabled).[/] Answers will be limited to evidence listing.");
-            Spectre.Console.AnsiConsole.MarkupLine("[grey]Start Ollama: ollama serve  —or—  set OPENAI_API_KEY / ANTHROPIC_API_KEY[/]");
+            Spectre.Console.AnsiConsole.MarkupLine("[cyan]Ollama not running — using local GGUF (LLamaSharp, first call loads model)[/]");
         }
-        else if (!ollamaAvailable && hasCloudLlm)
+        else if (hasCloudLlm)
         {
             Spectre.Console.AnsiConsole.MarkupLine("[cyan]Ollama not available — using cloud LLM provider[/]");
+        }
+        else
+        {
+            Spectre.Console.AnsiConsole.MarkupLine("[yellow]No LLM available (Ollama down, no cloud keys).[/] Answers will be limited to evidence listing.");
+            Spectre.Console.AnsiConsole.MarkupLine("[grey]Start Ollama: ollama serve  —or—  set OPENAI_API_KEY / ANTHROPIC_API_KEY[/]");
         }
 
         var loop = new InteractiveAskLoop(this, ollama, llmRouter, ollamaAvailable, options);
@@ -226,7 +250,9 @@ public sealed class CommandBootstrap : IAsyncDisposable
         if (VectorStore != null) await VectorStore.DisposeAsync();
         if (CircuitBreaker != null) await CircuitBreaker.DisposeAsync();
         if (ApiBudget != null) await ApiBudget.DisposeAsync();
+#if FEATURE_LLAMASHARP
         LLamaSharp?.Dispose();
+#endif
         (Embedding as IDisposable)?.Dispose();
         await Storage.DisposeAsync();
     }

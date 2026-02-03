@@ -35,12 +35,21 @@
 
     </PropertyGroup>
 
-    <!-- Slim vs Complete build: CompleteBuild=true includes audio/video/YouTube -->
+    <!-- Slim vs Complete build: CompleteBuild=true includes audio/video/YouTube + LLamaSharp -->
     <PropertyGroup Condition="'$(CompleteBuild)' == 'true'">
         <DefineConstants>$(DefineConstants);FEATURE_COMPLETE</DefineConstants>
         <AssemblyName>lucidrag</AssemblyName>
         <ToolCommandName>lucidrag</ToolCommandName>
         <Description>LucidRAG CLI — full document processing, audio/video analysis, and AI-powered deep research</Description>
+    </PropertyGroup>
+
+    <!-- LLamaSharp: included in complete builds by default, opt-in for slim via -p:IncludeLLamaSharp=true -->
+    <PropertyGroup>
+        <IncludeLLamaSharp Condition="'$(IncludeLLamaSharp)' == '' AND '$(CompleteBuild)' == 'true'">true</IncludeLLamaSharp>
+        <IncludeLLamaSharp Condition="'$(IncludeLLamaSharp)' == ''">false</IncludeLLamaSharp>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(IncludeLLamaSharp)' == 'true'">
+        <DefineConstants>$(DefineConstants);FEATURE_LLAMASHARP</DefineConstants>
     </PropertyGroup>
 
     <!-- MinVer -->
@@ -86,7 +95,10 @@
     <ItemGroup>
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
-        <!-- Local LLM via LLamaSharp (zero-config, no Ollama needed) -->
+    </ItemGroup>
+
+    <!-- LLamaSharp: local GGUF inference (complete builds, or opt-in with -p:IncludeLLamaSharp=true) -->
+    <ItemGroup Condition="'$(IncludeLLamaSharp)' == 'true'">
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.LLamaSharp\Mostlylucid.DocSummarizer.LLamaSharp.csproj" />
     </ItemGroup>
 

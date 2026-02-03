@@ -232,6 +232,7 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
 
     /// <summary>
     ///     Ensure the model for the given role is loaded. Downloads if necessary.
+    ///     Logs progress to stderr so the user knows what's happening during cold-start.
     /// </summary>
     internal async Task<(LLamaWeights weights, ModelParams modelParams)> EnsureModelLoadedAsync(
         bool sentinel, CancellationToken ct)
@@ -247,6 +248,11 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
                 ? LLamaSharpModelRegistry.GetSentinel(_config.SentinelModel)
                 : LLamaSharpModelRegistry.GetSynthesis(_config.SynthesisModel);
 
+            var role = sentinel ? "sentinel" : "synthesis";
+            var gpu = _config.GpuLayerCount != 0 ? ", GPU" : ", CPU";
+            Console.Error.Write($"Loading {role} model ({modelInfo.DisplayName}{gpu})...");
+            Console.Error.Flush();
+
             var modelPath = await _downloader.EnsureModelAsync(modelInfo, ct: ct);
 
             var modelParams = new ModelParams(modelPath)
@@ -257,6 +263,7 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
             };
 
             weights = await LLamaWeights.LoadFromFileAsync(modelParams, ct);
+            Console.Error.WriteLine(" ready.");
 
             if (sentinel)
             {

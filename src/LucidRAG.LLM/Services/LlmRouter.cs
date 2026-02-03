@@ -30,25 +30,28 @@ public class LlmRouter : ILlmService
 
     /// <summary>
     /// Human-readable description of the active LLM configuration (for status display).
-    /// Shows primary provider (LLamaSharp or Ollama) and fallbacks.
+    /// Shows primary provider and fallback chain.
     /// </summary>
     public string StatusDescription
     {
         get
         {
-            var localProvider = _providers.FirstOrDefault(p => p.IsLocal);
-            var hasLLamaSharp = localProvider?.Service.ProviderName == "LLamaSharp";
-            var desc = hasLLamaSharp
-                ? $"local GGUF (LLamaSharp) + Ollama: {_ollamaConfig.Model}"
-                : $"main: {_ollamaConfig.Model} | sentinel: {_ollamaConfig.SentinelModel}";
+            var primary = _providers.FirstOrDefault();
+            if (primary == null) return "no providers";
 
-            var cloudFallback = _providers.FirstOrDefault(p => !p.IsLocal);
-            if (cloudFallback != null)
+            var desc = primary.Service.ProviderName switch
             {
-                var models = (cloudFallback.ServiceEntry?.SearchEngineId ?? "").Split('|');
-                var mainModel = models.Length > 0 ? models[0] : "unknown";
-                desc += $" (fallback: {mainModel})";
-            }
+                "Ollama" => $"Ollama: {_ollamaConfig.Model}",
+                "LLamaSharp" => $"local GGUF (LLamaSharp)",
+                _ => primary.Service.ProviderName
+            };
+
+            var fallbacks = _providers.Skip(1)
+                .Select(p => p.IsLocal ? p.Service.ProviderName : (p.ServiceEntry?.SearchEngineId?.Split('|').FirstOrDefault() ?? p.Service.ProviderName))
+                .ToList();
+
+            if (fallbacks.Count > 0)
+                desc += $" (fallback: {string.Join(" → ", fallbacks)})";
 
             return desc;
         }
@@ -63,15 +66,16 @@ public class LlmRouter : ILlmService
 
     /// <summary>
     /// Build a router from config.
-    /// Provider priority: LLamaSharp (local GGUF, zero-config) → Ollama (local server) → Cloud (paid).
-    /// Cloud providers are validated at startup and added as fallbacks only —
-    /// they are used when local providers fail or are unavailable.
+    /// Provider priority: Ollama (if running) → LLamaSharp (local GGUF fallback) → Cloud (paid).
+    /// Ollama is preferred because it keeps models warm in memory across calls.
+    /// LLamaSharp is the zero-dependency fallback when Ollama isn't available.
+    /// Cloud providers are validated at startup and added as fallbacks only.
     /// </summary>
     /// <param name="ollamaConfig">Ollama configuration for local server.</param>
     /// <param name="keys">API key service for cloud providers.</param>
     /// <param name="budget">Budget enforcement for cloud API calls.</param>
     /// <param name="circuit">Circuit breaker for persistent failure detection.</param>
-    /// <param name="localLlmService">Optional local LLM provider (e.g. LLamaSharp) inserted as highest priority.</param>
+    /// <param name="localLlmService">Optional local LLM provider (e.g. LLamaSharp) added as fallback behind Ollama.</param>
     /// <param name="ct">Cancellation token.</param>
     public static async Task<LlmRouter> BuildAsync(
         OllamaConfig ollamaConfig, ApiKeyService keys, IApiBudget? budget,
@@ -80,13 +84,7 @@ public class LlmRouter : ILlmService
     {
         var router = new LlmRouter(budget, circuit, ollamaConfig);
 
-        // Priority 1: Local GGUF inference (LLamaSharp) — zero-config, no external dependencies
-        if (localLlmService != null && await localLlmService.IsAvailableAsync(ct))
-        {
-            router._providers.Add(new(localLlmService, null, true, null));
-        }
-
-        // Priority 2: Ollama — local server, free, no API costs
+        // Priority 1: Ollama — local server, keeps models warm, fast inference
         var docSumOllamaService = new Mostlylucid.DocSummarizer.Services.OllamaService(
             ollamaConfig.Model,
             ollamaConfig.EmbedModel,
@@ -99,7 +97,21 @@ public class LlmRouter : ILlmService
                 Model = ollamaConfig.Model,
                 Temperature = ollamaConfig.Temperature
             });
-        router._providers.Add(new(ollamaLlm, null, true, null));
+
+        var ollamaAvailable = await ollamaLlm.IsAvailableAsync(ct);
+        if (ollamaAvailable)
+            router._providers.Add(new(ollamaLlm, null, true, null));
+
+        // Priority 2: LLamaSharp — local GGUF fallback (zero-config, but cold-starts are slow)
+        if (localLlmService != null && await localLlmService.IsAvailableAsync(ct))
+        {
+            router._providers.Add(new(localLlmService, null, true, null));
+        }
+
+        // If Ollama wasn't available at startup, still add it as last-resort local
+        // (it may come online later, and will be tried after LLamaSharp)
+        if (!ollamaAvailable)
+            router._providers.Add(new(ollamaLlm, null, true, null));
 
         // Priority 3+: Cloud providers as fallbacks (tried only if local providers fail)
         if (keys.IsAvailable("anthropic"))

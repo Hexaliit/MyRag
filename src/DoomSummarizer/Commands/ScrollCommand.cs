@@ -311,7 +311,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         var circuitBreaker = await boot.InitializeCircuitBreakerAsync();
         if (settings.DebugPipeline)
             circuitBreaker.PrintCircuitStatus();
+
+        AnsiConsole.MarkupLine("[grey]Detecting LLM providers...[/]");
         var llmRouter = await boot.InitializeLlmStackAsync(circuitBreaker, cancellationToken);
+        AnsiConsole.MarkupLine($"[green]LLM:[/] {llmRouter.StatusDescription}");
 
         using var httpClient = HttpClientFactory.CreateDefault();
 
