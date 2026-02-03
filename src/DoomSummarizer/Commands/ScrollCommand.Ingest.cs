@@ -119,25 +119,33 @@ public sealed partial class ScrollCommand
         {
             if (File.Exists(source))
             {
+#if !FEATURE_COMPLETE
+                // Slim build: only .md and .txt files supported
+                var ext = Path.GetExtension(source);
+                if (!ext.Equals(".md", StringComparison.OrdinalIgnoreCase)
+                    && !ext.Equals(".txt", StringComparison.OrdinalIgnoreCase))
+                    continue;
+#endif
                 files.Add(Path.GetFullPath(source));
             }
             else if (Directory.Exists(source))
             {
-                // Base extensions (always available, even slim CLI)
+#if FEATURE_COMPLETE
+                // Complete build: all document formats + images + plugins
                 var baseExtensions = new[] { ".pdf", ".docx", ".md", ".txt", ".html", ".pptx" };
-
-                // Image extensions for local image ingestion
                 var allBaseExtensions = baseExtensions.Concat(ImageExtensions).ToArray();
 
-                // Plugin extensions (from all registered processor plugins)
                 var pluginExtensions = PluginDiscovery.DiscoverAllProcessorPlugins()
                     .SelectMany(p => p.Metadata.SupportedExtensions);
 
-                // Union for directory scanning
                 var extensions = allBaseExtensions
                     .Union(pluginExtensions, StringComparer.OrdinalIgnoreCase)
                     .Select(e => e.StartsWith('.') ? $"*{e}" : e)
                     .ToArray();
+#else
+                // Slim build: only markdown and text files
+                var extensions = new[] { "*.md", "*.txt" };
+#endif
 
                 foreach (var ext in extensions)
                     files.AddRange(Directory.EnumerateFiles(source, ext, searchOption));

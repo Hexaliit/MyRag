@@ -365,11 +365,12 @@ public sealed class PersonalCorpusService
     {
         var lower = question.ToLowerInvariant();
 
-        // "I live in X" / "I'm based in X"
+        // "I live in X" / "I'm based in X" / "I moved to X"
         if (lower.Contains("i live in") || lower.Contains("i'm based in")
-            || lower.Contains("i am based in"))
+            || lower.Contains("i am based in") || lower.Contains("i moved to"))
         {
-            return ExtractAfterPattern(question, ["i live in", "i'm based in", "i am based in"]);
+            return ExtractAfterPattern(question,
+                ["i live in", "i'm based in", "i am based in", "i moved to"]);
         }
 
         // "I work at X" / "I work for X"
@@ -410,7 +411,7 @@ public sealed class PersonalCorpusService
                 // Normalize the pattern verb: "i live in" → "lives in", etc.
                 var verb = pattern.ToLowerInvariant() switch
                 {
-                    "i live in" or "i'm based in" or "i am based in" => "lives in",
+                    "i live in" or "i'm based in" or "i am based in" or "i moved to" => "lives in",
                     "i work at" => "works at",
                     "i work for" => "works for",
                     "i'm a" or "i am a" => "is a",

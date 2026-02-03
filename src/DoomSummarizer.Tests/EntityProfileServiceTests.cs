@@ -8,6 +8,7 @@ namespace DoomSummarizer.Tests;
 /// Requires ONNX embedding model to be available.
 /// </summary>
 [Trait("Category", "RequiresModel")]
+[Collection("EmbeddingTests")]
 public class EntityProfileServiceTests : IAsyncLifetime
 {
     private IEmbeddingService _embedding = null!;

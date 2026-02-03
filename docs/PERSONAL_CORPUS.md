@@ -28,13 +28,16 @@ repeating context every session.
 
 ## Core Insight: Personal Facts Are Just Entities
 
-DoomSummarizer already has a full entity pipeline:
+DoomSummarizer already has a full entity and retrieval pipeline:
 
 1. **NER** (ONNX-based Named Entity Recognition) — extracts entities from text
 2. **KnowledgeGraphService** — ingests entities, builds co-occurrence graphs
 3. **Entity profiles** — TF*IDF*confidence scoring, HNSW vector search
-4. **Freshness scoring** — `MentionCount * exp(-ageHours / 72)`
-5. **StorageService** — SQLite with FTS5, source-filtered queries
+4. **Lucene.NET** — primary keyword search with BM25 scoring, field boosting
+   (title 3x, keywords 2.5x, content 1x), fuzzy matching, phrase proximity
+5. **5-signal RRF retrieval** — QuerySim + TextRelevance + Freshness + Authority +
+   Quality, with query-type-adaptive half-lives for freshness decay
+6. **StorageService** — SQLite metadata with source-filtered queries
 
 A personal fact like "User lives in London and works at Anthropic" is just another
 piece of text with entities (London=LOC, Anthropic=ORG). The only difference is its
@@ -57,7 +60,7 @@ User: "I live in London and work at Anthropic on AI safety"
                     v
 [2] Index into personal:{name} corpus
     -> Embed (ONNX all-MiniLM-L6-v2)
-    -> Keywords + FTS5 indexing
+    -> Keywords extraction + SQLite persistence
     -> NER: London (LOC), Anthropic (ORG), AI safety (MISC)
     -> KnowledgeGraph: entity nodes, co-occurrence edges, profiles
                     |
@@ -65,6 +68,7 @@ User: "I live in London and work at Anthropic on AI safety"
 [3] Stored as: items with source="personal:default"
     Entities in knowledge graph linked to personal: items
     Entity profiles in HNSW index
+    Lucene.NET incrementally indexes on next search
 
 --- Later session ---
 
@@ -115,16 +119,23 @@ Before running either detection path, a `ContainsFirstPerson` check scans for
 first-person pronouns ("I", "my", "I'm", "I am"). Most questions don't contain
 these, so the fast path rejects them immediately.
 
-## Indexing: Reusing the Existing Pipeline
+## Indexing: Dual-Layer Search Integration
 
 Once a personal fact is detected, it flows through the same pipeline as any
-document content:
+document content. DoomSummarizer uses a dual-layer search architecture:
+
+- **Lucene.NET** — primary keyword search with BM25 scoring, field boosting,
+  fuzzy matching, and phrase proximity. Indexes are file-based, persistent,
+  and incrementally updated at search time.
+- **SQLite** — metadata store with source-filtered queries for item retrieval.
+
+Personal facts plug into both layers:
 
 ```csharp
-// Step 1: Embed
+// Step 1: Embed (ONNX all-MiniLM-L6-v2)
 item = item with { Embedding = await _embedding.EmbedAsync(statement, ct) };
 
-// Step 2: Keywords + SQLite + FTS5
+// Step 2: Keywords + SQLite persistence
 var profile = DocumentProfileService.ExtractProfile(item.Title, statement);
 await _storage.SaveItemAsync(item);
 await _storage.IndexDocumentFtsAsync(item.Id, item.Title, profile.KeywordsText, statement);
@@ -133,6 +144,13 @@ await _storage.IndexDocumentFtsAsync(item.Id, item.Title, profile.KeywordsText, 
 var entities = await _ner.ExtractEntitiesAsync(statement, ct);
 await _knowledgeGraph.IngestEntitiesAsync([(item, entities)], ct);
 ```
+
+At retrieval time, `RetrievalPipeline.SearchAsync()` handles the Lucene side:
+it opens the collection's Lucene index, incrementally indexes any items not yet
+in Lucene (including newly-added personal facts), then runs a multi-field query
+with field boosting (title 3x, keywords 2.5x, content 1x). The results feed
+into the 5-signal RRF fusion alongside embedding similarity, entity profiles,
+freshness, and quality signals.
 
 The item gets a source tag like `personal:default` (or `personal:scott` for
 named corpuses). This source tag drives the filter logic described below.
@@ -165,12 +183,23 @@ allowing the LLM to personalize its response.
 
 ## Overwrite Semantics: Freshness Wins
 
-No special overwrite logic is needed. The existing entity freshness scoring
-handles it naturally:
+No special overwrite logic is needed. The existing freshness infrastructure
+handles it naturally through two complementary scoring layers:
 
+**Entity freshness** (used for gap-filling, in `ContentItem.FreshnessScore`):
 ```
-FreshnessScore = MentionCount * exp(-ageHours / 72)
+MentionCount * exp(-ageHours / 72)    // 72h half-life
 ```
+
+**Retrieval freshness** (used during 5-signal RRF scoring, in `RelevanceScorer`):
+```
+exp(-ageHours * ln(2) / halfLifeHours)    // query-type-adaptive half-life
+```
+
+The RRF freshness signal adapts its half-life per query type — timeline queries
+weight recency highest, explainer queries weight it lowest. Personal entity
+ranking uses the simpler 72-hour decay since personal facts don't vary by
+query type.
 
 When the user says "I moved to Berlin":
 - A new personal item is created with Berlin (LOC)
@@ -256,7 +285,11 @@ The entire feature reuses existing infrastructure:
 - **No new NER model** — same ONNX NER model extracts entities
 - **No new entity store** — entities flow into the same knowledge graph
 - **No new vector index** — entity profiles use the same HNSW index
-- **No new FTS index** — FTS5 indexing uses the same pipeline
+- **No new search index** — Lucene.NET incrementally picks up personal items
+  at retrieval time; the 5-signal RRF pipeline scores them alongside everything
+  else
+- **No new scoring** — personal facts participate in the same QuerySim +
+  TextRelevance + Freshness + Authority + Quality fusion
 
 The only new code is the thin orchestrator (`PersonalCorpusService`), the
 gap-filling logic in `ConversationSentinel`, and the template variable wiring.

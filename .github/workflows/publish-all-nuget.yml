@@ -1,12 +1,16 @@
 name: Publish All NuGet Packages
 
 # Cascading publish of ALL NuGet packages:
-# 0. Summarizer.Core (pure interfaces) → wait
-# 1. DocSummarizer (interfaces + services) → wait
-# 2. Backends (Rdbms.Sqlite, FullText.Lucene, FullText.Sqlite, Anthropic, OpenAI) parallel → wait
-# 3. DoomSummarizer.Core → wait
-# 4. Sources + Readers + Plugin.Books (all parallel)
-# 5. DoomSummarizer.Complete (meta-package: fat CLI with everything)
+# 0.  Summarizer.Core (pure interfaces) → wait
+# 0.5 CodeSummarizer, Storage.Core, DataSummarizer.Core (parallel) → wait
+# 1.  DocSummarizer (interfaces + services) → wait
+# 2.  Backends (Rdbms.Sqlite, FullText.Lucene, FullText.Sqlite, Anthropic, OpenAI) parallel → wait
+# 2.5 LLM, Decomposer, ImageSummarizer, AudioSummarizer (parallel) → wait
+# 2.5c VideoSummarizer (needs Image + Audio) → wait
+# 3.  DoomSummarizer.Core → wait
+# 4.  Sources + Readers + Plugins (all parallel) → wait
+# 4.5 Plugins.Complete (meta-package)
+# 5.  DoomSummarizer.Complete (meta-package: fat CLI with everything)
 
 on:
   workflow_dispatch:
@@ -157,6 +161,90 @@ jobs:
             sleep 30
           done
           echo "Timeout — continuing anyway"
+
+  # ── Tier 0.5b: Storage.Core + DataSummarizer.Core (parallel) ──────────
+  publish-storage-core:
+    needs: [publish-summarizer-core, wait-for-summarizer-core]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="storcorev${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.Storage.Core/Mostlylucid.Storage.Core.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet build src/Mostlylucid.Storage.Core/Mostlylucid.Storage.Core.csproj \
+            -c Release -p:GeneratePackageOnBuild=false \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.Storage.Core/Mostlylucid.Storage.Core.csproj \
+            -c Release -o ./artifacts --no-build \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: storage-core-pkg, path: './artifacts/*' }
+
+  publish-datasummarizer-core:
+    needs: [publish-summarizer-core, wait-for-summarizer-core]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="datasumv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/DataSummarizer.Core/DataSummarizer.Core.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet build src/DataSummarizer.Core/DataSummarizer.Core.csproj \
+            -c Release -p:GeneratePackageOnBuild=false \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/DataSummarizer.Core/DataSummarizer.Core.csproj \
+            -c Release -o ./artifacts --no-build \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: datasummarizer-core-pkg, path: './artifacts/*' }
+
+  # ── Wait for Storage + Data ─────────────────────────────────────────
+  wait-for-storage-data:
+    needs: [publish-summarizer-core, publish-storage-core, publish-datasummarizer-core]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet for Storage + Data
+        run: |
+          VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          for pkg in mostlylucid.lucidrag.storage.core mostlylucid.lucidrag.datasummarizer; do
+            echo "Waiting for $pkg ${VERSION}..."
+            for i in $(seq 1 30); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                "https://api.nuget.org/v3-flatcontainer/$pkg/${VERSION}/$pkg.${VERSION}.nupkg")
+              echo "  Attempt $i: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then break; fi
+              sleep 30
+            done
+          done
 
   # ── Tier 1: DocSummarizer ──────────────────────────────────────────────
   publish-docsummarizer:
@@ -476,6 +564,123 @@ jobs:
               sleep 30
             done
           done
+
+  # ── Tier 2.5b: ImageSummarizer + AudioSummarizer (parallel) ───────────
+  publish-imagesummarizer:
+    needs: [publish-summarizer-core, wait-for-docsummarizer, wait-for-storage-data]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="imgsumv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/ImageSummarizer.Core/ImageSummarizer.Core.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet build src/ImageSummarizer.Core/ImageSummarizer.Core.csproj \
+            -c Release -p:GeneratePackageOnBuild=false \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/ImageSummarizer.Core/ImageSummarizer.Core.csproj \
+            -c Release -o ./artifacts --no-build \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: imagesummarizer-pkg, path: './artifacts/*' }
+
+  publish-audiosummarizer:
+    needs: [publish-summarizer-core, wait-for-docsummarizer, wait-for-storage-data]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="audiosumv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/AudioSummarizer.Core/AudioSummarizer.Core.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet build src/AudioSummarizer.Core/AudioSummarizer.Core.csproj \
+            -c Release -p:GeneratePackageOnBuild=false \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/AudioSummarizer.Core/AudioSummarizer.Core.csproj \
+            -c Release -o ./artifacts --no-build \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: audiosummarizer-pkg, path: './artifacts/*' }
+
+  # ── Wait for Image + Audio ──────────────────────────────────────────
+  wait-for-image-audio:
+    needs: [publish-summarizer-core, publish-imagesummarizer, publish-audiosummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet for Image + Audio
+        run: |
+          VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          for pkg in mostlylucid.lucidrag.imagesummarizer mostlylucid.lucidrag.audiosummarizer; do
+            echo "Waiting for $pkg ${VERSION}..."
+            for i in $(seq 1 30); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                "https://api.nuget.org/v3-flatcontainer/$pkg/${VERSION}/$pkg.${VERSION}.nupkg")
+              echo "  Attempt $i: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then break; fi
+              sleep 30
+            done
+          done
+
+  # ── Tier 2.5c: VideoSummarizer (needs Image + Audio) ────────────────
+  publish-videosummarizer:
+    needs: [publish-summarizer-core, wait-for-image-audio]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="vidsumv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/VideoSummarizer.Core/VideoSummarizer.Core.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet build src/VideoSummarizer.Core/VideoSummarizer.Core.csproj \
+            -c Release -p:GeneratePackageOnBuild=false \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/VideoSummarizer.Core/VideoSummarizer.Core.csproj \
+            -c Release -o ./artifacts --no-build \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: videosummarizer-pkg, path: './artifacts/*' }
 
   # ── Tier 3: DoomSummarizer.Core ────────────────────────────────────────
   publish-doomsummarizer:
@@ -989,11 +1194,274 @@ jobs:
       - uses: actions/upload-artifact@v6
         with: { name: codesummarizer-mermaid-jint-pkg, path: './artifacts/*' }
 
+  publish-source-ukgov:
+    needs: [publish-summarizer-core, wait-for-doomsummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="srcukgovv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.DoomSummarizer.Source.UkGov/Mostlylucid.DoomSummarizer.Source.UkGov.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Source.UkGov/Mostlylucid.DoomSummarizer.Source.UkGov.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: source-ukgov-pkg, path: './artifacts/*' }
+
+  publish-source-youtube:
+    needs: [publish-summarizer-core, wait-for-doomsummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="srcytv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.DoomSummarizer.Source.YouTube/Mostlylucid.DoomSummarizer.Source.YouTube.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Source.YouTube/Mostlylucid.DoomSummarizer.Source.YouTube.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: source-youtube-pkg, path: './artifacts/*' }
+
+  publish-plugin-audio:
+    needs: [publish-summarizer-core, wait-for-doomsummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="plgaudiov${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.DoomSummarizer.Plugin.Audio/Mostlylucid.DoomSummarizer.Plugin.Audio.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Plugin.Audio/Mostlylucid.DoomSummarizer.Plugin.Audio.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: plugin-audio-pkg, path: './artifacts/*' }
+
+  publish-plugin-data:
+    needs: [publish-summarizer-core, wait-for-doomsummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="plgdatav${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.DoomSummarizer.Plugin.Data/Mostlylucid.DoomSummarizer.Plugin.Data.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Plugin.Data/Mostlylucid.DoomSummarizer.Plugin.Data.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: plugin-data-pkg, path: './artifacts/*' }
+
+  publish-plugin-image:
+    needs: [publish-summarizer-core, wait-for-doomsummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="plgimagev${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.DoomSummarizer.Plugin.Image/Mostlylucid.DoomSummarizer.Plugin.Image.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Plugin.Image/Mostlylucid.DoomSummarizer.Plugin.Image.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: plugin-image-pkg, path: './artifacts/*' }
+
+  publish-plugin-video:
+    needs: [publish-summarizer-core, wait-for-doomsummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="plgvideov${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.DoomSummarizer.Plugin.Video/Mostlylucid.DoomSummarizer.Plugin.Video.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Plugin.Video/Mostlylucid.DoomSummarizer.Plugin.Video.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: plugin-video-pkg, path: './artifacts/*' }
+
+  publish-plugin-subtitles:
+    needs: [publish-summarizer-core, wait-for-doomsummarizer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="plgsubv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.DoomSummarizer.Plugin.Subtitles/Mostlylucid.DoomSummarizer.Plugin.Subtitles.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.DoomSummarizer.Plugin.Subtitles/Mostlylucid.DoomSummarizer.Plugin.Subtitles.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: plugin-subtitles-pkg, path: './artifacts/*' }
+
+  # ── Wait for all Tier 4 plugins ─────────────────────────────────────
+  wait-for-tier4-plugins:
+    needs:
+      - publish-summarizer-core
+      - publish-plugin-books
+      - publish-plugin-audio
+      - publish-plugin-data
+      - publish-plugin-image
+      - publish-plugin-video
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet for plugins
+        run: |
+          VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          for pkg in mostlylucid.lucidrag.plugins.books mostlylucid.lucidrag.plugins.audio mostlylucid.lucidrag.plugins.data mostlylucid.lucidrag.plugins.image mostlylucid.lucidrag.plugins.video; do
+            echo "Waiting for $pkg ${VERSION}..."
+            for i in $(seq 1 30); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                "https://api.nuget.org/v3-flatcontainer/$pkg/${VERSION}/$pkg.${VERSION}.nupkg")
+              echo "  Attempt $i: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then break; fi
+              sleep 30
+            done
+          done
+
+  # ── Tier 4.5: Plugins.Complete (meta-package) ───────────────────────
+  publish-plugins-complete:
+    needs: [publish-summarizer-core, wait-for-tier4-plugins]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '${{ env.DOTNET_VERSION }}', dotnet-quality: '${{ env.DOTNET_QUALITY }}' }
+      - name: Create version tag for MinVer
+        run: |
+          TAG="plgcompv${{ needs.publish-summarizer-core.outputs.version }}"
+          git tag "$TAG" 2>/dev/null || true
+      - name: Build & Pack
+        run: |
+          dotnet restore src/Mostlylucid.LucidRAG.Plugins.Complete/Mostlylucid.LucidRAG.Plugins.Complete.csproj \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+          dotnet pack src/Mostlylucid.LucidRAG.Plugins.Complete/Mostlylucid.LucidRAG.Plugins.Complete.csproj \
+            -c Release -o ./artifacts \
+            -p:UseNuGetDependency=true -p:CorePackageVersion=${{ needs.publish-summarizer-core.outputs.version }}
+      - name: NuGet Login (OIDC)
+        id: nuget
+        uses: NuGet/login@v1
+        with: { user: 'mostlylucid' }
+      - name: Publish
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with: { name: plugins-complete-pkg, path: './artifacts/*' }
+
   # ── Tier 5: Complete meta-package (fat CLI with everything) ────────────
   publish-doomsummarizer-complete:
     needs:
       - publish-summarizer-core
       - publish-codesummarizer
+      - publish-storage-core
+      - publish-datasummarizer-core
+      - publish-imagesummarizer
+      - publish-audiosummarizer
+      - publish-videosummarizer
       - publish-source-hackernews
       - publish-source-reddit
       - publish-source-google
@@ -1002,12 +1470,20 @@ jobs:
       - publish-source-academic
       - publish-source-science
       - publish-source-reference
+      - publish-source-ukgov
+      - publish-source-youtube
       - publish-reader-pdf
       - publish-reader-docx
       - publish-reader-gutenberg
       - publish-reader-markdown
       - publish-reader-docling
       - publish-plugin-books
+      - publish-plugin-audio
+      - publish-plugin-data
+      - publish-plugin-image
+      - publish-plugin-video
+      - publish-plugin-subtitles
+      - publish-plugins-complete
       - publish-codesummarizer-mermaid-jint
     runs-on: ubuntu-latest
     steps:
@@ -1056,6 +1532,8 @@ jobs:
     needs:
       - publish-summarizer-core
       - publish-codesummarizer
+      - publish-storage-core
+      - publish-datasummarizer-core
       - publish-docsummarizer
       - publish-rdbms-sqlite
       - publish-fts-lucene
@@ -1064,6 +1542,9 @@ jobs:
       - publish-docsummarizer-openai
       - publish-llm
       - publish-decomposer
+      - publish-imagesummarizer
+      - publish-audiosummarizer
+      - publish-videosummarizer
       - publish-doomsummarizer
       - publish-codesummarizer-mermaid-jint
       - publish-source-hackernews
@@ -1074,12 +1555,20 @@ jobs:
       - publish-source-academic
       - publish-source-science
       - publish-source-reference
+      - publish-source-ukgov
+      - publish-source-youtube
       - publish-reader-pdf
       - publish-reader-docx
       - publish-reader-gutenberg
       - publish-reader-markdown
       - publish-reader-docling
       - publish-plugin-books
+      - publish-plugin-audio
+      - publish-plugin-data
+      - publish-plugin-image
+      - publish-plugin-video
+      - publish-plugin-subtitles
+      - publish-plugins-complete
       - publish-doomsummarizer-complete
     if: always()
     steps:
@@ -1092,6 +1581,8 @@ jobs:
           echo "|------|---------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| 0 | \`Mostlylucid.LucidRAG.Summarizer.Core\` | ${{ needs.publish-summarizer-core.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 0.5 | \`Mostlylucid.LucidRAG.CodeSummarizer\` | ${{ needs.publish-codesummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 0.5 | \`Mostlylucid.LucidRAG.Storage.Core\` | ${{ needs.publish-storage-core.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 0.5 | \`Mostlylucid.LucidRAG.DataSummarizer\` | ${{ needs.publish-datasummarizer-core.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 1 | \`Mostlylucid.LucidRAG.DocSummarizer\` | ${{ needs.publish-docsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.Rdbms.Sqlite\` | ${{ needs.publish-rdbms-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.FullText.Lucene\` | ${{ needs.publish-fts-lucene.result }} |" >> $GITHUB_STEP_SUMMARY
@@ -1100,6 +1591,9 @@ jobs:
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.OpenAI\` | ${{ needs.publish-docsummarizer-openai.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2.5 | \`Mostlylucid.LucidRAG.LLM\` | ${{ needs.publish-llm.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2.5 | \`Mostlylucid.LucidRAG.Decomposer\` | ${{ needs.publish-decomposer.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2.5 | \`Mostlylucid.LucidRAG.ImageSummarizer\` | ${{ needs.publish-imagesummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2.5 | \`Mostlylucid.LucidRAG.AudioSummarizer\` | ${{ needs.publish-audiosummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2.5 | \`Mostlylucid.LucidRAG.VideoSummarizer\` | ${{ needs.publish-videosummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 3 | \`Mostlylucid.LucidRAG.DoomSummarizer.Core\` | ${{ needs.publish-doomsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.HackerNews\` | ${{ needs.publish-source-hackernews.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Reddit\` | ${{ needs.publish-source-reddit.result }} |" >> $GITHUB_STEP_SUMMARY
@@ -1114,6 +1608,14 @@ jobs:
           echo "| 4 | \`Mostlylucid.LucidRAG.Readers.Gutenberg\` | ${{ needs.publish-reader-gutenberg.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Readers.Markdown\` | ${{ needs.publish-reader-markdown.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Readers.Docling\` | ${{ needs.publish-reader-docling.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Sources.UkGov\` | ${{ needs.publish-source-ukgov.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Plugins.YouTube\` | ${{ needs.publish-source-youtube.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Plugins.Books\` | ${{ needs.publish-plugin-books.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Plugins.Audio\` | ${{ needs.publish-plugin-audio.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Plugins.Data\` | ${{ needs.publish-plugin-data.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Plugins.Image\` | ${{ needs.publish-plugin-image.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Plugins.Video\` | ${{ needs.publish-plugin-video.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | \`Mostlylucid.LucidRAG.Plugins.Subtitles\` | ${{ needs.publish-plugin-subtitles.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.CodeSummarizer.Mermaid.Jint\` | ${{ needs.publish-codesummarizer-mermaid-jint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4.5 | \`Mostlylucid.LucidRAG.Plugins.Complete\` | ${{ needs.publish-plugins-complete.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 5 | \`Mostlylucid.LucidRAG.DoomSummarizer.Complete\` | ${{ needs.publish-doomsummarizer-complete.result }} |" >> $GITHUB_STEP_SUMMARY

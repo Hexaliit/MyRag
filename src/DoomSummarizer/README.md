@@ -61,7 +61,7 @@ doomsummarizer crawl https://docs.example.com --ask
 
 - **.NET 10** SDK
 - **Ollama** (recommended): `ollama serve` + pull models — see `doomsummarizer setup`
-- **First run**: downloads ONNX embedding model (~23 MB) to `~/.doomsummarizer/models/`
+- **First run**: downloads ONNX embedding model ([all-MiniLM-L6-v2](https://huggingface.co/Xenova/all-MiniLM-L6-v2), 384-dim, ~23 MB quantized) to `~/.doomsummarizer/models/`
 - **No API keys required** — default sources are free RSS/HTML. Optional search APIs (Brave, Serper, Tavily, NewsAPI) and cloud LLMs (Anthropic, OpenAI) are disabled by default
 
 ## Commands
@@ -259,7 +259,7 @@ Supported locales: `en-us`, `en-gb`, `es-es`, `fr-fr`, `de-de`, `pt-br`, `zh-cn`
 
 ### Named Entity Recognition (NER)
 
-ONNX-based BERT model extracts entities:
+ONNX-based BERT model ([protectai/bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx), ~430 MB) extracts entities. See [Models & ML Pipeline](#models--ml-pipeline) for full details.
 
 - **PER**: Person names (politicians, executives, etc.)
 - **ORG**: Organizations (companies, agencies)
@@ -564,6 +564,136 @@ To enable cloud fallback:
 
 Cloud LLMs offer larger context windows (200K tokens) and higher-quality synthesis. When enabled, they are used as **fallback** when Ollama fails — Ollama remains the primary provider. Budget-controlled with per-service rate limits, retry with backoff, and circuit breakers. See [docs/CloudLLM.md](docs/CloudLLM.md).
 
+## Models & ML Pipeline
+
+DoomSummarizer runs a full ML inference stack locally — no cloud APIs needed for embeddings, NER, or ranking. All ONNX models are quantized (int8) by default for fast CPU inference with minimal accuracy loss.
+
+### Embedding Models (ONNX)
+
+Embeddings power semantic search, similarity scoring, entity profiles, and RRF fusion. Downloaded automatically on first run to `~/.doomsummarizer/models/embeddings/`.
+
+| Model | Dimensions | Max Tokens | Size (quantized) | Notes |
+|-------|-----------|------------|-------------------|-------|
+| **all-MiniLM-L6-v2** (default) | 384 | 256 | 23 MB | Fast general-purpose. Source: [Xenova/all-MiniLM-L6-v2](https://huggingface.co/Xenova/all-MiniLM-L6-v2) |
+| bge-small-en-v1.5 | 384 | 512 | 34 MB | Best quality-for-size. Requires instruction prefix. Source: [Xenova/bge-small-en-v1.5](https://huggingface.co/Xenova/bge-small-en-v1.5) |
+| gte-small | 384 | 512 | 34 MB | Good all-around. Source: [Xenova/gte-small](https://huggingface.co/Xenova/gte-small) |
+| multi-qa-MiniLM-L6-cos-v1 | 384 | 512 | 23 MB | QA-optimized. Source: [Xenova/multi-qa-MiniLM-L6-cos-v1](https://huggingface.co/Xenova/multi-qa-MiniLM-L6-cos-v1) |
+| paraphrase-MiniLM-L3-v2 | 384 | 128 | 17 MB | Smallest & fastest. Source: [Xenova/paraphrase-MiniLM-L3-v2](https://huggingface.co/Xenova/paraphrase-MiniLM-L3-v2) |
+
+Each model downloads three files: `model_quantized.onnx`, `tokenizer.json` (HuggingFace universal format), and `vocab.txt` (fallback). All use BERT-style tokenization with `[CLS]`, `[SEP]`, `[PAD]` special tokens.
+
+Configure in `config.json`:
+```json
+{ "embedding": { "backend": "onnx", "model": "all-MiniLM-L6-v2" } }
+```
+
+**Where embeddings are used:**
+- Semantic similarity scoring in RRF fusion (Phase 2)
+- Entity profile HNSW search (TF x IDF x confidence weighted entity embeddings)
+- PRF centroid refinement (top-5 embedding average, alpha=0.7)
+- Evidence assignment in long-form articles (cosine similarity to section themes)
+- Deduplication (cosine threshold 0.90 ingestion, 0.90 retrieval)
+- Personal corpus gap-filling (semantic match on personal facts)
+
+### Named Entity Recognition (NER) — ONNX
+
+BERT-based NER extracts structured entities from text for the knowledge graph, entity profiles, and gap-filling. Optional — downloaded on demand via `doomsummarizer setup --ner`.
+
+| Component | Details |
+|-----------|---------|
+| **Model** | [protectai/bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx) (BERT base, cased) |
+| **Size** | ~430 MB |
+| **Max sequence** | 512 tokens |
+| **Tokenizer** | BERT WordPiece (cased), vocab size 28,996 |
+| **Confidence threshold** | 0.5 minimum |
+| **Storage** | `~/.doomsummarizer/models/ner/` |
+
+**Entity types** (CoNLL-2003 BIO scheme):
+
+| Tag | Type | Examples |
+|-----|------|----------|
+| `PER` | Person | Politicians, executives, researchers |
+| `ORG` | Organization | Companies, agencies, universities |
+| `LOC` | Location | Countries, cities, regions |
+| `MISC` | Miscellaneous | Events, products, technologies |
+
+**Post-processing pipeline:**
+1. WordPiece token merging (handles `##` subword prefixes)
+2. BIO tag consolidation (B-ORG + I-ORG → single entity span)
+3. Entity reclassification (tech product/company detection)
+4. Confidence-based deduplication (keeps highest-scoring mention)
+5. Knowledge graph ingestion: entity nodes, co-occurrence edges, TF x IDF x confidence profiles
+
+### Lucene.NET (Full-Text Search)
+
+Not an ML model, but a core ranking component. Per-collection indexes stored at `~/.doomsummarizer/lucene/<collection>/`.
+
+| Feature | Implementation |
+|---------|---------------|
+| **Scoring** | BM25F with field boosting: title (2x), keywords (2.5x), content (1x) |
+| **Stemming** | Porter stemmer ("running" matches "run") |
+| **Fuzzy** | Levenshtein distance (~1-2 edits) |
+| **Phrase** | Proximity boosting ("machine learning"^3) |
+| **Indexing** | Incremental — new items indexed at search time |
+
+### TextRank & Document Profiling
+
+Deterministic text analysis (no ONNX model, pure algorithm):
+
+| Component | Purpose | Method |
+|-----------|---------|--------|
+| **TextRank** | Sentence extraction / summarization | Graph centrality over sentence similarity |
+| **TF-IDF** | Keyword extraction | Structural weighting: title 4x, headings 3x, intro 2x, body 1x |
+| **BM25** | Term relevance scoring | Okapi BM25 with k1=1.2, b=0.75 |
+| **Freshness** | Temporal decay scoring | Exponential: `exp(-h * ln(2) / halfLife)`, query-type-adaptive half-lives |
+
+### ONNX Runtime Configuration
+
+All ONNX models use Microsoft.ML.OnnxRuntime. Execution provider is configurable:
+
+| Provider | Platform | Notes |
+|----------|----------|-------|
+| **CPU** (default) | All | Always works, stable |
+| **CUDA** | NVIDIA GPU | Requires CUDA runtime installed |
+| **DirectML** | Windows GPU | AMD/Intel/NVIDIA, may be unstable on some drivers |
+| **Auto** | All | Tries DirectML → CUDA → CPU fallback chain |
+
+### Complete Build — Additional Models
+
+The `doomsummarizer_complete` build includes additional ML models for media processing:
+
+| Model | Purpose | Size | Source |
+|-------|---------|------|--------|
+| **Whisper** (GGML) | Audio transcription | 75 MB–3 GB (size-dependent) | [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp) |
+| **ECAPA-TDNN** | Speaker identification | ~100 MB | [Wespeaker/ecapa-tdnn512](https://huggingface.co/Wespeaker/wespeaker-ecapa-tdnn512-LM) |
+| **HTDemucs** | Audio source separation | 220 MB | [gentij/htdemucs-ort](https://huggingface.co/gentij/htdemucs-ort) |
+
+These are downloaded on first use and stored in `~/.doomsummarizer/models/`.
+
+### Model Storage Summary
+
+```
+~/.doomsummarizer/
+├── models/
+│   ├── embeddings/
+│   │   └── all-MiniLM-L6-v2/        # 23 MB (auto-downloaded on first run)
+│   │       ├── model_quantized.onnx
+│   │       ├── tokenizer.json
+│   │       └── vocab.txt
+│   └── ner/                          # 430 MB (downloaded via setup --ner)
+│       ├── model.onnx
+│       ├── vocab.txt
+│       └── config.json
+├── lucene/                           # Per-collection Lucene indexes
+│   └── <collection>/
+├── doom.db                           # SQLite: items, embeddings, metadata
+└── vectors.duckdb                    # DuckDB HNSW: entity profile vectors
+```
+
+**Minimal setup** (embedding only): ~23 MB model download
+**Recommended setup** (embedding + NER): ~453 MB
+**Complete build** (all models): ~2.5–5 GB depending on Whisper model size
+
 ## Vibes
 
 `-v` accepts a preset name or any custom text.
@@ -784,7 +914,7 @@ dotnet run --project src/DoomSummarizer/DoomSummarizer.csproj -- scroll
 dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj
 ```
 
-278 tests covering ranking pipeline, embeddings, templates, long-form generation (32 unit + 5 ONNX integration), entity disambiguation, prompt interpretation, and knowledge graph operations.
+770 tests covering ranking pipeline, embeddings, templates, long-form generation, entity disambiguation, prompt interpretation, knowledge graph operations, personal corpus (self-disclosure detection, named corpuses, gap-filling), and retrieval pipeline scoring.
 
 ## Platforms
 

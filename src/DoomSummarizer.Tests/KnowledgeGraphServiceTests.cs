@@ -8,6 +8,7 @@ namespace DoomSummarizer.Tests;
 /// <summary>
 /// Tests for KnowledgeGraphService entity ingestion, co-occurrence, and display.
 /// </summary>
+[Collection("EmbeddingTests")]
 public class KnowledgeGraphServiceTests : IAsyncLifetime
 {
     private readonly string _dbPath;

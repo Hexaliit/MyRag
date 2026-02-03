@@ -98,7 +98,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $variant = "${{ matrix.build_type }}" -eq "complete" ? "-complete" : ""
+          $variant = "${{ matrix.build_type }}" -eq "complete" ? "_complete" : ""
           Compress-Archive -Path ./stage/* -DestinationPath "./publish/doomsummarizer${variant}-${{ matrix.rid }}.zip"
 
       - name: Create archive (Linux/macOS)
@@ -106,15 +106,15 @@ jobs:
         shell: bash
         run: |
           variant=""
-          if [[ "${{ matrix.build_type }}" == "complete" ]]; then variant="-complete"; fi
+          if [[ "${{ matrix.build_type }}" == "complete" ]]; then variant="_complete"; fi
           cd ./stage
           tar -czvf "../publish/doomsummarizer${variant}-${{ matrix.rid }}.tar.gz" *
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: doomsummarizer${{ matrix.build_type == 'complete' && '-complete' || '' }}-${{ matrix.rid }}
-          path: ./publish/doomsummarizer${{ matrix.build_type == 'complete' && '-complete' || '' }}-${{ matrix.rid }}.*
+          name: doomsummarizer${{ matrix.build_type == 'complete' && '_complete' || '' }}-${{ matrix.rid }}
+          path: ./publish/doomsummarizer${{ matrix.build_type == 'complete' && '_complete' || '' }}-${{ matrix.rid }}.*
           retention-days: 5
 
   release:
@@ -149,8 +149,8 @@ jobs:
 
             | Variant | Description |
             |---------|-------------|
-            | `doomsummarizer-{platform}` | **Slim** (~100MB) — Web crawling, KB Q&A, embeddings, NER, LLM routing |
-            | `doomsummarizer-complete-{platform}` | **Complete** (~300MB) — Everything above + YouTube transcription, audio analysis, subtitle processing |
+            | `doomsummarizer-{platform}` | **Deep Research** (~100MB) — Web sources, knowledge graph, hybrid search, LLM synthesis. Ingests `.md` and `.txt` files. |
+            | `doomsummarizer_complete-{platform}` | **Complete** (~300MB) — Everything above + all document formats (PDF, DOCX, HTML, PPTX), image analysis, YouTube transcription, audio analysis, subtitle processing, data profiling |
 
             ### What it does
 
@@ -219,14 +219,14 @@ jobs:
           prerelease: false
           files: |
             ./artifacts/doomsummarizer-win-x64/*.zip
-            ./artifacts/doomsummarizer-complete-win-x64/*.zip
+            ./artifacts/doomsummarizer_complete-win-x64/*.zip
             ./artifacts/doomsummarizer-win-arm64/*.zip
-            ./artifacts/doomsummarizer-complete-win-arm64/*.zip
+            ./artifacts/doomsummarizer_complete-win-arm64/*.zip
             ./artifacts/doomsummarizer-linux-x64/*.tar.gz
-            ./artifacts/doomsummarizer-complete-linux-x64/*.tar.gz
+            ./artifacts/doomsummarizer_complete-linux-x64/*.tar.gz
             ./artifacts/doomsummarizer-linux-arm64/*.tar.gz
-            ./artifacts/doomsummarizer-complete-linux-arm64/*.tar.gz
+            ./artifacts/doomsummarizer_complete-linux-arm64/*.tar.gz
             ./artifacts/doomsummarizer-osx-x64/*.tar.gz
-            ./artifacts/doomsummarizer-complete-osx-x64/*.tar.gz
+            ./artifacts/doomsummarizer_complete-osx-x64/*.tar.gz
             ./artifacts/doomsummarizer-osx-arm64/*.tar.gz
-            ./artifacts/doomsummarizer-complete-osx-arm64/*.tar.gz
+            ./artifacts/doomsummarizer_complete-osx-arm64/*.tar.gz

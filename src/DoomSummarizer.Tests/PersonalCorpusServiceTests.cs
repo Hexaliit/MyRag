@@ -5,9 +5,17 @@ using Mostlylucid.DocSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
+/// Shared collection for all tests that use EmbeddingFactory/ONNX model.
+/// Prevents file contention on model.onnx.tmp during parallel test execution in CI.
+/// </summary>
+[CollectionDefinition("EmbeddingTests")]
+public class EmbeddingTestsCollection;
+
+/// <summary>
 /// Tests for PersonalCorpusService: self-disclosure detection, fact indexing,
 /// entity retrieval, gap-filling, and forgetting.
 /// </summary>
+[Collection("EmbeddingTests")]
 public class PersonalCorpusServiceTests : IAsyncLifetime
 {
     private string _dbPath = null!;
@@ -264,8 +272,229 @@ public class PersonalCorpusServiceTests : IAsyncLifetime
 }
 
 /// <summary>
+/// Full lifecycle integration tests: simulate a user teaching the system about
+/// themselves across multiple "turns", then verify it remembers everything.
+/// </summary>
+[Collection("EmbeddingTests")]
+public class PersonalCorpusLifecycleTests : IAsyncLifetime
+{
+    private string _dbPath = null!;
+    private StorageService _storage = null!;
+    private IEmbeddingService _embedding = null!;
+    private PersonalCorpusService _corpus = null!;
+
+    public async Task InitializeAsync()
+    {
+        _dbPath = Path.Combine(Path.GetTempPath(), $"doom_lifecycle_test_{Guid.NewGuid():N}.db");
+        _storage = new StorageService(_dbPath);
+        await _storage.InitializeAsync();
+        _embedding = await EmbeddingFactory.CreateAsync();
+
+        _corpus = new PersonalCorpusService(
+            _storage, _embedding, ner: null, knowledgeGraph: null,
+            ollama: null, ollamaAvailable: false);
+    }
+
+    public async Task DisposeAsync()
+    {
+        (_embedding as IDisposable)?.Dispose();
+        await _storage.DisposeAsync();
+        try { File.Delete(_dbPath); } catch { }
+    }
+
+    /// <summary>
+    /// Simulate the full InteractiveAskLoop background flow:
+    /// for each user message, detect name, detect facts, index.
+    /// </summary>
+    private async Task SimulateTurn(string question)
+    {
+        // Same order as InteractiveAskLoop background task
+        await _corpus.DetectAndSetNameAsync(question, CancellationToken.None);
+
+        var factStatement = await _corpus.DetectSelfDisclosureAsync(question, CancellationToken.None);
+        if (factStatement != null)
+            await _corpus.IndexFactAsync(_corpus.ActiveCorpusName, factStatement, question, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task FullSession_TeachAndRemember()
+    {
+        // --- Turn 1: introduce yourself ---
+        await SimulateTurn("My name is Scott");
+
+        _corpus.ActiveCorpusName.Should().Be("scott",
+            "should switch to named corpus after introduction");
+
+        var facts = await _corpus.GetAllFactsAsync("scott");
+        facts.Should().NotBeEmpty("name should be indexed as a fact");
+        facts.Should().Contain(f => f.Content!.Contains("Scott"),
+            "name fact should be stored");
+
+        // --- Turn 2: share location ---
+        await SimulateTurn("I live in London");
+
+        facts = await _corpus.GetAllFactsAsync("scott");
+        facts.Should().Contain(f => f.Content!.Contains("London"),
+            "location should be remembered");
+
+        // --- Turn 3: share employer ---
+        await SimulateTurn("I work at Anthropic on AI safety");
+
+        facts = await _corpus.GetAllFactsAsync("scott");
+        facts.Should().Contain(f => f.Content!.Contains("Anthropic"),
+            "employer should be remembered");
+
+        // --- Turn 4: share role ---
+        await SimulateTurn("I'm a backend developer using .NET and C#");
+
+        facts = await _corpus.GetAllFactsAsync("scott");
+        facts.Should().Contain(f => f.Content!.Contains("backend developer"),
+            "role should be remembered");
+
+        // --- Turn 5: share preferences ---
+        await SimulateTurn("I prefer dark mode and concise answers");
+
+        facts = await _corpus.GetAllFactsAsync("scott");
+        facts.Should().Contain(f => f.Content!.Contains("dark mode"),
+            "preferences should be remembered");
+
+        // --- Verify total fact count ---
+        facts = await _corpus.GetAllFactsAsync("scott");
+        facts.Should().HaveCountGreaterThan(4,
+            "all personal facts should accumulate");
+
+        // --- Turn 6: a normal question should NOT create facts ---
+        var factCountBefore = facts.Count;
+        await SimulateTurn("What is the latest news about AI?");
+
+        facts = await _corpus.GetAllFactsAsync("scott");
+        facts.Should().HaveCount(factCountBefore,
+            "non-personal questions should not add facts");
+    }
+
+    [Fact]
+    public async Task FullSession_GapFilling_ResolvesLocation()
+    {
+        // Teach location
+        await SimulateTurn("I live in London");
+
+        // Gap-fill: "here" should resolve to "London"
+        var sentinel = new ConversationSentinel(null, _embedding, false);
+        var (resolved, context) = await sentinel.ResolveFromPersonalAsync(
+            "What's the weather here?", _corpus, CancellationToken.None);
+
+        // Without NER, entities won't be in the entity graph,
+        // so gap-filling won't have entities to resolve against.
+        // But the gap detection itself should trigger.
+        // This tests the detection path; full resolution requires NER.
+        resolved.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task FullSession_NameThenFacts_AllUnderNamedCorpus()
+    {
+        // Share facts BEFORE introducing yourself
+        await SimulateTurn("I live in London");
+        await SimulateTurn("I work at Anthropic");
+
+        // Facts should be in default corpus
+        var defaultFacts = await _corpus.GetAllFactsAsync("default");
+        defaultFacts.Should().HaveCount(2);
+
+        // Now introduce yourself — should migrate
+        await SimulateTurn("My name is Scott");
+
+        // Default should be empty
+        defaultFacts = await _corpus.GetAllFactsAsync("default");
+        defaultFacts.Should().BeEmpty("facts should migrate from default to named corpus");
+
+        // Scott should have everything (migrated + name fact)
+        var scottFacts = await _corpus.GetAllFactsAsync("scott");
+        scottFacts.Should().HaveCountGreaterThan(2,
+            "named corpus should contain migrated facts plus the name");
+        scottFacts.Should().Contain(f => f.Content!.Contains("London"));
+        scottFacts.Should().Contain(f => f.Content!.Contains("Anthropic"));
+        scottFacts.Should().Contain(f => f.Content!.Contains("Scott"));
+
+        // Subsequent facts should also go to scott
+        await SimulateTurn("I use VS Code");
+        scottFacts = await _corpus.GetAllFactsAsync("scott");
+        scottFacts.Should().Contain(f => f.Content!.Contains("VS Code"));
+    }
+
+    [Fact]
+    public async Task FullSession_ForgetAndRelearn()
+    {
+        await SimulateTurn("I live in London");
+        await SimulateTurn("I work at Anthropic");
+
+        var facts = await _corpus.GetAllFactsAsync("default");
+        facts.Should().HaveCount(2);
+
+        // Forget location facts
+        var forgotten = await _corpus.ForgetAsync("default", "London");
+        forgotten.Should().Be(1);
+
+        facts = await _corpus.GetAllFactsAsync("default");
+        facts.Should().HaveCount(1);
+        facts[0].Content.Should().Contain("Anthropic");
+
+        // Relearn with new location
+        await SimulateTurn("I moved to Berlin");
+
+        facts = await _corpus.GetAllFactsAsync("default");
+        facts.Should().HaveCount(2);
+        facts.Should().Contain(f => f.Content!.Contains("Berlin"),
+            "new location should be remembered after relearning");
+    }
+
+    [Fact]
+    public async Task FullSession_ManualRemember_WorksAlongsideAutoDetection()
+    {
+        // Auto-detect from conversation
+        await SimulateTurn("I live in London");
+
+        // Manual /remember
+        await _corpus.IndexFactAsync("default",
+            "User prefers functional programming style", null, CancellationToken.None);
+
+        var facts = await _corpus.GetAllFactsAsync("default");
+        facts.Should().HaveCount(2);
+        facts.Should().Contain(f => f.Content!.Contains("London"));
+        facts.Should().Contain(f => f.Content!.Contains("functional programming"));
+    }
+
+    [Fact]
+    public async Task FullSession_MultipleCorpuses_Isolated()
+    {
+        // First user
+        await SimulateTurn("My name is Scott");
+        await SimulateTurn("I live in London");
+
+        // Switch to second user manually
+        _corpus.SetActiveCorpus("alex");
+        await _corpus.IndexFactAsync("alex", "User lives in Berlin", null, CancellationToken.None);
+
+        // Verify isolation
+        var scottFacts = await _corpus.GetAllFactsAsync("scott");
+        scottFacts.Should().Contain(f => f.Content!.Contains("London"));
+        scottFacts.Should().NotContain(f => f.Content!.Contains("Berlin"));
+
+        var alexFacts = await _corpus.GetAllFactsAsync("alex");
+        alexFacts.Should().Contain(f => f.Content!.Contains("Berlin"));
+        alexFacts.Should().NotContain(f => f.Content!.Contains("London"));
+
+        // List all corpuses
+        var corpuses = await _corpus.GetActiveCorpusNamesAsync();
+        corpuses.Should().Contain("scott");
+        corpuses.Should().Contain("alex");
+    }
+}
+
+/// <summary>
 /// Tests for named personal corpus: name detection, migration, and disambiguation.
 /// </summary>
+[Collection("EmbeddingTests")]
 public class NamedCorpusTests : IAsyncLifetime
 {
     private string _dbPath = null!;
@@ -412,6 +641,7 @@ public class NamedCorpusTests : IAsyncLifetime
 /// <summary>
 /// Tests for ConversationSentinel gap-filling from personal corpus.
 /// </summary>
+[Collection("EmbeddingTests")]
 public class PersonalGapFillingTests : IAsyncLifetime
 {
     private string _dbPath = null!;

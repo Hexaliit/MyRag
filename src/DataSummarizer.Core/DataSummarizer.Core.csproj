@@ -67,9 +67,12 @@
     -->
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Common pipeline abstractions -->
+  <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->
+  <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
     <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+    <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)" />
   </ItemGroup>
 
 </Project>

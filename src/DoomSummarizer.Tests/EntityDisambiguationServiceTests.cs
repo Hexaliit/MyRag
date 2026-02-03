@@ -9,6 +9,7 @@ namespace DoomSummarizer.Tests;
 /// Requires ONNX embedding model.
 /// </summary>
 [Trait("Category", "RequiresModel")]
+[Collection("EmbeddingTests")]
 public class EntityDisambiguationServiceTests : IAsyncLifetime
 {
     private StorageService _storage = null!;
