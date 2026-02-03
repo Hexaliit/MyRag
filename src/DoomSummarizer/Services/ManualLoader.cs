@@ -81,7 +81,7 @@ public sealed class ManualLoader
         }
 
         // Crawl docs from seed URL
-        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        using var httpClient = HttpClientFactory.CreateDefault();
         var crawler = new WebCrawlerService(httpClient, crawlConfig);
         var newItems = new List<ContentItem>();
 

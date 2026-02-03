@@ -67,7 +67,11 @@ public static class CliApp
 
         app.Configure(config =>
         {
+#if FEATURE_COMPLETE
+            config.SetApplicationName("doomsummarizer (complete)");
+#else
             config.SetApplicationName("doomsummarizer");
+#endif
 
             config.AddCommand<ScrollCommand>("scroll")
                 .WithDescription("Doom-scroll sources and generate summary (accepts natural language)")

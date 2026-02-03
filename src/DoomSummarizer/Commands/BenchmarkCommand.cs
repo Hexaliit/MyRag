@@ -195,13 +195,7 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
 
         var results = new List<ModelBenchmarkSummary>();
 
-        await AnsiConsole.Progress()
-            .Columns(
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new SpinnerColumn())
-            .StartAsync(async ctx =>
+        await ProgressHelper.RunAsync(async ctx =>
             {
                 var totalSteps = modelsToTest.Count * settings.Rounds * (benchSynthesis && benchSentinel ? 2 : 1);
                 var task = ctx.AddTask("Benchmarking models", maxValue: totalSteps);

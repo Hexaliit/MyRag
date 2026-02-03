@@ -33,7 +33,7 @@ public static class DoomScrollerTools
     private static readonly HttpClient SharedHttp = new()
     {
         Timeout = TimeSpan.FromSeconds(30),
-        DefaultRequestHeaders = { { "User-Agent", "MostlyLucid-DoomSummarizer/1.0 (MCP)" } }
+        DefaultRequestHeaders = { { "User-Agent", $"{Services.HttpClientFactory.UserAgent} (MCP)" } }
     };
 
     // Lazy-initialized shared services

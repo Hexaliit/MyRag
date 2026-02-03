@@ -124,6 +124,50 @@ public sealed class CommandBootstrap : IAsyncDisposable
         return EntityStore;
     }
 
+    /// <summary>
+    /// Safely initialize entity graph store. Returns null if unavailable (non-fatal).
+    /// </summary>
+    public async Task<IEntityGraphStore?> TryInitializeEntityGraphStoreAsync()
+    {
+        try
+        {
+            return await InitializeEntityGraphStoreAsync();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Initialize LLM stack, entity store, print availability warnings, and run the ask loop.
+    /// Consolidates the repeated pattern across AskCommand, ManCommand, and CrawlCommand.
+    /// </summary>
+    public async Task<int> StartAskLoopAsync(
+        InteractiveAskOptions options,
+        CancellationToken ct = default)
+    {
+        var ollama = CreateOllama();
+        var llmRouter = await InitializeLlmStackAsync(ct: ct);
+
+        await TryInitializeEntityGraphStoreAsync();
+
+        var ollamaAvailable = await ollama.IsAvailableAsync();
+        var hasCloudLlm = llmRouter.HasCloudProvider;
+        if (!ollamaAvailable && !hasCloudLlm)
+        {
+            Spectre.Console.AnsiConsole.MarkupLine("[yellow]No LLM available (Ollama down, no cloud keys).[/] Answers will be limited to evidence listing.");
+            Spectre.Console.AnsiConsole.MarkupLine("[grey]Start Ollama: ollama serve  —or—  set OPENAI_API_KEY / ANTHROPIC_API_KEY[/]");
+        }
+        else if (!ollamaAvailable && hasCloudLlm)
+        {
+            Spectre.Console.AnsiConsole.MarkupLine("[cyan]Ollama not available — using cloud LLM provider[/]");
+        }
+
+        var loop = new InteractiveAskLoop(this, ollama, llmRouter, ollamaAvailable, options);
+        return await loop.RunAsync(ct);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (EntityStore != null) await EntityStore.DisposeAsync();

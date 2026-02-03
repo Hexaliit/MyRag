@@ -34,30 +34,26 @@ jobs:
     needs: test
     strategy:
       matrix:
+        build_type: [slim, complete]
+        rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64]
         include:
-          - os: windows-latest
-            rid: win-x64
-            artifact: doomsummarizer-win-x64.zip
+          - rid: win-x64
+            os: windows-latest
             ext: .exe
-          - os: windows-latest
-            rid: win-arm64
-            artifact: doomsummarizer-win-arm64.zip
+          - rid: win-arm64
+            os: windows-latest
             ext: .exe
-          - os: ubuntu-latest
-            rid: linux-x64
-            artifact: doomsummarizer-linux-x64.tar.gz
+          - rid: linux-x64
+            os: ubuntu-latest
             ext: ''
-          - os: ubuntu-latest
-            rid: linux-arm64
-            artifact: doomsummarizer-linux-arm64.tar.gz
+          - rid: linux-arm64
+            os: ubuntu-latest
             ext: ''
-          - os: macos-latest
-            rid: osx-x64
-            artifact: doomsummarizer-osx-x64.tar.gz
+          - rid: osx-x64
+            os: macos-latest
             ext: ''
-          - os: macos-latest
-            rid: osx-arm64
-            artifact: doomsummarizer-osx-arm64.tar.gz
+          - rid: osx-arm64
+            os: macos-latest
             ext: ''
 
     runs-on: ${{ matrix.os }}
@@ -81,7 +77,8 @@ jobs:
             -p:PublishSingleFile=true \
             -p:EnableCompressionInSingleFile=true \
             -p:PublishReadyToRun=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:IncludeNativeLibrariesForSelfExtract=${{ startsWith(matrix.rid, 'osx') && 'false' || 'true' }} \
+            -p:CompleteBuild=${{ matrix.build_type == 'complete' && 'true' || 'false' }} \
             -p:Version=${{ github.event.inputs.version }} \
             -o ./publish/${{ matrix.rid }}
 
@@ -90,26 +87,34 @@ jobs:
         run: |
           mkdir -p ./stage
           cp ./publish/${{ matrix.rid }}/doomsummarizer${{ matrix.ext }} ./stage/
+          # On macOS, native libs sit alongside the binary (not embedded) to avoid Gatekeeper issues
+          if [[ "${{ matrix.rid }}" == osx-* ]]; then
+            cp ./publish/${{ matrix.rid }}/*.dylib ./stage/ 2>/dev/null || true
+          fi
           cp src/DoomSummarizer/README.md ./stage/
           cp src/DoomSummarizer/Resources/default-config.json ./stage/config.json
 
       - name: Create archive (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path ./stage/* -DestinationPath ./publish/${{ matrix.artifact }}
+        run: |
+          $variant = "${{ matrix.build_type }}" -eq "complete" ? "-complete" : ""
+          Compress-Archive -Path ./stage/* -DestinationPath "./publish/doomsummarizer${variant}-${{ matrix.rid }}.zip"
 
       - name: Create archive (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash
         run: |
+          variant=""
+          if [[ "${{ matrix.build_type }}" == "complete" ]]; then variant="-complete"; fi
           cd ./stage
-          tar -czvf ../publish/${{ matrix.artifact }} *
+          tar -czvf "../publish/doomsummarizer${variant}-${{ matrix.rid }}.tar.gz" *
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ matrix.rid }}
-          path: ./publish/${{ matrix.artifact }}
+          name: doomsummarizer${{ matrix.build_type == 'complete' && '-complete' || '' }}-${{ matrix.rid }}
+          path: ./publish/doomsummarizer${{ matrix.build_type == 'complete' && '-complete' || '' }}-${{ matrix.rid }}.*
           retention-days: 5
 
   release:
@@ -137,6 +142,15 @@ jobs:
             **Reduced GraphRAG in a single binary.** DoomSummarizer is a distillation of [**LucidRAG**](https://github.com/scottgal/lucidrag) principles -- hybrid search, entity extraction, knowledge graph construction, evidence-grounded synthesis -- compressed into a self-contained CLI that runs from a single file. No server, no database setup, no API keys required to start.
 
             > **[Full documentation, all CLI options, and examples](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)**
+
+            ### Downloads
+
+            Two variants are available for each platform:
+
+            | Variant | Description |
+            |---------|-------------|
+            | `doomsummarizer-{platform}` | **Slim** (~100MB) — Web crawling, KB Q&A, embeddings, NER, LLM routing |
+            | `doomsummarizer-complete-{platform}` | **Complete** (~300MB) — Everything above + YouTube transcription, audio analysis, subtitle processing |
 
             ### What it does
 
@@ -204,9 +218,15 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            ./artifacts/win-x64/*.zip
-            ./artifacts/win-arm64/*.zip
-            ./artifacts/linux-x64/*.tar.gz
-            ./artifacts/linux-arm64/*.tar.gz
-            ./artifacts/osx-x64/*.tar.gz
-            ./artifacts/osx-arm64/*.tar.gz
+            ./artifacts/doomsummarizer-win-x64/*.zip
+            ./artifacts/doomsummarizer-complete-win-x64/*.zip
+            ./artifacts/doomsummarizer-win-arm64/*.zip
+            ./artifacts/doomsummarizer-complete-win-arm64/*.zip
+            ./artifacts/doomsummarizer-linux-x64/*.tar.gz
+            ./artifacts/doomsummarizer-complete-linux-x64/*.tar.gz
+            ./artifacts/doomsummarizer-linux-arm64/*.tar.gz
+            ./artifacts/doomsummarizer-complete-linux-arm64/*.tar.gz
+            ./artifacts/doomsummarizer-osx-x64/*.tar.gz
+            ./artifacts/doomsummarizer-complete-osx-x64/*.tar.gz
+            ./artifacts/doomsummarizer-osx-arm64/*.tar.gz
+            ./artifacts/doomsummarizer-complete-osx-arm64/*.tar.gz

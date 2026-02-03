@@ -17,41 +17,11 @@ namespace DoomSummarizer.Commands;
 /// </summary>
 public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
+    public sealed class Settings : ContentProcessingSettings
     {
         [CommandArgument(0, "<url>")]
         [Description("URL of the page to summarize")]
         public string Url { get; init; } = "";
-
-        [CommandOption("-v|--vibe")]
-        [Description("Tone: neutral, upbeat, snarky, doom, or any custom text")]
-        [DefaultValue("neutral")]
-        public string Vibe { get; init; } = "neutral";
-
-        [CommandOption("-t|--template")]
-        [Description("Output template: default, blog-article, blog-timeline, detailed, file, json")]
-        [DefaultValue("default")]
-        public string Template { get; init; } = "default";
-
-        [CommandOption("-o|--output")]
-        [Description("Output file path (.md, .txt, .html)")]
-        public string? Output { get; init; }
-
-        [CommandOption("-q|--quiet")]
-        [Description("Minimal output, just the summary")]
-        public bool Quiet { get; init; }
-
-        [CommandOption("--raw")]
-        [Description("Show raw extracted content before summarization")]
-        public bool ShowRaw { get; init; }
-
-        [CommandOption("--no-llm|--nollm")]
-        [Description("Skip LLM — show extracted content and signals only")]
-        public bool NoLlm { get; init; }
-
-        [CommandOption("-n|--name")]
-        [Description("Store as named collection (e.g., --name docs). Query later with scroll --name docs")]
-        public string? Name { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
@@ -69,20 +39,13 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
         var resolvedVibe = boot.VibeResolver.Resolve(settings.Vibe);
         var vibePrompt = resolvedVibe.Prompt;
 
-        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        httpClient.DefaultRequestHeaders.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
+        using var httpClient = HttpClientFactory.CreateDefault();
 
         ContentItem? item = null;
         ProcessedArticle? processed = null;
         string finalOutput;
 
-        await AnsiConsole.Progress()
-            .Columns(
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new SpinnerColumn())
-            .StartAsync(async ctx =>
+        await ProgressHelper.RunAsync(async ctx =>
             {
                 // Stage 1: Fetch page
                 var fetchTask = ctx.AddTask("[cyan]Fetching page[/]", maxValue: 100);

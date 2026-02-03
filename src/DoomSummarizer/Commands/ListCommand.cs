@@ -69,11 +69,9 @@ public sealed class ListDocsCommand : AsyncCommand<ListDocsCommand.Settings>
         IEntityGraphStore? entityStore = null;
         if (!string.IsNullOrWhiteSpace(settings.Entity))
         {
-            try { entityStore = await boot.InitializeEntityGraphStoreAsync(); }
-            catch
-            {
+            entityStore = await boot.TryInitializeEntityGraphStoreAsync();
+            if (entityStore == null)
                 AnsiConsole.MarkupLine("[yellow]Entity store not available. Ignoring --entity filter.[/]");
-            }
         }
 
         List<StoredItem> items;

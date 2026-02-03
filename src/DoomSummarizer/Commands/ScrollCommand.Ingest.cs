@@ -31,6 +31,20 @@ public enum IngestDocumentType
 /// </summary>
 public sealed partial class ScrollCommand
 {
+    private static readonly string[] ImageExtensions = [".gif", ".jpg", ".jpeg", ".png", ".webp"];
+
+    internal static bool IsImageFile(string path) =>
+        ImageExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
+
+    internal static string DescriptionFromFilename(string filePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        name = name.Replace('_', ' ').Replace('-', ' ').Replace('.', ' ');
+        var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(' ', words.Select(w =>
+            w.Length > 1 ? char.ToUpper(w[0]) + w[1..] : w.ToUpper()));
+    }
+
     /// <summary>
     /// Classify document type from early content using heuristic scoring.
     /// Same approach as FrontMatterDetector.DetectDocumentType but standalone.
@@ -92,9 +106,10 @@ public sealed partial class ScrollCommand
     }
     /// <summary>
     /// Detect whether any of the given paths are local files or directories.
-    /// Returns the list of resolved file paths and a suggested collection name.
+    /// Returns the list of resolved file paths, a suggested collection name,
+    /// and whether the source is predominantly images.
     /// </summary>
-    internal static (List<string> files, string collectionName) ResolveLocalSources(
+    internal static (List<string> files, string collectionName, bool isImageSource) ResolveLocalSources(
         string[] sources, string? explicitName, bool recurse = false)
     {
         var files = new List<string>();
@@ -111,12 +126,15 @@ public sealed partial class ScrollCommand
                 // Base extensions (always available, even slim CLI)
                 var baseExtensions = new[] { ".pdf", ".docx", ".md", ".txt", ".html", ".pptx" };
 
+                // Image extensions for local image ingestion
+                var allBaseExtensions = baseExtensions.Concat(ImageExtensions).ToArray();
+
                 // Plugin extensions (from all registered processor plugins)
                 var pluginExtensions = PluginDiscovery.DiscoverAllProcessorPlugins()
                     .SelectMany(p => p.Metadata.SupportedExtensions);
 
                 // Union for directory scanning
-                var extensions = baseExtensions
+                var extensions = allBaseExtensions
                     .Union(pluginExtensions, StringComparer.OrdinalIgnoreCase)
                     .Select(e => e.StartsWith('.') ? $"*{e}" : e)
                     .ToArray();
@@ -127,13 +145,16 @@ public sealed partial class ScrollCommand
         }
 
         if (files.Count == 0)
-            return (files, "");
+            return (files, "", false);
 
         // Derive collection name: explicit --name, or auto from path
         var name = explicitName
                    ?? CollectionNaming.Auto(sources.First(s => File.Exists(s) || Directory.Exists(s)));
 
-        return (files, name);
+        // Detect if this is primarily an image source (majority of files are images)
+        var isImageSource = files.Count > 0 && files.Count(IsImageFile) > files.Count / 2;
+
+        return (files, name, isImageSource);
     }
 
     /// <summary>
@@ -183,6 +204,28 @@ public sealed partial class ScrollCommand
         foreach (var filePath in files)
         {
             ct.ThrowIfCancellationRequested();
+
+            // Image files: create a lightweight content item from filename (no document handler needed)
+            if (IsImageFile(filePath))
+            {
+                var description = DescriptionFromFilename(filePath);
+                var item = new ContentItem
+                {
+                    Id = $"file:{collectionName}:{GenerateChunkId(filePath, 0)}",
+                    Source = sourceTag,
+                    Title = description,
+                    Url = $"file://{filePath}",
+                    Content = description,
+                    Summary = description,
+                    ImageUrl = filePath,
+                    IsEnriched = true,
+                    CreatedAt = File.GetCreationTimeUtc(filePath),
+                    FetchedAt = DateTimeOffset.UtcNow
+                };
+                pendingItems.Add((item, ItemProcessor.PrepareEmbeddingText(description, description)));
+                progressTask.Increment(increment);
+                continue;
+            }
 
             var ext = Path.GetExtension(filePath).ToLowerInvariant();
             var handler = handlers.GetHandler(ext);
@@ -287,6 +330,7 @@ public sealed partial class ScrollCommand
                     foreach (var (item, _) in pendingItems)
                     {
                         ct.ThrowIfCancellationRequested();
+                        if (!string.IsNullOrEmpty(item.ImageUrl)) continue;
                         var textForNer = ItemProcessor.PrepareNerText(item.Title, item.Content);
                         var entities = await nerService.ExtractEntitiesAsync(textForNer, ct);
                         if (entities.Count > 0)

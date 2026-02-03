@@ -16,7 +16,8 @@
         <UseAppHost>true</UseAppHost>
         <PublishSingleFile>true</PublishSingleFile>
         <PublishReadyToRun>true</PublishReadyToRun>
-        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+        <!-- Native libraries sit alongside binary on macOS to avoid Gatekeeper blocking unsigned extracted dylibs -->
+        <IncludeNativeLibrariesForSelfExtract Condition="!$([MSBuild]::IsOSPlatform('osx')) AND !$(RuntimeIdentifier.StartsWith('osx'))">true</IncludeNativeLibrariesForSelfExtract>
         <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
         <SelfContained>true</SelfContained>
 
@@ -29,6 +30,11 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <UserSecretsId>bc19ab4d-717e-4cf3-bdd3-a5ee817de654</UserSecretsId>
 
+    </PropertyGroup>
+
+    <!-- Slim vs Complete build: CompleteBuild=true includes audio/video/YouTube -->
+    <PropertyGroup Condition="'$(CompleteBuild)' == 'true'">
+        <DefineConstants>$(DefineConstants);FEATURE_COMPLETE</DefineConstants>
     </PropertyGroup>
 
     <!-- MinVer -->
@@ -57,7 +63,7 @@
         <PackageReference Include="Spectre.Console.Cli" Version="0.53.1" />
 
         <!-- Playwright for JS-rendered sites -->
-        <PackageReference Include="Microsoft.Playwright" Version="1.57.0" />
+        <PackageReference Include="Microsoft.Playwright" Version="1.58.0" />
 
         <!-- MCP server for AI agent integration -->
         <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1" />
@@ -68,10 +74,14 @@
         <PackageReference Include="mostlylucid.consoleimage.player" Version="4.5.1" />
     </ItemGroup>
 
-    <!-- Project references -->
+    <!-- Core references (always included) -->
     <ItemGroup>
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+    </ItemGroup>
+
+    <!-- Complete-only: audio transcription, YouTube, subtitles -->
+    <ItemGroup Condition="'$(CompleteBuild)' == 'true'">
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Subtitles\Mostlylucid.DoomSummarizer.Plugin.Subtitles.csproj" />
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.YouTube\Mostlylucid.DoomSummarizer.Source.YouTube.csproj" />
         <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj" />

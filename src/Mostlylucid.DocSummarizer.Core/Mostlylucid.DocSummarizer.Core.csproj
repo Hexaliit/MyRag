@@ -103,7 +103,7 @@
         <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
 
         <!-- Web Fetching (for URL processing with JS-rendered pages) -->
-        <PackageReference Include="Microsoft.Playwright" Version="1.57.0" />
+        <PackageReference Include="Microsoft.Playwright" Version="1.58.0" />
 
         <!-- Vector Storage -->
         <PackageReference Include="Qdrant.Client" Version="1.16.1" />

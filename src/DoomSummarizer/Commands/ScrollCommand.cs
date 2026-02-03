@@ -1,7 +1,4 @@
 using System.ComponentModel;
-using System.Reflection;
-using ConsoleImage.Core;
-using ConsoleImage.Player;
 using DoomSummarizer.Models;
 using DoomSummarizer.Plugins;
 using DoomSummarizer.Plugins.Runtime;
@@ -22,25 +19,11 @@ namespace DoomSummarizer.Commands;
 
 public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
+    public sealed class Settings : ContentProcessingSettings
     {
         [CommandArgument(0, "[prompt]")]
         [Description("Natural language prompt (e.g., 'summarize bbc and hacker news') or URL")]
         public string? Prompt { get; init; }
-
-        [CommandOption("-v|--vibe")]
-        [Description("Sentiment steering: doom, hopeful, snarky, neutral, or any custom text (e.g., 'excited about space')")]
-        [DefaultValue("neutral")]
-        public string Vibe { get; init; } = "neutral";
-
-        [CommandOption("-o|--output")]
-        [Description("Output file path (.md, .txt, .html, .json) - format auto-detected")]
-        public string? Output { get; init; }
-
-        [CommandOption("-t|--template")]
-        [Description("Output template: default, console, compact, detailed, file, email, newsletter, slack, json")]
-        [DefaultValue("default")]
-        public string Template { get; init; } = "default";
 
         [CommandOption("-s|--source")]
         [Description("Sources: hn, reddit, search:query, URL, or local file/directory path")]
@@ -51,25 +34,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [DefaultValue(30)]
         public int Limit { get; init; } = 30;
 
-        [CommandOption("-f|--force")]
-        [Description("Ignore cache and fetch fresh")]
-        public bool Force { get; init; }
-
-        [CommandOption("-q|--quiet")]
-        [Description("Minimal output, just the summary")]
-        public bool Quiet { get; init; }
-
-        [CommandOption("--no-llm|--nollm")]
-        [Description("Skip LLM analysis — still runs embeddings, sentiment, topic inference")]
-        public bool NoLlm { get; init; }
-
         [CommandOption("--json")]
         [Description("Output as JSON (for LLM tool consumption)")]
         public bool Json { get; init; }
-
-        [CommandOption("--no-entities")]
-        [Description("Disable NER entity extraction (enabled by default)")]
-        public bool NoEntities { get; init; }
 
         [CommandOption("--graph")]
         [Description("Enable knowledge graph build and display")]
@@ -79,10 +46,6 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [Description("Skip one-hop link following")]
         public bool NoLinks { get; init; }
 
-        [CommandOption("--raw")]
-        [Description("Show raw fetched content before processing")]
-        public bool ShowRaw { get; init; }
-
         [CommandOption("--images")]
         [Description("Display inline images for important items")]
         public bool ShowImages { get; init; }
@@ -90,10 +53,6 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [CommandOption("--local")]
         [Description("Query ONLY the local knowledge base — no fetching, uses previously stored articles")]
         public bool LocalOnly { get; init; }
-
-        [CommandOption("-n|--name")]
-        [Description("Query a named knowledge base collection (implies --local). Use 'show' command to list collections.")]
-        public string? Name { get; init; }
 
         [CommandOption("--debug-pipeline|--debug")]
         [Description("Show detailed pipeline diagnostics: RRF component scores, discards, salience breakdown")]
@@ -305,6 +264,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         string? ingestedCollectionName = null;
         var ingestedDocType = IngestDocumentType.Unknown;
         var ingestedSegmentCount = 0;
+        var isImageSource = false;
 
         var candidateSources = settings.Sources ?? [];
         // Also check if the prompt itself is a file path (routed via CliApp smart routing)
@@ -316,7 +276,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
         if (candidateSources.Length > 0)
         {
-            var (files, autoName) = ResolveLocalSources(candidateSources, settings.Name);
+            var (files, autoName, imgSource) = ResolveLocalSources(candidateSources, settings.Name);
+            isImageSource = imgSource;
             if (files.Count > 0)
             {
                 ingestedCollectionName = autoName;
@@ -328,9 +289,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                 AnsiConsole.MarkupLine($"[cyan]Ingesting {files.Count} file(s) into collection '{Markup.Escape(autoName)}'...[/]");
 
-                await AnsiConsole.Progress()
-                    .Columns(new TaskDescriptionColumn(), new ProgressBarColumn(), new PercentageColumn(), new SpinnerColumn())
-                    .StartAsync(async ctx =>
+                await ProgressHelper.RunAsync(async ctx =>
                     {
                         var task = ctx.AddTask("[cyan]Processing files[/]", maxValue: 100);
                         var (sourceFilter, count, docType) = await IngestLocalFilesAsync(
@@ -352,8 +311,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             circuitBreaker.PrintCircuitStatus();
         var llmRouter = await boot.InitializeLlmStackAsync(circuitBreaker, cancellationToken);
 
-        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        httpClient.DefaultRequestHeaders.Add("User-Agent", "MostlyLucid-DoomSummarizer/1.0");
+        using var httpClient = HttpClientFactory.CreateDefault();
 
         // Status helper: overwrites the previous status line to keep output compact.
         // Only the latest status is visible at any time.
@@ -651,13 +609,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         var linksSkippedByRelevance = 0;
         List<string>? missingTerms = null; // Terms from query not found in corpus (Lucene verified)
 
-        await AnsiConsole.Progress()
-            .Columns(
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new SpinnerColumn())
-            .StartAsync(async ctx =>
+        await ProgressHelper.RunAsync(async ctx =>
             {
                 // Stage 1: Fetch content (or load from knowledge base)
                 // --name implies --local mode; file ingestion also forces local mode
@@ -2496,603 +2448,12 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     await boot.EntityStore.CleanupAsync(boot.Config.Storage.RetentionDays);
             });
 
-        // === Output (outside Progress block — no more progress bar overlap) ===
-        if (settings.Json)
-        {
-            // Token-efficient structured JSON for LLM tool / agent consumption.
-            // Optimized to be useful as a tool response: compact, fact-dense,
-            // source-attributed, no markdown noise.
-            // Tiers: "full" (LLM synthesis), "signals" (--nollm, ONNX-only).
-
-            var jsonQuery = interpreted?.RawPrompt ?? settings.Prompt;
-
-            // Per-item TextRank excerpts (most informative sentences, no LLM needed)
-            var itemExcerpts = new Dictionary<string, string>();
-            var keyFactCandidates = new List<(string fact, double relevance, string title, string url)>();
-
-            foreach (var item in uniqueItems.Take(settings.Limit))
-            {
-                var content = item.Content ?? "";
-                if (content.Length > 200)
-                {
-                    try
-                    {
-                        var excerpt = StripMarkdownForLlm(
-                            TextRankExtractor.ExtractKeySentences(
-                                content, text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(), maxChars: 400));
-                        itemExcerpts[item.Id] = excerpt;
-
-                        // Top-relevance articles contribute their lead fact
-                        if (item.RelevanceScore > 0.3)
-                        {
-                            var dotIdx = excerpt.IndexOf(". ", StringComparison.Ordinal);
-                            var leadFact = dotIdx > 20 ? excerpt[..(dotIdx + 1)] : excerpt;
-                            if (leadFact.Length > 250) leadFact = leadFact[..250] + "...";
-                            keyFactCandidates.Add((leadFact, item.RelevanceScore,
-                                item.Title, item.Url ?? ""));
-                        }
-                    }
-                    catch
-                    {
-                        itemExcerpts[item.Id] = StripMarkdownForLlm(
-                            content.Length > 400 ? content[..400] + "..." : content);
-                    }
-                }
-                else if (content.Length > 0)
-                {
-                    itemExcerpts[item.Id] = StripMarkdownForLlm(content);
-                }
-            }
-
-            // Cross-article key facts: source-attributed, one per top article
-            var keyFacts = keyFactCandidates
-                .OrderByDescending(k => k.relevance)
-                .Take(7)
-                .Select(k => new
-                {
-                    fact = k.fact,
-                    source = GetSourceFromUrl(k.url),
-                    url = k.url
-                })
-                .ToArray();
-
-            // Source diversity
-            var itemsForStats = uniqueItems.Take(settings.Limit).ToList();
-            var sourceDistribution = itemsForStats
-                .GroupBy(i => i.Source)
-                .ToDictionary(g => g.Key, g => g.Count());
-
-            var sentimentBreakdown = new
-            {
-                positive = analyzedItems.Count(i => i.sentiment > 0.15f),
-                neutral = analyzedItems.Count(i => i.sentiment is >= -0.15f and <= 0.15f),
-                negative = analyzedItems.Count(i => i.sentiment < -0.15f)
-            };
-
-            var themeData = ExtractKeyThemes(analyzedItems, uniqueItems);
-
-            // In signals mode, replace verbose fallback summary with compact version
-            var jsonSummary = ollamaAvailable
-                ? finalSummary
-                : (keyFacts.Length > 0
-                    ? string.Join(" ", keyFacts.Select(f => f.fact))
-                    : $"Found {analyzedItems.Count} items for \"{jsonQuery}\".");
-
-            var jsonOutput = new
-            {
-                meta = new
-                {
-                    query = jsonQuery,
-                    vibe,
-                    generated = DateTimeOffset.UtcNow,
-                    pipeline = ollamaAvailable ? "full" : "signals",
-                    itemCount = analyzedItems.Count,
-                    sources = new
-                    {
-                        unique = sourceDistribution.Count,
-                        distribution = sourceDistribution
-                    },
-                    sentiment = sentimentBreakdown,
-                    cache = linkCacheHits > 0 || linksSkippedByRelevance > 0
-                        ? new { hits = linkCacheHits, irrelevantSkipped = linksSkippedByRelevance }
-                        : null
-                },
-                summary = jsonSummary,
-                keyFacts,
-                themes = new
-                {
-                    topics = themeData.topics.Select(tp => new { tp.topic, tp.count }).ToArray(),
-                    keyTerms = themeData.terms.Select(tr => new { tr.term, tr.articles }).ToArray()
-                },
-                items = analyzedItems.Select(i =>
-                {
-                    var contentItem = uniqueItems.FirstOrDefault(u =>
-                        string.Equals(u.Title, i.title, StringComparison.Ordinal));
-                    var hasExcerpt = contentItem != null
-                        && itemExcerpts.TryGetValue(contentItem.Id, out var ex);
-                    return new
-                    {
-                        i.title,
-                        i.url,
-                        source = contentItem?.Source ?? GetSourceFromUrl(i.url),
-                        i.topic,
-                        i.sentiment,
-                        i.relevance,
-                        quality = contentItem?.ContentStructure?.QualityScore,
-                        excerpt = hasExcerpt
-                            ? itemExcerpts[contentItem!.Id]
-                            : StripMarkdownForLlm(
-                                i.summary.Length > 400 ? i.summary[..400] + "..." : i.summary),
-                        linkedCount = contentItem?.LinkedPages.Count ?? 0
-                    };
-                }).ToArray(),
-                entities = extractEntities ? allEntities.Select(e => new
-                {
-                    text = e.Text,
-                    type = e.Type,
-                    confidence = e.Confidence
-                }).ToArray() : null
-            };
-            var json = System.Text.Json.JsonSerializer.Serialize(jsonOutput,
-                new System.Text.Json.JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-                });
-
-            if (!string.IsNullOrEmpty(settings.Output))
-            {
-                await File.WriteAllTextAsync(settings.Output, json);
-                if (!settings.Quiet)
-                    AnsiConsole.MarkupLine($"[green]JSON saved to:[/] {settings.Output}");
-            }
-            else
-            {
-                Console.WriteLine(json);
-            }
-        }
-        else if (!string.IsNullOrEmpty(settings.Output))
-        {
-            await File.WriteAllTextAsync(settings.Output, finalSummary);
-            AnsiConsole.MarkupLine($"[green]Summary saved to:[/] {settings.Output}");
-        }
-        else
-        {
-            AnsiConsole.WriteLine();
-            var renderedMarkup = MarkdownToSpectre(finalSummary);
-            var header = isBlogTemplate
-                ? $"[bold cyan]{Markup.Escape(template)}[/]"
-                : $"[bold cyan]Doom Scroll Digest ({vibe})[/]";
-            // Word-wrap content to prevent the panel from stretching to full terminal width
-            var maxContentWidth = Math.Min(AnsiConsole.Profile.Width - 6, 94);
-            var wrappedMarkup = WordWrapMarkup(renderedMarkup, maxContentWidth);
-            AnsiConsole.Write(new Panel(wrappedMarkup)
-                .Header(header)
-                .Border(BoxBorder.Rounded)
-                .Padding(1, 1));
-
-            // Deterministic sources section — shows which documents were used
-            RenderSourcesUsed(analyzedItems, uniqueItems, maxContentWidth);
-
-            // Display evidence briefing with named themes (--full or --briefing)
-            if ((settings.Full || settings.Briefing) && analyzedItems.Count > 0)
-            {
-                // Load entity data for enriched theme briefing
-                Dictionary<string, List<(string name, string type, double confidence)>>? itemEntities = null;
-
-                if (articleEntityMap.Count > 0)
-                {
-                    // Use NER entities from this session
-                    itemEntities = articleEntityMap.ToDictionary(
-                        ae => ae.item.Id,
-                        ae => ae.entities.Select(e => (e.Text, e.Type, (double)e.Confidence)).ToList(),
-                        StringComparer.OrdinalIgnoreCase);
-                }
-                else
-                {
-                    // Query stored entities from previous runs (knowledge graph)
-                    var itemIds = uniqueItems.Select(u => u.Id).ToList();
-                    itemEntities = await boot.Storage.GetEntitiesForItemsAsync(itemIds);
-                }
-
-                var briefing = ExtractThemeBriefing(analyzedItems, uniqueItems, itemEntities);
-                if (briefing.Themes.Count > 0)
-                {
-                    AnsiConsole.WriteLine();
-                    var briefingParts = new List<string>();
-
-                    // Corpus coverage line
-                    var entityNote = briefing.HasGraphEntities
-                        ? $", {briefing.GraphEntityCount} graph entities"
-                        : "";
-                    var coverageNote = $"[dim]Themes inferred from {briefing.TotalEvidenceItems} evidence items across {briefing.SourceCount} sources{entityNote} (coverage: {briefing.CoveragePercent}%).[/]";
-                    briefingParts.Add(coverageNote);
-                    var methodNote = briefing.HasGraphEntities
-                        ? "[dim]Entity-graph enriched; RRF + in-corpus PageRank; diversity decay applied.[/]"
-                        : "[dim]Selected by RRF + in-corpus PageRank; diversity decay applied.[/]";
-                    briefingParts.Add(methodNote);
-                    briefingParts.Add("");
-
-                    // Named themes with evidence counts and snippets
-                    foreach (var theme in briefing.Themes)
-                    {
-                        var color = theme.TopicLabel.ToLowerInvariant() switch
-                        {
-                            "technology" => "blue",
-                            "ai" or "machine_learning" => "magenta",
-                            "security" => "red",
-                            "science" => "cyan",
-                            "health" => "green",
-                            "business" or "economy" => "yellow",
-                            "politics" => "red",
-                            "world" => "aqua",
-                            "entertainment" or "humor" => "fuchsia",
-                            "climate" or "environment" => "green",
-                            "space" => "blue",
-                            _ => "grey"
-                        };
-
-                        var eids = theme.EvidenceIds.Count > 0
-                            ? " " + string.Join(", ", theme.EvidenceIds.Take(5).Select(id => $"[dim]E{id}[/]"))
-                            : "";
-                        briefingParts.Add(
-                            $"[{color}]■[/] [bold]{Markup.Escape(theme.ThesisName)}[/] [dim]({theme.SegmentCount} segments)[/]{eids}");
-
-                        // Supporting snippets
-                        foreach (var (snippet, eid) in theme.Snippets)
-                        {
-                            var tag = eid.HasValue ? $" [dim][[E{eid.Value}]][/]" : "";
-                            var truncSnippet = snippet.Length > 90 ? snippet[..87] + "..." : snippet;
-                            briefingParts.Add($"  [italic dim]\"{Markup.Escape(truncSnippet)}\"[/]{tag}");
-                        }
-
-                        // Show entities: typed NER entities when available, else key terms
-                        if (theme.GraphEntities.Count > 0)
-                        {
-                            var typedEntities = string.Join(", ", theme.GraphEntities.Take(6).Select(e =>
-                            {
-                                var typeColor = e.type switch
-                                {
-                                    "PER" => "green",
-                                    "ORG" => "blue",
-                                    "LOC" => "yellow",
-                                    _ => "grey"
-                                };
-                                var typeLabel = e.type switch
-                                {
-                                    "PER" => "person",
-                                    "ORG" => "org",
-                                    "LOC" => "loc",
-                                    _ => "misc"
-                                };
-                                return $"[{typeColor}]{Markup.Escape(e.name)}[/][dim]:{typeLabel}[/]";
-                            }));
-                            briefingParts.Add($"  {typedEntities}");
-                        }
-                        else if (theme.KeyTerms.Count > 0)
-                        {
-                            var terms = string.Join(", ", theme.KeyTerms.Select(t => Markup.Escape(t)));
-                            briefingParts.Add($"  [dim]Terms: {terms}[/]");
-                        }
-
-                        briefingParts.Add("");
-                    }
-
-                    // Missing themes / outliers
-                    if (briefing.MissingTopics.Count > 0)
-                    {
-                        var missing = string.Join(", ", briefing.MissingTopics.Select(t =>
-                            Markup.Escape(char.ToUpper(t[0]) + t[1..])));
-                        briefingParts.Add($"[dim]Not strongly represented: {missing}[/]");
-                    }
-
-                    var briefingContent = string.Join("\n", briefingParts).TrimEnd('\n');
-                    var wrappedBriefing = WordWrapMarkup(briefingContent, maxContentWidth);
-                    AnsiConsole.Write(new Panel(wrappedBriefing)
-                        .Header("[bold yellow]Evidence Briefing[/]")
-                        .Border(BoxBorder.Rounded)
-                        .Padding(1, 0));
-                }
-            }
-
-            // Display entities if requested
-            if (extractEntities && allEntities.Count > 0)
-            {
-                AnsiConsole.WriteLine();
-                var entityTable = new Table()
-                    .Title("[bold yellow]Named Entities[/]")
-                    .Border(TableBorder.Rounded)
-                    .AddColumn("[cyan]Entity[/]")
-                    .AddColumn("[cyan]Type[/]")
-                    .AddColumn("[cyan]Confidence[/]");
-
-                foreach (var entity in allEntities.Take(20))
-                {
-                    var typeColor = entity.Type switch
-                    {
-                        "PER" => "green",
-                        "ORG" => "blue",
-                        "LOC" => "yellow",
-                        _ => "grey"
-                    };
-                    entityTable.AddRow(
-                        Markup.Escape(entity.Text),
-                        $"[{typeColor}]{entity.Type}[/]",
-                        $"{entity.Confidence:P0}");
-                }
-                AnsiConsole.Write(entityTable);
-
-                // Story Connections: show articles linked by shared entities
-                if (articleEntityMap.Count >= 2)
-                {
-                    DisplayStoryConnections(articleEntityMap);
-                }
-            }
-
-            // Display knowledge graph (skip in --no-llm fast mode)
-            if (settings.Graph && boot.VectorStore != null && boot.EntityStore != null)
-            {
-                var graphService = new KnowledgeGraphService(boot.VectorStore, boot.EntityStore);
-                await graphService.DisplayGraphAsync(topN: 15, daysBack: 7);
-            }
-
-            // Display images for important items
-            if (settings.ShowImages)
-            {
-                // Get items with images, sorted by importance (score)
-                var itemsWithImages = uniqueItems
-                    .Where(i => !string.IsNullOrEmpty(i.ImageUrl))
-                    .OrderByDescending(i => i.Score)
-                    .Take(3)
-                    .ToList();
-
-                // Also try to fetch og:image for high-scoring items without images
-                var highScoringWithoutImages = uniqueItems
-                    .Where(i => string.IsNullOrEmpty(i.ImageUrl) && i.Score > 50 && !string.IsNullOrEmpty(i.Url))
-                    .OrderByDescending(i => i.Score)
-                    .Take(2);
-
-                using var imageService = new ImageService(httpClient);
-
-                foreach (var item in highScoringWithoutImages)
-                {
-                    var ogImage = await imageService.FetchOgImageAsync(item.Url!);
-                    if (!string.IsNullOrEmpty(ogImage))
-                    {
-                        item.ImageUrl = ogImage;
-                        itemsWithImages.Add(item);
-                    }
-                }
-
-                if (itemsWithImages.Count > 0)
-                {
-                    AnsiConsole.WriteLine();
-                    AnsiConsole.MarkupLine("[bold yellow]Featured Images[/]");
-                    AnsiConsole.WriteLine();
-
-                    foreach (var item in itemsWithImages.Take(3))
-                    {
-                        var localPath = await imageService.DownloadImageAsync(item.ImageUrl!, item.Id);
-                        if (localPath != null)
-                        {
-                            AnsiConsole.MarkupLine($"[cyan]{Markup.Escape(item.Title)}[/]");
-                            if (item.Score > 0)
-                                AnsiConsole.MarkupLine($"[grey]Score: {item.Score}[/]");
-                            imageService.DisplayImage(localPath, maxWidth: 50);
-                            AnsiConsole.WriteLine();
-                        }
-                    }
-                }
-            }
-        }
-
-        // Send email if requested
-        if (settings.SendEmail)
-        {
-            string emailHtml;
-            if (templateData != null)
-            {
-                // Use full template rendering (blog/newsletter paths)
-                emailHtml = outputTemplates.Render(templateData, boot.Config.Email.Template);
-            }
-            else
-            {
-                // Standard synthesis: build templateData from analyzed items
-                // Convert markdown summary to HTML for email rendering
-                var overviewHtml = Markdig.Markdown.ToHtml(finalSummary ?? "");
-                templateData = new DigestData
-                {
-                    Date = DateTimeOffset.Now,
-                    Vibe = vibe,
-                    Query = interpreted?.RawPrompt ?? settings.Prompt,
-                    Overview = overviewHtml,
-                    Items = analyzedItems.Select(a => new DigestItem
-                    {
-                        Title = a.title,
-                        Url = a.url,
-                        Summary = a.summary,
-                        Topic = a.topic,
-                        Sentiment = a.sentiment
-                    }).ToList()
-                };
-                emailHtml = outputTemplates.Render(templateData, boot.Config.Email.Template);
-            }
-
-            var emailService = new EmailService(boot.Config.Email, boot.ApiKeys!);
-            var subject = boot.Config.Email.SubjectTemplate
-                .Replace("{{DATE}}", DateTime.Now.ToString("MMMM d, yyyy"))
-                .Replace("{{QUERY}}", interpreted?.RawPrompt ?? settings.Prompt ?? "");
-            await emailService.SendAsync(emailHtml, subject, settings.EmailTo, cancellationToken);
-        }
+        // === Output (delegated to Display partial) ===
+        await RenderOutputAsync(settings, boot, vibe, finalSummary, template, isBlogTemplate,
+            templateData, uniqueItems, analyzedItems, allEntities, articleEntityMap,
+            extractEntities, ollamaAvailable, interpreted, linkCacheHits, linksSkippedByRelevance,
+            outputTemplates, httpClient, isImageSource, cancellationToken);
 
         return 0;
-    }
-
-    /// <summary>
-    /// Play the DoomSummarizer easter egg animation with the title.
-    /// </summary>
-    private static async Task PlayEasterEggAnimationAsync(CancellationToken ct)
-    {
-        AnsiConsole.Clear();
-        AnsiConsole.WriteLine();
-
-        var title = new FigletText("DoomSummarizer")
-            .Color(Color.Cyan1);
-
-        AnsiConsole.Write(title);
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[dim]AI-powered doom scrolling so you don't have to.[/]");
-        AnsiConsole.WriteLine();
-
-        // Try to load and play the embedded .cidz animation
-        var doc = await LoadEmbeddedAnimationAsync(ct);
-
-        if (doc != null)
-        {
-            AnsiConsole.MarkupLine("[dim]Press Ctrl+C to exit[/]");
-            AnsiConsole.WriteLine();
-
-            try
-            {
-                using var player = new ConsolePlayer(doc, loopCount: 3);
-                await player.PlayAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                AnsiConsole.MarkupLine($"[dim]Animation error: {ex.Message}[/]");
-                await PlayInlineAnimationAsync(ct);
-            }
-        }
-        else
-        {
-            // Fall back to inline ASCII animation
-            await PlayInlineAnimationAsync(ct);
-        }
-
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[green]Ready to doom scroll![/]");
-    }
-
-    /// <summary>
-    /// Load the embedded spin.cidz animation from assembly resources.
-    /// </summary>
-    private static async Task<PlayerDocument?> LoadEmbeddedAnimationAsync(CancellationToken ct)
-    {
-        try
-        {
-            var assembly = Assembly.GetExecutingAssembly();
-
-            // Try different resource name patterns
-            var resourceNames = new[] { "DoomSummarizer.spin.cidz", "DoomSummarizer.img.spin.cidz", "spin.cidz" };
-            Stream? stream = null;
-            string? foundName = null;
-
-            foreach (var name in resourceNames)
-            {
-                stream = assembly.GetManifestResourceStream(name);
-                if (stream != null)
-                {
-                    foundName = name;
-                    break;
-                }
-            }
-
-            if (stream == null)
-            {
-                AnsiConsole.MarkupLine("[dim]No embedded animation found[/]");
-                return null;
-            }
-
-            AnsiConsole.MarkupLine($"[dim]Loading animation from {foundName} ({stream.Length} bytes)[/]");
-
-            await using (stream)
-            {
-                var doc = await PlayerDocument.FromCompressedStreamAsync(stream, ct);
-                AnsiConsole.MarkupLine($"[dim]Loaded {doc.FrameCount} frames[/]");
-                return doc;
-            }
-        }
-        catch (Exception ex)
-        {
-            AnsiConsole.MarkupLine($"[dim]Animation load error: {ex.Message}[/]");
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Fallback inline ASCII animation when .cidz file is not available.
-    /// </summary>
-    private static async Task PlayInlineAnimationAsync(CancellationToken ct)
-    {
-        var frames = new[]
-        {
-            @"
-   ████████████████████████
-   ██                    ██
-   ██  ████        ████  ██
-   ██  ████        ████  ██
-   ██                    ██
-   ██       ████████     ██
-   ██    ██  ████  ██    ██
-   ██                    ██
-   ████████████████████████
-            ",
-            @"
-   ████████████████████████
-   ██                    ██
-   ██  ▓▓▓▓        ▓▓▓▓  ██
-   ██  ▓▓▓▓        ▓▓▓▓  ██
-   ██                    ██
-   ██       ████████     ██
-   ██    ██  ████  ██    ██
-   ██                    ██
-   ████████████████████████
-            ",
-            @"
-   ████████████████████████
-   ██                    ██
-   ██  ░░░░        ░░░░  ██
-   ██  ░░░░        ░░░░  ██
-   ██                    ██
-   ██       ████████     ██
-   ██    ██  ████  ██    ██
-   ██                    ██
-   ████████████████████████
-            "
-        };
-
-        var colors = new[] { Color.Red, Color.Orange1, Color.Yellow };
-
-        AnsiConsole.MarkupLine("[dim]Press Ctrl+C to exit[/]");
-        AnsiConsole.WriteLine();
-
-        var loops = 0;
-        var maxLoops = 6;
-        var frameIndex = 0;
-
-        while (!ct.IsCancellationRequested && loops < maxLoops)
-        {
-            var color = colors[frameIndex % colors.Length];
-            var frame = frames[frameIndex % frames.Length];
-
-            AnsiConsole.Cursor.SetPosition(0, 8);
-            AnsiConsole.Write(new Text(frame, new Style(color)));
-
-            frameIndex++;
-            if (frameIndex >= frames.Length * 2)
-            {
-                frameIndex = 0;
-                loops++;
-            }
-
-            try
-            {
-                await Task.Delay(150, ct);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-        }
     }
 }

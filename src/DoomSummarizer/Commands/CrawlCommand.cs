@@ -1,12 +1,16 @@
 using System.ComponentModel;
+#if FEATURE_COMPLETE
 using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Services.Transcription;
+#endif
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+#if FEATURE_COMPLETE
 using DoomSummarizer.Sources.YouTube;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+#endif
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -29,16 +33,11 @@ namespace DoomSummarizer.Commands;
 /// </summary>
 public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
+    public sealed class Settings : CommonSettings
     {
         [CommandArgument(0, "<source>")]
         [Description("Seed URL or local file/directory path")]
         public string Url { get; init; } = "";
-
-        [CommandOption("-n|--name")]
-        [Description("Knowledge base name (used to query later)")]
-        public string? Name { get; init; }
-        
 
         [CommandOption("-d|--depth")]
         [Description("Maximum crawl depth from seed URL")]
@@ -71,10 +70,6 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         [CommandOption("-f|--force")]
         [Description("Re-process all pages regardless of cache (default: skip unchanged pages)")]
         public bool Force { get; init; }
-
-        [CommandOption("-q|--quiet")]
-        [Description("Minimal output")]
-        public bool Quiet { get; init; }
 
         [CommandOption("--ask")]
         [Description("Drop to interactive ask mode while crawling in background")]
@@ -120,8 +115,10 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
             await boot.InitializeEntityGraphStoreAsync();
 
         // YouTube URL: extract metadata + subtitles (no web crawl needed)
+#if FEATURE_COMPLETE
         if (isUrl && YouTubeExtractor.IsYouTubeUrl(settings.Url))
             return await ExecuteYouTubeAsync(boot, settings, kbName, cancellationToken);
+#endif
 
         // Local path: ingest files directly (fast, no background crawl needed)
         if (isLocalPath)
@@ -131,7 +128,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         if (settings.Ask)
             return await ExecuteWithAskAsync(boot, settings, kbName, cancellationToken);
 
-        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        using var httpClient = HttpClientFactory.CreateDefault();
 
         var crawlConfig = CreateCrawlConfig(settings, kbName);
         var crawler = new WebCrawlerService(httpClient, crawlConfig);
@@ -173,13 +170,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         // Track ETags/Last-Modified captured from responses (URL → headers)
         var capturedHeaders = new Dictionary<string, (string? etag, string? lastModified)>(StringComparer.OrdinalIgnoreCase);
 
-        await AnsiConsole.Progress()
-            .Columns(
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new SpinnerColumn())
-            .StartAsync(async ctx =>
+        await ProgressHelper.RunAsync(async ctx =>
             {
                 // Stage 1: Crawl, extract, and filter by cache (ETag + content hash)
                 var crawlTask = ctx.AddTask("[cyan]Crawling pages[/]", maxValue: settings.MaxPages);
@@ -426,7 +417,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         CommandBootstrap boot, Settings settings, string kbName, CancellationToken ct)
     {
         // Resolve files using ScrollCommand's shared helper
-        var (files, collectionName) = ScrollCommand.ResolveLocalSources(
+        var (files, collectionName, _) = ScrollCommand.ResolveLocalSources(
             new[] { settings.Url }, settings.Name, settings.Recurse);
 
         if (files.Count == 0)
@@ -448,13 +439,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         int itemCount;
         IngestDocumentType docType;
 
-        await AnsiConsole.Progress()
-            .Columns(
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new SpinnerColumn())
-            .StartAsync(async ctx =>
+        await ProgressHelper.RunAsync(async ctx =>
             {
                 var progressTask = ctx.AddTask("[cyan]Ingesting files[/]", maxValue: 100);
                 (sourceFilter, itemCount, docType) = await ScrollCommand.IngestLocalFilesAsync(
@@ -464,30 +449,14 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         // If --ask: enter interactive ask loop against the newly-ingested collection
         if (settings.Ask)
         {
-            var ollama = boot.CreateOllama();
-            var llmRouter = await boot.InitializeLlmStackAsync(ct: ct);
-            var ollamaAvailable = await ollama.IsAvailableAsync();
-
-            try { await boot.InitializeEntityGraphStoreAsync(); }
-            catch { /* Entity store is optional */ }
-
-            var hasCloudLlm = llmRouter.HasCloudProvider;
-            if (!ollamaAvailable && !hasCloudLlm)
-            {
-                AnsiConsole.MarkupLine("[yellow]No LLM available (Ollama down, no cloud keys).[/] Answers will be limited to evidence listing.");
-            }
-
-            var askOptions = new InteractiveAskOptions(
+            return await boot.StartAskLoopAsync(new InteractiveAskOptions(
                 Source: $"file:{kbName}",
                 Name: kbName,
                 Days: 0,
                 TopK: 10,
                 Once: false,
                 Quiet: settings.Quiet,
-                InitialQuestion: null);
-
-            var loop = new InteractiveAskLoop(boot, ollama, llmRouter, ollamaAvailable, askOptions);
-            return await loop.RunAsync(ct);
+                InitialQuestion: null), ct);
         }
 
         // Summary
@@ -498,6 +467,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         return 0;
     }
 
+#if FEATURE_COMPLETE
     private async Task<int> ExecuteYouTubeAsync(
         CommandBootstrap boot, Settings settings, string kbName, CancellationToken ct)
     {
@@ -544,13 +514,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         }
 
         // Embed and index all items
-        await AnsiConsole.Progress()
-            .Columns(
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new SpinnerColumn())
-            .StartAsync(async ctx =>
+        await ProgressHelper.RunAsync(async ctx =>
             {
                 var embedTask = ctx.AddTask("[cyan]Computing embeddings[/]", maxValue: result.Items.Count);
                 using var processor = await ItemProcessor.CreateAsync(
@@ -581,30 +545,14 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         // If --ask: enter interactive ask loop
         if (settings.Ask)
         {
-            var ollama = boot.CreateOllama();
-            var llmRouter = await boot.InitializeLlmStackAsync(ct: ct);
-            var ollamaAvailable = await ollama.IsAvailableAsync();
-
-            try { await boot.InitializeEntityGraphStoreAsync(); }
-            catch { /* Entity store is optional */ }
-
-            var hasCloudLlm = llmRouter.HasCloudProvider;
-            if (!ollamaAvailable && !hasCloudLlm)
-            {
-                AnsiConsole.MarkupLine("[yellow]No LLM available (Ollama down, no cloud keys).[/] Answers will be limited to evidence listing.");
-            }
-
-            var askOptions = new InteractiveAskOptions(
+            return await boot.StartAskLoopAsync(new InteractiveAskOptions(
                 Source: $"youtube:{kbName}",
                 Name: kbName,
                 Days: 0,
                 TopK: 10,
                 Once: false,
                 Quiet: settings.Quiet,
-                InitialQuestion: null);
-
-            var loop = new InteractiveAskLoop(boot, ollama, llmRouter, ollamaAvailable, askOptions);
-            return await loop.RunAsync(ct);
+                InitialQuestion: null), ct);
         }
 
         // Summary
@@ -614,6 +562,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
 
         return 0;
     }
+#endif
 
     private async Task<int> ExecuteWithAskAsync(
         CommandBootstrap boot, Settings settings, string kbName, CancellationToken ct)
@@ -622,8 +571,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         var ollama = boot.CreateOllama();
         var llmRouter = await boot.InitializeLlmStackAsync(ct: ct);
 
-        try { await boot.InitializeEntityGraphStoreAsync(); }
-        catch { /* Entity store is optional */ }
+        await boot.TryInitializeEntityGraphStoreAsync();
 
         var ollamaAvailable = await ollama.IsAvailableAsync();
         var hasCloudLlm = llmRouter.HasCloudProvider;
@@ -712,6 +660,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         AnsiConsole.Write(table);
     }
 
+#if FEATURE_COMPLETE
     /// <summary>
     /// Try to create a Whisper-based audio transcription delegate.
     /// Returns null if Whisper is not available (model not downloaded, etc.).
@@ -743,6 +692,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
             return null;
         }
     }
+#endif
 
     /// <summary>
     /// Create a CrawlConfig from command settings with auto-detection for GitHub repos.

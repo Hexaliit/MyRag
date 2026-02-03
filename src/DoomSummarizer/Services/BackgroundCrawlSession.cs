@@ -75,7 +75,7 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
 
         try
         {
-            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            using var httpClient = HttpClientFactory.CreateDefault();
             var crawlConfig = CrawlCommand.CreateCrawlConfig(settings, kbName);
             var crawler = new WebCrawlerService(httpClient, crawlConfig);
 
