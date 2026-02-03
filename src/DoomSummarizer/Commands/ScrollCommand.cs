@@ -111,6 +111,10 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         [Description("Override email recipient(s), comma-separated")]
         public string? EmailTo { get; init; }
 
+        [CommandOption("--full")]
+        [Description("Show full diagnostic output: startup panel, status lines, NER, decomposer, evidence briefing")]
+        public bool Full { get; init; }
+
         [CommandOption("--briefing")]
         [Description("Show evidence briefing panel with themes, entities, and coverage metrics")]
         public bool Briefing { get; init; }
@@ -356,14 +360,14 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         var hasStatusLine = false;
         void WriteStatus(string markup)
         {
-            if (settings.Quiet) return;
+            if (!settings.Full) return;
             if (hasStatusLine)
                 Console.Write("\x1b[1A\x1b[2K"); // Move up one line, clear it
             AnsiConsole.MarkupLine(markup);
             hasStatusLine = true;
         }
 
-        if (!settings.Quiet)
+        if (settings.Full)
             RenderStartupPanel(boot.Config, ConfigService.LoadedConfigPath, llmRouter, boot.Embedding, boot.ApiKeys!, circuitBreaker, settings.Prompt);
 
         // NER preprocessing: extract entities from query BEFORE the LLM sentinel
@@ -447,6 +451,17 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             }
 
             WriteStatus($"[grey]Detected: sources=[[{Markup.Escape(sourcesStr)}]], vibe={vibe}{Markup.Escape(temporalInfo)}[/]");
+
+            // Show selected sources (always, unless --quiet)
+            if (!settings.Quiet)
+            {
+                var selectedSources = interpreted.Sources
+                    .Concat(interpreted.Websites)
+                    .Concat(interpreted.SearchQueries.Select(q => $"search:{q}"))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                RenderSelectedSources(selectedSources, boot.ApiKeys!, circuitBreaker);
+            }
         }
 
         // Detect search_only intent: weather, scores, prices — needs search, not feeds
@@ -858,7 +873,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             if (topRelevance < 0.40f || bestSingle < 0.50f || aboveThreshold < 3)
                             {
                                 useCachedSegments = false;
-                                if (!settings.Quiet)
+                                if (settings.Full)
                                     AnsiConsole.MarkupLine($"[yellow]Cached segments lack salience for this query (avg={topRelevance:F2}, best={bestSingle:F2}, above-0.30={aboveThreshold}) — fetching fresh[/]");
                             }
                             else if (settings.DebugPipeline)
@@ -870,7 +885,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         {
                             // No embeddings to evaluate — can't verify salience, fetch fresh
                             useCachedSegments = false;
-                            if (!settings.Quiet)
+                            if (settings.Full)
                                 AnsiConsole.MarkupLine("[yellow]Cached segments have no embeddings — fetching fresh[/]");
                         }
                     }
@@ -1766,7 +1781,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
                         if (avgRelevance < 0.25)
                         {
-                            if (!settings.Quiet)
+                            if (settings.Full)
                                 AnsiConsole.MarkupLine(
                                     $"[yellow]Evidence gap detected (top-5 relevance: {avgRelevance:F2}) — running targeted re-search[/]");
 
@@ -2651,8 +2666,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             // Deterministic sources section — shows which documents were used
             RenderSourcesUsed(analyzedItems, uniqueItems, maxContentWidth);
 
-            // Display evidence briefing with named themes (opt-in via --briefing)
-            if (settings.Briefing && analyzedItems.Count > 0)
+            // Display evidence briefing with named themes (--full or --briefing)
+            if ((settings.Full || settings.Briefing) && analyzedItems.Count > 0)
             {
                 // Load entity data for enriched theme briefing
                 Dictionary<string, List<(string name, string type, double confidence)>>? itemEntities = null;

@@ -423,6 +423,67 @@ public partial class ScrollCommand
         };
     }
 
+    // ─── Selected sources indicator ───
+
+    /// <summary>
+    /// Render a compact one-line display of the sources the sentinel selected,
+    /// color-coded by availability: green = active, red = circuit open, grey = no API key.
+    /// Shown after sentinel interpretation in both default and --full modes.
+    /// </summary>
+    internal static void RenderSelectedSources(
+        List<string> selectedSources,
+        ApiKeyService apiKeys,
+        CircuitBreakerService circuitBreaker)
+    {
+        if (selectedSources.Count == 0) return;
+
+        var parts = new List<string>();
+        foreach (var source in selectedSources)
+        {
+            var root = source.Split(':')[0];
+            var display = Markup.Escape(source);
+
+            // Map CLI source root to API service name for availability check
+            var apiServiceName = root.ToLowerInvariant() switch
+            {
+                "gnews" or "gnews_topic" => "google_search",
+                "search" => null, // uses rotated search (Brave/Serper/Tavily/DDG)
+                "hn" or "reddit" or "lobsters" or "devto" or "bbc" or "guardian"
+                    or "cnn" or "reuters" or "npr" or "ars" or "verge"
+                    or "techcrunch" or "wired" or "theregister" or "theonion"
+                    or "babylonbee" or "spaceflight" or "earthquake"
+                    or "sciencedaily" or "phys" or "carbonbrief"
+                    or "factcheck" or "wikipedia" or "arxiv"
+                    => null, // RSS/scrape sources — always available
+                "newsapi" => "newsapi",
+                "newsdata" => "newsdata",
+                "currents" => "currents",
+                _ => root
+            };
+
+            string color;
+            if (apiServiceName == null)
+            {
+                // RSS/scrape/search rotation — check circuit breaker by root name
+                var circuitOpen = circuitBreaker.IsCircuitOpen(root);
+                color = circuitOpen ? "red" : "green";
+            }
+            else
+            {
+                if (!apiKeys.IsAvailable(apiServiceName))
+                    color = "grey";
+                else if (circuitBreaker.IsCircuitOpen(apiServiceName))
+                    color = "red";
+                else
+                    color = "green";
+            }
+
+            parts.Add($"[{color}]{display}[/]");
+        }
+
+        AnsiConsole.MarkupLine($"[bold grey]Sources[/]  {string.Join("  ", parts)}");
+    }
+
     // ─── Startup info panel ───
 
     /// <summary>
