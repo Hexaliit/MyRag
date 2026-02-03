@@ -30,9 +30,11 @@
     </PackageReference>
   </ItemGroup>
 
-  <!-- GraphRag (always ProjectRef — not yet a NuGet package) -->
+  <!-- GraphRag: used for OnnxNerService (transcript entity extraction).
+       PrivateAssets=all embeds it in our package without declaring a NuGet dependency
+       (GraphRag is not published as a standalone NuGet package). -->
   <ItemGroup>
-    <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" />
+    <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" PrivateAssets="all" />
   </ItemGroup>
 
   <!-- Core dependencies (ProjectRef local, PackageRef CI) -->

@@ -8,9 +8,15 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
-    <ItemGroup>
-        <!-- Reference DocSummarizer.Core for BERT embeddings, BM25, tokenizer -->
+    <!-- DocSummarizer.Core (ProjectRef local, PackageRef CI) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj"/>
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)" />
+    </ItemGroup>
+
+    <ItemGroup>
 
         <!-- DuckDB for compact vector + graph storage -->
         <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4-alpha.2"/>

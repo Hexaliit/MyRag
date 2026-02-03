@@ -77,7 +77,6 @@ jobs:
             -p:PublishSingleFile=true \
             -p:EnableCompressionInSingleFile=true \
             -p:PublishReadyToRun=true \
-            -p:IncludeNativeLibrariesForSelfExtract=${{ startsWith(matrix.rid, 'osx') && 'false' || 'true' }} \
             -p:CompleteBuild=${{ matrix.build_type == 'complete' && 'true' || 'false' }} \
             -p:Version=${{ github.event.inputs.version }} \
             -o ./publish/${{ matrix.rid }}
@@ -92,9 +91,15 @@ jobs:
             BINARY_NAME="doomsummarizer"
           fi
           cp ./publish/${{ matrix.rid }}/${BINARY_NAME}${{ matrix.ext }} ./stage/
-          # On macOS, native libs sit alongside the binary (not embedded) to avoid Gatekeeper issues
-          if [[ "${{ matrix.rid }}" == osx-* ]]; then
-            cp ./publish/${{ matrix.rid }}/*.dylib ./stage/ 2>/dev/null || true
+          # Native libs sit alongside binary (csproj sets IncludeNativeLibrariesForSelfExtract=false
+          # to avoid LLamaSharp AVX-variant filename collisions and macOS Gatekeeper issues)
+          cp ./publish/${{ matrix.rid }}/*.dylib ./stage/ 2>/dev/null || true  # macOS
+          cp ./publish/${{ matrix.rid }}/*.so ./stage/ 2>/dev/null || true     # Linux
+          # Windows: native DLLs left outside single-file bundle (managed DLLs are inside)
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
+            for f in ./publish/${{ matrix.rid }}/*.dll; do
+              [ -f "$f" ] && cp "$f" ./stage/ 2>/dev/null || true
+            done
           fi
           cp src/DoomSummarizer/README.md ./stage/
           cp src/DoomSummarizer/Resources/default-config.json ./stage/config.json

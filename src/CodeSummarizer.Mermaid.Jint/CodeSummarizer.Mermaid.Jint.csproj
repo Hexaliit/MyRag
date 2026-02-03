@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>preview</LangVersion>
@@ -53,13 +53,9 @@
     <!-- Jint - pure .NET JavaScript interpreter -->
     <PackageReference Include="Jint" Version="4.5.0" />
 
-    <!-- Core dependencies (version-matched per TFM) -->
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net9.0'" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net9.0'" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net8.0'" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <!-- Core dependencies -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
   </ItemGroup>
 
   <!-- CodeSummarizer.Core dependency (conditional: ProjectRef local, PackageRef CI) -->
