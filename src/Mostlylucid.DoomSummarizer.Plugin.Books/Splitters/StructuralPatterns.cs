@@ -111,7 +111,7 @@ public static class StructuralPatterns
     // YAML deserialization model
     private class PatternYaml
     {
-        [YamlMember(Alias = "name")] public string Name { get; } = "";
+        [YamlMember(Alias = "name")] public string Name { get; set; } = "";
 
         [YamlMember(Alias = "description")] public string? Description { get; set; }
 

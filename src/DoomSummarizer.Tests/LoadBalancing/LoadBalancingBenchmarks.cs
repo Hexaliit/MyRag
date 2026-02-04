@@ -11,6 +11,7 @@ namespace DoomSummarizer.Tests.LoadBalancing;
 ///     Uses xUnit [Fact] tests with Stopwatch timing (no BenchmarkDotNet dependency).
 ///     Each benchmark reports ops/sec and allocation bytes via test output.
 /// </summary>
+[Trait("Category", "Benchmark")]
 public class LoadBalancingBenchmarks(ITestOutputHelper output)
 {
     // ── B1: EndpointState throughput ──────────────────────────────────────

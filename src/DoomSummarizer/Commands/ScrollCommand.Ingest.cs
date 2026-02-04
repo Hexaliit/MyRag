@@ -67,6 +67,31 @@ public sealed partial class ScrollCommand
         return ImageExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
     }
 
+    /// <summary>
+    ///     Heuristic: does the input look like a file/directory path rather than a search query?
+    ///     Used to show a "file not found" error instead of treating paths as search text.
+    /// </summary>
+    internal static bool LooksLikeFilePath(string input)
+    {
+        // URLs are not file paths
+        if (input.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            input.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Windows drive letter (C:\...) or UNC path (\\server\...)
+        if (input.Length >= 3 && char.IsLetter(input[0]) && input[1] == ':' &&
+            (input[2] == '\\' || input[2] == '/'))
+            return true;
+
+        if (input.StartsWith(@"\\", StringComparison.Ordinal))
+            return true;
+
+        // Has path separators + a file extension
+        var hasSeparator = input.Contains('\\') || input.Contains('/');
+        var ext = Path.GetExtension(input);
+        return hasSeparator && ext.Length > 1;
+    }
+
     internal static string DescriptionFromFilename(string filePath)
     {
         var name = Path.GetFileNameWithoutExtension(filePath);

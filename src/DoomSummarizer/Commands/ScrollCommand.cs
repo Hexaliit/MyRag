@@ -192,6 +192,24 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             candidateSources = [settings.Prompt];
             promptIsFilePath = true;
         }
+        // If prompt looks like a file path but the file doesn't exist, warn instead of
+        // treating it as a search query (which produces random/irrelevant results)
+        else if (candidateSources.Length == 0 && !string.IsNullOrEmpty(settings.Prompt) &&
+                 LooksLikeFilePath(settings.Prompt))
+        {
+            AnsiConsole.MarkupLine($"[red]File not found: '{Markup.Escape(settings.Prompt)}'[/]");
+            var ext = Path.GetExtension(settings.Prompt);
+            if (!string.IsNullOrEmpty(ext))
+            {
+                var registry = new DocumentHandlerRegistry();
+                registry.RegisterDefaultHandlers();
+                var supported = string.Join(", ", registry.GetSupportedExtensions());
+                AnsiConsole.MarkupLine(
+                    $"[yellow]Supported document formats: {Markup.Escape(supported)}[/]");
+            }
+
+            return 1;
+        }
 
         if (candidateSources.Length > 0)
         {
