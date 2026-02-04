@@ -71,6 +71,7 @@ public sealed class OnnxNerService : INerService
             var options = new SessionOptions
             {
                 GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+                LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
                 IntraOpNumThreads = Math.Min(4, Environment.ProcessorCount),
                 InterOpNumThreads = 1
             };

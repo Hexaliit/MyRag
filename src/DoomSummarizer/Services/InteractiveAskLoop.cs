@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Threading.Channels;
 using DoomSummarizer.Commands;
@@ -177,9 +178,9 @@ public sealed class InteractiveAskLoop
                 {
                     await pendingIndexTask;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    /* non-fatal */
+                    Debug.WriteLine($"Pending index task failed: {ex.Message}");
                 }
 
                 pendingIndexTask = null;
@@ -201,9 +202,9 @@ public sealed class InteractiveAskLoop
             {
                 await pendingIndexTask;
             }
-            catch
+            catch (Exception ex)
             {
-                /* non-fatal */
+                Debug.WriteLine($"Final index task failed: {ex.Message}");
             }
 
         // Drain any remaining progress
@@ -299,9 +300,9 @@ public sealed class InteractiveAskLoop
                             searchQuery = personalResolved;
                         personalContext = pCtx;
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Personal resolution failure is non-fatal
+                        Debug.WriteLine($"Personal resolution failed: {ex.Message}");
                     }
 
                 // Phase 1: Decompose
@@ -329,9 +330,9 @@ public sealed class InteractiveAskLoop
                         null,
                         ct);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Decomposer failure is non-fatal
+                    Debug.WriteLine($"Decomposer failed: {ex.Message}");
                 }
 
                 if (decomposition != null)
@@ -364,15 +365,28 @@ public sealed class InteractiveAskLoop
                         var cachedSalient = segmentCache.GetSalient(queryEmb, turnNumber);
 
                         // Merge: fresh results take priority, cached fill remaining slots
-                        var freshIds = new HashSet<string>(freshItems.Select(f => f.Id));
-                        var mergedItems = freshItems
-                            .Concat(cachedSalient.Where(c => !freshIds.Contains(c.Id)))
-                            .Take(conceptBudget * 2)
-                            .ToList();
+                        var cap = conceptBudget * 2;
+                        var mergedItems = new List<ContentItem>(Math.Min(cap, freshItems.Count + cachedSalient.Count));
+                        var freshIds = new HashSet<string>(freshItems.Count);
+                        foreach (var f in freshItems)
+                        {
+                            mergedItems.Add(f);
+                            freshIds.Add(f.Id);
+                            if (mergedItems.Count >= cap) break;
+                        }
+
+                        if (mergedItems.Count < cap)
+                            foreach (var c in cachedSalient)
+                            {
+                                if (freshIds.Contains(c.Id)) continue;
+                                mergedItems.Add(c);
+                                if (mergedItems.Count >= cap) break;
+                            }
                         evidence = mergedItems;
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        Debug.WriteLine($"Cache merge failed: {ex.Message}");
                         evidence = freshItems;
                     }
                 }
@@ -616,9 +630,9 @@ public sealed class InteractiveAskLoop
                             personalCorpus.ActiveCorpusName, factStatement, question, ct);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Chat corpus / personal corpus indexing failure is non-fatal
+                Debug.WriteLine($"Corpus indexing failed: {ex.Message}");
             }
         }, ct);
     }
@@ -1182,22 +1196,24 @@ public sealed class InteractiveAskLoop
     {
         // NER: try to create, non-fatal if unavailable
         INerService? ner = null;
+        NerService? nerService = null;
         try
         {
-            var nerService = new NerService();
+            nerService = new NerService();
             if (nerService.IsAvailable)
             {
                 nerService.InitializeAsync().GetAwaiter().GetResult();
                 ner = nerService;
-            }
-            else
-            {
-                nerService.Dispose();
+                nerService = null; // ownership transferred to ner
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // NER unavailable — personal corpus works without it (no entity extraction)
+            System.Diagnostics.Debug.WriteLine($"NER init failed: {ex.Message}");
+        }
+        finally
+        {
+            nerService?.Dispose(); // dispose if ownership was not transferred
         }
 
         // KnowledgeGraph: requires both VectorStore and EntityStore

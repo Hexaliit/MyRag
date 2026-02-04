@@ -518,7 +518,7 @@ public class EntityDisambiguationService
             if (!string.IsNullOrEmpty(cluster.Label))
                 continue;
 
-            var bestItem = cluster.Items.OrderByDescending(i => i.RelevanceScore).First();
+            var bestItem = cluster.Items.MaxBy(i => i.RelevanceScore)!;
 
             if (evidenceIndex.TryGetValue(bestItem, out var bestIdx) && bestIdx < features.Count)
             {

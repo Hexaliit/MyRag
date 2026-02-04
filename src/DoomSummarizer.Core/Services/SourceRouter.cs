@@ -132,31 +132,40 @@ public class SourceRouter
     internal string DetectTopicKeyword(string query)
     {
         var lower = query.ToLowerInvariant();
-        var words = lower.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var wordSet = new HashSet<string>(
+            lower.Split(' ', StringSplitOptions.RemoveEmptyEntries),
+            StringComparer.OrdinalIgnoreCase);
 
-        // Score each topic by how many keywords match
-        var scores = new Dictionary<string, int>();
+        var bestTopic = "default";
+        var bestScore = 0;
 
         foreach (var (topic, keywords) in _config.TopicKeywords)
         {
-            var score = keywords.Count(kw =>
+            var score = 0;
+            foreach (var kw in keywords)
             {
-                // Multi-word keywords: check substring
                 if (kw.Contains(' '))
-                    return lower.Contains(kw.ToLowerInvariant());
-                // Single-word: check word boundary
-                return words.Contains(kw.ToLowerInvariant());
-            });
+                {
+                    // Multi-word keywords: check substring (already lowered in YAML)
+                    if (lower.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                        score++;
+                }
+                else
+                {
+                    // Single-word: O(1) HashSet lookup instead of O(N) array scan
+                    if (wordSet.Contains(kw))
+                        score++;
+                }
+            }
 
-            if (score > 0)
-                scores[topic] = score;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestTopic = topic;
+            }
         }
 
-        if (scores.Count == 0)
-            return "default";
-
-        // Return the topic with the highest keyword match count
-        return scores.OrderByDescending(kv => kv.Value).First().Key;
+        return bestTopic;
     }
 
     /// <summary>
@@ -166,42 +175,6 @@ public class SourceRouter
     {
         var topic = await DetectTopicAsync(query);
         return RouteByTopic(topic, query);
-    }
-
-    /// <summary>
-    ///     Filter sources to only those whose scope matches the detected topic.
-    ///     Returns sources that explicitly include the topic in their scope,
-    ///     plus search sources (which work for any topic).
-    /// </summary>
-    public List<string> FilterSourcesByScope(List<string> sources, string topic)
-    {
-        if (topic == "default" || topic == "general")
-            return sources; // No filtering for general queries
-
-        var filtered = new List<string>();
-        foreach (var sourceName in sources)
-        {
-            var source = GetSource(sourceName);
-            if (source == null)
-            {
-                filtered.Add(sourceName); // Unknown source — include it
-                continue;
-            }
-
-            // Always include search sources (they can search anything)
-            if (source.Search)
-            {
-                filtered.Add(sourceName);
-                continue;
-            }
-
-            // Include if scope is null (legacy, assume general) or matches topic
-            if (source.Scope == null || source.Scope.Count == 0 ||
-                source.Scope.Any(s => s.Equals(topic, StringComparison.OrdinalIgnoreCase)))
-                filtered.Add(sourceName);
-        }
-
-        return filtered;
     }
 
     /// <summary>

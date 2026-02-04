@@ -114,10 +114,16 @@ public sealed class SalientSegmentCache
             seg.LastSalience = sim;
         }
 
-        var resultItems = results.Select(x => x.seg.Item).ToList();
+        // Build result items and IDs in a single pass
+        var resultItems = new List<ContentItem>(results.Count);
+        var resultIds = new List<string>(results.Count);
+        foreach (var (seg, _) in results)
+        {
+            resultItems.Add(seg.Item);
+            resultIds.Add(seg.Item.Id);
+        }
 
         // Record this prompt → salient mapping for future fast-path lookups
-        var resultIds = resultItems.Select(i => i.Id).ToList();
         PromptIndex.Record(queryEmbedding, resultIds, currentTurn);
 
         return resultItems;
@@ -130,17 +136,20 @@ public sealed class SalientSegmentCache
     /// </summary>
     public void Evict(int currentTurn, int staleTurns = 5)
     {
-        // Phase 1: staleness eviction
-        var staleIds = _segments
-            .Where(kv => currentTurn - kv.Value.LastAccessedTurn > staleTurns)
-            .Select(kv => kv.Key)
-            .ToList();
-
-        foreach (var id in staleIds)
+        // Phase 1: staleness eviction (collect keys first to avoid modifying during enumeration)
+        List<string>? staleIds = null;
+        foreach (var (id, seg) in _segments)
         {
-            _segments.Remove(id);
-            _totalEvicted++;
+            if (currentTurn - seg.LastAccessedTurn > staleTurns)
+                (staleIds ??= []).Add(id);
         }
+
+        if (staleIds != null)
+            foreach (var id in staleIds)
+            {
+                _segments.Remove(id);
+                _totalEvicted++;
+            }
 
         // Phase 2: LFU eviction when over capacity
         if (_segments.Count > _capacity)
@@ -160,7 +169,7 @@ public sealed class SalientSegmentCache
         }
 
         // Prune prompt index entries that reference evicted segments
-        PromptIndex.Prune(GetAllIds());
+        PromptIndex.Prune(_segments.Keys);
     }
 
     /// <summary>
@@ -177,19 +186,9 @@ public sealed class SalientSegmentCache
             return;
         }
 
-        if (concentratedSource == _lastConcentratedSource)
-        {
-            // Same source concentrated again — increment
-            _documentFocusCounts[concentratedSource] =
-                _documentFocusCounts.GetValueOrDefault(concentratedSource) + 1;
-        }
-        else
-        {
-            // Different source — start fresh
-            _lastConcentratedSource = concentratedSource;
-            _documentFocusCounts[concentratedSource] =
-                _documentFocusCounts.GetValueOrDefault(concentratedSource) + 1;
-        }
+        _lastConcentratedSource = concentratedSource;
+        _documentFocusCounts[concentratedSource] =
+            _documentFocusCounts.GetValueOrDefault(concentratedSource) + 1;
     }
 
     /// <summary>

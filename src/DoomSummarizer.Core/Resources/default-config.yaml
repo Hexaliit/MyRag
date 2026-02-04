@@ -109,6 +109,7 @@ output:
   max_summary_length: 500              # Max chars per article summary
   include_links: true                  # Include source URLs in output
   group_by_topic: true                 # Group articles by detected topic
+  default_template: "default"          # Default template for file/doc collections (default|blog-article|compact|...)
 
 # ─── Link Following ─────────────────────────────────────────────────
 link_following:

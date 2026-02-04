@@ -391,6 +391,9 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         var options = new SessionOptions
         {
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+            // Suppress native ONNX Runtime warnings (e.g., "Some nodes were not assigned to the
+            // preferred execution providers") that corrupt Spectre Console rendering.
+            LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
             // Use parallel execution for better throughput with batched inference
             ExecutionMode = _config.UseParallelExecution
                 ? ExecutionMode.ORT_PARALLEL
@@ -420,11 +423,11 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                 try
                 {
                     options.AppendExecutionProvider_CUDA(_config.GpuDeviceId);
-                    Console.WriteLine($"[ONNX] Using CUDA GPU device {_config.GpuDeviceId}");
+                    ProgressService.WriteVerbose(_verbose, $"[ONNX] Using CUDA GPU device {_config.GpuDeviceId}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[ONNX] CUDA not available: {ex.Message}, falling back to CPU");
+                    ProgressService.WriteVerbose(_verbose, $"[ONNX] CUDA not available: {ex.Message}, falling back to CPU");
                 }
 
                 break;
@@ -433,11 +436,11 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                 try
                 {
                     options.AppendExecutionProvider_DML(_config.GpuDeviceId);
-                    Console.WriteLine($"[ONNX] Using DirectML GPU device {_config.GpuDeviceId}");
+                    ProgressService.WriteVerbose(_verbose, $"[ONNX] Using DirectML GPU device {_config.GpuDeviceId}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[ONNX] DirectML not available: {ex.Message}, falling back to CPU");
+                    ProgressService.WriteVerbose(_verbose, $"[ONNX] DirectML not available: {ex.Message}, falling back to CPU");
                 }
 
                 break;
@@ -448,7 +451,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                 try
                 {
                     options.AppendExecutionProvider_DML(_config.GpuDeviceId);
-                    Console.WriteLine($"[ONNX] Auto-selected DirectML GPU device {_config.GpuDeviceId}");
+                    ProgressService.WriteVerbose(_verbose, $"[ONNX] Auto-selected DirectML GPU device {_config.GpuDeviceId}");
                     gpuSelected = true;
                 }
                 catch (Exception dmlEx)
@@ -457,7 +460,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                     try
                     {
                         options.AppendExecutionProvider_CUDA(_config.GpuDeviceId);
-                        Console.WriteLine($"[ONNX] Auto-selected CUDA GPU device {_config.GpuDeviceId}");
+                        ProgressService.WriteVerbose(_verbose, $"[ONNX] Auto-selected CUDA GPU device {_config.GpuDeviceId}");
                         gpuSelected = true;
                     }
                     catch (Exception cudaEx)
@@ -466,7 +469,8 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                     }
                 }
 
-                if (!gpuSelected) Console.WriteLine("[ONNX] No GPU available, using CPU");
+                if (!gpuSelected)
+                    ProgressService.WriteVerbose(_verbose, "[ONNX] No GPU available, using CPU");
                 break;
 
             case OnnxExecutionProvider.Cpu:

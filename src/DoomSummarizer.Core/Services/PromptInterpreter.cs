@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Mostlylucid.DocSummarizer.Services;
 
@@ -12,22 +11,20 @@ namespace DoomSummarizer.Services;
 /// </summary>
 public partial class PromptInterpreter
 {
-    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-        "have", "has", "had", "do", "does", "did", "will", "would", "could",
-        "should", "may", "might", "must", "shall", "can", "need", "dare",
-        "about", "for", "with", "what", "how", "why", "when", "where", "who",
-        "show", "me", "tell", "give", "get", "find", "search", "scroll",
-        "summarize", "summary", "news", "latest", "recent", "today", "now", "on",
-        "new", "any", "some", "all", "current", "happening", "update", "updates"
-    };
-
     /// <summary>
     ///     Lazy-loaded source router for YAML-driven topic routing.
     ///     Initialized with semantic embeddings when EmbeddingService is available.
     /// </summary>
     private static readonly Lazy<SourceRouter> SharedRouter = new(() => SourceRouter.Load());
+
+    private static readonly string[] ImagePatterns =
+    [
+        "show me an image for ", "show me an image of ", "show me a picture of ",
+        "show image for ", "find an image for ", "find an image of ",
+        "image of ", "picture of ", "show image of "
+    ];
+
+    private static readonly string[] SearchMarkers = ["about ", "for ", "search ", "find ", "regarding "];
 
     private readonly IEmbeddingService? _embedding;
     private readonly OllamaService _ollama;
@@ -159,26 +156,6 @@ public partial class PromptInterpreter
                         $"Sentinel: deserialized null. Raw: {json[..Math.Min(json.Length, 300)]}");
                 }
 
-                // Fallback: try legacy ParsedPrompt format (backward compatibility)
-                var parsed = JsonSerializer.Deserialize(json, PromptJsonContext.Default.ParsedPrompt);
-                if (parsed != null)
-                {
-                    var result = new InterpretedPrompt
-                    {
-                        Sources = parsed.Sources ?? ["hn", "reddit"],
-                        Vibe = parsed.Vibe ?? "neutral",
-                        SearchQueries = parsed.SearchQueries ?? [],
-                        Websites = parsed.Websites ?? [],
-                        Limit = parsed.Limit > 0 ? parsed.Limit : 20,
-                        Topics = parsed.Topics ?? [],
-                        RawPrompt = prompt
-                    };
-
-                    await EnrichWithYamlRoutingAsync(result, prompt);
-                    if (nerContext != null)
-                        EnrichWithNerContext(result, nerContext);
-                    return result;
-                }
             }
         }
         catch (Exception ex)
@@ -276,20 +253,7 @@ public partial class PromptInterpreter
             result.Vibe = "toon";
 
         // Detect image queries: "show me an image for...", "image of...", "picture of..."
-        var imagePatterns = new[]
-        {
-            "show me an image for ",
-            "show me an image of ",
-            "show me a picture of ",
-            "show image for ",
-            "find an image for ",
-            "find an image of ",
-            "image of ",
-            "picture of ",
-            "show image of "
-        };
-
-        foreach (var pattern in imagePatterns)
+        foreach (var pattern in ImagePatterns)
             if (lower.Contains(pattern))
             {
                 result.ShowImage = true;
@@ -319,7 +283,7 @@ public partial class PromptInterpreter
             // Map YAML source names to CLI source identifiers
             foreach (var src in routing.Sources)
             {
-                var mapped = MapYamlSourceToCliSource(src, routing, prompt);
+                var mapped = SentinelSourceMapper.MapYamlSourceToCli(src, routing, prompt);
                 if (mapped != null && !result.Sources.Contains(mapped))
                     result.Sources.Add(mapped);
             }
@@ -361,21 +325,17 @@ public partial class PromptInterpreter
                 result.Sources.Add("so");
         }
 
-        // Detect news sources (use source name, not URL - we handle it in ScrollCommand)
-        var newsSources = new[]
-        {
-            "bbc", "guardian", "ars", "verge", "wired", "techcrunch",
-            "lobsters", "devto", "hackernoon", "slashdot",
-            "cnn", "reuters", "arstechnica", "engadget", "zdnet", "thenextweb",
-            "mostlylucid", "medium", "substack"
-        };
-        foreach (var source in newsSources)
+        // Detect source names mentioned by the user (YAML-driven + legacy non-YAML sources)
+        var yamlFeedSources = router.AllSources
+            .Where(s => router.GetSource(s) is { Search: false });
+        var legacySources = new[] { "hackernoon", "slashdot", "arstechnica", "engadget", "zdnet", "thenextweb", "mostlylucid", "medium", "substack" };
+        foreach (var source in yamlFeedSources.Concat(legacySources))
             if (lower.Contains(source) && !result.Sources.Contains(source))
             {
                 result.Sources.Add(source);
 
                 // Extract topic terms and also add as search query for better coverage
-                var topicTerms = ExtractTopicTermsExcluding(prompt, [source]);
+                var topicTerms = SentinelSourceMapper.ExtractTopicTermsExcluding(prompt, [source]);
                 if (!string.IsNullOrEmpty(topicTerms) && !result.SearchQueries.Contains(topicTerms))
                 {
                     result.SearchQueries.Add(topicTerms);
@@ -396,7 +356,7 @@ public partial class PromptInterpreter
         // If nothing was detected, treat the prompt as a topic search with YAML routing
         if (!result.Sources.Any() && !result.Websites.Any() && !result.SearchQueries.Any())
         {
-            var topicTerms = ExtractTopicTerms(prompt);
+            var topicTerms = SentinelSourceMapper.ExtractTopicTerms(prompt);
             if (!string.IsNullOrEmpty(topicTerms))
             {
                 result.Topics.Add(topicTerms);
@@ -406,7 +366,7 @@ public partial class PromptInterpreter
                 var routing = await router.RouteAsync(topicTerms);
                 foreach (var src in routing.Sources)
                 {
-                    var mapped = MapYamlSourceToCliSource(src, routing, prompt);
+                    var mapped = SentinelSourceMapper.MapYamlSourceToCli(src, routing, prompt);
                     if (mapped != null && !result.Sources.Contains(mapped))
                         result.Sources.Add(mapped);
                 }
@@ -421,7 +381,7 @@ public partial class PromptInterpreter
                 var defaultRouting = router.RouteByTopic("default");
                 foreach (var src in defaultRouting.Sources)
                 {
-                    var mapped = MapYamlSourceToCliSource(src, defaultRouting, null);
+                    var mapped = SentinelSourceMapper.MapYamlSourceToCli(src, defaultRouting, null);
                     if (mapped != null && !result.Sources.Contains(mapped))
                         result.Sources.Add(mapped);
                 }
@@ -436,54 +396,6 @@ public partial class PromptInterpreter
         }
 
         return result;
-    }
-
-    /// <summary>
-    ///     Map a YAML source name (e.g., "google_news", "bbc", "hn") to the CLI source identifier
-    ///     used by ScrollCommand (e.g., "gnews:query", "bbc:health", "hn").
-    /// </summary>
-    private static string? MapYamlSourceToCliSource(string yamlSource, RoutingResult routing, string? query)
-    {
-        return yamlSource switch
-        {
-            "google_news" => !string.IsNullOrEmpty(query)
-                ? $"gnews:{ExtractTopicTerms(query ?? "")}"
-                : routing.GoogleNewsTopic != null
-                    ? $"gnews_topic:{routing.GoogleNewsTopic}"
-                    : "gnews",
-            "duckduckgo" => !string.IsNullOrEmpty(query)
-                ? $"search:{ExtractTopicTerms(query ?? "")}"
-                : null,
-            "bbc" => routing.BbcCategory != null
-                ? $"bbc:{routing.BbcCategory}"
-                : "bbc",
-            "guardian" => "guardian",
-            "cnn" => "cnn",
-            "reuters" => "reuters",
-            "hn" => "hn",
-            "reddit" => "reddit",
-            "ars" => "ars",
-            "verge" => "verge",
-            "lobsters" => "lobsters",
-            "devto" => "devto",
-            "techcrunch" => "techcrunch",
-            "wired" => "wired",
-            "npr" => "npr",
-            "theregister" => "theregister",
-            "sciencedaily" => "sciencedaily",
-            "phys" => "phys",
-            "carbonbrief" => "carbonbrief",
-            "spaceflight" => "spaceflight",
-            "earthquake" => "earthquake",
-            "factcheck" => "factcheck",
-            "wikipedia" => "wikipedia",
-            "arxiv" => !string.IsNullOrEmpty(query)
-                ? $"arxiv:{ExtractTopicTerms(query)}"
-                : "arxiv",
-            "theonion" => "theonion",
-            "babylonbee" => "babylonbee",
-            _ => yamlSource // Pass through unknown sources
-        };
     }
 
     private async Task<SourceRouter> GetRouterAsync()
@@ -531,64 +443,11 @@ public partial class PromptInterpreter
         result.NerContext = nerContext;
     }
 
-    /// <summary>
-    ///     Enrich an interpreted prompt with YAML-driven routing.
-    ///     The LLM often returns sparse or mismatched sources (e.g., tech sources for entertainment).
-    ///     YAML routing ensures the correct source spread for the detected topic AND removes
-    ///     tech-only sources when the topic is non-tech.
-    /// </summary>
-    private async Task EnrichWithYamlRoutingAsync(InterpretedPrompt result, string prompt)
-    {
-        var router = await GetRouterAsync();
-        var detectedTopic = await router.DetectTopicAsync(prompt);
-        if (detectedTopic == "default") return;
-
-        var routing = router.RouteByTopic(detectedTopic, prompt);
-
-        // If detected topic is NOT tech, remove tech-only sources the LLM mistakenly added.
-        // This prevents the legacy sentinel from defaulting to hn/reddit for entertainment queries.
-        var techTopics = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { "technology", "programming", "ai", "security" };
-        if (!techTopics.Contains(detectedTopic))
-            result.Sources.RemoveAll(s => router.HasCapability(s.Split(':')[0], "tech_only"));
-
-        // Add YAML-routed sources that aren't already present
-        foreach (var src in routing.Sources)
-        {
-            var mapped = MapYamlSourceToCliSource(src, routing, prompt);
-            if (mapped != null && !result.Sources.Any(s =>
-                    s.Equals(mapped, StringComparison.OrdinalIgnoreCase) ||
-                    s.StartsWith(mapped.Split(':')[0], StringComparison.OrdinalIgnoreCase)))
-                result.Sources.Add(mapped);
-        }
-
-        // Add topic if not already present
-        if (!result.Topics.Contains(detectedTopic))
-            result.Topics.Add(detectedTopic);
-    }
-
-    private static string ExtractTopicTerms(string prompt)
-    {
-        return ExtractTopicTermsExcluding(prompt, []);
-    }
-
-    private static string ExtractTopicTermsExcluding(string prompt, IEnumerable<string> exclude)
-    {
-        var excludeSet = new HashSet<string>(exclude, StringComparer.OrdinalIgnoreCase);
-
-        var words = prompt.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(w => !StopWords.Contains(w) && !excludeSet.Contains(w) && w.Length > 1)
-            .ToList();
-
-        return words.Count > 0 ? string.Join(" ", words) : "";
-    }
-
     private static string ExtractSearchTerms(string prompt)
     {
         var lower = prompt.ToLowerInvariant();
-        var markers = new[] { "about ", "for ", "search ", "find ", "regarding " };
 
-        foreach (var marker in markers)
+        foreach (var marker in SearchMarkers)
         {
             var idx = lower.IndexOf(marker);
             if (idx >= 0)
@@ -651,16 +510,3 @@ public record InterpretedPrompt
     public GraphScope GraphScope { get; set; } = GraphScope.Local;
 }
 
-public record ParsedPrompt
-{
-    [JsonPropertyName("sources")] public List<string>? Sources { get; init; }
-    [JsonPropertyName("vibe")] public string? Vibe { get; init; }
-    [JsonPropertyName("searchQueries")] public List<string>? SearchQueries { get; init; }
-    [JsonPropertyName("websites")] public List<string>? Websites { get; init; }
-    [JsonPropertyName("limit")] public int Limit { get; init; }
-    [JsonPropertyName("topics")] public List<string>? Topics { get; init; }
-}
-
-[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
-[JsonSerializable(typeof(ParsedPrompt))]
-public partial class PromptJsonContext : JsonSerializerContext;

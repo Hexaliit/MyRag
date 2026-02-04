@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using DoomSummarizer.Commands;
 using DoomSummarizer.Models;
@@ -151,8 +152,9 @@ public sealed class ManualLoader
                         await nerService.InitializeAsync();
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Debug.WriteLine($"NER init failed: {ex.Message}");
                     nerService?.Dispose();
                     nerService = null;
                 }

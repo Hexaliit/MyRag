@@ -230,6 +230,15 @@ public record OutputConfig
     public int MaxSummaryLength { get; init; } = 500;
     public bool IncludeLinks { get; init; } = true;
     public bool GroupByTopic { get; init; } = true;
+
+    /// <summary>
+    ///     Default output template for document/file collections when no --template is specified.
+    ///     "default" = concise 3-4 paragraph summary (recommended for CLI).
+    ///     "blog-article" = long-form multi-section article.
+    ///     "compact" = minimal bullet-point list.
+    ///     See --list-templates for all available templates.
+    /// </summary>
+    public string DefaultTemplate { get; init; } = "default";
 }
 
 public record StorageConfig

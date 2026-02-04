@@ -144,27 +144,34 @@ public partial class StorageService
 
         var n = corpusSize.Value;
 
-        // Compute IDF per token
-        var tokenIdfs = tokens
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(t =>
-            {
-                var df = corpus.GetValueOrDefault(t, 0);
-                var idf = df > 0
-                    ? Math.Max(0.01, Math.Log((n - df + 0.5) / (df + 0.5) + 1))
-                    : 3.0; // Unknown tokens are likely distinctive (not in corpus = rare)
-                return (token: t, idf);
-            })
-            .OrderByDescending(x => x.idf)
-            .ToList();
+        // Compute IDF per unique token (single-pass dedup + IDF computation)
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var tokenIdfs = new List<(string token, double idf)>();
+        foreach (var t in tokens)
+        {
+            if (!seen.Add(t)) continue;
+            var df = corpus.GetValueOrDefault(t, 0);
+            var idf = df > 0
+                ? Math.Max(0.01, Math.Log((n - df + 0.5) / (df + 0.5) + 1))
+                : 3.0; // Unknown tokens are likely distinctive (not in corpus = rare)
+            tokenIdfs.Add((t, idf));
+        }
+
+        tokenIdfs.Sort((a, b) => b.idf.CompareTo(a.idf));
 
         // Split at median IDF: above = distinctive (required), at/below = common (optional)
-        var medianIdf = tokenIdfs.Count > 0
-            ? tokenIdfs[tokenIdfs.Count / 2].idf
-            : 1.0;
+        var medianIdf = tokenIdfs.Count > 0 ? tokenIdfs[tokenIdfs.Count / 2].idf : 1.0;
 
-        var distinctive = tokenIdfs.Where(x => x.idf > medianIdf).Select(x => x.token).ToList();
-        var common = tokenIdfs.Where(x => x.idf <= medianIdf).Select(x => x.token).ToList();
+        // Single pass: partition into distinctive/common
+        var distinctive = new List<string>();
+        var common = new List<string>();
+        foreach (var (token, idf) in tokenIdfs)
+        {
+            if (idf > medianIdf)
+                distinctive.Add(token);
+            else
+                common.Add(token);
+        }
 
         // Edge case: all tokens have same IDF → all required
         if (distinctive.Count == 0)
@@ -204,19 +211,21 @@ public partial class StorageService
     /// </summary>
     private static string BuildFtsQuery(List<string> tokens, bool useAnd)
     {
-        // Filter out empty/invalid tokens
-        var validTokens = tokens
-            .Where(t => !string.IsNullOrWhiteSpace(t) && t.Length >= 2)
-            .Select(EscapeFtsToken)
-            .Where(t => !string.IsNullOrWhiteSpace(t))
-            .ToList();
+        // Single-pass: filter, escape, and quote tokens
+        var quoted = new List<string>();
+        foreach (var t in tokens)
+        {
+            if (string.IsNullOrWhiteSpace(t) || t.Length < 2) continue;
+            var escaped = EscapeFtsToken(t);
+            if (!string.IsNullOrWhiteSpace(escaped))
+                quoted.Add($"\"{escaped}\"");
+        }
 
-        if (validTokens.Count == 0) return "";
+        if (quoted.Count == 0) return "";
 
-        var escaped = validTokens.Select(t => $"\"{t}\"");
         return useAnd
-            ? string.Join(" ", escaped) // FTS5 implicit AND
-            : string.Join(" OR ", escaped); // Explicit OR for fallback
+            ? string.Join(" ", quoted) // FTS5 implicit AND
+            : string.Join(" OR ", quoted); // Explicit OR for fallback
     }
 
     /// <summary>
@@ -256,19 +265,23 @@ public partial class StorageService
         await using var transaction = await _connection!.BeginTransactionAsync();
         try
         {
+            // Reuse a single prepared command — just reset the keyword parameter each iteration
+            await using var cmd = _connection.CreateCommand();
+            cmd.Transaction = (SqliteTransaction)transaction;
+            cmd.CommandText = """
+                              INSERT INTO keyword_corpus (keyword, document_count, updated_at)
+                              VALUES (@kw, 1, @now)
+                              ON CONFLICT(keyword) DO UPDATE SET
+                                  document_count = document_count + 1,
+                                  updated_at = @now
+                              """;
+            var kwParam = cmd.Parameters.Add("@kw", Microsoft.Data.Sqlite.SqliteType.Text);
+            cmd.Parameters.AddWithValue("@now", now);
+            await cmd.PrepareAsync();
+
             foreach (var keyword in keywordList)
             {
-                await using var cmd = _connection.CreateCommand();
-                cmd.Transaction = (SqliteTransaction)transaction;
-                cmd.CommandText = """
-                                  INSERT INTO keyword_corpus (keyword, document_count, updated_at)
-                                  VALUES (@kw, 1, @now)
-                                  ON CONFLICT(keyword) DO UPDATE SET
-                                      document_count = document_count + 1,
-                                      updated_at = @now
-                                  """;
-                cmd.Parameters.AddWithValue("@kw", keyword.ToLowerInvariant());
-                cmd.Parameters.AddWithValue("@now", now);
+                kwParam.Value = keyword.ToLowerInvariant();
                 await cmd.ExecuteNonQueryAsync();
             }
 

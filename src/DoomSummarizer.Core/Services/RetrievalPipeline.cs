@@ -88,8 +88,9 @@ public sealed class RetrievalPipeline
                 var luceneQuery = LuceneQueryGenerator.BuildSimpleQuery(query);
                 return lucene.Search(luceneQuery, options.SourceFilters, options.TopK * 3);
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"Lucene search failed: {ex.Message}");
                 return [];
             }
         }
@@ -134,16 +135,16 @@ public sealed class RetrievalPipeline
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Entity profile search is best-effort
+                Debug.WriteLine($"Entity profile search failed: {ex.Message}");
             }
 
-        // --- Fuse candidate IDs ---
-        var luceneIds = luceneResults.Select(r => r.Id).ToHashSet();
-        var embeddingIds = embeddingResults.Select(r => r.Id).ToHashSet();
-        var allCandidateIds = new HashSet<string>(luceneIds);
-        allCandidateIds.UnionWith(embeddingIds);
+        // --- Fuse candidate IDs (single HashSet, no intermediates) ---
+        var allCandidateIds = new HashSet<string>(
+            luceneResults.Count + embeddingResults.Count + entityProfileIds.Count);
+        foreach (var r in luceneResults) allCandidateIds.Add(r.Id);
+        foreach (var r in embeddingResults) allCandidateIds.Add(r.Id);
         allCandidateIds.UnionWith(entityProfileIds);
 
         if (allCandidateIds.Count == 0)
@@ -171,10 +172,8 @@ public sealed class RetrievalPipeline
             ? luceneResults.ToDictionary(r => r.Id, r => (double)r.Score)
             : null;
 
-        // Filter out items without any content
-        items = items
-            .Where(i => !string.IsNullOrEmpty(i.Summary) || !string.IsNullOrEmpty(i.Title))
-            .ToList();
+        // Filter out items without any content (in-place)
+        items.RemoveAll(i => string.IsNullOrEmpty(i.Summary) && string.IsNullOrEmpty(i.Title));
 
         if (items.Count == 0)
             return RetrievalResult.Empty;
@@ -341,7 +340,7 @@ public sealed class RetrievalPipeline
             var penalties = RelevanceScorer.ComputeQueryTermCoverage(
                 items, [], new Dictionary<string, double>(), queryEmbedding: options.QueryEmbedding);
             RelevanceScorer.ApplyOutlierPenalties(items, penalties);
-            items = items.OrderByDescending(i => i.RelevanceScore).ToList();
+            items.Sort((a, b) => b.RelevanceScore.CompareTo(a.RelevanceScore));
         }
 
         // Embedding-based dedup (cosine threshold 0.90)

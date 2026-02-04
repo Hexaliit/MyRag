@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DoomSummarizer.Models;
 
 namespace DoomSummarizer.Services;
 
@@ -235,6 +236,7 @@ public static class SentinelSourceMapper
 
     /// <summary>
     ///     Categories that imply tech content.
+    ///     Shared with <see cref="PromptInterpreter" /> for consistent tech-source filtering.
     /// </summary>
     private static readonly HashSet<string> TechCategories = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -248,7 +250,9 @@ public static class SentinelSourceMapper
     {
         "technology", "ai", "security", "programming", "science", "health", "pharma",
         "business", "finance", "politics", "world", "entertainment", "humor", "sports",
-        "environment", "climate", "space", "disaster", "factcheck", "default"
+        "environment", "climate", "space", "disaster", "factcheck",
+        "uk_politics", "crime", "flooding", "uk", // UK-specific routing categories
+        "default"
     };
 
     /// <summary>
@@ -280,7 +284,11 @@ public static class SentinelSourceMapper
         ["medicine"] = "health",
         ["weather"] = "environment",
         ["astronomy"] = "space",
-        ["economics"] = "business"
+        ["economics"] = "business",
+        ["flood"] = "flooding",
+        ["floods"] = "flooding",
+        ["policing"] = "crime",
+        ["parliament"] = "uk_politics"
     };
 
     /// <summary>
@@ -326,54 +334,76 @@ public static class SentinelSourceMapper
         foreach (var src in explicitSources) AddSource(sources, usedRoots, src);
 
         // --- Phase 2: Score-based selection ---
-        // Build candidate pool from matching routing categories + default
-        var sortedCategories = categories
-            .Select(kv =>
-            {
-                var normalizedKey = ValidCategories.Contains(kv.Key)
-                    ? kv.Key
-                    : CategoryAliases.GetValueOrDefault(kv.Key, "default");
-                return new KeyValuePair<string, double>(normalizedKey, kv.Value);
-            })
-            .Where(kv => kv.Value >= MinCategoryWeight && kv.Key != "default")
-            .GroupBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(g => new KeyValuePair<string, double>(g.Key, g.Max(kv => kv.Value)))
+        // Normalize categories in a single pass (no GroupBy — track max per normalized key)
+        var normalizedCategories = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, weight) in categories)
+        {
+            if (weight < MinCategoryWeight) continue;
+            var normalized = ValidCategories.Contains(key)
+                ? key
+                : CategoryAliases.GetValueOrDefault(key, "default");
+            if (normalized == "default") continue;
+
+            if (normalizedCategories.TryGetValue(normalized, out var existing))
+                normalizedCategories[normalized] = Math.Max(existing, weight);
+            else
+                normalizedCategories[normalized] = weight;
+        }
+
+        var sortedCategories = normalizedCategories
             .OrderByDescending(kv => kv.Value)
+            .Select(kv => new KeyValuePair<string, double>(kv.Key, kv.Value))
             .ToList();
 
         if (sortedCategories.Count == 0)
             sortedCategories = [new KeyValuePair<string, double>("default", 0.5)];
 
-        // Gather unique candidate sources from all matching routing categories
+        // Cache routing results to avoid repeated RouteByTopic calls
+        var routingCache = new Dictionary<string, RoutingResult>(StringComparer.OrdinalIgnoreCase);
         var candidateSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var (category, _) in sortedCategories)
         {
-            var routing = router.RouteByTopic(category, query);
+            if (!routingCache.TryGetValue(category, out var routing))
+            {
+                routing = router.RouteByTopic(category, query);
+                routingCache[category] = routing;
+            }
+
             foreach (var src in routing.Sources) candidateSet.Add(src);
         }
 
         // Always include default routing sources as fallback candidates
-        var defaultRouting = router.RouteByTopic("default", query);
+        if (!routingCache.TryGetValue("default", out var defaultRouting))
+        {
+            defaultRouting = router.RouteByTopic("default", query);
+            routingCache["default"] = defaultRouting;
+        }
+
         foreach (var src in defaultRouting.Sources) candidateSet.Add(src);
 
-        // Score all candidates
+        // Score all candidates, cache SourceDefinition lookups for reuse in partition
+        var sourceCache = new Dictionary<string, SourceDefinition?>(StringComparer.OrdinalIgnoreCase);
         var scored = candidateSet
-            .Select(name => (Name: name, Score: router.ScoreSource(name, intent.Intent, categories, timeSensitivity)))
+            .Select(name =>
+            {
+                if (!sourceCache.ContainsKey(name))
+                    sourceCache[name] = router.GetSource(name);
+                return (Name: name, Score: router.ScoreSource(name, intent.Intent, categories, timeSensitivity));
+            })
             .OrderByDescending(x => x.Score)
             .ToList();
 
-        // Separate search sources and feed sources
-        var searchCandidates = scored.Where(x =>
+        // Partition into search and feed using cached source definitions (single pass)
+        var searchCandidates = new List<(string Name, double Score)>();
+        var feedCandidates = new List<(string Name, double Score)>();
+        foreach (var item in scored)
         {
-            var source = router.GetSource(x.Name);
-            return source?.Search == true;
-        }).ToList();
-
-        var feedCandidates = scored.Where(x =>
-        {
-            var source = router.GetSource(x.Name);
-            return source?.Search != true;
-        }).ToList();
+            if (sourceCache.GetValueOrDefault(item.Name)?.Search == true)
+                searchCandidates.Add(item);
+            else
+                feedCandidates.Add(item);
+        }
 
         // Add search sources first (with search queries from sentinel)
         var searchQueries = intentSearchQueries.ToList();
@@ -399,6 +429,10 @@ public static class SentinelSourceMapper
 
             // Hard-filter: skip tech_only search sources when no tech category
             if (!hasTechCategory && router.HasCapability(name, "tech_only"))
+                continue;
+
+            // Hard-filter: skip academic search sources for QA/howto (academic papers don't answer trivia)
+            if (isQA && router.HasCapability(name, "academic"))
                 continue;
 
             foreach (var sq in searchQueries.Take(maxSearchQueries))
@@ -457,7 +491,25 @@ public static class SentinelSourceMapper
             }
         }
 
-        // Add feed sources by score
+        // For QA/howto, promote knowledge-capability feed sources (e.g., wikipedia) ahead of
+        // regular news feeds. Without this, search sources fill slots first and wikipedia ends up
+        // last despite having the highest score.
+        if (isQA && sources.Count < maxTotalSources)
+            foreach (var (name, _) in feedCandidates)
+            {
+                if (sources.Count >= maxTotalSources) break;
+                if (!router.HasCapability(name, "knowledge")) continue;
+
+                var bestRouting = FindBestRouting(name, sortedCategories, defaultRouting, router, query, routingCache);
+
+                var mapped = MapYamlSourceToCli(name, bestRouting, query);
+                if (mapped == null) continue;
+                var root = mapped.Split(':')[0];
+                if (usedRoots.Contains(root)) continue;
+                AddSource(sources, usedRoots, mapped);
+            }
+
+        // Add remaining feed sources by score
         var maxTotalFeedSources = isSearchOnly ? 0 : isQA ? 3 : maxTotalSources;
         var totalFeedSourcesAdded = 0;
 
@@ -474,19 +526,7 @@ public static class SentinelSourceMapper
             if (isRoundup && router.HasCapability(name, "archive"))
                 continue;
 
-            // Find the best routing context for this source
-            RoutingResult? bestRouting = null;
-            foreach (var (category, _) in sortedCategories)
-            {
-                var r = router.RouteByTopic(category, query);
-                if (r.Sources.Contains(name, StringComparer.OrdinalIgnoreCase))
-                {
-                    bestRouting = r;
-                    break;
-                }
-            }
-
-            bestRouting ??= defaultRouting;
+            var bestRouting = FindBestRouting(name, sortedCategories, defaultRouting, router, query, routingCache);
 
             var mapped = MapYamlSourceToCli(name, bestRouting, query);
             if (mapped == null) continue;
@@ -567,17 +607,43 @@ public static class SentinelSourceMapper
 
     private static void AddSource(List<string> sources, HashSet<string> usedRoots, string source)
     {
-        if (!sources.Contains(source, StringComparer.OrdinalIgnoreCase))
-        {
+        var colonIdx = source.IndexOf(':');
+        var root = colonIdx >= 0 ? source[..colonIdx] : source;
+        if (usedRoots.Add(root))
             sources.Add(source);
-            usedRoots.Add(source.Split(':')[0]);
+    }
+
+    /// <summary>
+    ///     Find the best routing context for a source from the sorted category list.
+    ///     Returns the routing rule for the first matching category, or the default routing.
+    /// </summary>
+    private static RoutingResult FindBestRouting(
+        string sourceName,
+        List<KeyValuePair<string, double>> sortedCategories,
+        RoutingResult defaultRouting,
+        SourceRouter router,
+        string query,
+        Dictionary<string, RoutingResult> routingCache)
+    {
+        foreach (var (category, _) in sortedCategories)
+        {
+            if (!routingCache.TryGetValue(category, out var r))
+            {
+                r = router.RouteByTopic(category, query);
+                routingCache[category] = r;
+            }
+
+            if (r.Sources.Contains(sourceName, StringComparer.OrdinalIgnoreCase))
+                return r;
         }
+
+        return defaultRouting;
     }
 
     /// <summary>
     ///     Map a YAML source name to CLI source identifier.
     /// </summary>
-    internal static string? MapYamlSourceToCli(string yamlSource, RoutingResult routing, string query)
+    internal static string? MapYamlSourceToCli(string yamlSource, RoutingResult routing, string? query)
     {
         return yamlSource switch
         {
@@ -595,13 +661,7 @@ public static class SentinelSourceMapper
             "arxiv" => !string.IsNullOrEmpty(query)
                 ? $"arxiv:{ExtractTopicTerms(query)}"
                 : "arxiv",
-            // Direct passthrough for sources that don't need transformation
-            "guardian" or "cnn" or "reuters" or "hn" or "reddit" or "ars" or "verge"
-                or "lobsters" or "devto" or "techcrunch" or "wired" or "theregister"
-                or "npr" or "sciencedaily" or "phys" or "carbonbrief" or "spaceflight"
-                or "earthquake" or "factcheck" or "wikipedia" or "theonion" or "babylonbee"
-                => yamlSource,
-            _ => yamlSource // Unknown sources passed through
+            _ => yamlSource // Identity mapping for all other sources
         };
     }
 
@@ -616,10 +676,18 @@ public static class SentinelSourceMapper
         "new", "any", "some", "all", "current", "happening", "update", "updates"
     };
 
-    internal static string ExtractTopicTerms(string query)
+    internal static string ExtractTopicTerms(string? query)
     {
+        return ExtractTopicTermsExcluding(query, []);
+    }
+
+    internal static string ExtractTopicTermsExcluding(string? query, IEnumerable<string> exclude)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return "";
+
+        var excludeSet = new HashSet<string>(exclude, StringComparer.OrdinalIgnoreCase);
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(w => !StopWords.Contains(w) && w.Length > 1)
+            .Where(w => !StopWords.Contains(w) && !excludeSet.Contains(w) && w.Length > 1)
             .ToList();
         return words.Count > 0 ? string.Join(" ", words) : "";
     }

@@ -207,6 +207,7 @@ Output formatting.
 | `output.max_summary_length` | `output.maxSummaryLength` | int    | `500`      | Max chars per article summary       |
 | `output.include_links`      | `output.includeLinks`     | bool   | `true`     | Include source URLs in output       |
 | `output.group_by_topic`     | `output.groupByTopic`     | bool   | `true`     | Group articles by detected topic    |
+| `output.default_template`   | `output.defaultTemplate`  | string | `default`  | Default template for file/doc collections when no `--template` specified. `default` = concise summary, `blog-article` = long-form, `compact` = bullet list. See `--list-templates`. |
 
 ### link_following
 

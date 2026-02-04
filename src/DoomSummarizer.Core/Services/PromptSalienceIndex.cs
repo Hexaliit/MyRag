@@ -119,9 +119,9 @@ public sealed class PromptSalienceIndex
     ///     Invalidate entries that reference segments no longer in the cache.
     ///     Call after SalientSegmentCache.Evict() to keep the index consistent.
     /// </summary>
-    public void Prune(IReadOnlyList<string> validSegmentIds)
+    public void Prune(IEnumerable<string> validSegmentIds)
     {
-        var validSet = new HashSet<string>(validSegmentIds);
+        var validSet = validSegmentIds as ISet<string> ?? new HashSet<string>(validSegmentIds);
         var node = _entries.First;
         while (node != null)
         {

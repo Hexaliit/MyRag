@@ -289,7 +289,7 @@ public sealed class NerService : INerService
         return entities
             .Where(e => e.Confidence >= 0.5 && e.Text.Length >= 2)
             .GroupBy(e => e.Text.ToLowerInvariant())
-            .Select(g => g.OrderByDescending(e => e.Confidence).First())
+            .Select(g => g.MaxBy(e => e.Confidence)!)
             .ToList();
     }
 

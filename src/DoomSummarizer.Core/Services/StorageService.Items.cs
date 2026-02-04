@@ -68,11 +68,13 @@ public partial class StorageService
             if (similarity >= threshold) items.Add((item, similarity));
         }
 
-        return items
-            .OrderByDescending(x => x.similarity)
-            .Take(limit)
-            .Select(x => x.item)
-            .ToList();
+        // In-place sort + direct extraction (avoids LINQ OrderBy+Take+Select+ToList chain)
+        items.Sort((a, b) => b.similarity.CompareTo(a.similarity));
+        var count = Math.Min(limit, items.Count);
+        var result = new List<StoredItem>(count);
+        for (var i = 0; i < count; i++)
+            result.Add(items[i].item);
+        return result;
     }
 
     /// <summary>
@@ -82,7 +84,7 @@ public partial class StorageService
     {
         if (ids.Count == 0) return [];
 
-        var items = new List<StoredItem>();
+        var items = new List<StoredItem>(ids.Count);
         // SQLite parameter limit workaround: batch queries
         foreach (var batch in ids.Chunk(50))
         {

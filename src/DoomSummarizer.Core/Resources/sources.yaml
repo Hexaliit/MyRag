@@ -304,13 +304,13 @@ sources:
     type: api
     description: "Spaceflight News API (NASA, ESA, SpaceX launches & events)"
     search: true
-    intent_affinity: { news: 0.8, research: 0.5, qa: 0.4 }
+    intent_affinity: { news: 0.8, research: 0.5, qa: 0.15 }
     capabilities: [ news, realtime ]
 
   earthquake:
     type: api
     description: "USGS Earthquake data (GeoJSON, real-time seismic events)"
-    intent_affinity: { news: 0.7, qa: 0.5, research: 0.3 }
+    intent_affinity: { news: 0.7, qa: 0.25, research: 0.3 }
     capabilities: [ news, realtime ]
 
   wikipedia:
@@ -323,7 +323,7 @@ sources:
     type: api
     description: "arXiv preprint search (papers with full abstracts, free API)"
     search: true
-    intent_affinity: { research: 0.95, deep_dive: 0.9, qa: 0.4, news: 0.1 }
+    intent_affinity: { research: 0.95, deep_dive: 0.9, qa: 0.15, news: 0.1 }
     capabilities: [ academic, archive, reference ]
 
   # -- UK Government APIs (free, no auth) --
@@ -333,7 +333,7 @@ sources:
     search: true
     scope: [ politics, uk, government, legislation ]
     region: UK
-    intent_affinity: { qa: 0.7, research: 0.6, news: 0.4 }
+    intent_affinity: { qa: 0.3, research: 0.6, news: 0.4 }
     capabilities: [ government, realtime ]
     # Sub-params: debates, divisions, statements, answers
     # Examples: -s parliament, -s parliament:debates, -s parliament:divisions
@@ -343,7 +343,7 @@ sources:
     description: "UK Police crime data (street-level crime, forces, outcomes)"
     scope: [ crime, safety, uk ]
     region: UK
-    intent_affinity: { qa: 0.7, research: 0.6, news: 0.4 }
+    intent_affinity: { qa: 0.3, research: 0.6, news: 0.4 }
     capabilities: [ government, realtime ]
     # Sub-params: crime:LAT,LNG, forces, outcomes:LAT,LNG
     # Examples: -s ukpolice, -s ukpolice:crime:51.5074,-0.1278, -s ukpolice:forces
@@ -353,7 +353,7 @@ sources:
     description: "Environment Agency flood warnings, river levels, and rainfall monitoring"
     scope: [ environment, weather, flooding, uk ]
     region: UK
-    intent_affinity: { qa: 0.6, news: 0.5, research: 0.4 }
+    intent_affinity: { qa: 0.35, news: 0.5, research: 0.4 }
     capabilities: [ government, realtime ]
     # Sub-params: warnings, levels, rainfall, stations
     # Examples: -s ukflood, -s ukflood:warnings, -s ukflood:levels
@@ -382,7 +382,7 @@ routing:
     google_news_topic: HEALTH
 
   science:
-    sources: [ google_news, bbc, guardian, ars, sciencedaily, phys, npr, spaceflight, arxiv, wikipedia ]
+    sources: [ google_news, duckduckgo, bbc, guardian, ars, sciencedaily, phys, npr, arxiv, wikipedia ]
     bbc_category: science
     google_news_topic: SCIENCE
 

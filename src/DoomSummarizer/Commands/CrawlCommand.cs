@@ -715,8 +715,9 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                     .ToList();
             };
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Whisper init failed: {ex.Message}");
             return null;
         }
     }

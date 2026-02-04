@@ -651,9 +651,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                             $"[grey]Fiction entity expansion: {FormattingHelpers.Esc(string.Join(", ", characterNames))}[/]");
                                 }
                             }
-                            catch
+                            catch (Exception ex)
                             {
-                                /* entity store query is best-effort */
+                                System.Diagnostics.Debug.WriteLine($"Entity store query failed: {ex.Message}");
                             }
                     }
 
@@ -1837,9 +1837,9 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             if (item.Content != null)
                                 item.ContentStructure = MarkdownContentAnalyzer.Analyze(item.Content);
                         }
-                        catch
+                        catch (Exception ex)
                         {
-                            // Segmentation failed — use content truncation
+                            System.Diagnostics.Debug.WriteLine($"Segmentation failed: {ex.Message}");
                             var content = item.Content ?? "";
                             item.Summary = content.Length > 300
                                 ? content[..300] + "..."
@@ -1972,7 +1972,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     // Dedupe entities for display
                     allEntities = allEntities
                         .GroupBy(e => e.Text.ToLowerInvariant())
-                        .Select(g => g.OrderByDescending(e => e.Confidence).First())
+                        .Select(g => g.MaxBy(e => e.Confidence)!)
                         .OrderByDescending(e => e.Confidence)
                         .ToList();
                 }
@@ -2107,9 +2107,11 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             var summaryTask = ctx.AddTask("[cyan]Generating summary[/]", maxValue: 100);
             template = settings.Template.ToLowerInvariant();
 
-            // Auto-select template for file collections based on document type
-            // Only override if user hasn't explicitly chosen a template
-            if (template == "default" && ingestedDocType is not IngestDocumentType.Unknown) template = "blog-article";
+            // Auto-select template for file collections based on document type.
+            // Only override if user hasn't explicitly chosen a template.
+            // Uses config output.default_template (default: "default" = concise summary).
+            if (template == "default" && ingestedDocType is not IngestDocumentType.Unknown)
+                template = boot.Config.Output.DefaultTemplate.ToLowerInvariant();
 
             isBlogTemplate = template is "blog-article" or "blog-timeline"
                 or "blog-newsletter" or "blog-newsletter-html";
@@ -2328,7 +2330,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 .Where(c =>
                                 {
                                     if (c.Items.Count == 0) return false;
-                                    var topItem = c.Items.OrderByDescending(i => i.RelevanceScore).First();
+                                    var topItem = c.Items.MaxBy(i => i.RelevanceScore)!;
                                     if (topItem.Embedding == null) return true; // can't filter without embedding
                                     // Multi-query: use max similarity across subqueries for composite queries
                                     var sim = ComputeMaxQuerySimilarity(topItem.Embedding, queryEmbedding,

@@ -132,7 +132,7 @@ public sealed partial class ScrollCommand
             (IngestDocumentType.Academic, academicScore),
             (IngestDocumentType.Technical, technicalScore),
             (IngestDocumentType.NonFiction, nonfictionScore)
-        }.OrderByDescending(x => x.Item2).First();
+        }.MaxBy(x => x.Item2);
 
         return best.Item2 >= 3 ? best.Item1 : IngestDocumentType.Unknown;
     }

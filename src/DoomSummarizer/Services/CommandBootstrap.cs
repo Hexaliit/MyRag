@@ -228,8 +228,9 @@ public sealed class CommandBootstrap : IAsyncDisposable
             LLamaSharp = new LLamaSharpLlmService(llamaConfig, downloader);
             return LLamaSharp;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"LLamaSharp init failed: {ex.Message}");
             return null;
         }
     }
@@ -337,8 +338,9 @@ public sealed class CommandBootstrap : IAsyncDisposable
         {
             return await InitializeEntityGraphStoreAsync();
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Entity graph store init failed: {ex.Message}");
             return null;
         }
     }

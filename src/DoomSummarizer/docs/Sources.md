@@ -173,19 +173,26 @@ Sources are selected by score, search sources first (with generated search queri
 
 ### Hard filters
 
-Two capability-based filters prevent irrelevant sources:
+Capability-based filters prevent irrelevant sources:
 
 - **`tech_only`** sources (hn, lobsters, techcrunch, etc.) are excluded when the query has no technology/programming category
 - **`archive`** sources (wikipedia, arxiv) are excluded for `roundup` + `today`/`breaking` time sensitivity
+- **`academic`** search sources (arxiv) are excluded for `qa`/`howto` intent — academic papers don't answer factual trivia
+
+### Knowledge promotion
+
+For `qa` and `howto` intents, sources with the `knowledge` capability (e.g., Wikipedia) are promoted ahead of regular
+news feeds, ensuring they appear in the top 3 results rather than being pushed to the end by search sources.
 
 ### Example: factual QA vs news
 
 | Query | Intent | Top Sources |
 |-------|--------|-------------|
-| "How much can a swallow carry?" | `qa` | search:..., wikipedia, sciencedaily |
-| "latest AI news" | `news` | gnews:..., hn, techcrunch, verge, ars |
-| "latest papers on transformer scaling" | `research` | arxiv:..., gnews:..., sciencedaily |
-| "earthquake just hit Turkey" | `roundup` | gnews:..., bbc, reuters, guardian (no arxiv/wikipedia) |
+| "How much can a swallow carry?" | `qa` | search:..., gnews:..., wikipedia, sciencedaily, phys |
+| "What are the symptoms of diabetes?" | `qa` | search:..., gnews:..., wikipedia, factcheck, sciencedaily |
+| "latest AI news" | `news` | gnews:..., search:..., bbc, techcrunch, hn, verge, ... |
+| "latest papers on transformer scaling" | `research` | arxiv:..., gnews:..., search:..., hn, ars, ... |
+| "earthquake just hit Turkey" | `roundup` | gnews:..., search:..., bbc, reuters (no arxiv/wikipedia) |
 
 ### Topic categories
 

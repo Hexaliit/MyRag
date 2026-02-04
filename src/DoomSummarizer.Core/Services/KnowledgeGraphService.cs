@@ -99,7 +99,7 @@ public class KnowledgeGraphService
             // Deduplicate entities within this article (case-insensitive)
             var deduped = entities
                 .GroupBy(e => e.Text.ToLowerInvariant())
-                .Select(g => g.OrderByDescending(e => e.Confidence).First())
+                .Select(g => g.MaxBy(e => e.Confidence)!)
                 .ToList();
 
             // Upsert each entity and record the mention
@@ -193,7 +193,7 @@ public class KnowledgeGraphService
     {
         var deduped = linkedEntities
             .GroupBy(e => e.Text.ToLowerInvariant())
-            .Select(g => g.OrderByDescending(e => e.Confidence).First())
+            .Select(g => g.MaxBy(e => e.Confidence)!)
             .ToList();
 
         foreach (var entity in deduped)

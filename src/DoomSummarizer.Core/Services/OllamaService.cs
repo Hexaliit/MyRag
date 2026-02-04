@@ -398,9 +398,9 @@ public partial class OllamaService
                     return (analysis.Summary ?? title, analysis.Topic ?? "general", analysis.Sentiment);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Fall back to raw response as summary
+            System.Diagnostics.Debug.WriteLine($"Content analysis JSON parse failed, using raw: {ex.Message}");
         }
 
         return (response.Length > 200 ? response[..200] : response, "general", 0f);
@@ -433,19 +433,25 @@ public partial class OllamaService
             var queryType = QueryTypeDetector.Detect(userQuery);
             var isRoundup = !forceAnswer && queryType == QueryType.Roundup;
             var evidence = new StringBuilder();
-            var sortedItems = items.OrderByDescending(i => i.relevance).ToList();
-            var bestRelevance = sortedItems.FirstOrDefault().relevance;
+            // Sort by relevance descending (copy to avoid mutating caller's list)
+            var sortedItems = new List<(string title, string summary, string topic, float sentiment, string url, double relevance)>(items);
+            sortedItems.Sort((a, b) => b.relevance.CompareTo(a.relevance));
+            var bestRelevance = sortedItems.Count > 0 ? sortedItems[0].relevance : 0.0;
             var relevanceFloor = Math.Max(0.15, bestRelevance * 0.30); // at least 30% of top item
-            var topItems = sortedItems
-                .Where(i => i.relevance >= relevanceFloor)
-                // Deduplicate by URL (keep the higher-relevance duplicate)
-                // For unresolved Google News URLs, deduplicate by title instead
-                .GroupBy(i => i.url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase)
-                    ? i.title
-                    : i.url)
-                .Select(g => g.First())
-                .Take(15)
-                .ToList();
+
+            // Deduplicate by URL (keep the higher-relevance duplicate, which comes first after sort)
+            // For unresolved Google News URLs, deduplicate by title instead
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var topItems = new List<(string title, string summary, string topic, float sentiment, string url, double relevance)>();
+            foreach (var item in sortedItems)
+            {
+                if (item.relevance < relevanceFloor) break; // sorted descending, so all remaining are below floor
+                var key = item.url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase)
+                    ? item.title : item.url;
+                if (!seen.Add(key)) continue;
+                topItems.Add(item);
+                if (topItems.Count >= 15) break;
+            }
 
             // Roundup source diversity: cap items per domain so no single source dominates
             if (isRoundup && topItems.Count > 5)
@@ -462,23 +468,44 @@ public partial class OllamaService
                 }).ToList();
             }
 
+            // Build content item lookups for O(1) matching (replaces O(n*m) FirstOrDefault scans)
+            Dictionary<string, ContentItem>? contentByUrl = null;
+            Dictionary<string, ContentItem>? contentByTitle = null;
+            if (contentItems is { Count: > 0 })
+            {
+                contentByUrl = new Dictionary<string, ContentItem>(contentItems.Count, StringComparer.OrdinalIgnoreCase);
+                contentByTitle = new Dictionary<string, ContentItem>(contentItems.Count, StringComparer.OrdinalIgnoreCase);
+                foreach (var c in contentItems)
+                {
+                    if (c.Url != null) contentByUrl.TryAdd(c.Url, c);
+                    if (c.Title != null) contentByTitle.TryAdd(c.Title, c);
+                }
+            }
+
             // Confidence + re-ranking both need the query embedding — compute once.
             double? avgQuerySimilarity = null;
             var queryEmb = embedder != null ? embedder(userQuery) : null;
 
             // Confidence: use raw pipeline embeddings (ContentItem.Embedding) which reflect
             // the actual indexed content, not re-embedded title+summary which inflates similarity.
-            if (queryEmb != null && contentItems != null)
+            if (queryEmb != null && contentByUrl != null)
             {
-                var matchedItems = topItems
-                    .Select(ti => contentItems.FirstOrDefault(c => c.Url == ti.url || c.Title == ti.title))
-                    .Where(c => c?.Embedding != null)
-                    .Take(5)
-                    .ToList();
+                var matchedItems = new List<ContentItem>(5);
+                foreach (var ti in topItems)
+                {
+                    ContentItem? c = null;
+                    if (ti.url != null) contentByUrl.TryGetValue(ti.url, out c);
+                    if (c == null) contentByTitle!.TryGetValue(ti.title, out c);
+                    if (c?.Embedding != null)
+                    {
+                        matchedItems.Add(c);
+                        if (matchedItems.Count >= 5) break;
+                    }
+                }
 
                 if (matchedItems.Count > 0)
                     avgQuerySimilarity = matchedItems
-                        .Average(c => (double)VectorMath.CosineSimilarity(queryEmb, c!.Embedding!));
+                        .Average(c => (double)VectorMath.CosineSimilarity(queryEmb, c.Embedding!));
             }
 
             // When items came through the retrieval pipeline (contentItems provided),
@@ -529,19 +556,30 @@ public partial class OllamaService
 
             foreach (var item in topItems)
             {
-                var contentItem = contentItems?.FirstOrDefault(c =>
-                    c.Url == item.url || c.Title == item.title);
+                ContentItem? contentItem = null;
+                if (contentByUrl != null && item.url != null)
+                    contentByUrl.TryGetValue(item.url, out contentItem);
+                if (contentItem == null && contentByTitle != null)
+                    contentByTitle.TryGetValue(item.title, out contentItem);
                 var raw = contentItem?.Content;
                 var len = raw?.Length ?? item.summary?.Length ?? 0;
                 itemContents.Add((item, raw, len));
             }
 
             // Pass 2: compute per-item budgets — short items donate surplus to long ones
-            var shortTotal = itemContents.Where(ic => ic.rawLen <= totalBudget / topItems.Count)
-                .Sum(ic => ic.rawLen);
-            var longCount = itemContents.Count(ic => ic.rawLen > totalBudget / topItems.Count);
+            var perItemBudget = totalBudget / topItems.Count;
+            var shortTotal = 0;
+            var longCount = 0;
+            foreach (var ic in itemContents)
+            {
+                if (ic.rawLen <= perItemBudget)
+                    shortTotal += ic.rawLen;
+                else
+                    longCount++;
+            }
+
             var remainingBudget = totalBudget - shortTotal;
-            var longBudget = longCount > 0 ? remainingBudget / longCount : totalBudget / topItems.Count;
+            var longBudget = longCount > 0 ? remainingBudget / longCount : perItemBudget;
 
             // Pass 3: build evidence with smart budgets
             for (var ei = 0; ei < itemContents.Count; ei++)

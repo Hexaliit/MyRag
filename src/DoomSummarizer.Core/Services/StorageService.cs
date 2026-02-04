@@ -292,75 +292,72 @@ public partial class StorageService : IAsyncDisposable
     /// </summary>
     private static StoredItem ReadStoredItem(SqliteDataReader reader)
     {
+        // Cache all ordinals once per result set (avoids repeated string→int dictionary lookups per row)
+        var ordRowId = reader.GetOrdinal("row_id");
+        var ordId = reader.GetOrdinal("id");
+        var ordSource = reader.GetOrdinal("source");
+        var ordTitle = reader.GetOrdinal("title");
+        var ordUrl = reader.GetOrdinal("url");
+        var ordSummary = reader.GetOrdinal("summary");
+        var ordContent = reader.GetOrdinal("content");
+        var ordSentiment = reader.GetOrdinal("sentiment_score");
+        var ordTopic = reader.GetOrdinal("detected_topic");
+        var ordTags = reader.GetOrdinal("tags");
+        var ordScore = reader.GetOrdinal("score");
+        var ordCreatedAt = reader.GetOrdinal("created_at");
+        var ordFetchedAt = reader.GetOrdinal("fetched_at");
+        var ordEmbedding = reader.GetOrdinal("embedding");
+
         // Read optional columns safely (may not exist in older DBs before migration)
         string? keywords = null;
         string? webValidatedAt = null;
-        try
-        {
-            var keywordsOrd = reader.GetOrdinal("keywords");
-            keywords = reader.IsDBNull(keywordsOrd) ? null : reader.GetString(keywordsOrd);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            /* Column doesn't exist yet */
-        }
-
-        try
-        {
-            var wvOrd = reader.GetOrdinal("web_validated_at");
-            webValidatedAt = reader.IsDBNull(wvOrd) ? null : reader.GetString(wvOrd);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            /* Column doesn't exist yet */
-        }
-
         float? salienceScore = null;
         var isEmbedded = true;
-        try
-        {
-            var salOrd = reader.GetOrdinal("salience_score");
-            salienceScore = reader.IsDBNull(salOrd) ? null : reader.GetFloat(salOrd);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            /* Column doesn't exist yet */
-        }
 
         try
         {
-            var embOrd = reader.GetOrdinal("is_embedded");
-            isEmbedded = reader.IsDBNull(embOrd) || reader.GetInt32(embOrd) != 0;
+            var ord = reader.GetOrdinal("keywords");
+            keywords = reader.IsDBNull(ord) ? null : reader.GetString(ord);
         }
-        catch (ArgumentOutOfRangeException)
+        catch (ArgumentOutOfRangeException) { }
+
+        try
         {
-            /* Column doesn't exist yet */
+            var ord = reader.GetOrdinal("web_validated_at");
+            webValidatedAt = reader.IsDBNull(ord) ? null : reader.GetString(ord);
         }
+        catch (ArgumentOutOfRangeException) { }
+
+        try
+        {
+            var ord = reader.GetOrdinal("salience_score");
+            salienceScore = reader.IsDBNull(ord) ? null : reader.GetFloat(ord);
+        }
+        catch (ArgumentOutOfRangeException) { }
+
+        try
+        {
+            var ord = reader.GetOrdinal("is_embedded");
+            isEmbedded = reader.IsDBNull(ord) || reader.GetInt32(ord) != 0;
+        }
+        catch (ArgumentOutOfRangeException) { }
 
         return new StoredItem
         {
-            RowId = reader.GetInt64(reader.GetOrdinal("row_id")),
-            Id = reader.GetString(reader.GetOrdinal("id")),
-            Source = reader.GetString(reader.GetOrdinal("source")),
-            Title = reader.GetString(reader.GetOrdinal("title")),
-            Url = reader.IsDBNull(reader.GetOrdinal("url")) ? null : reader.GetString(reader.GetOrdinal("url")),
-            Summary = reader.IsDBNull(reader.GetOrdinal("summary"))
-                ? null
-                : reader.GetString(reader.GetOrdinal("summary")),
-            Content = reader.IsDBNull(reader.GetOrdinal("content"))
-                ? null
-                : reader.GetString(reader.GetOrdinal("content")),
-            SentimentScore = reader.IsDBNull(reader.GetOrdinal("sentiment_score"))
-                ? 0
-                : reader.GetFloat(reader.GetOrdinal("sentiment_score")),
-            DetectedTopic = reader.IsDBNull(reader.GetOrdinal("detected_topic"))
-                ? null
-                : reader.GetString(reader.GetOrdinal("detected_topic")),
-            Tags = reader.IsDBNull(reader.GetOrdinal("tags")) ? null : reader.GetString(reader.GetOrdinal("tags")),
-            Score = reader.IsDBNull(reader.GetOrdinal("score")) ? 0 : reader.GetInt32(reader.GetOrdinal("score")),
-            CreatedAt = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("created_at"))),
-            FetchedAt = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("fetched_at"))),
-            Embedding = reader.IsDBNull(reader.GetOrdinal("embedding")) ? null : (byte[])reader["embedding"],
+            RowId = reader.GetInt64(ordRowId),
+            Id = reader.GetString(ordId),
+            Source = reader.GetString(ordSource),
+            Title = reader.GetString(ordTitle),
+            Url = reader.IsDBNull(ordUrl) ? null : reader.GetString(ordUrl),
+            Summary = reader.IsDBNull(ordSummary) ? null : reader.GetString(ordSummary),
+            Content = reader.IsDBNull(ordContent) ? null : reader.GetString(ordContent),
+            SentimentScore = reader.IsDBNull(ordSentiment) ? 0 : reader.GetFloat(ordSentiment),
+            DetectedTopic = reader.IsDBNull(ordTopic) ? null : reader.GetString(ordTopic),
+            Tags = reader.IsDBNull(ordTags) ? null : reader.GetString(ordTags),
+            Score = reader.IsDBNull(ordScore) ? 0 : reader.GetInt32(ordScore),
+            CreatedAt = DateTimeOffset.Parse(reader.GetString(ordCreatedAt)),
+            FetchedAt = DateTimeOffset.Parse(reader.GetString(ordFetchedAt)),
+            Embedding = reader.IsDBNull(ordEmbedding) ? null : (byte[])reader["embedding"],
             Keywords = keywords,
             SalienceScore = salienceScore,
             IsEmbedded = isEmbedded,

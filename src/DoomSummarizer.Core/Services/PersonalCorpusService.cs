@@ -247,7 +247,7 @@ public sealed class PersonalCorpusService
             .GroupBy(e => e.name.ToLowerInvariant())
             .Select(g =>
             {
-                var best = g.OrderByDescending(e => e.confidence).First();
+                var best = g.MaxBy(e => e.confidence);
                 return (best.name, best.type, lastSeen: DateTimeOffset.UtcNow);
             })
             .Take(limit)

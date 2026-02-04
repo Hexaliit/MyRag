@@ -85,7 +85,7 @@ public sealed class ListDocsCommand : AsyncCommand<ListDocsCommand.Settings>
             .GroupBy(i => i.Url ?? i.Title)
             .Select(g =>
             {
-                var best = g.OrderByDescending(i => i.FetchedAt).First();
+                var best = g.MaxBy(i => i.FetchedAt)!;
                 return new
                 {
                     best.Id,

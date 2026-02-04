@@ -70,7 +70,8 @@
     "format": "markdown",
     "maxSummaryLength": 500,
     "includeLinks": true,
-    "groupByTopic": true
+    "groupByTopic": true,
+    "defaultTemplate": "default"
   },
   "linkFollowing": {
     "enabled": true,

@@ -69,9 +69,9 @@ public class DuckDbVectorStore : IAsyncDisposable
         {
             await ExecAsync($"ALTER TABLE item_embeddings ADD COLUMN entity_profile FLOAT[{_dim}]");
         }
-        catch
+        catch (Exception ex)
         {
-            // Column already exists
+            System.Diagnostics.Debug.WriteLine($"DuckDB entity_profile migration (expected if exists): {ex.Message}");
         }
 
         // HNSW index for fast cosine similarity search on item embeddings
@@ -83,9 +83,9 @@ public class DuckDbVectorStore : IAsyncDisposable
                             WITH (metric = 'cosine')
                             """);
         }
-        catch
+        catch (Exception ex)
         {
-            // Index may fail if table is empty or VSS not available - non-fatal
+            System.Diagnostics.Debug.WriteLine($"DuckDB HNSW index creation skipped: {ex.Message}");
         }
     }
 

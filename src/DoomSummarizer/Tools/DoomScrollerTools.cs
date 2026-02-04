@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text.Json;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
@@ -70,9 +71,9 @@ public static class DoomScrollerTools
             {
                 _embedding = await EmbeddingFactory.CreateAsync();
             }
-            catch
+            catch (Exception ex)
             {
-                // Embedding model not available — tools will degrade gracefully
+                Debug.WriteLine($"Embedding init failed: {ex.Message}");
                 _embedding = null;
             }
 
@@ -142,9 +143,9 @@ public static class DoomScrollerTools
                 // Capture FTS scores for RRF fusion in a single pass
                 luceneScores = luceneResults.ToDictionary(r => r.Id, r => (double)r.Score);
             }
-            catch
+            catch (Exception ex)
             {
-                /* Lucene search failed - fall through to embeddings */
+                Debug.WriteLine($"Lucene search failed: {ex.Message}");
             }
 
             List<ContentItem> items;
@@ -279,9 +280,9 @@ public static class DoomScrollerTools
                 var luceneHits = lucene.Search(luceneQuery, source, limit);
                 ids = luceneHits.Select(r => r.Id).ToList();
             }
-            catch
+            catch (Exception ex)
             {
-                /* Lucene failed */
+                Debug.WriteLine($"Lucene keyword search failed: {ex.Message}");
             }
 
             if (ids.Count == 0)

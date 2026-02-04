@@ -188,7 +188,7 @@ public sealed class ItemProcessor : IDisposable
     {
         var deduped = entities
             .GroupBy(e => e.Text.ToLowerInvariant())
-            .Select(g => g.OrderByDescending(e => e.Confidence).First())
+            .Select(g => g.MaxBy(e => e.Confidence)!)
             .ToList();
 
         var entityIds = new List<string>();

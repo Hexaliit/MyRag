@@ -420,9 +420,9 @@ public partial class ScrollCommand
                     if (results.Count > 0)
                         return results;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Try next service
+                    System.Diagnostics.Debug.WriteLine($"Search service failed: {ex.Message}");
                 }
             }
 
