@@ -233,7 +233,8 @@ public partial class RelevanceScorer
             var authScores = ComputeAuthorityScores(items).ToDictionary(x => x.item.Id, x => x.score);
             foreach (var item in items)
                 item.RelevanceScore = ComputeFreshness(item) * 0.7 + authScores.GetValueOrDefault(item.Id, 0.3) * 0.3;
-            return items.OrderByDescending(i => i.RelevanceScore).ToList();
+            items.Sort((a, b) => b.RelevanceScore.CompareTo(a.RelevanceScore));
+            return items;
         }
 
         // Score each signal independently, then rank
@@ -284,28 +285,31 @@ public partial class RelevanceScorer
         // RRF fusion across Phase 1 signals
         var rrfScores = FuseRRF(items, signals.ToArray());
 
-        // Apply scores and sort
+        // Apply scores, sort in-place, and project
         foreach (var (item, score) in rrfScores)
             item.RelevanceScore = score;
+        rrfScores.Sort((a, b) => b.score.CompareTo(a.score));
 
-        var sorted = rrfScores.OrderByDescending(x => x.score).Select(x => x.item).ToList();
+        var sorted = new List<ContentItem>(rrfScores.Count);
+        foreach (var (item, _) in rrfScores)
+            sorted.Add(item);
 
         // Hard gate: remove items with low embedding similarity.
         // Keyword matching is handled by Lucene at retrieval — the scorer gates on
         // semantic similarity only. Items without embeddings are exempt (can't be gated).
         if (querySimScores != null)
         {
-            var simLookup = querySimScores.ToDictionary(x => x.item.Id, x => x.score);
-            sorted = sorted
-                .Where(i => simLookup.GetValueOrDefault(i.Id, 0) >= gateThreshold)
-                .ToList();
+            var simLookup = new Dictionary<string, double>(querySimScores.Count);
+            foreach (var (item, score) in querySimScores)
+                simLookup[item.Id] = score;
+            sorted.RemoveAll(i => simLookup.GetValueOrDefault(i.Id, 0) < gateThreshold);
         }
 
         // Discard bottom tier
         if (discardRatio > 0 && sorted.Count > 3)
         {
             var keepCount = Math.Max(3, (int)(sorted.Count * (1.0 - discardRatio)));
-            return sorted.Take(keepCount).ToList();
+            sorted.RemoveRange(keepCount, sorted.Count - keepCount);
         }
 
         return sorted;
@@ -415,11 +419,11 @@ public partial class RelevanceScorer
                     : 0.0;
         }
 
-        var gated = rrfScores
-            .Where(x => gateSim.GetValueOrDefault(x.item.Id, 0) >= gateThreshold)
-            .OrderByDescending(x => x.score)
-            .Select(x => x.item)
-            .ToList();
+        rrfScores.RemoveAll(x => gateSim.GetValueOrDefault(x.item.Id, 0) < gateThreshold);
+        rrfScores.Sort((a, b) => b.score.CompareTo(a.score));
+        var gated = new List<ContentItem>(rrfScores.Count);
+        foreach (var (item, _) in rrfScores)
+            gated.Add(item);
 
         return gated;
     }
@@ -445,6 +449,17 @@ public partial class RelevanceScorer
 
     [GeneratedRegex(@"\b\w+\b")]
     private static partial Regex TokenPattern();
+
+    /// <summary>
+    ///     Count term frequencies in a token list. Avoids GroupBy+ToDictionary overhead.
+    /// </summary>
+    private static Dictionary<string, int> CountTerms(List<string> tokens)
+    {
+        var tf = new Dictionary<string, int>(tokens.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var t in tokens)
+            tf[t] = tf.GetValueOrDefault(t) + 1;
+        return tf;
+    }
 
     #region Signal Computations
 
@@ -513,18 +528,18 @@ public partial class RelevanceScorer
             titleTokens = Tokenize(item.Title);
             keywordTokens = Tokenize(item.Keywords ?? "");
             contentTokens = Tokenize(item.Content ?? "");
-            allTokens = titleTokens.Concat(keywordTokens).Concat(contentTokens).ToList();
+            allTokens = new List<string>(titleTokens.Count + keywordTokens.Count + contentTokens.Count);
+            allTokens.AddRange(titleTokens);
+            allTokens.AddRange(keywordTokens);
+            allTokens.AddRange(contentTokens);
         }
 
         if (allTokens.Count == 0 || avgDocLen < 0.001) return 0;
 
         // Build field-weighted TF: title 2×, keywords 2.5×, content 1×
-        var titleTf = titleTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
-        var keywordTf = keywordTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
-        var contentTf = contentTokens.GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+        var titleTf = CountTerms(titleTokens);
+        var keywordTf = CountTerms(keywordTokens);
+        var contentTf = CountTerms(contentTokens);
 
         // Build set of all document tokens for fuzzy lookup
         var allTokenSet = new HashSet<string>(allTokens, StringComparer.OrdinalIgnoreCase);

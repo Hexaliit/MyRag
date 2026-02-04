@@ -109,9 +109,9 @@ public sealed partial class ConversationSentinel
                     && llmResult.Length <= Math.Max(question.Length * 2, 120))
                     resolvedQuery = llmResult;
             }
-            catch
+            catch (Exception ex)
             {
-                // LLM failure is non-fatal - use rule-based rewrite
+                System.Diagnostics.Debug.WriteLine($"Conversation sentinel LLM rewrite failed: {ex.Message}");
             }
 
         return new ConversationSentinelResult
@@ -197,9 +197,9 @@ public sealed partial class ConversationSentinel
                     Reason = $"Moderate similarity: {similarity:F2}, treating as new query"
                 };
         }
-        catch
+        catch (Exception ex)
         {
-            // Embedding failure is non-fatal
+            System.Diagnostics.Debug.WriteLine($"Conversation sentinel embedding failed: {ex.Message}");
         }
 
         // New topic
@@ -265,9 +265,9 @@ public sealed partial class ConversationSentinel
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // JSON parse failure - fall back to rule-based
+            System.Diagnostics.Debug.WriteLine($"Conversation sentinel JSON parse failed: {ex.Message}");
         }
 
         return null;

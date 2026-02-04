@@ -66,9 +66,9 @@ public class QueryPreprocessor
                         break;
                 }
         }
-        catch
+        catch (Exception ex)
         {
-            // NER failure is non-fatal — fall through to LLM sentinel
+            System.Diagnostics.Debug.WriteLine($"Query NER extraction failed: {ex.Message}");
             return context;
         }
 
@@ -95,9 +95,9 @@ public class QueryPreprocessor
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Cache lookup failure is non-fatal
+            System.Diagnostics.Debug.WriteLine($"Query cache lookup failed: {ex.Message}");
         }
 
         // Step 3: Build entity-specific search queries for APIs

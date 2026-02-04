@@ -249,8 +249,9 @@ public class EntityDisambiguationService
 
             return features;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Entity feature extraction failed: {ex.Message}");
             return null;
         }
     }
@@ -289,8 +290,9 @@ public class EntityDisambiguationService
 
             return features.Any(f => f.OrgName != null) ? features : null;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Org feature extraction failed: {ex.Message}");
             return null;
         }
     }
@@ -566,8 +568,9 @@ public class EntityDisambiguationService
         {
             return new Uri(url).Host.Replace("www.", "");
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"URL host extraction failed for '{url}': {ex.Message}");
             return "";
         }
     }

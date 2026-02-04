@@ -101,8 +101,9 @@ public sealed class QueryExpansionService
         {
             termEmbed = await _embedding.EmbedAsync(key, ct);
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Query expansion embedding failed for '{key}': {ex.Message}");
             return [key];
         }
 
@@ -170,9 +171,9 @@ public sealed class QueryExpansionService
             for (var i = 0; i < candidateTerms.Count; i++)
                 _vocabEmbeddings[candidateTerms[i].ToLowerInvariant()] = embeddings[i];
         }
-        catch
+        catch (Exception ex)
         {
-            // Best-effort — expansion will be empty if initialization fails
+            System.Diagnostics.Debug.WriteLine($"Query expansion vocab init failed: {ex.Message}");
         }
 
         _initialized = true;

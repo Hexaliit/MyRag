@@ -544,9 +544,9 @@ public class DuckDbEntityGraphStore : IEntityGraphStore
         {
             await ExecAsync($"ALTER TABLE item_embeddings ADD COLUMN entity_profile FLOAT[{_dim}]");
         }
-        catch
+        catch (Exception ex)
         {
-            /* Column already exists */
+            System.Diagnostics.Debug.WriteLine($"DuckDB entity_profile migration (expected if exists): {ex.Message}");
         }
 
         // Entity nodes with optional embeddings
@@ -594,8 +594,9 @@ public class DuckDbEntityGraphStore : IEntityGraphStore
             await ExecAsync(
                 "CREATE INDEX IF NOT EXISTS entity_emb_hnsw ON entities USING HNSW (embedding) WITH (metric = 'cosine')");
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"DuckDB entity HNSW index creation skipped: {ex.Message}");
         }
 
         try
@@ -603,8 +604,9 @@ public class DuckDbEntityGraphStore : IEntityGraphStore
             await ExecAsync(
                 "CREATE INDEX IF NOT EXISTS item_entity_profile_hnsw ON item_embeddings USING HNSW (entity_profile) WITH (metric = 'cosine')");
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"DuckDB entity profile HNSW index creation skipped: {ex.Message}");
         }
     }
 

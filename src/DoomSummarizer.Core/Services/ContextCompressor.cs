@@ -106,8 +106,9 @@ public sealed partial class ContextCompressor
             var texts = sentences.Select(s => s.text).ToArray();
             sentenceEmbs = await _embedding.EmbedBatchAsync(texts, ct);
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Context embedding failed, using truncation fallback: {ex.Message}");
             // Embedding failure: fall back to taking last N chars
             var raw = BuildRawHistory(history);
             return FormatContext(raw.Length > targetChars ? raw[^targetChars..] : raw);
@@ -176,9 +177,9 @@ public sealed partial class ContextCompressor
                 if (!string.IsNullOrWhiteSpace(summary))
                     summaries.Add(summary.Trim());
             }
-            catch
+            catch (Exception ex)
             {
-                // Skip failed chunks
+                System.Diagnostics.Debug.WriteLine($"Chunk summarization failed: {ex.Message}");
             }
 
         if (summaries.Count == 0)
