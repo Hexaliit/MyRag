@@ -102,11 +102,13 @@
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.LLamaSharp\Mostlylucid.DocSummarizer.LLamaSharp.csproj"/>
     </ItemGroup>
 
-    <!-- Complete-only: audio transcription, YouTube, subtitles -->
+    <!-- Complete-only: full media pipelines (image/audio/video), YouTube, subtitles -->
     <ItemGroup Condition="'$(CompleteBuild)' == 'true'">
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Subtitles\Mostlylucid.DoomSummarizer.Plugin.Subtitles.csproj"/>
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.YouTube\Mostlylucid.DoomSummarizer.Source.YouTube.csproj"/>
         <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\VideoSummarizer.Core\VideoSummarizer.Core.csproj"/>
     </ItemGroup>
 
     <!-- Exclude complete-only source files from slim builds -->

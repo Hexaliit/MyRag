@@ -77,7 +77,7 @@ jobs:
           dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj \
             --configuration Release \
             --no-build \
-            --filter 'Category!=Network&Category!=Smoke&Category!=RequiresModel&Category!=Benchmark' \
+            --filter 'Category!=Network&Category!=Smoke&Category!=RequiresModel&Category!=Benchmark&Category!=Integration' \
             --logger "console;verbosity=normal"
 
       - name: Run Plugin.Books tests

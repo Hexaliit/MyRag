@@ -6,7 +6,7 @@ namespace AudioSummarizer.Core.Services.Analysis.Waves;
 
 /// <summary>
 ///     Source Separation Wave - Separates audio into stems (vocals, drums, bass, other).
-///     Priority: 55 (runs after content classification, before transcription)
+///     Priority: 62 (runs after content classification and music analysis, before transcription)
 ///     Only runs for music or mixed content.
 ///     Signals:
 ///     - source_separation.success: Whether separation succeeded
@@ -34,7 +34,7 @@ public sealed class SourceSeparationWave : IAudioWave
     }
 
     public string Name => "SourceSeparationWave";
-    public int Priority => 55; // After content classification (70), before transcription (60)
+    public int Priority => 62; // After content classification (70) and music analysis (65), before transcription (60)
 
     public bool ShouldRun(string audioPath, AnalysisContext context)
     {

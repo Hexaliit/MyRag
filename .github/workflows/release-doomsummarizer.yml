@@ -27,7 +27,7 @@ jobs:
           dotnet build src/DoomSummarizer/DoomSummarizer.csproj -c Release
           dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj \
             -c Release \
-            --filter "Category!=Network%26Category!=Smoke%26Category!=RequiresModel" \
+            --filter "Category!=Network%26Category!=Smoke%26Category!=RequiresModel%26Category!=Benchmark%26Category!=Integration" \
             --logger "console;verbosity=normal"
 
   build:

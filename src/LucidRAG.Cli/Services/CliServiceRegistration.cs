@@ -150,8 +150,8 @@ public static class CliServiceRegistration
             opt.Pipeline.EnableAcousticProfiling = true;
             opt.Pipeline.EnableContentClassification = true;
             opt.Pipeline.EnableTranscription = true;
-            opt.EnableVoiceEmbeddings = false; // Requires model download
-            opt.EnableSpeakerDiarization = false; // Phase 5 (not yet implemented)
+            opt.EnableVoiceEmbeddings = true; // ECAPA-TDNN embeddings (auto-downloaded ~18MB)
+            opt.EnableSpeakerDiarization = true; // Speaker ID via VAD + ECAPA-TDNN clustering
             opt.EnableSourceSeparation = config.EnableSourceSeparation; // Demucs for music (~210MB model)
         });
 

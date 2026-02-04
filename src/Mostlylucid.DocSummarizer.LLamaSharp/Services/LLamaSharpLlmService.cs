@@ -267,7 +267,7 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
             {
                 ContextSize = sentinel ? 4096u : _config.ContextSize,
                 GpuLayerCount = _config.GpuLayerCount,
-                MainGpu = (uint)_config.GpuDeviceId,
+                MainGpu = _config.GpuDeviceId,
                 BatchSize = (uint)_config.BatchSize
             };
 

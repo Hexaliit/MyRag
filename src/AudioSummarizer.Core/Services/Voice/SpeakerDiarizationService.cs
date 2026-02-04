@@ -70,17 +70,17 @@ public class SpeakerDiarizationService
         var speakerClusters = ClusterSpeakers(embeddings);
         _logger.LogInformation("Identified {Count} speakers", speakerClusters.Keys.Count);
 
-        // Step 4: Create speaker turns
+        // Step 4: Create speaker turns with confidence from cluster similarity
         var turns = new List<SpeakerTurn>();
         foreach (var (segment, embedding) in embeddings)
         {
-            var speakerId = FindSpeakerForEmbedding(embedding, speakerClusters);
+            var (speakerId, confidence) = FindSpeakerForEmbeddingWithConfidence(embedding, speakerClusters);
             turns.Add(new SpeakerTurn
             {
                 SpeakerId = speakerId,
                 StartSeconds = segment.StartSeconds,
                 EndSeconds = segment.EndSeconds,
-                Confidence = 1.0 // TODO: Calculate based on cluster distance
+                Confidence = confidence
             });
         }
 
@@ -160,16 +160,24 @@ public class SpeakerDiarizationService
     }
 
     /// <summary>
-    ///     Extract embedding for a specific time segment
+    ///     Extract embedding for a specific time segment using ECAPA-TDNN.
+    ///     Reads only the audio within the segment's time range for accurate per-speaker embeddings.
     /// </summary>
     private async Task<float[]> ExtractSegmentEmbeddingAsync(
         string audioPath,
         SpeechSegment segment,
         CancellationToken cancellationToken)
     {
-        // For now, use whole file embedding
-        // TODO: Extract only the segment time range
-        var embedding = await _embeddingService.ExtractEmbeddingAsync(audioPath, cancellationToken);
+        var embedding = await _embeddingService.ExtractSegmentEmbeddingAsync(
+            audioPath, segment.StartSeconds, segment.EndSeconds, cancellationToken);
+        if (embedding.Vector.Length == 0)
+        {
+            _logger.LogWarning("Empty embedding for segment {Start:F2}-{End:F2}s, falling back to whole-file",
+                segment.StartSeconds, segment.EndSeconds);
+            var fallback = await _embeddingService.ExtractEmbeddingAsync(audioPath, cancellationToken);
+            return fallback.Vector;
+        }
+
         return embedding.Vector;
     }
 
@@ -222,9 +230,10 @@ public class SpeakerDiarizationService
     }
 
     /// <summary>
-    ///     Find which speaker cluster an embedding belongs to
+    ///     Find which speaker cluster an embedding belongs to, returning confidence
+    ///     based on cosine similarity distance to the assigned cluster.
     /// </summary>
-    private string FindSpeakerForEmbedding(
+    private (string speakerId, double confidence) FindSpeakerForEmbeddingWithConfidence(
         float[] embedding,
         Dictionary<string, List<float[]>> clusters)
     {
@@ -244,7 +253,14 @@ public class SpeakerDiarizationService
             }
         }
 
-        return bestCluster;
+        // Map similarity to confidence: 0.75 threshold = minimum, 1.0 = perfect
+        // Scale from [threshold..1.0] to [0.5..1.0]
+        const double threshold = 0.75;
+        var confidence = maxSimilarity >= threshold
+            ? 0.5 + 0.5 * (maxSimilarity - threshold) / (1.0 - threshold)
+            : maxSimilarity / threshold * 0.5; // Below threshold: [0..0.5]
+
+        return (bestCluster, Math.Clamp(confidence, 0.0, 1.0));
     }
 
     /// <summary>

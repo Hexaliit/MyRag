@@ -75,6 +75,59 @@ public class VoiceEmbeddingService
     }
 
     /// <summary>
+    ///     Extract voice embedding for a specific time segment of an audio file.
+    ///     Used by diarization to get per-segment embeddings for speaker clustering.
+    ///     Segments shorter than 0.5s are padded with silence to ensure model stability.
+    /// </summary>
+    public async Task<VoiceEmbedding> ExtractSegmentEmbeddingAsync(
+        string audioPath,
+        double startSeconds,
+        double endSeconds,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureModelLoadedAsync(cancellationToken);
+
+        var features = await Task.Run(
+            () => ExtractMelSpectrogramSegment(audioPath, startSeconds, endSeconds), cancellationToken);
+
+        // Run ONNX inference (same as whole-file path)
+        var numMelBands = features.GetLength(0);
+        var numFrames = features.GetLength(1);
+
+        if (numFrames < 2)
+        {
+            _logger.LogWarning("Segment too short for embedding ({Start:F2}-{End:F2}s, {Frames} frames)",
+                startSeconds, endSeconds, numFrames);
+            return new VoiceEmbedding { Vector = Array.Empty<float>(), Dimension = 0, Model = "ecapa-tdnn" };
+        }
+
+        var flatFeatures = new float[numMelBands * numFrames];
+        for (var i = 0; i < numMelBands; i++)
+        for (var j = 0; j < numFrames; j++)
+            flatFeatures[i * numFrames + j] = features[i, j];
+
+        var inputTensor = new DenseTensor<float>(flatFeatures, new[] { 1, numMelBands, numFrames });
+        var inputs = new List<NamedOnnxValue>
+        {
+            NamedOnnxValue.CreateFromTensor("input", inputTensor)
+        };
+
+        using var results = _session!.Run(inputs);
+        var embeddingTensor = results.First().AsEnumerable<float>().ToArray();
+
+        var embedding = NormalizeEmbedding(embeddingTensor);
+        var voiceprintId = GenerateVoiceprintId(embedding);
+
+        return new VoiceEmbedding
+        {
+            Vector = embedding,
+            VoiceprintId = voiceprintId,
+            Dimension = embedding.Length,
+            Model = "ecapa-tdnn"
+        };
+    }
+
+    /// <summary>
     ///     Calculate cosine similarity between two voice embeddings
     ///     Returns value between -1 (opposite) and 1 (identical)
     /// </summary>
@@ -145,6 +198,53 @@ public class VoiceEmbeddingService
         var melSpectrogram = ComputeMelSpectrogram(samples.ToArray(), 16000, 80);
 
         return melSpectrogram;
+    }
+
+    private float[,] ExtractMelSpectrogramSegment(string audioPath, double startSeconds, double endSeconds)
+    {
+        using var reader = new AudioFileReader(audioPath);
+
+        ISampleProvider sampleProvider = reader;
+        if (reader.WaveFormat.SampleRate != 16000) sampleProvider = new WdlResamplingSampleProvider(reader, 16000);
+        if (sampleProvider.WaveFormat.Channels > 1)
+            sampleProvider = new StereoToMonoSampleProvider(sampleProvider)
+            {
+                LeftVolume = 0.5f, RightVolume = 0.5f
+            };
+
+        const int targetSampleRate = 16000;
+
+        // Skip samples before startSeconds
+        var skipSamples = (int)(startSeconds * targetSampleRate);
+        var segmentSamples = (int)((endSeconds - startSeconds) * targetSampleRate);
+        // Ensure minimum 0.5s of audio for model stability
+        segmentSamples = Math.Max(segmentSamples, targetSampleRate / 2);
+
+        var skipBuffer = new float[Math.Min(skipSamples, targetSampleRate)];
+        var remaining = skipSamples;
+        while (remaining > 0)
+        {
+            var toRead = Math.Min(remaining, skipBuffer.Length);
+            var read = sampleProvider.Read(skipBuffer, 0, toRead);
+            if (read == 0) break;
+            remaining -= read;
+        }
+
+        // Read segment samples
+        var samples = new float[segmentSamples];
+        var totalRead = 0;
+        while (totalRead < segmentSamples)
+        {
+            var read = sampleProvider.Read(samples, totalRead, segmentSamples - totalRead);
+            if (read == 0) break;
+            totalRead += read;
+        }
+
+        // If we got fewer samples than requested (end of file), use what we have
+        if (totalRead < segmentSamples)
+            Array.Resize(ref samples, totalRead);
+
+        return ComputeMelSpectrogram(samples, targetSampleRate, 80);
     }
 
     private float[,] ComputeMelSpectrogram(float[] samples, int sampleRate, int numMelBands)

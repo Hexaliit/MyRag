@@ -3,9 +3,21 @@ using System.Text;
 using System.Text.RegularExpressions;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
+using DoomSummarizer.Plugins.Runtime;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services;
 using Spectre.Console;
+#if FEATURE_COMPLETE
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Mostlylucid.DocSummarizer.Images.Config;
+using Mostlylucid.DocSummarizer.Images.Extensions;
+using AudioSummarizer.Core.Config;
+using AudioSummarizer.Core.Extensions;
+using VideoSummarizer.Core.Extensions;
+using Mostlylucid.Summarizer.Core.Pipeline;
+using Mostlylucid.Summarizer.Core.Extensions;
+#endif
 
 namespace DoomSummarizer.Commands;
 
@@ -61,6 +73,14 @@ public record DocumentComplexityProfile
 public sealed partial class ScrollCommand
 {
     private static readonly string[] ImageExtensions = [".gif", ".jpg", ".jpeg", ".png", ".webp"];
+
+#if FEATURE_COMPLETE
+    private static readonly string[] AudioExtensions =
+        [".mp3", ".wav", ".m4a", ".flac", ".ogg", ".wma", ".aac", ".opus"];
+
+    private static readonly string[] VideoExtensions =
+        [".mp4", ".mkv", ".avi", ".webm", ".mov", ".wmv", ".flv", ".m4v", ".mpeg", ".mpg"];
+#endif
 
     internal static bool IsImageFile(string path)
     {
@@ -407,9 +427,13 @@ public sealed partial class ScrollCommand
             handlers.GetSupportedExtensions(), StringComparer.OrdinalIgnoreCase);
 
 #if FEATURE_COMPLETE
-        // Complete build: also accept images and plugin formats
+        // Complete build: also accept images, audio, video, and plugin formats
         foreach (var imgExt in ImageExtensions)
             supportedExtensions.Add(imgExt);
+        foreach (var audioExt in AudioExtensions)
+            supportedExtensions.Add(audioExt);
+        foreach (var videoExt in VideoExtensions)
+            supportedExtensions.Add(videoExt);
         foreach (var pluginExt in PluginDiscovery.DiscoverAllProcessorPlugins()
                      .SelectMany(p => p.Metadata.SupportedExtensions))
             supportedExtensions.Add(pluginExt.StartsWith('.') ? pluginExt : $".{pluginExt}");
@@ -476,9 +500,21 @@ public sealed partial class ScrollCommand
         using var processor =
             await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, collectionName, ct);
 
-        // Set up document handlers
+        // Set up document handlers (base + plugin-provided)
         var handlers = new DocumentHandlerRegistry();
         handlers.RegisterDefaultHandlers();
+
+#if FEATURE_COMPLETE
+        // Register document handlers from plugins (e.g., SubtitleDocumentHandler for .srt/.vtt/.ass/.ssa)
+        foreach (var plugin in PluginDiscovery.DiscoverAllProcessorPlugins())
+        {
+            // Plugins that expose an IDocumentHandler via a public property
+            var handlerProp = plugin.GetType().GetProperties()
+                .FirstOrDefault(p => typeof(Mostlylucid.DocSummarizer.Services.IDocumentHandler).IsAssignableFrom(p.PropertyType));
+            if (handlerProp?.GetValue(plugin) is Mostlylucid.DocSummarizer.Services.IDocumentHandler pluginHandler)
+                handlers.Register(pluginHandler);
+        }
+#endif
 
         var totalIngested = 0;
         var increment = files.Count > 0 ? 80.0 / files.Count : 80.0;
@@ -492,11 +528,81 @@ public sealed partial class ScrollCommand
         // Collect all items for batch embedding
         var pendingItems = new List<(ContentItem item, string embedText)>();
 
+#if FEATURE_COMPLETE
+        // Build media pipeline provider for full image/audio/video analysis.
+        // Produces searchable content items from rich signals: captions, OCR, motion,
+        // color, entities, transcription, diarization, scene detection, etc.
+        ServiceProvider? mediaPipelines = null;
+        IServiceScope? mediaPipelineScope = null;
+        IPipelineRegistry? pipelineRegistry = null;
+        try
+        {
+            mediaPipelines = BuildMediaPipelineProvider(Path.GetDirectoryName(boot.DbPath));
+            mediaPipelineScope = mediaPipelines.CreateScope();
+            pipelineRegistry = mediaPipelineScope.ServiceProvider.GetRequiredService<IPipelineRegistry>();
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Media pipeline unavailable: {Markup.Escape(ex.Message)}[/]");
+        }
+#endif
+
         foreach (var filePath in files)
         {
             ct.ThrowIfCancellationRequested();
 
-            // Image files: create a lightweight content item from filename (no document handler needed)
+#if FEATURE_COMPLETE
+            // Media files (images, audio, video): full pipeline analysis.
+            // Pipeline extracts rich signals (captions, OCR, motion, color, entities,
+            // transcription, diarization, etc.) and converts them to searchable content
+            // items — unified with document chunks for universal search.
+            if (pipelineRegistry?.FindForFile(filePath) is { } pipeline)
+            {
+                try
+                {
+                    progressTask.Description =
+                        $"[cyan]Analyzing {FormattingHelpers.Esc(Path.GetFileName(filePath))} ({pipeline.Name})[/]";
+                    var result = await pipeline.ProcessAsync(filePath, null, null, ct);
+                    if (result.Success && result.Chunks.Count > 0)
+                    {
+                        var chunkIdx = 0;
+                        foreach (var chunk in result.Chunks)
+                        {
+                            if (string.IsNullOrWhiteSpace(chunk.Text)) continue;
+                            var chunkTypeLabel = ContentTypeLabel(chunk.ContentType);
+                            var title = $"{Path.GetFileNameWithoutExtension(filePath)} — {chunkTypeLabel}";
+                            var item = new ContentItem
+                            {
+                                Id = $"file:{collectionName}:{GenerateChunkId(filePath, chunkIdx++)}",
+                                Source = sourceTag,
+                                Title = title,
+                                Url = $"file://{filePath}",
+                                Content = chunk.Text,
+                                Summary = chunk.Text.Length > 300 ? chunk.Text[..300] + "..." : chunk.Text,
+                                ImageUrl = IsImageFile(filePath) ? filePath : null,
+                                IsEnriched = true,
+                                CreatedAt = File.GetCreationTimeUtc(filePath),
+                                FetchedAt = DateTimeOffset.UtcNow,
+                                SalienceScore = (float)(chunk.Confidence ?? 0.8),
+                                IsEmbedded = true
+                            };
+                            pendingItems.Add((item, ItemProcessor.PrepareEmbeddingText(title, chunk.Text)));
+                        }
+
+                        progressTask.Increment(increment);
+                        continue;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AnsiConsole.MarkupLine(
+                        $"[yellow]Pipeline error for {Markup.Escape(Path.GetFileName(filePath))}: {Markup.Escape(ex.Message)}[/]");
+                    // Fall through to basic handling
+                }
+            }
+#endif
+
+            // Image files (slim build fallback): lightweight content item from filename
             if (IsImageFile(filePath))
             {
                 var description = DescriptionFromFilename(filePath);
@@ -512,7 +618,7 @@ public sealed partial class ScrollCommand
                     IsEnriched = true,
                     CreatedAt = File.GetCreationTimeUtc(filePath),
                     FetchedAt = DateTimeOffset.UtcNow,
-                    SalienceScore = 1.0f, // Images always high salience
+                    SalienceScore = 1.0f,
                     IsEmbedded = true
                 };
                 pendingItems.Add((item, ItemProcessor.PrepareEmbeddingText(description, description)));
@@ -739,6 +845,12 @@ public sealed partial class ScrollCommand
             {
                 AnsiConsole.MarkupLine($"[yellow]NER extraction skipped: {Markup.Escape(ex.Message)}[/]");
             }
+
+#if FEATURE_COMPLETE
+        // Dispose media pipeline provider
+        mediaPipelineScope?.Dispose();
+        mediaPipelines?.Dispose();
+#endif
 
         progressTask.Value = 100;
         var typeLabel = detectedDocType != IngestDocumentType.Unknown ? $" ({detectedDocType})" : "";
@@ -1195,4 +1307,71 @@ public sealed partial class ScrollCommand
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexString(hash)[..16].ToLowerInvariant();
     }
+
+#if FEATURE_COMPLETE
+    /// <summary>
+    ///     Build a mini DI container with full image/audio/video analysis pipelines.
+    ///     Each pipeline produces ContentChunks with rich signals (captions, OCR, motion,
+    ///     color, entities, transcription, diarization, acoustic profiles, scene detection).
+    ///     These become searchable content items in the unified index.
+    /// </summary>
+    private static ServiceProvider BuildMediaPipelineProvider(string? dataDir = null)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging(b => b.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Warning));
+
+        // Image pipeline: Florence-2 captioning, OCR, motion analysis, color,
+        // bounding boxes, face detection, EXIF forensics, layout detection
+        services.AddDocSummarizerImages(opt =>
+        {
+            if (!string.IsNullOrEmpty(dataDir))
+                opt.ModelsDirectory = Path.Combine(dataDir, "models");
+
+            opt.EnableOcr = true;
+            opt.Ocr.UseAdvancedPipeline = true;
+            opt.Ocr.QualityMode = OcrQualityMode.Fast;
+        });
+
+        // Audio pipeline: Whisper transcription, ECAPA-TDNN diarization,
+        // acoustic profiling, content classification, fingerprinting
+        services.AddAudioSummarizer(opt =>
+        {
+            opt.TranscriptionBackend = TranscriptionBackend.Whisper;
+            opt.Whisper.Language = "en";
+            if (!string.IsNullOrEmpty(dataDir))
+                opt.Whisper.ModelPath = Path.Combine(dataDir, "models", "whisper-base.en.bin");
+            opt.Pipeline.EnableTranscription = true;
+            opt.Pipeline.EnableAcousticProfiling = true;
+            opt.Pipeline.EnableContentClassification = true;
+            opt.Pipeline.EnableFingerprinting = true;
+            opt.FingerprintProvider = FingerprintProvider.PureNet;
+            opt.EnableVoiceEmbeddings = true;
+            opt.EnableSpeakerDiarization = true;
+        });
+
+        // Video pipeline: scene detection, keyframe extraction, transcription
+        services.AddVideoSummarizer();
+
+        // Pipeline registry discovers all registered IPipeline implementations
+        services.AddPipelineRegistry();
+
+        return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    ///     Human-readable label for a ContentChunk type, used in item titles.
+    /// </summary>
+    private static string ContentTypeLabel(ContentType type) => type switch
+    {
+        ContentType.ImageOcr => "OCR Text",
+        ContentType.ImageCaption => "Caption",
+        ContentType.Entity => "Entities",
+        ContentType.Transcript => "Transcript",
+        ContentType.AudioMetadata => "Audio Profile",
+        ContentType.Summary => "Summary",
+        ContentType.DocumentText => "Content",
+        ContentType.StructuredData => "Data",
+        _ => type.ToString()
+    };
+#endif
 }

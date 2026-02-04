@@ -6,13 +6,16 @@ namespace AudioSummarizer.Core.Services.Analysis.Waves;
 
 /// <summary>
 ///     Transcription Wave - Converts speech to text with timestamped segments.
-///     Priority: 60 (runs after fingerprinting and acoustic profiling)
+///     Priority: 60 (runs after source separation, which may provide isolated vocals)
+///     When source separation has extracted vocals, transcribes the vocals-only audio
+///     for better quality (background music/noise removed by Demucs).
 ///     Signals:
 ///     - transcription.text: Full transcript text
 ///     - transcription.language: Detected/specified language
 ///     - transcription.confidence: Overall confidence score
 ///     - transcription.segment_count: Number of timestamped segments
 ///     - transcription.provider: Service that performed transcription
+///     - transcription.used_vocals_isolation: Whether isolated vocals were used
 /// </summary>
 public sealed class TranscriptionWave : IAudioWave
 {
@@ -64,12 +67,29 @@ public sealed class TranscriptionWave : IAudioWave
                 return signals;
             }
 
-            _logger.LogDebug("Transcribing {AudioPath} using {Provider}",
-                audioPath, service.ProviderName);
+            // Use isolated vocals from Demucs source separation if available
+            // (removes background music/noise for significantly better transcription quality)
+            var transcriptionAudio = audioPath;
+            var usedVocalsIsolation = false;
 
-            // Transcribe audio
+            if (context.Signals.TryGetValue("source_separation.vocals_path", out var vocalsSignal))
+            {
+                var vocalsPath = vocalsSignal.Value?.ToString();
+                if (!string.IsNullOrEmpty(vocalsPath) && File.Exists(vocalsPath))
+                {
+                    _logger.LogInformation("Using Demucs-isolated vocals for transcription: {VocalsPath}",
+                        Path.GetFileName(vocalsPath));
+                    transcriptionAudio = vocalsPath;
+                    usedVocalsIsolation = true;
+                }
+            }
+
+            _logger.LogDebug("Transcribing {AudioPath} using {Provider}",
+                Path.GetFileName(transcriptionAudio), service.ProviderName);
+
+            // Transcribe audio (original or isolated vocals)
             var transcript = await service.TranscribeAsync(
-                audioPath,
+                transcriptionAudio,
                 _config.Whisper.Language,
                 cancellationToken);
 
@@ -121,6 +141,14 @@ public sealed class TranscriptionWave : IAudioWave
             {
                 Name = "transcription.processing_time_ms",
                 Value = transcript.ProcessingTimeMs,
+                Type = SignalType.Metadata,
+                Source = Name
+            });
+
+            signals.Add(new Signal
+            {
+                Name = "transcription.used_vocals_isolation",
+                Value = usedVocalsIsolation,
                 Type = SignalType.Metadata,
                 Source = Name
             });

@@ -184,13 +184,11 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         var isImageSource = false;
 
         var candidateSources = settings.Sources ?? [];
-        var promptIsFilePath = false;
         // Also check if the prompt itself is a file path (routed via CliApp smart routing)
         if (candidateSources.Length == 0 && !string.IsNullOrEmpty(settings.Prompt) &&
             (File.Exists(settings.Prompt) || Directory.Exists(settings.Prompt)))
         {
             candidateSources = [settings.Prompt];
-            promptIsFilePath = true;
         }
         // If prompt looks like a file path but the file doesn't exist, warn instead of
         // treating it as a search query (which produces random/irrelevant results)
@@ -216,16 +214,27 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             var (files, autoName, imgSource) = ResolveLocalSources(candidateSources, settings.Name);
             isImageSource = imgSource;
 
-            // If the user passed a file path but no files were resolved, warn about unsupported format
-            if (files.Count == 0 && promptIsFilePath)
+            // If local files/directories were provided but no supported files were resolved,
+            // warn about unsupported format instead of falling through to an empty scroll
+            if (files.Count == 0)
             {
-                var ext = Path.GetExtension(settings.Prompt!);
-                var registry = new DocumentHandlerRegistry();
-                registry.RegisterDefaultHandlers();
-                var supported = string.Join(", ", registry.GetSupportedExtensions());
-                AnsiConsole.MarkupLine($"[red]Unsupported file format '{Markup.Escape(ext)}'.[/]");
-                AnsiConsole.MarkupLine($"[yellow]Supported document formats: {Markup.Escape(supported)}[/]");
-                return 1;
+                var unsupportedFiles = candidateSources.Where(File.Exists).ToArray();
+                var emptyDirs = candidateSources.Where(s => Directory.Exists(s) && !File.Exists(s)).ToArray();
+                if (unsupportedFiles.Length > 0 || emptyDirs.Length > 0)
+                {
+                    var registry = new DocumentHandlerRegistry();
+                    registry.RegisterDefaultHandlers();
+                    var supported = string.Join(", ", registry.GetSupportedExtensions());
+                    foreach (var f in unsupportedFiles)
+                        AnsiConsole.MarkupLine(
+                            $"[red]Unsupported file format '{Markup.Escape(Path.GetExtension(f))}'.[/]");
+                    foreach (var d in emptyDirs)
+                        AnsiConsole.MarkupLine(
+                            $"[red]No supported files found in '{Markup.Escape(d)}'.[/]");
+                    AnsiConsole.MarkupLine(
+                        $"[yellow]Supported document formats: {Markup.Escape(supported)}[/]");
+                    return 1;
+                }
             }
 
             if (files.Count > 0)
