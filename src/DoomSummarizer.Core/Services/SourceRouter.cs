@@ -249,6 +249,148 @@ public class SourceRouter
     {
         return _config.Sources.GetValueOrDefault(name);
     }
+
+    /// <summary>
+    ///     Score a source for a given intent, category weights, and time sensitivity.
+    ///     Formula: (intentAffinity × 0.6) + (categoryMatch × 0.3) + (capabilityBonus × 0.1)
+    ///     Returns 0.0 for unknown sources.
+    /// </summary>
+    public double ScoreSource(string sourceName, string intent,
+        Dictionary<string, double> categories, string timeSensitivity = "any")
+    {
+        var source = GetSource(sourceName);
+        if (source == null) return 0.0;
+
+        var intentScore = GetIntentAffinity(source, intent);
+        var categoryScore = GetCategoryMatch(source, sourceName, categories);
+        var capabilityScore = GetCapabilityBonus(source, intent, timeSensitivity);
+
+        return Math.Clamp(intentScore * 0.6 + categoryScore * 0.3 + capabilityScore * 0.1, 0.0, 1.0);
+    }
+
+    /// <summary>
+    ///     Check if a source has a specific capability tag.
+    /// </summary>
+    public bool HasCapability(string sourceName, string capability)
+    {
+        var source = GetSource(sourceName);
+        return source?.Capabilities?.Contains(capability, StringComparer.OrdinalIgnoreCase) == true;
+    }
+
+    /// <summary>
+    ///     Get all source names that have a specific capability.
+    /// </summary>
+    public IEnumerable<string> GetSourcesWithCapability(string capability)
+    {
+        return _config.Sources
+            .Where(kv => kv.Value.Capabilities?.Contains(capability, StringComparer.OrdinalIgnoreCase) == true)
+            .Select(kv => kv.Key);
+    }
+
+    /// <summary>
+    ///     Get intent affinity from YAML, with type-derived fallback.
+    /// </summary>
+    private static double GetIntentAffinity(SourceDefinition source, string intent)
+    {
+        // Try YAML intent_affinity first
+        if (source.IntentAffinity != null &&
+            source.IntentAffinity.TryGetValue(intent, out var affinity))
+            return affinity;
+
+        // Type-derived fallback when no YAML affinity is set
+        return source.Type switch
+        {
+            "rss" or "hackernews" or "reddit" => intent switch
+            {
+                "news" or "roundup" => 0.7,
+                "trend" => 0.5,
+                "qa" or "howto" => 0.2,
+                "research" or "deep_dive" => 0.3,
+                _ => 0.4
+            },
+            "google_news_rss" => intent switch
+            {
+                "news" or "roundup" => 0.8,
+                "qa" or "howto" => 0.3,
+                _ => 0.5
+            },
+            "duckduckgo" or "google_search" => intent switch
+            {
+                "qa" or "howto" or "search_only" => 0.8,
+                "news" => 0.4,
+                _ => 0.5
+            },
+            "api" => intent switch
+            {
+                "qa" or "research" => 0.5,
+                "news" => 0.4,
+                _ => 0.3
+            },
+            _ => 0.3
+        };
+    }
+
+    /// <summary>
+    ///     Category match score: max of (routing rule membership, scope overlap).
+    /// </summary>
+    private double GetCategoryMatch(SourceDefinition source, string sourceName,
+        Dictionary<string, double> categories)
+    {
+        if (categories.Count == 0) return 0.3; // neutral default
+
+        var maxScore = 0.0;
+
+        foreach (var (category, weight) in categories)
+        {
+            // Check if this source is in the routing rule for this category
+            var rule = _config.Routing.GetValueOrDefault(category);
+            if (rule?.Sources.Contains(sourceName, StringComparer.OrdinalIgnoreCase) == true)
+            {
+                maxScore = Math.Max(maxScore, weight);
+                continue;
+            }
+
+            // Check scope overlap
+            if (source.Scope?.Any(s => s.Equals(category, StringComparison.OrdinalIgnoreCase)) == true)
+                maxScore = Math.Max(maxScore, weight * 0.7); // scope match is weaker than routing rule
+        }
+
+        return maxScore;
+    }
+
+    /// <summary>
+    ///     Capability bonus/penalty based on intent and time sensitivity.
+    /// </summary>
+    private static double GetCapabilityBonus(SourceDefinition source, string intent, string timeSensitivity)
+    {
+        var caps = source.Capabilities;
+        if (caps == null || caps.Count == 0) return 0.0;
+
+        var bonus = 0.0;
+
+        var hasKnowledge = caps.Contains("knowledge", StringComparer.OrdinalIgnoreCase);
+        var hasAcademic = caps.Contains("academic", StringComparer.OrdinalIgnoreCase);
+        var hasArchive = caps.Contains("archive", StringComparer.OrdinalIgnoreCase);
+        var hasRealtime = caps.Contains("realtime", StringComparer.OrdinalIgnoreCase);
+
+        // Knowledge sources get bonus for QA/howto
+        if (hasKnowledge && intent is "qa" or "howto" or "search_only")
+            bonus += 0.5;
+
+        // Academic sources get bonus for research
+        if (hasAcademic && intent is "research" or "deep_dive")
+            bonus += 0.5;
+
+        // Realtime sources get bonus for breaking news
+        if (hasRealtime && timeSensitivity is "breaking" or "today")
+            bonus += 0.3;
+
+        // Archive sources get penalty for breaking/today queries
+        if (hasArchive && timeSensitivity is "breaking" or "today")
+            bonus -= 0.3;
+
+        return bonus;
+    }
 }
 
 /// <summary>

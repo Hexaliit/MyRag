@@ -24,6 +24,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings,
         CancellationToken cancellationToken)
     {
+        if (settings.ListGpus) { await CommandBootstrap.ListGpusAsync(); return 0; }
+
 #if FEATURE_COMPLETE
         // Handle --easter-egg: play the DoomSummarizer animation
         if (settings.EasterEgg)
@@ -79,7 +81,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             return 0;
         }
 
-        await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
+        await using var boot = await CommandBootstrap.CreateAsync(settings.GpuDeviceId, cancellationToken);
         if (settings.DebugPipeline)
             AnsiConsole.MarkupLine(
                 $"[grey]Config: {Markup.Escape(ConfigService.LoadedConfigPath ?? "embedded default")}[/]");
@@ -660,7 +662,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         ? new[] { sourceFilter }
                         : SourceFilterSet.MergeNameAndSource(settings.Name, settings.Sources);
 
-                    var retrieval = new RetrievalPipeline(boot.Embedding, boot.Storage, boot.EntityStore);
+                    var retrieval = new RetrievalPipeline(boot.Embedding, boot.Storage, boot.EntityStore,
+                        boot.Config.Expansion);
                     var retrievalResult = await retrieval.SearchAsync(localQuery, new RetrievalOptions
                     {
                         SourceFilters = mergedSourceFilters,
@@ -1804,7 +1807,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 {
                     // Phase 1: Segment extraction via ArticleProcessor (CPU-bound)
                     // ONNX InferenceSession.Run() is thread-safe — parallelize article processing
-                    using var articleProcessor = new ArticleProcessor();
+                    using var articleProcessor = new ArticleProcessor(
+                        EmbeddingFactory.BuildOnnxConfig(boot.Config.Embedding));
 
                     var parallelOpts = new ParallelOptions
                     {
@@ -2219,7 +2223,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         : detectedQueryType;
 
                     BlogArticleResult blogResult;
-                    using (var articleProcessor = new ArticleProcessor())
+                    using (var articleProcessor = new ArticleProcessor(
+                               EmbeddingFactory.BuildOnnxConfig(boot.Config.Embedding)))
                     {
                         var generator = new LongFormDocumentGenerator(
                             ollama, articleProcessor);

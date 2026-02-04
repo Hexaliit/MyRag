@@ -47,7 +47,7 @@ public enum LlmBackend
 /// </summary>
 public enum OnnxExecutionProvider
 {
-    /// <summary>CPU only (default, always works)</summary>
+    /// <summary>CPU only (force CPU, skip GPU detection)</summary>
     Cpu,
 
     /// <summary>NVIDIA CUDA GPU</summary>
@@ -56,7 +56,7 @@ public enum OnnxExecutionProvider
     /// <summary>DirectML (Windows GPU, works with AMD/Intel/NVIDIA)</summary>
     DirectMl,
 
-    /// <summary>Auto-detect best available</summary>
+    /// <summary>Auto-detect best available (default: DirectML → CUDA → CPU)</summary>
     Auto
 }
 
@@ -93,12 +93,12 @@ public class OnnxConfig
 
     /// <summary>
     ///     Execution provider for ONNX Runtime.
-    ///     Cpu = CPU only (always works, default for stability)
+    ///     Auto = Try DirectML first, then CUDA, fall back to CPU (default)
+    ///     Cpu = CPU only (force CPU, skip GPU detection)
     ///     Cuda = NVIDIA GPU (requires CUDA runtime)
-    ///     DirectMl = Windows GPU (AMD/Intel/NVIDIA - may crash on some systems)
-    ///     Auto = Try DirectML first, then CUDA, fall back to CPU
+    ///     DirectMl = Windows GPU (AMD/Intel/NVIDIA)
     /// </summary>
-    public OnnxExecutionProvider ExecutionProvider { get; set; } = OnnxExecutionProvider.Cpu;
+    public OnnxExecutionProvider ExecutionProvider { get; set; } = OnnxExecutionProvider.Auto;
 
     /// <summary>
     ///     GPU device ID (0 = first GPU, 1 = second GPU, etc.)

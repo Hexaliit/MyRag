@@ -54,6 +54,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
             var paths = await _downloader.EnsureEmbeddingModelAsync(_modelInfo, ct);
 
             var options = CreateSessionOptions();
+            var usingGpu = _config.ExecutionProvider is not OnnxExecutionProvider.Cpu;
 
             _session = new InferenceSession(paths.ModelPath, options);
 
@@ -64,6 +65,22 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
             _tokenizer = File.Exists(paths.TokenizerPath)
                 ? HuggingFaceTokenizer.FromFile(paths.TokenizerPath)
                 : HuggingFaceTokenizer.FromVocabFile(paths.VocabPath);
+
+            // Warmup: validate the execution provider actually works by running a tiny inference.
+            // DirectML can successfully register but then crash (0xC0000005) on the first Run()
+            // when the GPU driver doesn't support the required DML operations (FusedMatMul, Gather).
+            // A warmup catches this as a managed exception and falls back to CPU.
+            if (usingGpu)
+            {
+                if (!TryWarmupInference())
+                {
+                    Console.WriteLine("[ONNX] GPU warmup failed, falling back to CPU-only session");
+                    _session.Dispose();
+                    var cpuOptions = CreateCpuSessionOptions();
+                    _session = new InferenceSession(paths.ModelPath, cpuOptions);
+                    Console.WriteLine("[ONNX] CPU fallback session created");
+                }
+            }
 
             _initialized = true;
         }
@@ -388,12 +405,11 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                 try
                 {
                     options.AppendExecutionProvider_CUDA(_config.GpuDeviceId);
-                    ProgressService.WriteVerbose(_verbose, $"[ONNX] Using CUDA GPU device {_config.GpuDeviceId}");
+                    Console.WriteLine($"[ONNX] Using CUDA GPU device {_config.GpuDeviceId}");
                 }
                 catch (Exception ex)
                 {
-                    ProgressService.WriteVerbose(_verbose,
-                        $"[ONNX] CUDA not available: {ex.Message}, falling back to CPU");
+                    Console.WriteLine($"[ONNX] CUDA not available: {ex.Message}, falling back to CPU");
                 }
 
                 break;
@@ -402,12 +418,11 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                 try
                 {
                     options.AppendExecutionProvider_DML(_config.GpuDeviceId);
-                    ProgressService.WriteVerbose(_verbose, $"[ONNX] Using DirectML GPU device {_config.GpuDeviceId}");
+                    Console.WriteLine($"[ONNX] Using DirectML GPU device {_config.GpuDeviceId}");
                 }
                 catch (Exception ex)
                 {
-                    ProgressService.WriteVerbose(_verbose,
-                        $"[ONNX] DirectML not available: {ex.Message}, falling back to CPU");
+                    Console.WriteLine($"[ONNX] DirectML not available: {ex.Message}, falling back to CPU");
                 }
 
                 break;
@@ -418,8 +433,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                 try
                 {
                     options.AppendExecutionProvider_DML(_config.GpuDeviceId);
-                    ProgressService.WriteVerbose(_verbose,
-                        $"[ONNX] Auto-selected DirectML GPU device {_config.GpuDeviceId}");
+                    Console.WriteLine($"[ONNX] Auto-selected DirectML GPU device {_config.GpuDeviceId}");
                     gpuSelected = true;
                 }
                 catch (Exception dmlEx)
@@ -428,8 +442,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                     try
                     {
                         options.AppendExecutionProvider_CUDA(_config.GpuDeviceId);
-                        ProgressService.WriteVerbose(_verbose,
-                            $"[ONNX] Auto-selected CUDA GPU device {_config.GpuDeviceId}");
+                        Console.WriteLine($"[ONNX] Auto-selected CUDA GPU device {_config.GpuDeviceId}");
                         gpuSelected = true;
                     }
                     catch (Exception cudaEx)
@@ -438,15 +451,102 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                     }
                 }
 
-                if (!gpuSelected) ProgressService.WriteVerbose(_verbose, "[ONNX] No GPU available, using CPU");
+                if (!gpuSelected) Console.WriteLine("[ONNX] No GPU available, using CPU");
                 break;
 
             case OnnxExecutionProvider.Cpu:
             default:
-                ProgressService.WriteVerbose(_verbose, "[ONNX] Using CPU");
+                ProgressService.WriteVerbose(_verbose, "[ONNX] Using CPU (explicit)");
                 break;
         }
 
         return options;
+    }
+
+    /// <summary>
+    ///     Create CPU-only session options (used as fallback when GPU warmup fails).
+    /// </summary>
+    private SessionOptions CreateCpuSessionOptions()
+    {
+        var options = new SessionOptions
+        {
+            GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+            ExecutionMode = _config.UseParallelExecution
+                ? ExecutionMode.ORT_PARALLEL
+                : ExecutionMode.ORT_SEQUENTIAL
+        };
+
+        if (_config.InferenceThreads > 0)
+            options.IntraOpNumThreads = _config.InferenceThreads;
+        else
+            options.IntraOpNumThreads = Environment.ProcessorCount;
+
+        if (_config.UseParallelExecution)
+        {
+            var interOpThreads = _config.InterOpThreads > 0
+                ? _config.InterOpThreads
+                : Math.Max(2, Environment.ProcessorCount / 2);
+            options.InterOpNumThreads = interOpThreads;
+        }
+
+        // CPU only — no GPU providers appended
+        return options;
+    }
+
+    /// <summary>
+    ///     Run a minimal inference to validate the execution provider works.
+    ///     DirectML can register successfully but crash (0xC0000005) on first Run()
+    ///     when GPU drivers don't support required DML kernels (FusedMatMul, Gather).
+    ///     Returns true if warmup succeeds, false if it throws a managed exception.
+    ///     NOTE: If the GPU driver causes a native access violation instead of a managed
+    ///     exception, this will crash the process — but it would crash anyway on first
+    ///     real inference. The warmup at least fails fast during init instead of mid-work.
+    /// </summary>
+    private bool TryWarmupInference()
+    {
+        if (_session == null || _tokenizer == null)
+            return false;
+
+        try
+        {
+            // Minimal input: single short token sequence
+            var (inputIds, attentionMask, tokenTypeIds) = _tokenizer.Encode("warmup", 8);
+
+            var inputIdsTensor = new DenseTensor<long>(inputIds, [1, inputIds.Length]);
+            var attentionMaskTensor = new DenseTensor<long>(attentionMask, [1, attentionMask.Length]);
+            var tokenTypeIdsTensor = new DenseTensor<long>(tokenTypeIds, [1, tokenTypeIds.Length]);
+
+            var inputs = new List<NamedOnnxValue>
+            {
+                NamedOnnxValue.CreateFromTensor("input_ids", inputIdsTensor),
+                NamedOnnxValue.CreateFromTensor("attention_mask", attentionMaskTensor),
+                NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIdsTensor)
+            };
+
+            using var results = _session.Run(inputs);
+
+            // Verify output exists and has valid shape
+            var output = results.FirstOrDefault(r => r.Name is "last_hidden_state" or "output_0");
+            if (output == null)
+            {
+                Console.WriteLine("[ONNX] Warmup: no recognized output tensor");
+                return false;
+            }
+
+            var tensor = output.AsTensor<float>();
+            if (tensor.Dimensions[0] != 1)
+            {
+                Console.WriteLine("[ONNX] Warmup: unexpected output batch dimension");
+                return false;
+            }
+
+            ProgressService.WriteVerbose(_verbose, "[ONNX] GPU warmup succeeded");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ONNX] GPU warmup failed: {ex.GetType().Name}: {ex.Message}");
+            return false;
+        }
     }
 }

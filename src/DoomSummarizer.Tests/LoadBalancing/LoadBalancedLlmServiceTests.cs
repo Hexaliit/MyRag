@@ -162,6 +162,6 @@ public class LoadBalancedLlmServiceTests : IDisposable
     // Simple DTO for JSON deserialization tests
     private class SimpleDto
     {
-        public string Value { get; } = "";
+        public string Value { get; set; } = "";
     }
 }

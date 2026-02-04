@@ -95,8 +95,11 @@ public class DuckDbVectorStore : IAsyncDisposable
     ///     Upsert an item embedding for HNSW-backed similarity search.
     /// </summary>
     public async Task UpsertItemEmbeddingAsync(string itemId, string title, string? source, string? url,
-        float[] embedding)
+        float[]? embedding)
     {
+        // Skip items without embeddings (low-salience deferred chunks)
+        if (embedding == null || embedding.Length == 0) return;
+
         await ExecAsync(
             """
             INSERT INTO item_embeddings (item_id, title, source, url, embedding, indexed_at)

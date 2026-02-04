@@ -13,7 +13,9 @@ public sealed class AskCommand : AsyncCommand<AskCommand.Settings>
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings,
         CancellationToken cancellationToken)
     {
-        await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
+        if (settings.ListGpus) { await CommandBootstrap.ListGpusAsync(); return 0; }
+
+        await using var boot = await CommandBootstrap.CreateAsync(settings.GpuDeviceId, cancellationToken);
 
         return await boot.StartAskLoopAsync(new InteractiveAskOptions(
             settings.Sources,

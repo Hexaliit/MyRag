@@ -64,6 +64,19 @@ public record ContentItem
     ///     Null for legacy items without hierarchy.
     /// </summary>
     public string? UnitLevel { get; set; }
+
+    /// <summary>
+    ///     Heuristic salience score (0.0–1.0) computed at ingestion time.
+    ///     Chunks below the salience threshold are stored but not embedded/indexed in HNSW.
+    ///     Null for legacy items or items without salience scoring.
+    /// </summary>
+    public float? SalienceScore { get; set; }
+
+    /// <summary>
+    ///     Whether this item has been embedded and indexed in the HNSW vector store.
+    ///     False for low-salience chunks that were deferred at ingestion time.
+    /// </summary>
+    public bool IsEmbedded { get; set; } = true;
 }
 
 /// <summary>
@@ -100,6 +113,10 @@ public record StoredItem
     public int ChunkSequence { get; init; }
     public string? UnitLevel { get; init; }
 
+    // Salience-based partial embedding fields
+    public float? SalienceScore { get; init; }
+    public bool IsEmbedded { get; init; } = true;
+
     /// <summary>
     ///     Timestamp when a web search confirmed this URL still exists online.
     ///     KB items with a recent WebValidatedAt are included in general queries.
@@ -129,7 +146,9 @@ public record StoredItem
             Tags = DeserializeTags(Tags),
             ParentDocumentId = ParentDocumentId,
             ChunkSequence = ChunkSequence,
-            UnitLevel = UnitLevel
+            UnitLevel = UnitLevel,
+            SalienceScore = SalienceScore,
+            IsEmbedded = IsEmbedded
         };
     }
 

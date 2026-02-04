@@ -119,13 +119,83 @@ Local LLM backend (Ollama).
 
 ### embedding
 
-Embedding backend configuration.
+Embedding backend configuration. All embedding calls are automatically cached using an LFU
+(Least Frequently Used) in-memory cache (8192 entries, ~12 MB). Repeated queries, anchors,
+and entity names are served from cache instead of recomputed. Cache stats are shown in
+interactive mode after the first conversation turn.
 
-| YAML Key                         | JSON Key                        | Type   | Default            | Description                                  |
-|----------------------------------|---------------------------------|--------|--------------------|----------------------------------------------|
-| `embedding.backend`              | `embedding.backend`             | string | `onnx`             | Backend: `onnx` (local), `ollama`            |
-| `embedding.model`                | `embedding.model`               | string | `all-MiniLM-L6-v2` | Embedding model name                         |
-| `embedding.similarity_threshold` | `embedding.similarityThreshold` | double | `0.95`             | Deduplication similarity threshold (0.0-1.0) |
+| YAML Key                          | JSON Key                         | Type   | Default            | Description                                                                                                 |
+|-----------------------------------|----------------------------------|--------|--------------------|-------------------------------------------------------------------------------------------------------------|
+| `embedding.backend`               | `embedding.backend`              | string | `onnx`             | Backend: `onnx` (local), `ollama`                                                                           |
+| `embedding.model`                 | `embedding.model`                | string | `all-MiniLM-L6-v2` | Embedding model name (see model table below)                                                                |
+| `embedding.quantized`             | `embedding.quantized`            | bool   | `true`             | Use INT8 quantized model (smaller, faster, ~1-2% quality loss). `false` = FP32 full precision               |
+| `embedding.similarity_threshold`  | `embedding.similarityThreshold`  | double | `0.95`             | Deduplication similarity threshold (0.0-1.0)                                                                |
+| `embedding.gpu_device_id`         | `embedding.gpuDeviceId`          | int    | `0`                | GPU device index (0=first, 1=second). Use `--list-gpus` to see available devices                            |
+| `embedding.execution_provider`    | `embedding.executionProvider`    | string | `auto`             | ONNX execution provider: `auto` (DirectML->CUDA->CPU), `cpu`, `cuda`, `directml`                           |
+
+**Available Models** (all 384-dim, all use the same vector store):
+
+| Model Name               | Aliases          | Max Seq | Size (quant) | Notes                                |
+|--------------------------|------------------|---------|--------------|--------------------------------------|
+| `all-MiniLM-L6-v2`      | `minilm`         | 256     | ~23 MB       | Fast general-purpose (default)       |
+| `bge-small-en-v1.5`     | `bge-small`,`bge`| 512     | ~34 MB       | Best quality for size, query-prefixed|
+| `gte-small`              | `gte`            | 512     | ~34 MB       | Good all-around                      |
+| `multi-qa-MiniLM-L6`    | `multi-qa`       | 512     | ~23 MB       | QA-optimized                         |
+| `paraphrase-MiniLM-L3`  | `paraphrase`     | 128     | ~17 MB       | Smallest/fastest                     |
+
+**GPU Selection:**
+
+```bash
+# List GPUs, ONNX providers, and current config
+doomsummarizer scroll --list-gpus
+
+# Override GPU for a single run
+doomsummarizer scroll "my topic" --gpu 1
+
+# Persistent override in config.json
+{
+  "embedding": { "gpuDeviceId": 1, "executionProvider": "cuda" }
+}
+```
+
+### ingestion
+
+Controls how documents are chunked, embedded, and deduplicated during local file ingestion.
+The `embedding_rate` is the key device-profile knob: set it per machine to control compute vs coverage.
+
+| YAML Key                               | JSON Key                            | Type  | Default | Description                                                                                                |
+|----------------------------------------|-------------------------------------|-------|---------|------------------------------------------------------------------------------------------------------------|
+| `ingestion.embedding_rate`             | `ingestion.embeddingRate`           | int   | `100`   | % of chunks to embed (100=all, 50=top half by salience). Device profiles: desktop=100, laptop=80, pi=40   |
+| `ingestion.deduplication_enabled`      | `ingestion.deduplicationEnabled`    | bool  | `true`  | Semantic dedup at ingestion (merge near-duplicate chunks)                                                  |
+| `ingestion.deduplication_threshold`    | `ingestion.deduplicationThreshold`  | float | `0.90`  | Cosine similarity threshold for near-duplicate detection                                                   |
+| `ingestion.salience_boost_enabled`     | `ingestion.salienceBoostEnabled`    | bool  | `true`  | Boost surviving chunks' salience when they absorb duplicates                                               |
+| `ingestion.max_chunks_override`        | `ingestion.maxChunksOverride`       | int   | `0`     | Override max chunk survivors per doc (0=adaptive based on doc type/length)                                  |
+| `ingestion.min_chunks_override`        | `ingestion.minChunksOverride`       | int   | `0`     | Override min chunk survivors per doc (0=adaptive based on doc type/length)                                  |
+
+**Pre-embedding cheap dedup** (`ingestion.pre_dedup`): Eliminates obvious duplicates *before* embedding using fast
+text signals. Saves 20-50% of embedding compute on repetitive documents. Each signal has a configurable weight.
+Set all weights to 0 to disable pre-dedup. For "resampling" (re-including previously disposed chunks), dial
+weights down to let more chunks through to the embedding stage.
+
+| YAML Key                               | JSON Key                            | Type  | Default | Description                                                                       |
+|----------------------------------------|-------------------------------------|-------|---------|-----------------------------------------------------------------------------------|
+| `ingestion.pre_dedup.word_jaccard`     | `ingestion.preDedup.wordJaccard`    | float | `0.50`  | Weight for word-set Jaccard similarity (bag-of-words overlap). Most effective signal |
+| `ingestion.pre_dedup.trigram`          | `ingestion.preDedup.trigram`        | float | `0.30`  | Weight for character trigram Jaccard (catches minor edits and paraphrases)         |
+| `ingestion.pre_dedup.length`           | `ingestion.preDedup.length`         | float | `0.10`  | Weight for normalized length similarity (1.0 when same length, decays as diverge) |
+| `ingestion.pre_dedup.heading`          | `ingestion.preDedup.heading`        | float | `0.10`  | Weight for title/heading overlap (chunks sharing headings = more likely duplicates)|
+| `ingestion.pre_dedup.threshold`        | `ingestion.preDedup.threshold`      | float | `0.80`  | Combined weighted score threshold: pairs above this are pre-disposed              |
+
+### expansion
+
+Controls document concentration detection and on-demand expansion during retrieval.
+When results concentrate on one document, automatically pulls more chunks from it.
+
+| YAML Key                               | JSON Key                              | Type  | Default | Description                                                                       |
+|----------------------------------------|---------------------------------------|-------|---------|-----------------------------------------------------------------------------------|
+| `expansion.concentration_threshold`    | `expansion.concentrationThreshold`    | float | `0.4`   | Fraction of top-K from one source to trigger expansion (0.0-1.0)                  |
+| `expansion.min_relevance`              | `expansion.minRelevanceForExpansion`  | float | `0.6`   | Minimum average relevance score for the concentrated source                       |
+| `expansion.expansion_count`            | `expansion.expansionCount`            | int   | `8`     | Extra chunks to pull from concentrated source                                     |
+| `expansion.deferred_embedding`         | `expansion.deferredEmbedding`         | bool  | `true`  | Embed low-salience chunks on-demand during expansion                              |
 
 ### output
 

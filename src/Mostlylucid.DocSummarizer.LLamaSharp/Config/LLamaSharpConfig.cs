@@ -45,6 +45,13 @@ public record LLamaSharpConfig
     public int GpuLayerCount { get; init; } = -1;
 
     /// <summary>
+    ///     GPU device ID for model inference.
+    ///     0 = first GPU, 1 = second GPU, etc.
+    ///     Use this to select your discrete GPU when you have integrated graphics.
+    /// </summary>
+    public int GpuDeviceId { get; init; } = 0;
+
+    /// <summary>
     ///     Batch size for prompt processing.
     /// </summary>
     public int BatchSize { get; init; } = 512;

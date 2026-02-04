@@ -29,24 +29,6 @@ public partial class PromptInterpreter
     /// </summary>
     private static readonly Lazy<SourceRouter> SharedRouter = new(() => SourceRouter.Load());
 
-    /// <summary>
-    ///     Tech-only sources that should be removed when query isn't about tech.
-    ///     The legacy sentinel LLM often defaults to tech sources (hn, reddit)
-    ///     even for entertainment, health, sports queries.
-    /// </summary>
-    private static readonly HashSet<string> TechOnlySources = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "hn", "lobsters", "devto", "techcrunch", "wired", "theregister", "ars", "verge"
-    };
-
-    /// <summary>
-    ///     Topics that warrant tech-specific sources.
-    /// </summary>
-    private static readonly HashSet<string> TechTopics = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "technology", "programming", "ai", "security"
-    };
-
     private readonly IEmbeddingService? _embedding;
     private readonly OllamaService _ollama;
 
@@ -239,6 +221,12 @@ public partial class PromptInterpreter
                    "subqueries": ["First standalone question?", "Second standalone question?"]
                  }
                  Resolve pronouns in each subquery: "it" → the actual subject.
+
+                 IMPORTANT: Use "qa" for factual/trivia/knowledge questions, NOT "news".
+                 "How much can a swallow carry?" → qa (factual, not current events)
+                 "What is the speed of light?" → qa (factual knowledge)
+                 "What happened at the UN today?" → news (current events)
+                 "Latest AI developments" → news (current events)
 
                  Use "search_only" for queries needing a direct web search answer, NOT news feeds:
                  weather, sports scores, stock prices, time zones, unit conversions, "what is X", definitions.
@@ -559,8 +547,10 @@ public partial class PromptInterpreter
 
         // If detected topic is NOT tech, remove tech-only sources the LLM mistakenly added.
         // This prevents the legacy sentinel from defaulting to hn/reddit for entertainment queries.
-        if (!TechTopics.Contains(detectedTopic))
-            result.Sources.RemoveAll(s => TechOnlySources.Contains(s.Split(':')[0]));
+        var techTopics = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "technology", "programming", "ai", "security" };
+        if (!techTopics.Contains(detectedTopic))
+            result.Sources.RemoveAll(s => router.HasCapability(s.Split(':')[0], "tech_only"));
 
         // Add YAML-routed sources that aren't already present
         foreach (var src in routing.Sources)

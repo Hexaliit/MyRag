@@ -481,25 +481,35 @@ public partial class OllamaService
                         .Average(c => (double)VectorMath.CosineSimilarity(queryEmb, c!.Embedding!));
             }
 
-            // Re-rank by semantic similarity to query when embedder is available.
-            // This promotes the most query-relevant items to the top of the evidence
-            // without discarding items (the upstream ScoreFast/ScoreFull already gated).
-            if (queryEmb != null && topItems.Count > 1)
+            // When items came through the retrieval pipeline (contentItems provided),
+            // they already have multi-signal RRF scores — trust the pipeline order.
+            // Re-ranking with fresh embeddings would override the carefully computed
+            // pipeline scores and introduce embedding-shift bias (title+snippet ≠ indexed embedding).
+            // Only re-rank for raw web results where items lack pipeline scoring.
+            if (contentItems is { Count: > 0 })
             {
-                var itemTexts = topItems.Select(item => $"{item.title} {item.summary}").ToArray();
+                // Pipeline results: preserve RRF order, just trim
+                topItems = topItems.Take(10).ToList();
+            }
+            else if (queryEmb != null && topItems.Count > 1 && embedder != null)
+            {
+                // Non-pipeline results (web scrape): re-rank by semantic similarity
+                // since these items only have basic relevance from web fetching
+                var itemTexts = topItems.Select(item =>
+                    $"{item.title} {item.summary}").ToArray();
 
-                // Batch-embed all item texts at once when batch embedder is available
                 var itemEmbeddings = batchEmbedder != null
                     ? batchEmbedder(itemTexts)
-                    : itemTexts.Select(t => embedder!(t)).ToArray();
+                    : itemTexts.Select(t => embedder(t)).ToArray();
 
                 topItems = topItems
                     .Select((item, idx) =>
                     {
                         var sim = (double)VectorMath.CosineSimilarity(queryEmb, itemEmbeddings[idx]);
-                        return (item, sim);
+                        var blended = item.relevance * 0.6 + sim * 0.4;
+                        return (item, blended);
                     })
-                    .OrderByDescending(x => x.sim)
+                    .OrderByDescending(x => x.blended)
                     .Take(10)
                     .Select(x => x.item)
                     .ToList();

@@ -19,7 +19,9 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
-        await using var boot = await CommandBootstrap.CreateAsync(ct);
+        if (settings.ListGpus) { await CommandBootstrap.ListGpusAsync(); return 0; }
+
+        await using var boot = await CommandBootstrap.CreateAsync(settings.GpuDeviceId, ct);
         var ollama = boot.CreateOllama();
 
         using var processor =
@@ -112,7 +114,8 @@ public sealed partial class PageCommand : AsyncCommand<PageCommand.Settings>
             processTask.Value = 30;
 
             // Process through article processor for segmentation
-            using var articleProcessor = new ArticleProcessor();
+            using var articleProcessor = new ArticleProcessor(
+                EmbeddingFactory.BuildOnnxConfig(boot.Config.Embedding));
             processed = await articleProcessor.ProcessAsync(item, ct);
             processTask.Value = 60;
 

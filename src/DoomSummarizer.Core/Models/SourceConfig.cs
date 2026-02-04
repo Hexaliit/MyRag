@@ -37,6 +37,21 @@ public class SourceDefinition
     /// </summary>
     [YamlMember(Alias = "region")]
     public string? Region { get; set; }
+
+    /// <summary>
+    ///     Per-intent affinity scores (0.0–1.0). Higher means this source is better
+    ///     suited for that intent. E.g., wikipedia has high qa affinity, low news affinity.
+    ///     Null means "use type-derived defaults".
+    /// </summary>
+    [YamlMember(Alias = "intent_affinity")]
+    public Dictionary<string, double>? IntentAffinity { get; set; }
+
+    /// <summary>
+    ///     Capability tags for this source (e.g., "knowledge", "news", "tech_only", "archive").
+    ///     Replaces hardcoded HashSets like TechOnlySources and ArchiveSources.
+    /// </summary>
+    [YamlMember(Alias = "capabilities")]
+    public List<string>? Capabilities { get; set; }
 }
 
 public class RoutingRule

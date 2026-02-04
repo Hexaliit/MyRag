@@ -1166,6 +1166,26 @@ and retrieval pipeline scoring.
 
 Pre-built binaries for both `doomsummarizer` and `lucidrag`: Windows x64/ARM64, Linux x64/ARM64, macOS x64/ARM64.
 
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [User Manual](docs/USER_MANUAL.md) | Comprehensive guide to all features |
+| [CLI Reference](docs/CLI.md) | Command-line options and usage |
+| [Architecture](docs/Architecture.md) | Pipeline, storage, and retrieval design |
+| [Knowledge Base](docs/KnowledgeBase.md) | Crawling, storage, `ask`, entities, graph |
+| [Configuration](docs/Config.md) | Config files and environment variables |
+| [Configuration Reference](docs/ConfigReference.md) | All configuration options in detail |
+| [Sources](docs/Sources.md) | Source syntax and API integrations |
+| [Templates](docs/Templates.md) | Built-in and custom output templates |
+| [Cloud LLM Providers](docs/CloudLLM.md) | Anthropic, OpenAI setup and routing |
+| [MCP Server](docs/MCP.md) | MCP server setup and tools reference |
+| [Automation](docs/Automation.md) | JSON output, file output, scheduling |
+| [Retrieval Improvements](docs/RETRIEVAL_IMPROVEMENTS.md) | Advanced search and scoring |
+| [Embedding Optimization](docs/EmbeddingOptimization.md) | Model selection, GPU, caching, dedup pipeline |
+| [Adaptive Retrieval](docs/FunctionalSpec.AdaptiveRetrieval.md) | Cache-vs-live retrieval, gap-filling |
+| [Troubleshooting](docs/Troubleshooting.md) | Common issues and fixes |
+
 ## License
 
 MIT

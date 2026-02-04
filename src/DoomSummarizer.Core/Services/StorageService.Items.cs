@@ -162,6 +162,54 @@ public partial class StorageService
         return sources;
     }
 
+    // --- Parent document queries (for document expansion) ---
+
+    /// <summary>
+    ///     Load all items belonging to a parent document, ordered by chunk sequence.
+    ///     Used by document expansion to retrieve the full set of chunks for a concentrated document.
+    /// </summary>
+    public async Task<List<StoredItem>> GetItemsByParentDocAsync(string sourceFilter)
+    {
+        var items = new List<StoredItem>();
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT * FROM items WHERE source = @source ORDER BY row_id";
+        cmd.Parameters.AddWithValue("@source", sourceFilter);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync()) items.Add(ReadStoredItem(reader));
+        return items;
+    }
+
+    /// <summary>
+    ///     Load items that have not been embedded yet (is_embedded = 0) for a given source.
+    ///     Used by on-demand expansion to find low-salience chunks that need embedding.
+    /// </summary>
+    public async Task<List<StoredItem>> GetUnembeddedItemsBySourceAsync(string sourceFilter)
+    {
+        var items = new List<StoredItem>();
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT * FROM items WHERE source = @source AND is_embedded = 0 ORDER BY row_id";
+        cmd.Parameters.AddWithValue("@source", sourceFilter);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync()) items.Add(ReadStoredItem(reader));
+        return items;
+    }
+
+    /// <summary>
+    ///     Update an item's embedding and mark it as embedded.
+    ///     Used to backfill deferred embeddings during on-demand expansion.
+    /// </summary>
+    public async Task UpdateItemEmbeddingAsync(string id, float[] embedding)
+    {
+        await using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = """
+                          UPDATE items SET embedding = @embedding, is_embedded = 1
+                          WHERE id = @id
+                          """;
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@embedding", EmbeddingCompat.ToBytes(embedding));
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     // --- Shared filter clause builder ---
 
     /// <summary>

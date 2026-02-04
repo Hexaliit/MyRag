@@ -61,7 +61,10 @@
   "embedding": {
     "backend": "onnx",
     "model": "all-MiniLM-L6-v2",
-    "similarityThreshold": 0.95
+    "quantized": true,
+    "similarityThreshold": 0.95,
+    "gpuDeviceId": 0,
+    "executionProvider": "auto"
   },
   "output": {
     "format": "markdown",
@@ -123,6 +126,27 @@
       "password": ""
     },
     "sendGridApiKey": ""
+  },
+  "ingestion": {
+    "embeddingRate": 100,
+    "deduplicationEnabled": true,
+    "deduplicationThreshold": 0.90,
+    "salienceBoostEnabled": true,
+    "maxChunksOverride": 0,
+    "minChunksOverride": 0,
+    "preDedup": {
+      "wordJaccard": 0.50,
+      "trigram": 0.30,
+      "length": 0.10,
+      "heading": 0.10,
+      "threshold": 0.80
+    }
+  },
+  "expansion": {
+    "concentrationThreshold": 0.4,
+    "minRelevanceForExpansion": 0.6,
+    "expansionCount": 8,
+    "deferredEmbedding": true
   },
   "storage": {
     "dbPath": "~/.doomsummarizer/doom.db",

@@ -66,7 +66,8 @@ public sealed class InteractiveAskLoop
         var effectiveSources = SourceFilterSet.MergeNameAndSource(
             _options.Name, _options.Sources);
 
-        var retrieval = new RetrievalPipeline(_boot.Embedding, _boot.Storage, _boot.EntityStore);
+        var retrieval = new RetrievalPipeline(_boot.Embedding, _boot.Storage, _boot.EntityStore,
+            _boot.Config.Expansion);
         var history = new List<(string question, string answer, List<string> sourceIds)>();
         var collectionName = _options.Name ?? "default";
 
@@ -348,7 +349,8 @@ public sealed class InteractiveAskLoop
                     TopK = conceptBudget * 2,
                     MinRelevance = 0.15f,
                     IsKnowledgeBase = true,
-                    UseEmbeddingDedup = true
+                    UseEmbeddingDedup = true,
+                    DocumentFocusCounts = segmentCache.GetDocumentFocusCounts()
                 }, ct);
 
                 // Phase 2b: Merge with salient cached segments
@@ -382,6 +384,18 @@ public sealed class InteractiveAskLoop
                 // Add fresh results to cache for future turns
                 segmentCache.AddRange(freshItems, turnNumber);
                 segmentCache.Evict(turnNumber);
+
+                // Track document focus for progressive narrowing
+                var concentratedSource = freshItems.Count >= 3
+                    ? freshItems
+                        .Where(i => !string.IsNullOrEmpty(i.Source))
+                        .GroupBy(i => i.Source)
+                        .Where(g => (float)g.Count() / freshItems.Count >= 0.4f)
+                        .OrderByDescending(g => g.Count())
+                        .Select(g => g.Key)
+                        .FirstOrDefault()
+                    : null;
+                segmentCache.TrackDocumentFocus(concentratedSource);
 
                 if (evidence.Count == 0)
                     return; // Will handle below
@@ -442,6 +456,15 @@ public sealed class InteractiveAskLoop
                 ? $", prompt index: {pHits}/{pHits + pMisses} hits ({pRate:P0})"
                 : "";
             AnsiConsole.MarkupLine($"[dim]Cache: {count}/{capacity} segments, {evicted} evicted{indexNote}[/]");
+
+            // Embedding LFU cache stats
+            if (_boot.Embedding is CachingEmbeddingService cachingEmbed)
+            {
+                var es = cachingEmbed.GetStats();
+                if (es.Hits + es.Misses > 0)
+                    AnsiConsole.MarkupLine(
+                        $"[dim]Embed cache: {es.CurrentSize}/{es.MaxSize}, {es.HitRate:P0} hit rate ({es.Hits}h/{es.Misses}m, {es.Evictions} evict, {es.TotalComputeMs}ms compute)[/]");
+            }
         }
 
         if (!_options.Quiet && evidence.Count > 0)

@@ -82,6 +82,8 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
     public override async Task<int> ExecuteAsync(
         CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
+        if (settings.ListGpus) { await CommandBootstrap.ListGpusAsync(); return 0; }
+
         var isUrl = Uri.TryCreate(settings.Url, UriKind.Absolute, out _) &&
                     (settings.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                      settings.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
@@ -112,7 +114,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
         var kbName = settings.Name ??
                      (isUrl ? CollectionNaming.FromUrl(settings.Url!) : CollectionNaming.Auto(settings.Url!));
 
-        await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
+        await using var boot = await CommandBootstrap.CreateAsync(settings.GpuDeviceId, cancellationToken);
         if (!settings.NoEntities)
             await boot.InitializeEntityGraphStoreAsync();
 

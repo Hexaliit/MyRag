@@ -15,6 +15,8 @@ public record DoomConfig
     public EmailConfig Email { get; init; } = new();
     public PluginsConfig Plugins { get; init; } = new();
     public LlamaSharpConfigSection LlamaSharp { get; init; } = new();
+    public IngestionConfig Ingestion { get; init; } = new();
+    public ExpansionConfig Expansion { get; init; } = new();
     public Dictionary<string, string> Vibes { get; init; } = new();
     public List<ApiKeyEntry> Keys { get; init; } = [];
     public ApiBudgetConfig ApiBudget { get; init; } = new();
@@ -31,7 +33,96 @@ public record LlamaSharpConfigSection
     public string? SentinelModel { get; init; }
     public uint? ContextSize { get; init; }
     public int? GpuLayerCount { get; init; }
+    public int? GpuDeviceId { get; init; }
     public int? BatchSize { get; init; }
+}
+
+/// <summary>
+///     Controls ingestion behavior: embedding rate, deduplication, and chunk limits.
+///     The embedding rate is a device-profile-friendly percentage (0–100) that controls
+///     what fraction of a document's chunks get embedded and indexed in HNSW.
+///     100% = embed everything (desktop with good GPU), lower values save compute
+///     by only embedding the highest-salience chunks (useful for Pi, laptop, etc.).
+///     Non-embedded chunks are still stored in SQLite + FTS5 for keyword search.
+/// </summary>
+public record IngestionConfig
+{
+    /// <summary>
+    ///     Percentage of chunks to embed (0–100). Controls compute vs coverage tradeoff.
+    ///     100 = embed all chunks (desktop/server). 50 = embed top half by salience.
+    ///     Non-embedded chunks remain searchable via FTS5 keywords.
+    ///     Set per device profile: desktop=100, laptop=80, pi=40.
+    /// </summary>
+    public int EmbeddingRate { get; init; } = 100;
+
+    /// <summary>Enable semantic dedup during ingestion (cosine >= threshold → merge).</summary>
+    public bool DeduplicationEnabled { get; init; } = true;
+
+    /// <summary>Cosine similarity threshold for near-duplicate detection during ingestion.</summary>
+    public float DeduplicationThreshold { get; init; } = 0.90f;
+
+    /// <summary>Boost surviving chunks' salience when they absorb near-duplicates.</summary>
+    public bool SalienceBoostEnabled { get; init; } = true;
+
+    /// <summary>Override max chunk survivors per document (0 = use adaptive default).</summary>
+    public int MaxChunksOverride { get; init; } = 0;
+
+    /// <summary>Override min chunk survivors per document (0 = use adaptive default).</summary>
+    public int MinChunksOverride { get; init; } = 0;
+
+    /// <summary>
+    ///     Pre-embedding cheap dedup: eliminate obvious duplicates BEFORE embedding using
+    ///     fast text signals (content hash, word Jaccard, trigrams, length). Saves 20-50%
+    ///     of embedding compute on repetitive documents. Each signal has a configurable weight.
+    ///     Set all weights to 0 to disable pre-dedup.
+    /// </summary>
+    public PreDedupWeights PreDedup { get; init; } = new();
+}
+
+/// <summary>
+///     Configurable weights for pre-embedding cheap dedup signals.
+///     Combined weighted score above <see cref="Threshold" /> eliminates the lower-salience chunk
+///     before any embedding computation. All signals are O(N) per chunk — microseconds vs
+///     embedding's milliseconds. Dial weights down for resampling (re-include previously disposed chunks).
+/// </summary>
+public record PreDedupWeights
+{
+    /// <summary>Weight for word-set Jaccard similarity (bag-of-words overlap). Most effective signal.</summary>
+    public float WordJaccard { get; init; } = 0.50f;
+
+    /// <summary>Weight for character trigram Jaccard similarity. Catches minor edits and paraphrases.</summary>
+    public float Trigram { get; init; } = 0.30f;
+
+    /// <summary>Weight for normalized length similarity (1.0 when same length, decays as lengths diverge).</summary>
+    public float Length { get; init; } = 0.10f;
+
+    /// <summary>Weight for title/heading overlap (chunks sharing headings are more likely duplicates).</summary>
+    public float Heading { get; init; } = 0.10f;
+
+    /// <summary>Combined weighted score threshold: pairs above this are pre-disposed (lower-salience removed).</summary>
+    public float Threshold { get; init; } = 0.80f;
+
+    /// <summary>True if all weights are zero (pre-dedup disabled).</summary>
+    public bool IsDisabled => WordJaccard <= 0 && Trigram <= 0 && Length <= 0 && Heading <= 0;
+}
+
+/// <summary>
+///     Controls document concentration detection and on-demand expansion during retrieval.
+///     When retrieval results concentrate on one document, automatically pulls more chunks from it.
+/// </summary>
+public record ExpansionConfig
+{
+    /// <summary>Minimum fraction of top-K from one source to trigger expansion (0.0–1.0).</summary>
+    public float ConcentrationThreshold { get; init; } = 0.4f;
+
+    /// <summary>Minimum average relevance score for the concentrated source.</summary>
+    public float MinRelevanceForExpansion { get; init; } = 0.6f;
+
+    /// <summary>Base number of extra chunks to pull from the concentrated source.</summary>
+    public int ExpansionCount { get; init; } = 8;
+
+    /// <summary>Enable on-demand embedding of low-salience chunks during expansion.</summary>
+    public bool DeferredEmbedding { get; init; } = true;
 }
 
 public record SourcesConfig
@@ -97,8 +188,40 @@ public record SourceFilterConfig
 public record EmbeddingConfig
 {
     public string Backend { get; init; } = "onnx";
+
+    /// <summary>
+    ///     Embedding model name. Available models:
+    ///     all-MiniLM-L6-v2 (default, fast general-purpose, 256 seq),
+    ///     bge-small-en-v1.5 (best quality for size, 512 seq),
+    ///     gte-small (good all-around, 512 seq),
+    ///     multi-qa-MiniLM-L6-cos-v1 (QA-optimized, 512 seq),
+    ///     paraphrase-MiniLM-L3-v2 (smallest/fastest, 128 seq).
+    /// </summary>
     public string Model { get; init; } = "all-MiniLM-L6-v2";
+
+    /// <summary>
+    ///     Use quantized ONNX models (smaller, faster, ~1-2% quality loss).
+    ///     true = INT8 quantized (recommended for most workloads).
+    ///     false = FP32 full precision.
+    /// </summary>
+    public bool Quantized { get; init; } = true;
+
     public double SimilarityThreshold { get; init; } = 0.95;
+
+    /// <summary>
+    ///     GPU device ID for ONNX embedding inference.
+    ///     0 = first GPU, 1 = second GPU, etc.
+    ///     Use this to select your discrete GPU when you have integrated graphics.
+    ///     Run --list-gpus or 'nvidia-smi -L' to list GPU device IDs.
+    /// </summary>
+    public int GpuDeviceId { get; init; } = 0;
+
+    /// <summary>
+    ///     ONNX execution provider: auto, cpu, cuda, directml.
+    ///     auto (default) = try DirectML → CUDA → CPU.
+    ///     Use --list-gpus to see available providers on your system.
+    /// </summary>
+    public string ExecutionProvider { get; init; } = "auto";
 }
 
 public record OutputConfig
@@ -260,6 +383,9 @@ public record PluginSettings
 [JsonSerializable(typeof(PluginsConfig))]
 [JsonSerializable(typeof(PluginSettings))]
 [JsonSerializable(typeof(LlamaSharpConfigSection))]
+[JsonSerializable(typeof(IngestionConfig))]
+[JsonSerializable(typeof(PreDedupWeights))]
+[JsonSerializable(typeof(ExpansionConfig))]
 [JsonSerializable(typeof(List<ApiKeyEntry>))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]

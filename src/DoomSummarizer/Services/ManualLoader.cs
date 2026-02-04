@@ -134,7 +134,8 @@ public sealed class ManualLoader
 
                 // Stage 3: NER entity extraction
                 var entityMap = new List<(ContentItem item, List<NerEntity> entities)>();
-                var nerTask = ctx.AddTask("[cyan]Extracting entities[/]", maxValue: newItems.Count);
+                var nerTask = ctx.AddTask("[cyan]Extracting entities: 0/{0} pages[/]".Replace("{0}",
+                    newItems.Count.ToString()), maxValue: newItems.Count);
 
                 NerService? nerService = null;
                 try
@@ -157,21 +158,32 @@ public sealed class ManualLoader
                 }
 
                 if (nerService != null)
+                {
+                    var nerProcessed = 0;
+                    var nerEntityCount = 0;
                     try
                     {
                         foreach (var item in newItems)
                         {
+                            nerProcessed++;
                             var textForNer = ItemProcessor.PrepareNerText(item.Title, item.Content);
                             var entities = await nerService.ExtractEntitiesAsync(textForNer);
                             if (entities.Count > 0)
+                            {
                                 entityMap.Add((item, entities));
+                                nerEntityCount += entities.Count;
+                            }
+
                             nerTask.Increment(1);
+                            nerTask.Description =
+                                $"[cyan]Extracting entities: {nerProcessed}/{newItems.Count} pages ({nerEntityCount} found)[/]";
                         }
                     }
                     finally
                     {
                         nerService.Dispose();
                     }
+                }
 
                 nerTask.Value = nerTask.MaxValue;
                 nerTask.Description = nerService != null

@@ -66,14 +66,21 @@
         <PackageReference Include="Microsoft.Recognizers.Text.DateTime" Version="1.8.13"/>
         <PackageReference Include="Microsoft.Recognizers.Text.Number" Version="1.8.13"/>
         <PackageReference Include="Microsoft.Recognizers.Text.Sequence" Version="1.8.13"/>
+
+        <!-- Exclude NuGet.CommandLine pulled transitively by Microsoft.Recognizers.Text — it's a
+             tools package not needed at runtime and triggers GHSA-68w7-72jg-6qpp vulnerability warning -->
+        <PackageReference Include="NuGet.CommandLine" Version="6.12.2" ExcludeAssets="all" PrivateAssets="all"/>
         <PackageReference Include="SmartReader" Version="0.11.0"/>
 
         <!-- DuckDB with VSS for HNSW vector search -->
         <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4"/>
 
         <!-- ONNX for local embeddings with GPU auto-detection -->
-        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2"/>
-        <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.23.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))"/>
+        <!-- DirectML on Windows (GPU auto-detect), base CPU on other platforms -->
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2"
+                          Condition="!$([MSBuild]::IsOSPlatform('Windows'))"/>
+        <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.23.0"
+                          Condition="$([MSBuild]::IsOSPlatform('Windows'))"/>
         <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0"/>
 
         <!-- HTML parsing -->

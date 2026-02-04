@@ -229,4 +229,144 @@ public class SourceRouterTests
         // Either could win - both are valid
         topic.Should().BeOneOf("health", "technology");
     }
+
+    // --- ScoreSource tests (using real embedded YAML) ---
+
+    [Fact]
+    public void ScoreSource_Wikipedia_HighForQA_LowForNews()
+    {
+        var router = SourceRouter.Load();
+        var qaCategories = new Dictionary<string, double> { ["science"] = 0.8 };
+
+        var qaScore = router.ScoreSource("wikipedia", "qa", qaCategories);
+        var newsScore = router.ScoreSource("wikipedia", "news", qaCategories);
+
+        qaScore.Should().BeGreaterThan(0.5, "wikipedia should score high for QA");
+        newsScore.Should().BeLessThan(0.4, "wikipedia should score low for news");
+        qaScore.Should().BeGreaterThan(newsScore, "wikipedia QA score should beat news score");
+    }
+
+    [Fact]
+    public void ScoreSource_GNews_HighForNews_LowForQA()
+    {
+        var router = SourceRouter.Load();
+        var categories = new Dictionary<string, double> { ["science"] = 0.8 };
+
+        var newsScore = router.ScoreSource("google_news", "news", categories);
+        var qaScore = router.ScoreSource("google_news", "qa", categories);
+
+        newsScore.Should().BeGreaterThan(0.5, "gnews should score high for news");
+        qaScore.Should().BeLessThan(newsScore, "gnews QA score should be lower than news");
+    }
+
+    [Fact]
+    public void ScoreSource_DuckDuckGo_HighForQA()
+    {
+        var router = SourceRouter.Load();
+        var categories = new Dictionary<string, double> { ["science"] = 0.8 };
+
+        var qaScore = router.ScoreSource("duckduckgo", "qa", categories);
+
+        qaScore.Should().BeGreaterThan(0.5, "duckduckgo should score high for QA");
+    }
+
+    [Fact]
+    public void ScoreSource_UnknownSource_ReturnsZero()
+    {
+        var router = SourceRouter.Load();
+        var categories = new Dictionary<string, double> { ["technology"] = 0.9 };
+
+        router.ScoreSource("nonexistent_source", "news", categories).Should().Be(0.0);
+    }
+
+    [Fact]
+    public void ScoreSource_AllSourcesInRange()
+    {
+        var router = SourceRouter.Load();
+        var categories = new Dictionary<string, double> { ["technology"] = 0.9 };
+
+        foreach (var source in router.AllSources)
+        {
+            foreach (var intent in new[] { "news", "qa", "research", "roundup", "howto" })
+            {
+                var score = router.ScoreSource(source, intent, categories);
+                score.Should().BeInRange(0.0, 1.0, $"{source}/{intent} should be in [0,1]");
+            }
+        }
+    }
+
+    [Fact]
+    public void HasCapability_TechOnly_Works()
+    {
+        var router = SourceRouter.Load();
+
+        router.HasCapability("hn", "tech_only").Should().BeTrue("hn should be tech_only");
+        router.HasCapability("lobsters", "tech_only").Should().BeTrue("lobsters should be tech_only");
+        router.HasCapability("bbc", "tech_only").Should().BeFalse("bbc should not be tech_only");
+        router.HasCapability("wikipedia", "tech_only").Should().BeFalse("wikipedia should not be tech_only");
+    }
+
+    [Fact]
+    public void HasCapability_Archive_Works()
+    {
+        var router = SourceRouter.Load();
+
+        router.HasCapability("wikipedia", "archive").Should().BeTrue("wikipedia should be archive");
+        router.HasCapability("arxiv", "archive").Should().BeTrue("arxiv should be archive");
+        router.HasCapability("bbc", "archive").Should().BeFalse("bbc should not be archive");
+    }
+
+    [Fact]
+    public void HasCapability_Knowledge_Works()
+    {
+        var router = SourceRouter.Load();
+
+        router.HasCapability("wikipedia", "knowledge").Should().BeTrue("wikipedia should have knowledge");
+        router.HasCapability("duckduckgo", "knowledge").Should().BeTrue("duckduckgo should have knowledge");
+        router.HasCapability("bbc", "knowledge").Should().BeFalse("bbc should not have knowledge");
+    }
+
+    [Fact]
+    public void ScoreSource_NullIntentAffinity_FallsBackToTypeDefaults()
+    {
+        // Source with no intent_affinity should use type-derived fallback
+        var config = new SourceRoutingConfig
+        {
+            Sources = new Dictionary<string, SourceDefinition>
+            {
+                ["test_rss"] = new() { Type = "rss", Description = "Test RSS" }
+            },
+            Routing = new Dictionary<string, RoutingRule>
+            {
+                ["default"] = new() { Sources = ["test_rss"] }
+            },
+            TopicKeywords = new Dictionary<string, List<string>>()
+        };
+
+        var router = new SourceRouter(config);
+        var categories = new Dictionary<string, double> { ["default"] = 0.5 };
+
+        var newsScore = router.ScoreSource("test_rss", "news", categories);
+        var qaScore = router.ScoreSource("test_rss", "qa", categories);
+
+        newsScore.Should().BeGreaterThan(0.0, "type-derived fallback should produce non-zero scores");
+        qaScore.Should().BeGreaterThan(0.0, "type-derived fallback should produce non-zero scores");
+        newsScore.Should().BeGreaterThan(qaScore, "RSS type should favor news over QA by default");
+    }
+
+    [Fact]
+    public void GetSourcesWithCapability_ReturnsCorrectSources()
+    {
+        var router = SourceRouter.Load();
+
+        var techOnly = router.GetSourcesWithCapability("tech_only").ToList();
+        techOnly.Should().Contain("hn");
+        techOnly.Should().Contain("lobsters");
+        techOnly.Should().NotContain("bbc");
+        techOnly.Should().NotContain("wikipedia");
+
+        var knowledge = router.GetSourcesWithCapability("knowledge").ToList();
+        knowledge.Should().Contain("wikipedia");
+        knowledge.Should().Contain("duckduckgo");
+    }
 }

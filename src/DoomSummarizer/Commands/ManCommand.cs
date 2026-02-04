@@ -14,7 +14,9 @@ public sealed class ManCommand : AsyncCommand<ManCommand.Settings>
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings,
         CancellationToken cancellationToken)
     {
-        await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
+        if (settings.ListGpus) { await CommandBootstrap.ListGpusAsync(); return 0; }
+
+        await using var boot = await CommandBootstrap.CreateAsync(settings.GpuDeviceId, cancellationToken);
 
         // Auto-load manual if not present (or if --refresh/--load-manual)
         var loader = new ManualLoader(boot.Storage, boot.Embedding);
@@ -23,6 +25,9 @@ public sealed class ManCommand : AsyncCommand<ManCommand.Settings>
 
         if (needsLoad)
         {
+            if (boot.EntityStore == null)
+                await boot.InitializeEntityStoresAsync();
+
             using var processor = await ItemProcessor.CreateAsync(
                 boot.Embedding, boot.Storage, boot.EntityStore, "default", cancellationToken);
             await loader.LoadManualAsync(processor, settings.Refresh || settings.LoadManual, cancellationToken);

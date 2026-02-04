@@ -10,7 +10,9 @@ namespace DoomSummarizer.Services;
 public sealed class SalientSegmentCache
 {
     private readonly int _capacity;
+    private readonly Dictionary<string, int> _documentFocusCounts = new();
     private readonly Dictionary<string, CachedSegment> _segments = new();
+    private string? _lastConcentratedSource;
     private int _totalEvicted;
 
     public SalientSegmentCache(int capacity = 50, int promptIndexCapacity = 30, float promptHitThreshold = 0.85f)
@@ -159,6 +161,44 @@ public sealed class SalientSegmentCache
 
         // Prune prompt index entries that reference evicted segments
         PromptIndex.Prune(GetAllIds());
+    }
+
+    /// <summary>
+    ///     Track which document source was concentrated in retrieval results.
+    ///     Increments the focus count for consecutive turns on the same source,
+    ///     resets for other sources. Used by progressive narrowing to boost expansion.
+    /// </summary>
+    public void TrackDocumentFocus(string? concentratedSource)
+    {
+        if (concentratedSource == null)
+        {
+            // No concentration this turn — reset tracking
+            _lastConcentratedSource = null;
+            return;
+        }
+
+        if (concentratedSource == _lastConcentratedSource)
+        {
+            // Same source concentrated again — increment
+            _documentFocusCounts[concentratedSource] =
+                _documentFocusCounts.GetValueOrDefault(concentratedSource) + 1;
+        }
+        else
+        {
+            // Different source — start fresh
+            _lastConcentratedSource = concentratedSource;
+            _documentFocusCounts[concentratedSource] =
+                _documentFocusCounts.GetValueOrDefault(concentratedSource) + 1;
+        }
+    }
+
+    /// <summary>
+    ///     Get the current document focus counts for progressive narrowing.
+    ///     Returns a snapshot that can be passed to <see cref="RetrievalOptions.DocumentFocusCounts" />.
+    /// </summary>
+    public Dictionary<string, int> GetDocumentFocusCounts()
+    {
+        return new Dictionary<string, int>(_documentFocusCounts);
     }
 
     /// <summary>

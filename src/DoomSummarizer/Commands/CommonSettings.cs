@@ -15,6 +15,14 @@ public abstract class CommonSettings : CommandSettings
     [CommandOption("-n|--name")]
     [Description("Named knowledge base collection")]
     public string? Name { get; init; }
+
+    [CommandOption("--gpu")]
+    [Description("GPU device ID for ONNX/LLamaSharp (0=first, 1=second — select your discrete GPU)")]
+    public int? GpuDeviceId { get; init; }
+
+    [CommandOption("--list-gpus")]
+    [Description("Show available GPUs and ONNX execution providers, then exit")]
+    public bool ListGpus { get; init; }
 }
 
 /// <summary>

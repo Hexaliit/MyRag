@@ -366,9 +366,9 @@ public partial class StorageService
                 saveCmd.Transaction = (SqliteTransaction)transaction;
                 saveCmd.CommandText = """
                                       INSERT OR REPLACE INTO items
-                                      (id, source, title, url, summary, content, sentiment_score, detected_topic, tags, score, created_at, fetched_at, embedding, keywords)
+                                      (id, source, title, url, summary, content, sentiment_score, detected_topic, tags, score, created_at, fetched_at, embedding, keywords, salience_score, is_embedded)
                                       VALUES
-                                      (@id, @source, @title, @url, @summary, @content, @sentiment, @topic, @tags, @score, @created, @fetched, @embedding, @keywords)
+                                      (@id, @source, @title, @url, @summary, @content, @sentiment, @topic, @tags, @score, @created, @fetched, @embedding, @keywords, @salience, @is_embedded)
                                       """;
                 saveCmd.Parameters.AddWithValue("@id", item.Id);
                 saveCmd.Parameters.AddWithValue("@source", item.Source);
@@ -386,6 +386,8 @@ public partial class StorageService
                 saveCmd.Parameters.AddWithValue("@embedding",
                     item.Embedding != null ? EmbeddingCompat.ToBytes(item.Embedding) : DBNull.Value);
                 saveCmd.Parameters.AddWithValue("@keywords", (object?)item.Keywords ?? DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@salience", (object?)item.SalienceScore ?? DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@is_embedded", item.IsEmbedded ? 1 : 0);
                 await saveCmd.ExecuteNonQueryAsync();
 
                 // FTS5 index: delete then insert (FTS5 doesn't support UPSERT)

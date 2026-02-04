@@ -342,4 +342,70 @@ public class SentinelSourceMapperTests
         ddg.Should().StartWith("search:");
         ddg.Should().Contain("muffin");
     }
+
+    // --- QA routing regression tests (score-based) ---
+
+    [Fact]
+    public void MapToSources_FactualQA_PrefersKnowledgeSources()
+    {
+        // The "swallow" regression test: search/wikipedia should rank above gnews for QA
+        var intent = new SentinelIntent
+        {
+            Intent = "qa",
+            Categories = new Dictionary<string, double> { ["science"] = 0.8 },
+            Tone = "neutral",
+            SearchQueries = ["how much can a swallow carry"]
+        };
+
+        var sources = SentinelSourceMapper.MapToSources(intent, GetRouter(), "How much can a swallow carry?");
+
+        // Should have search and/or wikipedia before gnews
+        var searchIdx = sources.FindIndex(s => s.StartsWith("search:"));
+        var gnewsIdx = sources.FindIndex(s => s.StartsWith("gnews:"));
+        var wikiIdx = sources.FindIndex(s => s == "wikipedia");
+
+        // Search (duckduckgo) should be present for QA
+        searchIdx.Should().BeGreaterThanOrEqualTo(0, "search should be included for QA");
+
+        // Wikipedia should be present for factual science QA
+        wikiIdx.Should().BeGreaterThanOrEqualTo(0, "wikipedia should be included for factual QA");
+
+        // Search should appear before gnews for QA (score-based ordering)
+        if (gnewsIdx >= 0)
+            searchIdx.Should().BeLessThan(gnewsIdx, "search should rank above gnews for QA");
+    }
+
+    [Fact]
+    public void MapToSources_FactualQA_Science_IncludesWikipedia()
+    {
+        var intent = new SentinelIntent
+        {
+            Intent = "qa",
+            Categories = new Dictionary<string, double> { ["science"] = 0.9 },
+            Tone = "neutral",
+            SearchQueries = ["speed of light"]
+        };
+
+        var sources = SentinelSourceMapper.MapToSources(intent, GetRouter(), "What is the speed of light?");
+
+        // Wikipedia is in the science routing rule and has high QA affinity
+        sources.Should().Contain("wikipedia", "science QA should include wikipedia");
+    }
+
+    [Fact]
+    public void MapToSources_NewsIntent_StillPrefersGnews()
+    {
+        var intent = new SentinelIntent
+        {
+            Intent = "news",
+            Categories = new Dictionary<string, double> { ["technology"] = 0.9 },
+            Tone = "neutral",
+            SearchQueries = ["AI news"]
+        };
+
+        var sources = SentinelSourceMapper.MapToSources(intent, GetRouter(), "latest AI news");
+
+        // For news intent, gnews should still be present and prominent
+        sources.Should().Contain(s => s.StartsWith("gnews:"), "news intent should include gnews");
+    }
 }

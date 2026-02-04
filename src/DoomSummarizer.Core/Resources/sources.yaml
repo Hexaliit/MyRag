@@ -1,5 +1,7 @@
 # DoomSummarizer Source Definitions & Routing
 # Defines available news sources and how to route queries to them.
+# intent_affinity: per-intent relevance score (0.0–1.0). Higher = better suited.
+# capabilities: tags for filtering (knowledge, news, search, tech_only, archive, etc.)
 
 sources:
   # -- Search engines (universal, query-based) --
@@ -9,6 +11,8 @@ sources:
     search: true
     scope: [ general, world, business, technology, science, health, entertainment, sports ]
     region: global
+    intent_affinity: { news: 0.9, roundup: 0.9, trend: 0.8, qa: 0.3, research: 0.3, howto: 0.3 }
+    capabilities: [ search, news, realtime ]
 
   duckduckgo:
     type: duckduckgo
@@ -16,6 +20,8 @@ sources:
     search: true
     scope: [ general ]
     region: global
+    intent_affinity: { qa: 0.9, howto: 0.9, search_only: 0.95, news: 0.5, research: 0.6 }
+    capabilities: [ search, knowledge ]
 
   google_search:
     type: google_search
@@ -23,6 +29,8 @@ sources:
     search: true
     scope: [ general ]
     region: global
+    intent_affinity: { qa: 0.9, howto: 0.9, search_only: 0.95, news: 0.5, research: 0.6 }
+    capabilities: [ search, knowledge ]
 
   google_places:
     type: google_places
@@ -30,6 +38,8 @@ sources:
     search: true
     scope: [ local, business ]
     region: global
+    intent_affinity: { qa: 0.5, search_only: 0.7, howto: 0.3 }
+    capabilities: [ search ]
 
   # -- Major news RSS feeds --
   bbc:
@@ -37,6 +47,8 @@ sources:
     description: BBC News
     scope: [ world, politics, business, technology, science, health, entertainment, sports ]
     region: UK
+    intent_affinity: { news: 0.9, roundup: 0.85, trend: 0.7, qa: 0.2, research: 0.2 }
+    capabilities: [ news, realtime ]
     feeds:
       default:
         - https://feeds.bbci.co.uk/news/rss.xml
@@ -62,6 +74,8 @@ sources:
   guardian:
     type: rss
     description: The Guardian
+    intent_affinity: { news: 0.85, roundup: 0.8, trend: 0.65, qa: 0.15, research: 0.2 }
+    capabilities: [ news, realtime ]
     feeds:
       default:
         - https://www.theguardian.com/world/rss
@@ -81,6 +95,8 @@ sources:
   reuters:
     type: rss
     description: Reuters (via Google News proxy — Reuters killed their own RSS in 2020)
+    intent_affinity: { news: 0.9, roundup: 0.85, trend: 0.7, qa: 0.15, research: 0.2 }
+    capabilities: [ news, realtime ]
     feeds:
       default:
         - https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&ceid=US:en&hl=en-US&gl=US
@@ -92,6 +108,8 @@ sources:
   cnn:
     type: rss
     description: CNN
+    intent_affinity: { news: 0.85, roundup: 0.8, trend: 0.6, qa: 0.15 }
+    capabilities: [ news, realtime ]
     feeds:
       default:
         - http://rss.cnn.com/rss/cnn_topstories.rss
@@ -106,6 +124,8 @@ sources:
   npr:
     type: rss
     description: NPR (National Public Radio)
+    intent_affinity: { news: 0.85, roundup: 0.8, trend: 0.6, qa: 0.2, research: 0.3 }
+    capabilities: [ news, realtime ]
     feeds:
       default:
         - https://feeds.npr.org/1001/rss.xml
@@ -130,18 +150,24 @@ sources:
     description: Hacker News
     scope: [ technology, programming, ai, startups ]
     region: global
+    intent_affinity: { news: 0.8, research: 0.5, qa: 0.3, trend: 0.6 }
+    capabilities: [ news, tech_only ]
 
   reddit:
     type: reddit
     description: Reddit
     scope: [ general, technology, entertainment, politics ]
     region: global
+    intent_affinity: { news: 0.7, qa: 0.4, roundup: 0.6, trend: 0.6 }
+    capabilities: [ news ]
 
   ars:
     type: rss
     description: Ars Technica
     scope: [ technology, science, gaming, policy ]
     region: US
+    intent_affinity: { news: 0.8, research: 0.5, qa: 0.3, deep_dive: 0.5, trend: 0.5 }
+    capabilities: [ news, tech_only ]
     feeds:
       default:
         - https://feeds.arstechnica.com/arstechnica/index
@@ -153,6 +179,8 @@ sources:
     description: The Verge
     scope: [ technology, entertainment, science ]
     region: US
+    intent_affinity: { news: 0.8, trend: 0.6, qa: 0.2 }
+    capabilities: [ news, tech_only ]
     feeds:
       default:
         - https://www.theverge.com/rss/index.xml
@@ -162,6 +190,8 @@ sources:
     description: Lobsters
     scope: [ programming, technology ]
     region: global
+    intent_affinity: { news: 0.7, research: 0.4, qa: 0.2 }
+    capabilities: [ news, tech_only ]
     feeds:
       default:
         - https://lobste.rs/rss
@@ -171,6 +201,8 @@ sources:
     description: Dev.to
     scope: [ programming, technology ]
     region: global
+    intent_affinity: { news: 0.6, howto: 0.5, qa: 0.3 }
+    capabilities: [ news, tech_only ]
     feeds:
       default:
         - https://dev.to/feed
@@ -180,6 +212,8 @@ sources:
     description: TechCrunch
     scope: [ technology, startups, business ]
     region: US
+    intent_affinity: { news: 0.85, trend: 0.7, qa: 0.2 }
+    capabilities: [ news, tech_only ]
     feeds:
       default:
         - https://techcrunch.com/feed/
@@ -189,6 +223,8 @@ sources:
     description: Wired
     scope: [ technology, science, culture ]
     region: US
+    intent_affinity: { news: 0.75, deep_dive: 0.6, research: 0.4, qa: 0.2 }
+    capabilities: [ news, tech_only ]
     feeds:
       default:
         - https://www.wired.com/feed/rss
@@ -198,6 +234,8 @@ sources:
     description: The Register
     scope: [ technology, security, enterprise ]
     region: UK
+    intent_affinity: { news: 0.8, qa: 0.2, trend: 0.5 }
+    capabilities: [ news, tech_only ]
     feeds:
       default:
         - https://www.theregister.com/headlines.atom
@@ -206,6 +244,8 @@ sources:
   theonion:
     type: rss
     description: The Onion (satirical news)
+    intent_affinity: { news: 0.3, roundup: 0.2, qa: 0.05 }
+    capabilities: [ satire, news ]
     feeds:
       default:
         - https://theonion.com/feed/
@@ -213,6 +253,8 @@ sources:
   babylonbee:
     type: rss
     description: The Babylon Bee (satirical news)
+    intent_affinity: { news: 0.3, roundup: 0.2, qa: 0.05 }
+    capabilities: [ satire, news ]
     feeds:
       default:
         - https://babylonbee.com/feed
@@ -221,6 +263,8 @@ sources:
   sciencedaily:
     type: rss
     description: Science Daily
+    intent_affinity: { news: 0.7, research: 0.6, qa: 0.3, deep_dive: 0.5 }
+    capabilities: [ news ]
     feeds:
       default:
         - https://www.sciencedaily.com/rss/all.xml
@@ -234,6 +278,8 @@ sources:
   phys:
     type: rss
     description: Phys.org (science news)
+    intent_affinity: { news: 0.7, research: 0.6, qa: 0.3, deep_dive: 0.5 }
+    capabilities: [ news ]
     feeds:
       default:
         - https://phys.org/rss-feed/
@@ -241,6 +287,8 @@ sources:
   carbonbrief:
     type: rss
     description: Carbon Brief (climate analysis)
+    intent_affinity: { news: 0.6, research: 0.7, deep_dive: 0.7, qa: 0.3 }
+    capabilities: [ news ]
     feeds:
       default:
         - https://www.carbonbrief.org/feed/
@@ -249,24 +297,34 @@ sources:
   factcheck:
     type: api
     description: "Fact-checking (Snopes, PolitiFact, FactCheck.org, FullFact)"
+    intent_affinity: { qa: 0.7, research: 0.5, news: 0.3 }
+    capabilities: [ reference ]
 
   spaceflight:
     type: api
     description: "Spaceflight News API (NASA, ESA, SpaceX launches & events)"
     search: true
+    intent_affinity: { news: 0.8, research: 0.5, qa: 0.4 }
+    capabilities: [ news, realtime ]
 
   earthquake:
     type: api
     description: "USGS Earthquake data (GeoJSON, real-time seismic events)"
+    intent_affinity: { news: 0.7, qa: 0.5, research: 0.3 }
+    capabilities: [ news, realtime ]
 
   wikipedia:
     type: api
     description: "Wikipedia current events, featured articles, on-this-day"
+    intent_affinity: { qa: 0.95, research: 0.7, deep_dive: 0.7, howto: 0.5, news: 0.1 }
+    capabilities: [ knowledge, reference, archive ]
 
   arxiv:
     type: api
     description: "arXiv preprint search (papers with full abstracts, free API)"
     search: true
+    intent_affinity: { research: 0.95, deep_dive: 0.9, qa: 0.4, news: 0.1 }
+    capabilities: [ academic, archive, reference ]
 
   # -- UK Government APIs (free, no auth) --
   parliament:
@@ -275,6 +333,8 @@ sources:
     search: true
     scope: [ politics, uk, government, legislation ]
     region: UK
+    intent_affinity: { qa: 0.7, research: 0.6, news: 0.4 }
+    capabilities: [ government, realtime ]
     # Sub-params: debates, divisions, statements, answers
     # Examples: -s parliament, -s parliament:debates, -s parliament:divisions
 
@@ -283,6 +343,8 @@ sources:
     description: "UK Police crime data (street-level crime, forces, outcomes)"
     scope: [ crime, safety, uk ]
     region: UK
+    intent_affinity: { qa: 0.7, research: 0.6, news: 0.4 }
+    capabilities: [ government, realtime ]
     # Sub-params: crime:LAT,LNG, forces, outcomes:LAT,LNG
     # Examples: -s ukpolice, -s ukpolice:crime:51.5074,-0.1278, -s ukpolice:forces
 
@@ -291,6 +353,8 @@ sources:
     description: "Environment Agency flood warnings, river levels, and rainfall monitoring"
     scope: [ environment, weather, flooding, uk ]
     region: UK
+    intent_affinity: { qa: 0.6, news: 0.5, research: 0.4 }
+    capabilities: [ government, realtime ]
     # Sub-params: warnings, levels, rainfall, stations
     # Examples: -s ukflood, -s ukflood:warnings, -s ukflood:levels
 
@@ -318,7 +382,7 @@ routing:
     google_news_topic: HEALTH
 
   science:
-    sources: [ google_news, bbc, guardian, ars, sciencedaily, phys, npr, spaceflight, arxiv ]
+    sources: [ google_news, bbc, guardian, ars, sciencedaily, phys, npr, spaceflight, arxiv, wikipedia ]
     bbc_category: science
     google_news_topic: SCIENCE
 

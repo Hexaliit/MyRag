@@ -202,7 +202,9 @@ public partial class StorageService : IAsyncDisposable
         foreach (var migration in new[]
                  {
                      "ALTER TABLE items ADD COLUMN keywords TEXT",
-                     "ALTER TABLE items ADD COLUMN web_validated_at TEXT"
+                     "ALTER TABLE items ADD COLUMN web_validated_at TEXT",
+                     "ALTER TABLE items ADD COLUMN salience_score REAL DEFAULT NULL",
+                     "ALTER TABLE items ADD COLUMN is_embedded INTEGER DEFAULT 1"
                  })
             try
             {
@@ -256,9 +258,9 @@ public partial class StorageService : IAsyncDisposable
         await using var cmd = _connection!.CreateCommand();
         cmd.CommandText = """
                           INSERT OR REPLACE INTO items
-                          (id, source, title, url, summary, content, sentiment_score, detected_topic, tags, score, created_at, fetched_at, embedding, keywords)
+                          (id, source, title, url, summary, content, sentiment_score, detected_topic, tags, score, created_at, fetched_at, embedding, keywords, salience_score, is_embedded)
                           VALUES
-                          (@id, @source, @title, @url, @summary, @content, @sentiment, @topic, @tags, @score, @created, @fetched, @embedding, @keywords)
+                          (@id, @source, @title, @url, @summary, @content, @sentiment, @topic, @tags, @score, @created, @fetched, @embedding, @keywords, @salience, @is_embedded)
                           """;
 
         cmd.Parameters.AddWithValue("@id", item.Id);
@@ -276,6 +278,8 @@ public partial class StorageService : IAsyncDisposable
         cmd.Parameters.AddWithValue("@embedding",
             item.Embedding != null ? EmbeddingCompat.ToBytes(item.Embedding) : DBNull.Value);
         cmd.Parameters.AddWithValue("@keywords", (object?)item.Keywords ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@salience", (object?)item.SalienceScore ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@is_embedded", item.IsEmbedded ? 1 : 0);
 
         await cmd.ExecuteNonQueryAsync();
     }
@@ -311,6 +315,28 @@ public partial class StorageService : IAsyncDisposable
             /* Column doesn't exist yet */
         }
 
+        float? salienceScore = null;
+        var isEmbedded = true;
+        try
+        {
+            var salOrd = reader.GetOrdinal("salience_score");
+            salienceScore = reader.IsDBNull(salOrd) ? null : reader.GetFloat(salOrd);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            /* Column doesn't exist yet */
+        }
+
+        try
+        {
+            var embOrd = reader.GetOrdinal("is_embedded");
+            isEmbedded = reader.IsDBNull(embOrd) || reader.GetInt32(embOrd) != 0;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            /* Column doesn't exist yet */
+        }
+
         return new StoredItem
         {
             RowId = reader.GetInt64(reader.GetOrdinal("row_id")),
@@ -336,6 +362,8 @@ public partial class StorageService : IAsyncDisposable
             FetchedAt = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("fetched_at"))),
             Embedding = reader.IsDBNull(reader.GetOrdinal("embedding")) ? null : (byte[])reader["embedding"],
             Keywords = keywords,
+            SalienceScore = salienceScore,
+            IsEmbedded = isEmbedded,
             WebValidatedAt = webValidatedAt != null ? DateTimeOffset.Parse(webValidatedAt) : null
         };
     }

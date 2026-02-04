@@ -234,23 +234,6 @@ public static class SentinelSourceMapper
     private const double MinCategoryWeight = 0.15;
 
     /// <summary>
-    ///     Sources that only make sense for technology/programming queries.
-    /// </summary>
-    private static readonly HashSet<string> TechOnlySources = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "hn", "lobsters", "devto", "techcrunch", "wired", "theregister", "ars", "verge"
-    };
-
-    /// <summary>
-    ///     Sources that are archives/research, not current news.
-    ///     Excluded from roundup and breaking news intents.
-    /// </summary>
-    private static readonly HashSet<string> ArchiveSources = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "arxiv", "wikipedia"
-    };
-
-    /// <summary>
     ///     Categories that imply tech content.
     /// </summary>
     private static readonly HashSet<string> TechCategories = new(StringComparer.OrdinalIgnoreCase)
@@ -320,7 +303,7 @@ public static class SentinelSourceMapper
         // Adaptive source cap: focused queries need fewer sources to reduce irrelevant fetches
         var maxTotalSources = intent.Intent switch
         {
-            "qa" or "howto" => 4,
+            "qa" or "howto" => 5, // room for wikipedia + search + a few feeds
             "deep_dive" or "research" => 8, // room for arxiv/wikipedia enrichment
             _ => DefaultMaxTotalSources
         };
@@ -333,55 +316,17 @@ public static class SentinelSourceMapper
 
         var isRoundup = intent.Intent is "roundup" or "news" &&
                         intent.TimeSensitivity is "today" or "breaking";
-        var isResearch = intent.Intent is "research" or "deep_dive";
         var isQA = intent.Intent is "qa" or "howto";
         var isSearchOnly = intent.Intent is "search_only";
         var hasTechCategory = categories.Any(c =>
             TechCategories.Contains(c.Key) && c.Value >= MinCategoryWeight);
+        var timeSensitivity = intent.TimeSensitivity ?? "any";
 
         // --- Phase 1: Explicit user-named sources (always honored) ---
         foreach (var src in explicitSources) AddSource(sources, usedRoots, src);
 
-        // --- Phase 2: Search queries as gnews/search sources ---
-        // For QA/howto, search is the primary answer source — also add the raw query
-        // since it carries more context than extracted keywords.
-        // Sentinel queries come first (spelling-corrected, expanded abbreviations),
-        // raw query appended as backup with full context.
-        var searchQueries = intentSearchQueries.ToList();
-        if (isQA && !string.IsNullOrWhiteSpace(query))
-        {
-            var rawTerms = query.Trim();
-            if (!searchQueries.Any(sq => sq.Contains(rawTerms, StringComparison.OrdinalIgnoreCase) ||
-                                         rawTerms.Contains(sq, StringComparison.OrdinalIgnoreCase)))
-                searchQueries.Add(rawTerms); // backup after sentinel's crafted queries
-        }
-
-        // QA gets more search slots (answer is in search results, not RSS feeds)
-        var maxSearchQueries = isQA ? 4 : 3;
-        foreach (var sq in searchQueries.Take(maxSearchQueries))
-        {
-            if (!usedRoots.Contains("gnews"))
-                AddSource(sources, usedRoots, $"gnews:{sq}");
-            else if (!sources.Any(s => s.StartsWith("gnews:", StringComparison.OrdinalIgnoreCase) &&
-                                       s.Contains(sq, StringComparison.OrdinalIgnoreCase)))
-                sources.Add($"gnews:{sq}"); // allow multiple gnews with different queries
-
-            if (!usedRoots.Contains("search"))
-                AddSource(sources, usedRoots, $"search:{sq}");
-        }
-
-        // If no search queries but we have a query, add a default gnews search
-        if (searchQueries.Count == 0 && !string.IsNullOrWhiteSpace(query) && !usedRoots.Contains("gnews"))
-        {
-            var topicTerms = ExtractTopicTerms(query);
-            if (!string.IsNullOrEmpty(topicTerms))
-                AddSource(sources, usedRoots, $"gnews:{topicTerms}");
-        }
-
-        // --- Phase 3: Category-weighted source selection ---
-        // For QA, search results are the primary answer source — feed sources provide
-        // context/breadth only. Cap total feed sources to avoid drowning search results.
-        // Normalize unknown categories to valid YAML routing categories.
+        // --- Phase 2: Score-based selection ---
+        // Build candidate pool from matching routing categories + default
         var sortedCategories = categories
             .Select(kv =>
             {
@@ -396,70 +341,164 @@ public static class SentinelSourceMapper
             .OrderByDescending(kv => kv.Value)
             .ToList();
 
-        // If no categories detected, use default routing
         if (sortedCategories.Count == 0)
             sortedCategories = [new KeyValuePair<string, double>("default", 0.5)];
 
-        var totalFeedSourcesAdded = 0;
-        // search_only: no feeds; QA: max 3; research: cap feeds to leave room for arxiv enrichment
-        var maxTotalFeedSources = isSearchOnly ? 0 : isQA ? 3 : isResearch ? 5 : maxTotalSources;
+        // Gather unique candidate sources from all matching routing categories
+        var candidateSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (category, _) in sortedCategories)
+        {
+            var routing = router.RouteByTopic(category, query);
+            foreach (var src in routing.Sources) candidateSet.Add(src);
+        }
 
-        foreach (var (category, weight) in sortedCategories)
+        // Always include default routing sources as fallback candidates
+        var defaultRouting = router.RouteByTopic("default", query);
+        foreach (var src in defaultRouting.Sources) candidateSet.Add(src);
+
+        // Score all candidates
+        var scored = candidateSet
+            .Select(name => (Name: name, Score: router.ScoreSource(name, intent.Intent, categories, timeSensitivity)))
+            .OrderByDescending(x => x.Score)
+            .ToList();
+
+        // Separate search sources and feed sources
+        var searchCandidates = scored.Where(x =>
+        {
+            var source = router.GetSource(x.Name);
+            return source?.Search == true;
+        }).ToList();
+
+        var feedCandidates = scored.Where(x =>
+        {
+            var source = router.GetSource(x.Name);
+            return source?.Search != true;
+        }).ToList();
+
+        // Add search sources first (with search queries from sentinel)
+        var searchQueries = intentSearchQueries.ToList();
+        if (isQA && !string.IsNullOrWhiteSpace(query))
+        {
+            var rawTerms = query.Trim();
+            if (!searchQueries.Any(sq => sq.Contains(rawTerms, StringComparison.OrdinalIgnoreCase) ||
+                                         rawTerms.Contains(sq, StringComparison.OrdinalIgnoreCase)))
+                searchQueries.Add(rawTerms);
+        }
+
+        var maxSearchQueries = isQA ? 4 : 3;
+
+        // For QA, prefer duckduckgo (knowledge search) over gnews (news RSS).
+        // Score-based ordering already handles this via intent_affinity.
+        foreach (var (name, _) in searchCandidates)
+        {
+            if (sources.Count >= maxTotalSources) break;
+
+            // Hard-filter: skip archive search sources for roundup+today
+            if (isRoundup && router.HasCapability(name, "archive"))
+                continue;
+
+            // Hard-filter: skip tech_only search sources when no tech category
+            if (!hasTechCategory && router.HasCapability(name, "tech_only"))
+                continue;
+
+            foreach (var sq in searchQueries.Take(maxSearchQueries))
+            {
+                var mapped = MapYamlSourceToCli(name, defaultRouting, query);
+                if (mapped == null) continue;
+
+                var root = mapped.Split(':')[0];
+
+                if (name == "google_news")
+                {
+                    if (!usedRoots.Contains("gnews"))
+                        AddSource(sources, usedRoots, $"gnews:{sq}");
+                    else if (!sources.Any(s => s.StartsWith("gnews:", StringComparison.OrdinalIgnoreCase) &&
+                                               s.Contains(sq, StringComparison.OrdinalIgnoreCase)))
+                        sources.Add($"gnews:{sq}");
+                }
+                else if (name == "duckduckgo")
+                {
+                    if (!usedRoots.Contains("search"))
+                        AddSource(sources, usedRoots, $"search:{sq}");
+                }
+                else if (name == "arxiv")
+                {
+                    if (!usedRoots.Contains("arxiv"))
+                    {
+                        var topicTerms = ExtractTopicTerms(query);
+                        AddSource(sources, usedRoots, !string.IsNullOrEmpty(topicTerms) ? $"arxiv:{topicTerms}" : "arxiv");
+                    }
+                }
+                else if (name == "spaceflight")
+                {
+                    if (!usedRoots.Contains("spaceflight"))
+                        AddSource(sources, usedRoots, "spaceflight");
+                }
+                else
+                {
+                    if (!usedRoots.Contains(root))
+                        AddSource(sources, usedRoots, mapped);
+                }
+
+                break; // One entry per search source
+            }
+        }
+
+        // If no search queries but we have a query, add a default search
+        if (searchQueries.Count == 0 && !string.IsNullOrWhiteSpace(query))
+        {
+            var topicTerms = ExtractTopicTerms(query);
+            if (!string.IsNullOrEmpty(topicTerms))
+            {
+                if (!usedRoots.Contains("gnews"))
+                    AddSource(sources, usedRoots, $"gnews:{topicTerms}");
+                if (!usedRoots.Contains("search"))
+                    AddSource(sources, usedRoots, $"search:{topicTerms}");
+            }
+        }
+
+        // Add feed sources by score
+        var maxTotalFeedSources = isSearchOnly ? 0 : isQA ? 3 : maxTotalSources;
+        var totalFeedSourcesAdded = 0;
+
+        foreach (var (name, _) in feedCandidates)
         {
             if (sources.Count >= maxTotalSources) break;
             if (totalFeedSourcesAdded >= maxTotalFeedSources) break;
 
-            var routing = router.RouteByTopic(category, query);
+            // Hard-filter: skip tech_only when no tech category
+            if (!hasTechCategory && router.HasCapability(name, "tech_only"))
+                continue;
 
-            // Higher weight → more sources from this category
-            // QA needs fewer RSS/feed sources (search results are the primary answer source)
-            var maxFromCategory = isQA
-                ? Math.Max(1, (int)Math.Ceiling(weight * 2)) // QA: 1-2 feed sources
-                : Math.Max(1, (int)Math.Ceiling(weight * 4)); // News/roundup: 1-4 feed sources
-            var added = 0;
+            // Hard-filter: skip archive when roundup+today
+            if (isRoundup && router.HasCapability(name, "archive"))
+                continue;
 
-            foreach (var yamlSource in routing.Sources)
+            // Find the best routing context for this source
+            RoutingResult? bestRouting = null;
+            foreach (var (category, _) in sortedCategories)
             {
-                if (added >= maxFromCategory) break;
-                if (sources.Count >= maxTotalSources) break;
-                if (totalFeedSourcesAdded >= maxTotalFeedSources) break;
-
-                // Skip archive sources for roundups
-                if (isRoundup && ArchiveSources.Contains(yamlSource))
-                    continue;
-
-                // Skip tech-only sources when query isn't about tech
-                if (!hasTechCategory && TechOnlySources.Contains(yamlSource))
-                    continue;
-
-                // Skip search engines (already handled in Phase 2)
-                if (yamlSource is "google_news" or "duckduckgo")
-                    continue;
-
-                var mapped = MapYamlSourceToCli(yamlSource, routing, query);
-                if (mapped == null) continue;
-
-                var root = mapped.Split(':')[0];
-                if (usedRoots.Contains(root)) continue;
-
-                AddSource(sources, usedRoots, mapped);
-                added++;
-                totalFeedSourcesAdded++;
+                var r = router.RouteByTopic(category, query);
+                if (r.Sources.Contains(name, StringComparer.OrdinalIgnoreCase))
+                {
+                    bestRouting = r;
+                    break;
+                }
             }
+
+            bestRouting ??= defaultRouting;
+
+            var mapped = MapYamlSourceToCli(name, bestRouting, query);
+            if (mapped == null) continue;
+
+            var root = mapped.Split(':')[0];
+            if (usedRoots.Contains(root)) continue;
+
+            AddSource(sources, usedRoots, mapped);
+            totalFeedSourcesAdded++;
         }
 
-        // --- Phase 4: Research enrichment ---
-        if (isResearch && !usedRoots.Contains("arxiv") && sources.Count < maxTotalSources)
-        {
-            var topicTerms = ExtractTopicTerms(query);
-            var arxivQuery = !string.IsNullOrEmpty(topicTerms) ? $"arxiv:{topicTerms}" : "arxiv";
-            AddSource(sources, usedRoots, arxivQuery);
-        }
-
-        // --- Phase 5: NER entity enrichment (search queries only) ---
-        // NER adds entity-specific search queries but does NOT add news outlet preferences.
-        // Entity type (ORG/PER/LOC) doesn't determine topic category — that's the sentinel's job.
-        // e.g., "SNL" is ORG but entertainment, not business.
+        // --- Phase 3: NER entity enrichment (search queries only) ---
         if (nerContext?.HasEntities == true)
             foreach (var eq in nerContext.EntityQueries.Take(2))
             {
@@ -469,11 +508,9 @@ public static class SentinelSourceMapper
                         sources.Add(gnewsQuery);
             }
 
-        // --- Phase 6: Minimum diversity floor ---
-        // search_only: skip diversity floor — we want minimal, targeted search sources
+        // --- Phase 4: Minimum diversity floor ---
         if (!isSearchOnly && sources.Count < 3)
         {
-            var defaultRouting = router.RouteByTopic("default", query);
             foreach (var src in defaultRouting.Sources)
             {
                 var mapped = MapYamlSourceToCli(src, defaultRouting, query);

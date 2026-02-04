@@ -9,8 +9,6 @@ namespace DoomSummarizer.Plugins.Runtime;
 /// </summary>
 public sealed class PluginManifest
 {
-    private static readonly string ManifestPath = Path.Combine(PluginsDirectory, "manifest.json");
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -56,6 +54,9 @@ public sealed class PluginManifest
     public static string PluginsDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".doomsummarizer", "plugins");
+
+    // Declared after PluginsDirectory so the static initializer runs in correct order.
+    private static readonly string ManifestPath = Path.Combine(PluginsDirectory, "manifest.json");
 
     /// <summary>
     ///     Resolve a package identifier: if it's a known shorthand, expand to the full NuGet package ID.

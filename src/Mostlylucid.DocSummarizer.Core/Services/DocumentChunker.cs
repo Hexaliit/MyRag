@@ -4,6 +4,31 @@ using Mostlylucid.DocSummarizer.Models;
 
 namespace Mostlylucid.DocSummarizer.Services;
 
+/// <summary>
+///     Hints for narrative/structure-aware chunk boundary detection.
+///     Passed to DocumentChunker to respect document-type-specific boundaries.
+/// </summary>
+public record ChunkBoundaryHints
+{
+    /// <summary>Split at scene break markers (*** / * * * / --- / ___).</summary>
+    public bool RespectSceneBreaks { get; init; }
+
+    /// <summary>Extend chunk target by 1.5× to keep dialogue exchanges together.</summary>
+    public bool KeepDialogueTogether { get; init; }
+
+    /// <summary>Treat "Chapter N" text as level-1 heading for splitting.</summary>
+    public bool RespectChapterBoundaries { get; init; }
+
+    /// <summary>Extend chunk target up to 2× to keep code fences intact.</summary>
+    public bool KeepCodeBlocksTogether { get; init; }
+
+    /// <summary>Overlap fraction (0-0.20). Repeat last N tokens as prefix of next chunk.</summary>
+    public float OverlapFraction { get; init; }
+
+    /// <summary>If set, prepend this heading as context prefix to each chunk's content.</summary>
+    public string? ContextualHeaderPrefix { get; init; }
+}
+
 public class DocumentChunker
 {
     // Rough estimate: 1 token ≈ 4 characters for English text
@@ -11,6 +36,18 @@ public class DocumentChunker
 
     // Regex to extract page markers: <!-- PAGE:1-5 --> or <!-- PAGE:1 -->
     private static readonly Regex PageMarkerRegex = new(@"<!--\s*PAGE:(\d+)(?:-(\d+))?\s*-->", RegexOptions.Compiled);
+
+    // Scene break patterns: ***, * * *, ---, ___, ===, or similar
+    private static readonly Regex SceneBreakRegex = new(
+        @"^\s*(?:\*\s*\*\s*\*|\*{3,}|-{3,}|_{3,}|={3,})\s*$",
+        RegexOptions.Compiled | RegexOptions.Multiline);
+
+    // Chapter heading patterns: "Chapter 1", "CHAPTER ONE", "Chapter I", etc.
+    private static readonly Regex ChapterRegex = new(
+        @"^\s*(?:chapter|part)\s+(?:\d+|[ivxlcdm]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private readonly ChunkBoundaryHints? _hints;
     private readonly int _maxHeadingLevel;
     private readonly int _minChunkTokens;
     private readonly int _targetChunkTokens;
@@ -24,11 +61,43 @@ public class DocumentChunker
     ///     Optimized for RAG retrieval - smaller chunks improve precision.
     /// </param>
     /// <param name="minChunkTokens">Minimum chunk size before merging. Default is 50 (~200 bytes).</param>
-    public DocumentChunker(int maxHeadingLevel = 4, int targetChunkTokens = 400, int minChunkTokens = 50)
+    /// <param name="hints">Optional boundary hints for narrative/structure-aware chunking.</param>
+    public DocumentChunker(int maxHeadingLevel = 4, int targetChunkTokens = 400, int minChunkTokens = 50,
+        ChunkBoundaryHints? hints = null)
     {
         _maxHeadingLevel = Math.Clamp(maxHeadingLevel, 1, 6);
         _targetChunkTokens = targetChunkTokens;
         _minChunkTokens = minChunkTokens;
+        _hints = hints;
+    }
+
+    /// <summary>
+    ///     Check if a line is a scene break marker (*** / * * * / --- / ___ / ===).
+    /// </summary>
+    public static bool IsSceneBreak(string line) =>
+        SceneBreakRegex.IsMatch(line);
+
+    /// <summary>
+    ///     Check if a text block is dialogue-heavy (>50% of non-empty lines start with " or contain speech attribution).
+    /// </summary>
+    public static bool IsDialogueSection(string text)
+    {
+        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        if (lines.Length == 0) return false;
+
+        var dialogueLines = 0;
+        foreach (var line in lines)
+        {
+            var trimmed = line.TrimStart();
+            if (trimmed.Length == 0) continue;
+            // Starts with quote or contains speech attribution
+            if (trimmed[0] == '"' || trimmed[0] == '\u201C' ||
+                Regex.IsMatch(trimmed, @"""[^""]*""\s*\w+\s+(said|asked|replied|whispered|exclaimed|cried|murmured|shouted|answered|called|declared)",
+                    RegexOptions.IgnoreCase))
+                dialogueLines++;
+        }
+
+        return lines.Length > 0 && (float)dialogueLines / lines.Length > 0.5f;
     }
 
     public List<DocumentChunk> ChunkByStructure(string markdown)
@@ -141,7 +210,9 @@ public class DocumentChunker
     }
 
     /// <summary>
-    ///     Split plain text by paragraphs (double newlines)
+    ///     Split plain text by paragraphs (double newlines).
+    ///     When RespectSceneBreaks is set, scene break markers (*** / --- / ___) act as hard boundaries.
+    ///     When RespectChapterBoundaries is set, "Chapter N" lines act as level-1 headings.
     /// </summary>
     private List<RawSection> SplitByParagraphs(string text)
     {
@@ -179,6 +250,27 @@ public class DocumentChunker
                 para = PageMarkerRegex.Replace(para, "").Trim();
                 if (string.IsNullOrWhiteSpace(para))
                     continue;
+            }
+
+            // Scene break detection: treat as section boundary marker (empty content, forces flush)
+            if (_hints?.RespectSceneBreaks == true && IsSceneBreak(para))
+            {
+                paragraphIndex++;
+                sections.Add(new RawSection($"Scene {paragraphIndex}", 1, "",
+                    currentPageStart, currentPageEnd));
+                continue;
+            }
+
+            // Chapter boundary in plain text: promote to level-1 heading
+            if (_hints?.RespectChapterBoundaries == true && ChapterRegex.IsMatch(para))
+            {
+                paragraphIndex++;
+                // Extract chapter title from the line
+                var chapterTitle = para.Split('\n', 2)[0].Trim();
+                var chapterContent = para.Contains('\n') ? para[(para.IndexOf('\n') + 1)..].Trim() : "";
+                sections.Add(new RawSection(chapterTitle, 1, chapterContent,
+                    currentPageStart, currentPageEnd));
+                continue;
             }
 
             paragraphIndex++;
@@ -232,6 +324,12 @@ public class DocumentChunker
 
             var headingLevel = GetHeadingLevel(line);
 
+            // Chapter boundary detection: treat "Chapter N" lines as level-1 headings
+            if (headingLevel == 0 && _hints?.RespectChapterBoundaries == true && ChapterRegex.IsMatch(line))
+            {
+                headingLevel = 1;
+            }
+
             // Only split on headings up to the configured max level
             if (headingLevel > 0 && headingLevel <= _maxHeadingLevel)
             {
@@ -272,14 +370,25 @@ public class DocumentChunker
         var currentTokens = 0;
         int? currentPageStart = null;
         int? currentPageEnd = null;
+        string? lastFlushedTail = null; // For overlap support
 
         void FlushCurrent()
         {
             if (currentContent.Length == 0) return;
+            var content = currentContent.ToString().Trim();
+
+            // Capture tail for overlap before flushing
+            if (_hints?.OverlapFraction > 0 && content.Length > 0)
+            {
+                var overlapChars = Math.Max(20, (int)(_targetChunkTokens * CharsPerToken * _hints.OverlapFraction));
+                overlapChars = Math.Min(overlapChars, content.Length);
+                lastFlushedTail = content[^overlapChars..];
+            }
+
             merged.Add(new RawSection(
                 currentHeading,
                 currentLevel,
-                currentContent.ToString().Trim(),
+                content,
                 currentPageStart,
                 currentPageEnd));
             currentContent.Clear();
@@ -288,6 +397,25 @@ public class DocumentChunker
             currentLevel = 0;
             currentPageStart = null;
             currentPageEnd = null;
+        }
+
+        void StartNewChunk(RawSection section, int sectionTokens)
+        {
+            currentHeading = section.Heading;
+            currentLevel = section.Level;
+
+            // Prepend overlap from previous chunk
+            if (lastFlushedTail != null)
+            {
+                currentContent.AppendLine(lastFlushedTail);
+                currentTokens = EstimateTokens(lastFlushedTail);
+                lastFlushedTail = null;
+            }
+
+            currentContent.AppendLine(section.Content);
+            currentTokens += sectionTokens;
+            currentPageStart = section.PageStart;
+            currentPageEnd = section.PageEnd ?? section.PageStart;
         }
 
         void AppendSection(RawSection section, int tokens)
@@ -314,41 +442,58 @@ public class DocumentChunker
             }
         }
 
-        foreach (var section in sections)
+        for (var idx = 0; idx < sections.Count; idx++)
         {
+            var section = sections[idx];
             var sectionTokens = EstimateTokens(section.Content);
             var sectionWithHeading = string.IsNullOrEmpty(section.Heading)
                 ? section.Content
                 : $"## {section.Heading}\n\n{section.Content}";
             var fullSectionTokens = EstimateTokens(sectionWithHeading);
 
-            // If current buffer is empty, start a new chunk
-            if (currentContent.Length == 0)
+            // Scene break (empty content) → hard flush boundary
+            if (_hints?.RespectSceneBreaks == true &&
+                string.IsNullOrWhiteSpace(section.Content) &&
+                section.Heading.StartsWith("Scene", StringComparison.Ordinal))
             {
-                currentHeading = section.Heading;
-                currentLevel = section.Level;
-                currentContent.AppendLine(section.Content);
-                currentTokens = sectionTokens;
-                currentPageStart = section.PageStart;
-                currentPageEnd = section.PageEnd ?? section.PageStart;
+                FlushCurrent();
                 continue;
             }
 
-            // Would adding this section exceed the target?
-            if (currentTokens + fullSectionTokens > _targetChunkTokens)
+            // Compute effective target: may be extended for dialogue or code blocks
+            var effectiveTarget = _targetChunkTokens;
+            if (_hints?.KeepDialogueTogether == true &&
+                IsDialogueSection(currentContent.ToString()))
+            {
+                // If next section is also dialogue, extend target by 1.5×
+                if (IsDialogueSection(section.Content))
+                    effectiveTarget = (int)(_targetChunkTokens * 1.5);
+                // If next is NOT dialogue but current IS, flush cleanly at normal target
+            }
+
+            if (_hints?.KeepCodeBlocksTogether == true &&
+                section.Content.Contains("```"))
+            {
+                // Extend target up to 2× to keep code block intact
+                effectiveTarget = Math.Max(effectiveTarget, _targetChunkTokens * 2);
+            }
+
+            // If current buffer is empty, start a new chunk
+            if (currentContent.Length == 0)
+            {
+                StartNewChunk(section, sectionTokens);
+                continue;
+            }
+
+            // Would adding this section exceed the effective target?
+            if (currentTokens + fullSectionTokens > effectiveTarget)
             {
                 // Always flush if current buffer has meaningful content
                 // Only merge tiny fragments (< minChunkTokens) with next section
                 if (currentTokens >= _minChunkTokens)
                 {
                     FlushCurrent();
-                    // Start new chunk with this section
-                    currentHeading = section.Heading;
-                    currentLevel = section.Level;
-                    currentContent.AppendLine(section.Content);
-                    currentTokens = sectionTokens;
-                    currentPageStart = section.PageStart;
-                    currentPageEnd = section.PageEnd ?? section.PageStart;
+                    StartNewChunk(section, sectionTokens);
                 }
                 else
                 {

@@ -82,10 +82,26 @@ ollama:
   sentinel_context_size: 32768         # Context window (tokens) for sentinel model
 
 # ─── Embedding ───────────────────────────────────────────────────────
+# Embedding calls are automatically cached using an LFU (Least Frequently Used)
+# in-memory cache. Repeated queries, anchors, and entity names are served from
+# cache (~0µs) instead of recomputed (~1-5ms each). Cache holds 8192 entries
+# (~12 MB for 384-dim embeddings) and evicts the least-used entries when full.
+# Stats visible in interactive mode after the first turn.
 embedding:
   backend: "onnx"                      # Embedding backend: onnx, ollama
-  model: "all-MiniLM-L6-v2"           # Embedding model name
+  model: "all-MiniLM-L6-v2"           # Embedding model name (see below for options)
+  quantized: true                      # Use INT8 quantized model (smaller, faster, ~1-2% quality loss)
   similarity_threshold: 0.95           # Deduplication similarity threshold (0.0–1.0)
+  gpu_device_id: 0                     # GPU device for ONNX (0=first, 1=second — select discrete GPU)
+  execution_provider: "auto"           # ONNX provider: auto, cpu, cuda, directml
+                                       # auto = try DirectML → CUDA → CPU
+                                       # Run --list-gpus to see available providers
+  # Available models (all 384-dim):
+  #   all-MiniLM-L6-v2    — 256 seq, ~23MB quant. Fast general-purpose (default)
+  #   bge-small-en-v1.5   — 512 seq, ~34MB quant. Best quality for size
+  #   gte-small           — 512 seq, ~34MB quant. Good all-around
+  #   multi-qa-MiniLM-L6  — 512 seq, ~23MB quant. QA-optimized
+  #   paraphrase-MiniLM-L3— 128 seq, ~17MB quant. Smallest/fastest
 
 # ─── Output ──────────────────────────────────────────────────────────
 output:
@@ -153,6 +169,35 @@ email:
     password: ""                       # SMTP password (prefer env var or user secrets)
 
   send_grid_api_key: ""                # SendGrid API key (prefer env var DOOM_SENDGRID)
+
+# ─── Ingestion ──────────────────────────────────────────────────────
+# Controls how documents are chunked, embedded, and deduplicated.
+# Embedding rate is the key device-profile knob: set it per machine.
+ingestion:
+  embedding_rate: 100                # % of chunks to embed (100=all, 50=top half by salience)
+                                     # Device profiles: desktop=100, laptop=80, pi=40
+  deduplication_enabled: true        # Semantic dedup at ingestion (merge near-duplicates)
+  deduplication_threshold: 0.90      # Cosine similarity for near-duplicate detection
+  salience_boost_enabled: true       # Boost survivors' salience by absorbed duplicate count
+  max_chunks_override: 0             # Override max chunk survivors per doc (0=adaptive)
+  min_chunks_override: 0             # Override min chunk survivors per doc (0=adaptive)
+
+  # Pre-embedding cheap dedup: eliminate obvious duplicates BEFORE embedding
+  # using fast text signals. Saves 20-50% of embedding compute on repetitive docs.
+  # Set all weights to 0 to disable pre-dedup entirely.
+  pre_dedup:
+    word_jaccard: 0.50               # Weight for word-set Jaccard (bag-of-words overlap)
+    trigram: 0.30                    # Weight for character trigram Jaccard (catches minor edits)
+    length: 0.10                     # Weight for normalized length similarity
+    heading: 0.10                    # Weight for title/heading overlap
+    threshold: 0.80                  # Combined score threshold: pairs above this are pre-disposed
+
+# ─── Retrieval Expansion ─────────────────────────────────────────────
+expansion:
+  concentration_threshold: 0.4      # Fraction of top-K from one source to trigger expansion
+  min_relevance: 0.6                # Min avg relevance for concentrated source
+  expansion_count: 8                # Extra chunks to pull from concentrated source
+  deferred_embedding: true          # Embed low-salience chunks on-demand during expansion
 
 # ─── Storage ─────────────────────────────────────────────────────────
 storage:

@@ -19,6 +19,7 @@ public sealed class RetrievalPipeline
     private readonly SemaphoreSlim _anchorLock = new(1, 1);
     private readonly IEmbeddingService _embedding;
     private readonly IEntityGraphStore? _entityStore;
+    private readonly ExpansionConfig _expansionConfig;
     private readonly StorageService _storage;
 
     // Cached quality anchor embeddings (computed once, reused across all ScoreItemsAsync calls)
@@ -28,11 +29,13 @@ public sealed class RetrievalPipeline
     public RetrievalPipeline(
         IEmbeddingService embedding,
         StorageService storage,
-        IEntityGraphStore? entityStore = null)
+        IEntityGraphStore? entityStore = null,
+        ExpansionConfig? expansionConfig = null)
     {
         _embedding = embedding;
         _storage = storage;
         _entityStore = entityStore;
+        _expansionConfig = expansionConfig ?? new ExpansionConfig();
     }
 
     /// <summary>
@@ -204,6 +207,22 @@ public sealed class RetrievalPipeline
                 .Take(options.TopK)
                 .ToList();
 
+        // Document concentration detection & expansion
+        if (finalItems.Count >= 3 && options.IsKnowledgeBase)
+        {
+            var expansionBoost = options.DocumentFocusCounts?.Values.DefaultIfEmpty(0).Max() switch
+            {
+                >= 3 => 8,
+                >= 2 => 4,
+                _ => 0
+            };
+
+            var expanded = await TryExpandConcentratedDocumentAsync(
+                finalItems, queryEmbedding, options.TopK, expansionBoost, ct);
+            if (expanded != null)
+                finalItems = expanded;
+        }
+
         sw.Stop();
         return new RetrievalResult(finalItems, scoringResult.QueryType, sw.Elapsed);
     }
@@ -332,6 +351,123 @@ public sealed class RetrievalPipeline
     }
 
     /// <summary>
+    ///     Detect whether retrieval results concentrate on one document source.
+    ///     If so, expand retrieval from that source by pulling additional chunks
+    ///     (including on-demand embedding of previously deferred low-salience chunks).
+    /// </summary>
+    private async Task<List<ContentItem>?> TryExpandConcentratedDocumentAsync(
+        List<ContentItem> items,
+        float[] queryEmbedding,
+        int topK,
+        int expansionBoost,
+        CancellationToken ct)
+    {
+        // Adjust threshold based on progressive narrowing
+        var concentrationThreshold = expansionBoost > 0
+            ? Math.Max(0.30f, _expansionConfig.ConcentrationThreshold - 0.1f)
+            : _expansionConfig.ConcentrationThreshold;
+
+        // Group by source to detect concentration
+        var sourceGroups = items
+            .Where(i => !string.IsNullOrEmpty(i.Source))
+            .GroupBy(i => i.Source)
+            .Select(g => new
+            {
+                Source = g.Key,
+                Count = g.Count(),
+                Fraction = (float)g.Count() / items.Count,
+                AvgRelevance = g.Average(i => i.RelevanceScore)
+            })
+            .OrderByDescending(g => g.Fraction)
+            .ToList();
+
+        if (sourceGroups.Count == 0) return null;
+
+        var top = sourceGroups[0];
+        if (top.Fraction < concentrationThreshold ||
+            top.AvgRelevance < _expansionConfig.MinRelevanceForExpansion)
+            return null;
+
+        // This source is concentrated — expand retrieval from it
+        var expansionCount = _expansionConfig.ExpansionCount + expansionBoost;
+        var existingIds = items.Select(i => i.Id).ToHashSet();
+
+        var expansionItems = await ExpandDocumentAsync(
+            top.Source, queryEmbedding, expansionCount, existingIds, ct);
+
+        if (expansionItems.Count == 0) return null;
+
+        // Merge expansion items with a small relevance penalty
+        foreach (var expItem in expansionItems)
+            expItem.RelevanceScore *= 0.95;
+
+        var merged = new List<ContentItem>(items);
+        merged.AddRange(expansionItems);
+        return merged
+            .OrderByDescending(i => i.RelevanceScore)
+            .Take(topK + expansionCount)
+            .ToList();
+    }
+
+    /// <summary>
+    ///     Expand retrieval from a specific document source by loading all its chunks,
+    ///     on-demand embedding any that were deferred, and scoring against the query.
+    /// </summary>
+    private async Task<List<ContentItem>> ExpandDocumentAsync(
+        string source,
+        float[] queryEmbedding,
+        int expansionCount,
+        HashSet<string> excludeIds,
+        CancellationToken ct)
+    {
+        // Load all chunks from this source
+        var allDocItems = await _storage.GetItemsByParentDocAsync(source);
+
+        // On-demand embed any deferred chunks
+        if (_expansionConfig.DeferredEmbedding)
+        {
+            var unembedded = allDocItems
+                .Where(s => !s.IsEmbedded && s.Content != null)
+                .ToList();
+
+            if (unembedded.Count > 0)
+            {
+                var textsToEmbed = unembedded
+                    .Select(s => $"{s.Title} {s.Content ?? ""}".Trim())
+                    .ToList();
+
+                var embeddings = await _embedding.EmbedBatchAsync(textsToEmbed, ct);
+
+                for (var i = 0; i < unembedded.Count && i < embeddings.Length; i++)
+                {
+                    // Persist the backfilled embedding to storage
+                    await _storage.UpdateItemEmbeddingAsync(unembedded[i].Id, embeddings[i]);
+                }
+
+                // Reload to get updated embeddings
+                allDocItems = await _storage.GetItemsByParentDocAsync(source);
+            }
+        }
+
+        // Convert to ContentItems, compute similarity, and return top expansion candidates
+        var candidates = allDocItems
+            .Where(s => !excludeIds.Contains(s.Id))
+            .Select(s => s.ToContentItem())
+            .Where(i => i.Embedding is { Length: > 0 })
+            .Select(i => (item: i, sim: VectorMath.CosineSimilarity(i.Embedding!, queryEmbedding)))
+            .OrderByDescending(x => x.sim)
+            .Take(expansionCount)
+            .Select(x =>
+            {
+                x.item.RelevanceScore = x.sim;
+                return x.item;
+            })
+            .ToList();
+
+        return candidates;
+    }
+
+    /// <summary>
     ///     Deduplicate items by embedding cosine similarity. Keeps the highest-scored item
     ///     when similar content is found (threshold 0.90 = near-identical meaning).
     ///     Complements URL/title dedup for KB queries where same content appears at different URLs.
@@ -451,6 +587,13 @@ public record RetrievalOptions
     ///     outlier penalty, allowing broad queries to retrieve more narrative content.
     /// </summary>
     public bool RelaxScoringGates { get; init; }
+
+    /// <summary>
+    ///     Cross-turn document focus counts for progressive narrowing.
+    ///     Key = source tag, value = number of consecutive turns this source was concentrated.
+    ///     Higher counts trigger larger expansion and lower concentration thresholds.
+    /// </summary>
+    public Dictionary<string, int>? DocumentFocusCounts { get; init; }
 }
 
 /// <summary>

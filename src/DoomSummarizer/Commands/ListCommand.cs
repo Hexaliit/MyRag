@@ -27,7 +27,7 @@ public sealed class ListDocsCommand : AsyncCommand<ListDocsCommand.Settings>
             return await ListFromFilesystemAsync(settings, ct);
 
         // ── Database mode (existing behavior) ─────────────────────────
-        await using var boot = await CommandBootstrap.CreateAsync(ct);
+        await using var boot = await CommandBootstrap.CreateAsync(ct: ct);
 
         // If entity filter requested, initialize entity store
         IEntityGraphStore? entityStore = null;
@@ -362,7 +362,7 @@ public sealed class ListSegmentsCommand : AsyncCommand<ListSegmentsCommand.Setti
 {
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
-        await using var boot = await CommandBootstrap.CreateAsync(ct);
+        await using var boot = await CommandBootstrap.CreateAsync(ct: ct);
 
         List<StoredItem> items;
 
@@ -495,7 +495,7 @@ public sealed class ListEntitiesCommand : AsyncCommand<ListEntitiesCommand.Setti
 {
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
-        await using var boot = await CommandBootstrap.CreateAsync(ct);
+        await using var boot = await CommandBootstrap.CreateAsync(ct: ct);
 
         IEntityGraphStore entityStore;
         try

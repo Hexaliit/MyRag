@@ -52,9 +52,22 @@ public sealed class CommandBootstrap : IAsyncDisposable
     /// <summary>
     ///     Create the core service stack: config → storage → embedding.
     /// </summary>
-    public static async Task<CommandBootstrap> CreateAsync(CancellationToken ct = default)
+    /// <param name="gpuDeviceId">CLI override for GPU device (--gpu flag). Overrides config file value.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public static async Task<CommandBootstrap> CreateAsync(int? gpuDeviceId = null, CancellationToken ct = default)
     {
         var config = await ConfigService.LoadAsync();
+
+        // CLI --gpu flag overrides config file gpu_device_id for both embedding and LLamaSharp
+        if (gpuDeviceId.HasValue)
+        {
+            config = config with { Embedding = config.Embedding with { GpuDeviceId = gpuDeviceId.Value } };
+            config = config with
+            {
+                LlamaSharp = config.LlamaSharp with { GpuDeviceId = gpuDeviceId.Value }
+            };
+        }
+
         var dbPath = ConfigService.GetDbPath(config);
 
         var storage = new StorageService(dbPath);
@@ -73,12 +86,120 @@ public sealed class CommandBootstrap : IAsyncDisposable
             throw;
         }
 
-        var embedding = await EmbeddingFactory.CreateAsync(ct: ct);
+        var embedding = await EmbeddingFactory.CreateAsync(config.Embedding, ct: ct);
 
         var vibeResolver = new VibeResolver(config);
         vibeResolver.LoadLenses(typeof(CommandBootstrap).Assembly);
 
         return new CommandBootstrap(config, dbPath, storage, embedding, vibeResolver);
+    }
+
+    /// <summary>
+    ///     List available GPUs and ONNX execution providers.
+    ///     Called when --list-gpus is set. Prints info and returns true (caller should exit).
+    /// </summary>
+    public static async Task<bool> ListGpusAsync()
+    {
+        AnsiConsole.MarkupLine("[cyan]GPU & Execution Provider Information[/]");
+        AnsiConsole.WriteLine();
+
+        // ONNX Runtime available providers
+        try
+        {
+            var providers = Microsoft.ML.OnnxRuntime.OrtEnv.Instance().GetAvailableProviders();
+            AnsiConsole.MarkupLine("[yellow]ONNX Runtime Providers:[/]");
+            foreach (var provider in providers)
+            {
+                var icon = provider.Contains("DML") || provider.Contains("CUDA") || provider.Contains("TensorRT")
+                    ? "[green]\u2713[/]" : "[grey]-[/]";
+                AnsiConsole.MarkupLine($"  {icon} {Markup.Escape(provider)}");
+            }
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Could not query ONNX providers: {Markup.Escape(ex.Message)}[/]");
+        }
+
+        AnsiConsole.WriteLine();
+
+        // System GPU enumeration (Windows: WMI, cross-platform: nvidia-smi fallback)
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell",
+                    Arguments = "-NoProfile -Command \"Get-CimInstance -ClassName Win32_VideoController | " +
+                                "Select-Object @{N='ID';E={$_.DeviceID}}, Name, " +
+                                "@{N='VRAM_MB';E={[math]::Round($_.AdapterRAM/1MB)}}, " +
+                                "DriverVersion, Status | Format-Table -AutoSize | Out-String -Width 200\"",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc != null)
+                {
+                    var output = await proc.StandardOutput.ReadToEndAsync();
+                    await proc.WaitForExitAsync();
+                    AnsiConsole.MarkupLine("[yellow]System GPUs (Windows):[/]");
+                    AnsiConsole.Write(new Text(output.Trim()));
+                    AnsiConsole.WriteLine();
+                }
+            }
+            catch
+            {
+                // PowerShell not available — try basic approach
+            }
+        }
+
+        // nvidia-smi (works on all platforms with NVIDIA drivers)
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "nvidia-smi",
+                Arguments = "-L",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc != null)
+            {
+                var output = await proc.StandardOutput.ReadToEndAsync();
+                await proc.WaitForExitAsync();
+                if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+                {
+                    AnsiConsole.MarkupLine("[yellow]NVIDIA GPUs:[/]");
+                    AnsiConsole.Write(new Text(output.Trim()));
+                    AnsiConsole.WriteLine();
+                }
+            }
+        }
+        catch
+        {
+            // nvidia-smi not available
+        }
+
+        // Show current config
+        AnsiConsole.WriteLine();
+        var config = await ConfigService.LoadAsync();
+        AnsiConsole.MarkupLine("[yellow]Current Config:[/]");
+        AnsiConsole.MarkupLine($"  Embedding GPU device: [green]{config.Embedding.GpuDeviceId}[/]");
+        AnsiConsole.MarkupLine($"  Embedding backend:    [green]{Markup.Escape(config.Embedding.Backend)}[/]");
+        AnsiConsole.MarkupLine($"  Embedding rate:       [green]{config.Ingestion.EmbeddingRate}%[/]");
+        if (config.LlamaSharp.GpuDeviceId.HasValue)
+            AnsiConsole.MarkupLine($"  LLamaSharp GPU device:[green]{config.LlamaSharp.GpuDeviceId}[/]");
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey]Tip: Use --gpu <id> to select a specific GPU device.[/]");
+        AnsiConsole.MarkupLine("[grey]     Set embedding.gpu_device_id in config for persistent override.[/]");
+
+        return true;
     }
 
     /// <summary>
@@ -126,6 +247,7 @@ public sealed class CommandBootstrap : IAsyncDisposable
             SentinelModel = overrides.SentinelModel ?? baseConfig.SentinelModel,
             ContextSize = overrides.ContextSize ?? baseConfig.ContextSize,
             GpuLayerCount = overrides.GpuLayerCount ?? baseConfig.GpuLayerCount,
+            GpuDeviceId = overrides.GpuDeviceId ?? baseConfig.GpuDeviceId,
             BatchSize = overrides.BatchSize ?? baseConfig.BatchSize,
         };
     }
