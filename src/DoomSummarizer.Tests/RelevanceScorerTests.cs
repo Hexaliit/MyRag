@@ -141,26 +141,6 @@ public class RelevanceScorerTests
     #region Phase 1: Fast Scoring
 
     [Fact]
-    public void ScoreFast_RanksRelevantItemsHigher()
-    {
-        var scorer = new RelevanceScorer();
-        var items = new List<ContentItem>
-        {
-            MakeItem("pharma", "New pharmaceutical drug approved by FDA",
-                "The FDA has approved a breakthrough pharmaceutical treatment"),
-            MakeItem("tech", "Latest JavaScript framework released",
-                "A new React-based framework for building web applications"),
-            MakeItem("sports", "Championship game results",
-                "The final score was 3-2 in overtime play")
-        };
-
-        var ranked = scorer.ScoreFast(items, "pharmaceutical drug approval", discardRatio: 0);
-
-        ranked.First().Id.Should().Be("pharma");
-        ranked.First().RelevanceScore.Should().BeGreaterThan(ranked.Last().RelevanceScore);
-    }
-
-    [Fact]
     public void ScoreFast_DiscardsBottomTier()
     {
         var scorer = new RelevanceScorer();

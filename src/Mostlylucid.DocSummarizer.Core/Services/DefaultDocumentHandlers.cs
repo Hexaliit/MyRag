@@ -1,10 +1,8 @@
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
-#if !SLIM_BUILD
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
-#endif
 using UglyToad.PdfPig;
 
 namespace Mostlylucid.DocSummarizer.Services;
