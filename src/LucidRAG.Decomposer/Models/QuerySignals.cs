@@ -47,7 +47,7 @@ public record QuerySignals
     /// <summary>
     /// Detected tool actions from ToolUseAnalyzer.
     /// Each represents a tool invocation needed to fulfill the query.
-    /// "Sources are tools" — search, file system, indexer, KB query, crawl.
+    /// "Sources are tools"  -  search, file system, indexer, KB query, crawl.
     /// </summary>
     public List<ToolAction> DetectedTools { get; init; } = [];
 

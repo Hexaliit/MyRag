@@ -36,7 +36,7 @@ public partial class SemanticClusterAnalyzer : IQueryAnalyzer
         if (existing.ProposedNodes.Count > 1) return existing;
         if (_embedding == null) return existing;
 
-        // Strip references (URLs, file paths, DOIs) before windowing — these create
+        // Strip references (URLs, file paths, DOIs) before windowing  -  these create
         // noisy clusters since URL fragments are semantically meaningless as n-grams.
         var cleanedQuery = StripReferences(query);
 

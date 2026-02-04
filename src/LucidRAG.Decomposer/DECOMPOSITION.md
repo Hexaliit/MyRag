@@ -1,4 +1,4 @@
-# LucidRAG.Decomposer — Agentic Query Decomposition Engine
+# LucidRAG.Decomposer  -  Agentic Query Decomposition Engine
 
 ## Why Decomposition?
 
@@ -56,9 +56,9 @@ User Query
 
 Six analyzers run in sequence, sharing an embedding cache to avoid redundant computations:
 
-1. **ReferenceExtractor** — Extracts URLs, file paths, DOIs, GitHub references. Each becomes a `ContentReference` node fetched directly.
+1. **ReferenceExtractor**  -  Extracts URLs, file paths, DOIs, GitHub references. Each becomes a `ContentReference` node fetched directly.
 
-2. **StructuralAnalyzer** — Splits on sentence boundaries, then checks conjunctions. For "and"/"also"/"plus", embeds the clause before and after. If cosine similarity < 0.40, different topics → split. If >= 0.40, same topic → keep together.
+2. **StructuralAnalyzer**  -  Splits on sentence boundaries, then checks conjunctions. For "and"/"also"/"plus", embeds the clause before and after. If cosine similarity < 0.40, different topics → split. If >= 0.40, same topic → keep together.
 
    ```
    "LLM transformers and recent gold prices"
@@ -68,13 +68,13 @@ Six analyzers run in sequence, sharing an embedding cache to avoid redundant com
    → Clause A embedding vs Clause B embedding = 0.82 → KEEP
    ```
 
-3. **EntityRelationAnalyzer** — Uses NER entities to detect multi-entity queries. When 2+ entities of the same type appear, checks comparison archetype similarity. Score >= 0.50 → create ComparisonNode with per-entity sub-queries.
+3. **EntityRelationAnalyzer**  -  Uses NER entities to detect multi-entity queries. When 2+ entities of the same type appear, checks comparison archetype similarity. Score >= 0.50 → create ComparisonNode with per-entity sub-queries.
 
-4. **TemporalAnalyzer** — Detects temporal comparisons ("changed since", "over time") and freshness requirements ("latest", "today"). Temporal comparisons become two time-bounded sub-queries.
+4. **TemporalAnalyzer**  -  Detects temporal comparisons ("changed since", "over time") and freshness requirements ("latest", "today"). Temporal comparisons become two time-bounded sub-queries.
 
-5. **SemanticClusterAnalyzer** — For queries without clear structural boundaries, splits into overlapping n-gram windows, embeds each, clusters by cosine similarity. 2+ distinct clusters → multi-topic decomposition.
+5. **SemanticClusterAnalyzer**  -  For queries without clear structural boundaries, splits into overlapping n-gram windows, embeds each, clusters by cosine similarity. 2+ distinct clusters → multi-topic decomposition.
 
-6. **ConceptClassifier** — Classifies the query concept type using embedding archetype matching. Replaces regex detection with semantic similarity to pre-embedded archetypes for each concept type (Definition, Procedure, Comparison, Troubleshooting, etc.).
+6. **ConceptClassifier**  -  Classifies the query concept type using embedding archetype matching. Replaces regex detection with semantic similarity to pre-embedded archetypes for each concept type (Definition, Procedure, Comparison, Troubleshooting, etc.).
 
 ### Phase 2: LLM Refinement
 
@@ -91,16 +91,16 @@ The sentinel LLM has already run (existing `PromptInterpreter`). Phase 2 merges 
 
 ### Phase 3: Agentic Orchestration
 
-The orchestrator executes the plan without running queries itself — it delegates to `ISubQueryExecutor` (implemented by DoomSummarizer.Core):
+The orchestrator executes the plan without running queries itself  -  it delegates to `ISubQueryExecutor` (implemented by DoomSummarizer.Core):
 
-1. **Prerequisites** (KnowledgeGap nodes) — "What is RLHF?" runs first, results stored in KB
-2. **Content references** — URLs/DOIs fetched directly
-3. **Parallel nodes** — Independent sub-queries run concurrently via `Task.WhenAll`
-4. **Dependent nodes** — Comparison sides wait for both to complete
+1. **Prerequisites** (KnowledgeGap nodes)  -  "What is RLHF?" runs first, results stored in KB
+2. **Content references**  -  URLs/DOIs fetched directly
+3. **Parallel nodes**  -  Independent sub-queries run concurrently via `Task.WhenAll`
+4. **Dependent nodes**  -  Comparison sides wait for both to complete
 
 Each node goes through:
-- **Cache check** — Semantic similarity >= 0.92 against previous results
-- **KB probe** — Top-3 score >= 0.70 = skip fetch; 0.40-0.70 = reduced fetch
+- **Cache check**  -  Semantic similarity >= 0.92 against previous results
+- **KB probe**  -  Top-3 score >= 0.70 = skip fetch; 0.40-0.70 = reduced fetch
 - **Execute** — Delegate to sub-query executor
 - **Store** — Cache result for future queries
 

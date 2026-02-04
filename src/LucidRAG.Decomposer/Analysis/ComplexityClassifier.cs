@@ -9,7 +9,7 @@ namespace LucidRAG.Decomposer.Analysis;
 /// <summary>
 /// Fast-path classifier: determines query complexity BEFORE running expensive analyzers.
 /// Simple queries skip decomposition entirely and go straight to single-pass fetch+score.
-/// This is the first thing that runs — it gates whether we do any decomposition at all.
+/// This is the first thing that runs  -  it gates whether we do any decomposition at all.
 ///
 /// Classification signals (all deterministic, no LLM):
 /// - Sentence count (splitting on . ; \n and conjunctions with topic-change detection)
@@ -121,7 +121,7 @@ public class ComplexityClassifier
     /// </summary>
     internal static bool HasToolUseSignals(string query)
     {
-        // File path patterns (Windows C:\, Unix /home/, ~/) — case-insensitive, zero-allocation
+        // File path patterns (Windows C:\, Unix /home/, ~/)  -  case-insensitive, zero-allocation
         var hasFilePath = query.Contains("c:/", StringComparison.OrdinalIgnoreCase) ||
                           query.Contains("c:\\", StringComparison.OrdinalIgnoreCase) ||
                           query.Contains("d:/", StringComparison.OrdinalIgnoreCase) ||
@@ -167,7 +167,7 @@ public class ComplexityClassifier
             }
         }
 
-        // Check for coordinating conjunctions that likely split topics — zero-allocation
+        // Check for coordinating conjunctions that likely split topics  -  zero-allocation
         if (query.Contains(" and also ", StringComparison.OrdinalIgnoreCase)) count++;
         if (query.Contains(" as well as ", StringComparison.OrdinalIgnoreCase)) count++;
         if (query.Contains(" plus ", StringComparison.OrdinalIgnoreCase)) count++;

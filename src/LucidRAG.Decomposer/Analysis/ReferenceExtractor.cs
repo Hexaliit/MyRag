@@ -7,7 +7,7 @@ namespace LucidRAG.Decomposer.Analysis;
 /// <summary>
 /// Extracts content references (URLs, file paths, DOIs) from the query.
 /// Uses TextRecognizerService.ExtractUrls() for URL detection + additional patterns.
-/// Each reference becomes a ContentReference node — fetched directly, not searched.
+/// Each reference becomes a ContentReference node  -  fetched directly, not searched.
 /// </summary>
 public partial class ReferenceExtractor : IQueryAnalyzer
 {

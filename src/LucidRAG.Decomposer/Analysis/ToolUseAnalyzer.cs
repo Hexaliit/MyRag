@@ -6,7 +6,7 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.Decomposer.Analysis;
 
 /// <summary>
-/// Detects tool-use patterns in queries. "Sources are tools" — the decomposer
+/// Detects tool-use patterns in queries. "Sources are tools"  -  the decomposer
 /// routes sub-queries to specific tools based on query intent:
 ///
 ///   FileSystem → "go to C:/test, find markdown files"
@@ -150,7 +150,7 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
     }
 
     /// <summary>
-    /// Deterministic tool extraction — handles clear structural signals
+    /// Deterministic tool extraction  -  handles clear structural signals
     /// like file paths, collection names, and crawl URLs without embeddings.
     /// </summary>
     private static ToolAction? ExtractDeterministic(string clause)

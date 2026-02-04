@@ -5,7 +5,7 @@ namespace LucidRAG.Decomposer.Orchestration;
 /// <summary>
 /// Abstraction for sub-query execution. Implemented by DoomSummarizer.Core
 /// wrapping the existing fetch + score pipeline.
-/// The decomposer does NOT execute queries itself — it only plans and orchestrates.
+/// The decomposer does NOT execute queries itself  -  it only plans and orchestrates.
 /// </summary>
 public interface ISubQueryExecutor
 {
@@ -45,7 +45,7 @@ public record SubQueryResult
     /// <summary>Whether execution succeeded.</summary>
     public bool Success { get; init; }
 
-    /// <summary>Result items (opaque to decomposer — typed by consumer).</summary>
+    /// <summary>Result items (opaque to decomposer  -  typed by consumer).</summary>
     public object? Items { get; init; }
 
     /// <summary>Number of items returned.</summary>

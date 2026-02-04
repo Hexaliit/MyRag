@@ -8,7 +8,7 @@ namespace LucidRAG.Decomposer.Orchestration;
 /// <summary>
 /// Executes the decomposition plan: prerequisites first, then parallel execution
 /// with cache checks, KB probing, and optional recursion.
-/// Does NOT execute queries itself — delegates to ISubQueryExecutor.
+/// Does NOT execute queries itself  -  delegates to ISubQueryExecutor.
 /// </summary>
 public class DecompositionOrchestrator
 {

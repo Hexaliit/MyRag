@@ -128,7 +128,7 @@ public class InMemoryDecompositionCache : IDecompositionCache
     /// </summary>
     private static bool IsTemporallyCompatible(TemporalScope? requested, TemporalScope? cached)
     {
-        // No temporal requirement — anything cached is fine
+        // No temporal requirement  -  anything cached is fine
         if (requested == null) return true;
 
         // Fresh request can't use non-fresh cache

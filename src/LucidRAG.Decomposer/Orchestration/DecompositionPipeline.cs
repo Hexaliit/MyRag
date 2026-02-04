@@ -105,7 +105,7 @@ public class DecompositionPipeline
             return _refiner.Refine(signals, sentinelData);
         }
 
-        // ─── STEP 3: Phase 1 — Deterministic Analysis ───
+        // ─── STEP 3: Phase 1  -  Deterministic Analysis ───
         var currentSignals = new QuerySignals
         {
             OriginalQuery = query,
@@ -150,7 +150,7 @@ public class DecompositionPipeline
         _logger?.LogDebug("Phase 1 complete: {NodeCount} proposed nodes, {RefCount} references",
             currentSignals.ProposedNodes.Count, currentSignals.References.Count);
 
-        // ─── STEP 4: Phase 2 — LLM Refinement ───
+        // ─── STEP 4: Phase 2  -  LLM Refinement ───
         var result = _refiner.Refine(currentSignals, sentinelData);
 
         _logger?.LogDebug("Decomposition complete: {NodeCount} final nodes, complexity={Complexity}, concept={Concept}",

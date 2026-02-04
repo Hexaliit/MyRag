@@ -54,7 +54,7 @@ public record QueryNode
     /// <summary>
     /// Tool action this node requires for execution. When set, the orchestrator
     /// routes to the tool executor instead of the default search pipeline.
-    /// "Sources are tools" — search, file system, indexer, KB query, crawl.
+    /// "Sources are tools"  -  search, file system, indexer, KB query, crawl.
     /// </summary>
     public ToolAction? ToolAction { get; init; }
 
@@ -85,22 +85,22 @@ public record QueryNode
 
 public enum QueryNodeType
 {
-    /// <summary>Single atomic query — fetched directly.</summary>
+    /// <summary>Single atomic query  -  fetched directly.</summary>
     Atomic,
 
     /// <summary>Contains children that must all execute.</summary>
     Composite,
 
-    /// <summary>URL/file/DOI reference — fetch directly, not search.</summary>
+    /// <summary>URL/file/DOI reference  -  fetch directly, not search.</summary>
     ContentReference,
 
-    /// <summary>Comparison node — two sides executed and interleaved.</summary>
+    /// <summary>Comparison node  -  two sides executed and interleaved.</summary>
     Comparison,
 
-    /// <summary>Knowledge gap — "What is X?" prerequisite.</summary>
+    /// <summary>Knowledge gap  -  "What is X?" prerequisite.</summary>
     KnowledgeGap,
 
-    /// <summary>Tool invocation node — requires a specific tool (FileSystem, Index, Analyze, etc.).</summary>
+    /// <summary>Tool invocation node  -  requires a specific tool (FileSystem, Index, Analyze, etc.).</summary>
     ToolAction
 }
 

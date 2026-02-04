@@ -63,7 +63,7 @@ public record ExecutionPlan
     public List<QueryNode> ReferenceNodes { get; init; } = [];
 
     /// <summary>
-    /// Tool action nodes — executed via tool executors, not the default search pipeline.
+    /// Tool action nodes  -  executed via tool executors, not the default search pipeline.
     /// These may be sequential (file find → index → query) or parallel.
     /// </summary>
     public List<QueryNode> ToolActionNodes { get; init; } = [];

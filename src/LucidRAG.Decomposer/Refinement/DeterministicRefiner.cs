@@ -5,7 +5,7 @@ namespace LucidRAG.Decomposer.Refinement;
 
 /// <summary>
 /// Fallback refiner when no LLM is available.
-/// Passes Phase 1 output through unchanged — the system works fully without LLM.
+/// Passes Phase 1 output through unchanged  -  the system works fully without LLM.
 /// </summary>
 public class DeterministicRefiner : IDecompositionRefiner
 {

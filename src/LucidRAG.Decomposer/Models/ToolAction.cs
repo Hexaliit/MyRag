@@ -2,7 +2,7 @@ namespace LucidRAG.Decomposer.Models;
 
 /// <summary>
 /// Represents a tool invocation that a QueryNode requires for execution.
-/// "Sources are tools" — web search, file system, indexer, KB query, crawl
+/// "Sources are tools"  -  web search, file system, indexer, KB query, crawl
 /// are all tools the decomposer routes to based on query intent.
 ///
 /// Examples:
@@ -43,7 +43,7 @@ public enum ToolKind
 {
     /// <summary>
     /// Web search via source plugins (search, gnews, hn, reddit, arxiv, etc.).
-    /// This is the default — existing DoomSummarizer fetch+score pipeline.
+    /// This is the default  -  existing DoomSummarizer fetch+score pipeline.
     /// </summary>
     Search,
 

@@ -9,7 +9,7 @@ namespace LucidRAG.Decomposer.Models;
 ///   - Lenses (PII redaction, security mode, ops mode, finance audit)
 ///   - Trust requirements (citation count, source tier)
 ///
-/// This is the "programmable substrate" — the KB stops being documents + search
+/// This is the "programmable substrate"  -  the KB stops being documents + search
 /// and becomes a set of typed concepts that drive the entire pipeline.
 /// </summary>
 public record ConceptPolicy

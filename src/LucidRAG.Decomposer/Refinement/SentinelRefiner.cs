@@ -33,7 +33,7 @@ public class SentinelRefiner : IDecompositionRefiner
     {
         if (sentinelData is not SentinelRefinementInput sentinel)
         {
-            // No sentinel data — fall back to deterministic
+            // No sentinel data  -  fall back to deterministic
             return new DeterministicRefiner().Refine(signals, null);
         }
 
@@ -46,19 +46,19 @@ public class SentinelRefiner : IDecompositionRefiner
 
         if (deterministicSplit && sentinelSplit)
         {
-            // Both agree — use deterministic structure, apply sentinel keywords
+            // Both agree  -  use deterministic structure, apply sentinel keywords
             _logger?.LogDebug("Both deterministic and sentinel split query. Using deterministic structure.");
             finalNodes = ApplySentinelEnhancements(deterministicNodes, sentinel);
         }
         else if (deterministicSplit && !sentinelSplit)
         {
-            // Only deterministic split — keep it (structural analysis is more reliable)
+            // Only deterministic split  -  keep it (structural analysis is more reliable)
             _logger?.LogDebug("Only deterministic split. Keeping structural decomposition.");
             finalNodes = ApplySentinelEnhancements(deterministicNodes, sentinel);
         }
         else if (!deterministicSplit && sentinelSplit)
         {
-            // Only LLM split — accept sentinel's subqueries
+            // Only LLM split  -  accept sentinel's subqueries
             _logger?.LogDebug("Only sentinel split ({Count} subqueries). Accepting LLM decomposition.",
                 sentinelSubqueries.Count);
             finalNodes = sentinelSubqueries.Select(sq => new QueryNode
@@ -72,7 +72,7 @@ public class SentinelRefiner : IDecompositionRefiner
         }
         else
         {
-            // Neither split — single query with sentinel enhancement
+            // Neither split  -  single query with sentinel enhancement
             var node = deterministicNodes.Count > 0
                 ? deterministicNodes[0]
                 : new QueryNode
@@ -137,7 +137,7 @@ public class SentinelRefiner : IDecompositionRefiner
         if (!string.IsNullOrEmpty(sentinel.CorrectedQuery) &&
             node.Type != QueryNodeType.ContentReference)
         {
-            // Don't replace the whole query — just note the correction is available
+            // Don't replace the whole query  -  just note the correction is available
             // The node retains its structural decomposition
         }
 

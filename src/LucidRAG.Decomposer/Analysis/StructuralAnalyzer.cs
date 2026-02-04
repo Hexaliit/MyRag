@@ -175,11 +175,11 @@ public class StructuralAnalyzer : IQueryAnalyzer
 
             if (similarity < TopicBoundaryThreshold)
             {
-                // Different topics — split
+                // Different topics  -  split
                 return [before, after];
             }
 
-            // Same topic — keep together, don't check further conjunctions
+            // Same topic  -  keep together, don't check further conjunctions
             break;
         }
 

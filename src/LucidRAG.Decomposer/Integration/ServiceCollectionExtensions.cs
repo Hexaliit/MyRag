@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
         // Refinement
         services.AddSingleton<SentinelRefiner>();
         services.AddSingleton<DeterministicRefiner>();
-        // Default to SentinelRefiner — falls back to DeterministicRefiner internally
+        // Default to SentinelRefiner  -  falls back to DeterministicRefiner internally
         services.AddSingleton<IDecompositionRefiner, SentinelRefiner>();
 
         // Caching
